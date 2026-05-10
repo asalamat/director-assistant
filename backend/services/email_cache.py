@@ -4,6 +4,7 @@ Eliminates repeated IMAP round-trips for list/fetch operations.
 """
 
 import json
+import re
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
@@ -236,18 +237,28 @@ class EmailCache:
         return summaries, total
 
     def fts_search(self, query: str, limit: int = 30) -> list[EmailSummary]:
-        """Full-text search using SQLite FTS5."""
-        safe = query.replace('"', '""')
-        with self._conn() as conn:
-            rows = conn.execute(
-                """SELECT e.id, e.subject, e.sender, e.date, e.body, e.is_read
-                   FROM emails e
-                   JOIN emails_fts ON emails_fts.id = e.id
-                   WHERE emails_fts MATCH ?
-                   ORDER BY rank LIMIT ?""",
-                (safe, limit),
-            ).fetchall()
-        return [self._row_to_summary(dict(r)) for r in rows]
+        """Full-text search using SQLite FTS5.
+        FTS5 interprets ':', '-', '+', '*' etc. as operators, so we strip them
+        and fall back to empty list on any parse error.
+        """
+        # Keep only alphanumerics and whitespace — avoids FTS5 operator collisions
+        safe = re.sub(r'[^\w\s]', ' ', query)
+        safe = ' '.join(safe.split()[:20])   # cap at 20 tokens
+        if not safe:
+            return []
+        try:
+            with self._conn() as conn:
+                rows = conn.execute(
+                    """SELECT e.id, e.subject, e.sender, e.date, e.body, e.is_read
+                       FROM emails e
+                       JOIN emails_fts ON emails_fts.id = e.id
+                       WHERE emails_fts MATCH ?
+                       ORDER BY rank LIMIT ?""",
+                    (safe, limit),
+                ).fetchall()
+            return [self._row_to_summary(dict(r)) for r in rows]
+        except Exception:
+            return []
 
     def count(self) -> int:
         with self._conn() as conn:
