@@ -210,6 +210,35 @@ class IMAPProvider:
                     except Exception:
                         continue
 
+    def fetch_recent_n(self, folder: str = "INBOX", n: int = 50, from_date=None):
+        """Fetch the N most recent emails (newest UIDs first).
+        Used for polling so we always check the latest arrivals, not the oldest.
+        from_date: datetime — server-side SINCE filter narrows the UID list cheaply.
+        """
+        if not self._mail:
+            self.connect()
+        self._mail.select(f'"{folder}"')
+
+        criteria = f'SINCE "{self._imap_date(from_date)}"' if from_date else "ALL"
+        _, data = self._mail.search(None, criteria)
+        uids = data[0].split()
+        total = len(uids)
+
+        # Take the LAST n UIDs (highest UID = newest email in IMAP)
+        recent = uids[-n:] if len(uids) > n else uids
+        if not recent:
+            return
+
+        uid_str = ",".join(u.decode() for u in recent)
+        _, fetch_data = self._mail.fetch(uid_str, "(RFC822)")
+        for item in fetch_data:
+            if isinstance(item, tuple):
+                uid = item[0].decode().split()[0]
+                try:
+                    yield self._parse_message(item[1], uid, folder), total
+                except Exception:
+                    continue
+
     def fetch_one(self, uid: str, folder: str = "INBOX") -> Optional[EmailMessage]:
         if not self._mail:
             self.connect()

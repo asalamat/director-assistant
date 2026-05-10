@@ -27,6 +27,8 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false)
   const [selectedEmail, setSelectedEmail] = useState<EmailSummary | null>(null)
   const [activeTab, setActiveTab] = useState<Tab>('inbox')
+  const [refreshing, setRefreshing] = useState(false)
+  const [refreshMsg, setRefreshMsg] = useState('')
 
   const { emails, total, loading: listLoading, hasMore, refresh, loadMore, setSort, currentParams } = useEmails()
   const { email, loading: emailLoading, fetch: fetchEmail } = useEmailDetail()
@@ -55,6 +57,25 @@ export default function App() {
     if (selectedEmail) fetchRec(selectedEmail.id)
   }
 
+  const handleRefresh = async () => {
+    setRefreshing(true)
+    setRefreshMsg('Checking mailboxes…')
+    try {
+      await api.pollNow()
+      // Wait a moment for the background task to start, then reload emails
+      setTimeout(async () => {
+        await refresh()
+        setRefreshMsg('Done')
+        setTimeout(() => setRefreshMsg(''), 2000)
+        setRefreshing(false)
+      }, 3000)
+    } catch {
+      setRefreshMsg('Check failed')
+      setRefreshing(false)
+      setTimeout(() => setRefreshMsg(''), 2000)
+    }
+  }
+
   if (connected === null) {
     return (
       <div className="h-screen flex items-center justify-center bg-gray-50">
@@ -75,10 +96,12 @@ export default function App() {
         <div className="flex gap-2">
           {activeTab === 'inbox' && (
             <button
-              onClick={() => refresh()}
-              className="text-xs text-gray-500 hover:text-gray-800 px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="text-xs text-gray-500 hover:text-gray-800 px-2 py-1 rounded hover:bg-gray-100 transition-colors disabled:opacity-60 flex items-center gap-1"
             >
-              ↻ Refresh
+              <span className={refreshing ? 'animate-spin inline-block' : ''}>↻</span>
+              <span>{refreshMsg || 'Refresh'}</span>
             </button>
           )}
           <button

@@ -166,6 +166,11 @@ export const api = {
     return request(`/sender/${encodeURIComponent(sender)}`)
   },
 
+  // Manual poll trigger
+  pollNow(): Promise<{ status: string }> {
+    return request('/poll/now', { method: 'POST' })
+  },
+
   // Accounts
   getAccounts(): Promise<Account[]> {
     return request('/accounts')
