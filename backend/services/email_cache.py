@@ -9,7 +9,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import List, Optional
 
-from models import EmailMessage, EmailSummary
+from models import EmailMessage, EmailSummary, ActionItem, FollowUp, Template
 
 
 class EmailCache:
@@ -77,6 +77,46 @@ class EmailCache:
                 END
             """)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_folder_date ON emails(folder, date DESC)")
+
+            # ── Productivity tables ────────────────────────────────────────────
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS action_items (
+                    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                    email_id     TEXT NOT NULL,
+                    email_subject TEXT DEFAULT '',
+                    text         TEXT NOT NULL,
+                    done         INTEGER DEFAULT 0,
+                    created_at   TEXT DEFAULT (datetime('now'))
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS follow_ups (
+                    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                    email_id     TEXT NOT NULL,
+                    subject      TEXT DEFAULT '',
+                    sender       TEXT DEFAULT '',
+                    due_date     TEXT NOT NULL,
+                    note         TEXT DEFAULT '',
+                    done         INTEGER DEFAULT 0,
+                    created_at   TEXT DEFAULT (datetime('now'))
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS templates (
+                    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name         TEXT NOT NULL,
+                    body         TEXT NOT NULL,
+                    created_at   TEXT DEFAULT (datetime('now')),
+                    updated_at   TEXT DEFAULT (datetime('now'))
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS email_categories (
+                    email_id     TEXT PRIMARY KEY,
+                    category     TEXT NOT NULL,
+                    classified_at TEXT DEFAULT (datetime('now'))
+                )
+            """)
 
     def _email_to_row(self, email: EmailMessage) -> tuple:
         return (
@@ -184,6 +224,164 @@ class EmailCache:
     def count(self) -> int:
         with self._conn() as conn:
             return conn.execute("SELECT COUNT(*) FROM emails").fetchone()[0]
+
+    # ── Action Items ──────────────────────────────────────────────────────────
+
+    def add_action_items(self, email_id: str, email_subject: str, items: list[str]) -> int:
+        rows = [(email_id, email_subject, t) for t in items if t.strip()]
+        with self._conn() as conn:
+            conn.execute("DELETE FROM action_items WHERE email_id = ?", (email_id,))
+            conn.executemany(
+                "INSERT INTO action_items (email_id, email_subject, text) VALUES (?,?,?)", rows
+            )
+        return len(rows)
+
+    def list_action_items(self, done: bool | None = None) -> list[ActionItem]:
+        where = "" if done is None else f"WHERE done = {1 if done else 0}"
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM action_items {where} ORDER BY created_at DESC"
+            ).fetchall()
+        return [ActionItem(**{**dict(r), "done": bool(r["done"])}) for r in rows]
+
+    def set_action_done(self, item_id: int, done: bool) -> bool:
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE action_items SET done = ? WHERE id = ?", (1 if done else 0, item_id)
+            )
+        return cur.rowcount > 0
+
+    # ── Follow-ups ────────────────────────────────────────────────────────────
+
+    def add_follow_up(self, f: FollowUp) -> int:
+        with self._conn() as conn:
+            cur = conn.execute(
+                """INSERT INTO follow_ups (email_id, subject, sender, due_date, note)
+                   VALUES (?,?,?,?,?)""",
+                (f.email_id, f.subject, f.sender, f.due_date, f.note),
+            )
+            return cur.lastrowid
+
+    def list_follow_ups(self, done: bool | None = None) -> list[FollowUp]:
+        where = "" if done is None else f"WHERE done = {1 if done else 0}"
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM follow_ups {where} ORDER BY due_date ASC"
+            ).fetchall()
+        return [FollowUp(**{**dict(r), "done": bool(r["done"])}) for r in rows]
+
+    def set_follow_up_done(self, fid: int, done: bool) -> bool:
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE follow_ups SET done = ? WHERE id = ?", (1 if done else 0, fid)
+            )
+        return cur.rowcount > 0
+
+    def delete_follow_up(self, fid: int) -> bool:
+        with self._conn() as conn:
+            cur = conn.execute("DELETE FROM follow_ups WHERE id = ?", (fid,))
+        return cur.rowcount > 0
+
+    # ── Templates ─────────────────────────────────────────────────────────────
+
+    def list_templates(self) -> list[Template]:
+        with self._conn() as conn:
+            rows = conn.execute("SELECT * FROM templates ORDER BY name").fetchall()
+        return [Template(**dict(r)) for r in rows]
+
+    def save_template(self, t: Template) -> int:
+        with self._conn() as conn:
+            if t.id:
+                conn.execute(
+                    "UPDATE templates SET name=?, body=?, updated_at=datetime('now') WHERE id=?",
+                    (t.name, t.body, t.id),
+                )
+                return t.id
+            cur = conn.execute(
+                "INSERT INTO templates (name, body) VALUES (?,?)", (t.name, t.body)
+            )
+            return cur.lastrowid
+
+    def delete_template(self, tid: int) -> bool:
+        with self._conn() as conn:
+            cur = conn.execute("DELETE FROM templates WHERE id = ?", (tid,))
+        return cur.rowcount > 0
+
+    # ── Categories ────────────────────────────────────────────────────────────
+
+    def set_category(self, email_id: str, category: str):
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO email_categories (email_id, category) VALUES (?,?)",
+                (email_id, category),
+            )
+
+    def get_category(self, email_id: str) -> str | None:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT category FROM email_categories WHERE email_id = ?", (email_id,)
+            ).fetchone()
+        return row[0] if row else None
+
+    # ── Analytics ─────────────────────────────────────────────────────────────
+
+    def daily_volume(self, days: int = 30) -> list[dict]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                """SELECT substr(date, 1, 10) AS day, COUNT(*) AS cnt
+                   FROM emails
+                   WHERE date >= date('now', ? || ' days')
+                   GROUP BY day ORDER BY day""",
+                (f"-{days}",),
+            ).fetchall()
+        return [{"date": r["day"], "count": r["cnt"]} for r in rows]
+
+    def top_senders(self, limit: int = 10) -> list[dict]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                """SELECT sender, COUNT(*) AS cnt FROM emails
+                   GROUP BY sender ORDER BY cnt DESC LIMIT ?""",
+                (limit,),
+            ).fetchall()
+        return [{"sender": r["sender"], "count": r["cnt"]} for r in rows]
+
+    def folder_breakdown(self) -> dict[str, int]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT folder, COUNT(*) AS cnt FROM emails GROUP BY folder"
+            ).fetchall()
+        return {r["folder"]: r["cnt"] for r in rows}
+
+    def sender_stats(self, sender: str) -> dict:
+        with self._conn() as conn:
+            row = conn.execute(
+                """SELECT COUNT(*) AS cnt,
+                          MIN(date) AS first_contact,
+                          MAX(date) AS last_contact
+                   FROM emails WHERE sender = ?""",
+                (sender,),
+            ).fetchone()
+            subjects = conn.execute(
+                """SELECT subject FROM emails WHERE sender = ?
+                   ORDER BY date DESC LIMIT 5""",
+                (sender,),
+            ).fetchall()
+        return {
+            "total_emails": row["cnt"],
+            "first_contact": row["first_contact"],
+            "last_contact": row["last_contact"],
+            "recent_subjects": [r["subject"] for r in subjects],
+        }
+
+    def recent_emails_for_digest(self, hours: int = 24) -> list[EmailSummary]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                """SELECT id, subject, sender, date, body, is_read FROM emails
+                   WHERE date >= datetime('now', ? || ' hours')
+                   ORDER BY date DESC""",
+                (f"-{hours}",),
+            ).fetchall()
+        return [self._row_to_summary(dict(r)) for r in rows]
 
     def _to_message(self, row: dict) -> EmailMessage:
         try:

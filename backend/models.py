@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
 
@@ -78,3 +78,69 @@ class SearchRequest(BaseModel):
     query: str
     n_results: int = 10
     folder: Optional[str] = None
+
+
+# ── Productivity features ──────────────────────────────────────────────────────
+
+class ActionItem(BaseModel):
+    id: Optional[int] = None
+    email_id: str
+    email_subject: str = ""
+    text: str
+    done: bool = False
+    created_at: Optional[str] = None
+
+
+class FollowUp(BaseModel):
+    id: Optional[int] = None
+    email_id: str
+    subject: str = ""
+    sender: str = ""
+    due_date: str                    # ISO date
+    note: str = ""
+    done: bool = False
+    created_at: Optional[str] = None
+
+
+class Template(BaseModel):
+    id: Optional[int] = None
+    name: str
+    body: str
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
+class EmailCategory(str, Enum):
+    ACTION_REQUIRED = "action_required"
+    FYI = "fyi"
+    NEWSLETTER = "newsletter"
+    MEETING = "meeting"
+    OTHER = "other"
+
+
+class DigestResponse(BaseModel):
+    date: str
+    summary: str
+    top_action_items: List[str] = []
+    highlights: List[str] = []
+    email_count: int = 0
+
+
+class SenderStats(BaseModel):
+    sender: str
+    total_emails: int
+    first_contact: Optional[str] = None
+    last_contact: Optional[str] = None
+    recent_subjects: List[str] = []
+
+
+class AnalyticsPeriod(BaseModel):
+    date: str
+    count: int
+
+
+class AnalyticsResponse(BaseModel):
+    daily_volume: List[AnalyticsPeriod] = []
+    top_senders: List[Dict[str, Any]] = []
+    folder_breakdown: Dict[str, int] = {}
+    total_emails: int = 0

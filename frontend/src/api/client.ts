@@ -4,6 +4,12 @@ import type {
   AIRecommendation,
   IngestProgress,
   ConnectionStatus,
+  ActionItem,
+  FollowUp,
+  Template,
+  DigestResponse,
+  SenderStats,
+  AnalyticsResponse,
 } from '../types'
 
 const BASE = '/api'
@@ -79,7 +85,7 @@ export const api = {
   },
 
   getStats(): Promise<{
-    rag: { total_chunks: number; unique_emails_indexed: number; db_size_bytes: number; db_size_mb: number }
+    rag: { total_chunks: number; unique_emails_indexed: number; cached_emails: number; db_size_mb: number }
     ingest: { status: string; processed: number; total: number; message: string }
   }> {
     return fetch('/api/stats').then(r => r.json())
@@ -96,5 +102,66 @@ export const api = {
       }
     }
     return es
+  },
+
+  // Classify
+  classifyEmail(id: string): Promise<{ email_id: string; category: string }> {
+    return request(`/emails/${id}/classify`, { method: 'POST' })
+  },
+  getEmailCategory(id: string): Promise<{ email_id: string; category: string | null }> {
+    return request(`/emails/${id}/category`)
+  },
+
+  // Digest
+  getDigest(hours = 24): Promise<DigestResponse> {
+    return request(`/digest?hours=${hours}`)
+  },
+
+  // Action Items
+  getActions(done?: boolean): Promise<ActionItem[]> {
+    const qs = done !== undefined ? `?done=${done}` : ''
+    return request(`/actions${qs}`)
+  },
+  setActionDone(id: number, done: boolean): Promise<void> {
+    return request(`/actions/${id}`, { method: 'PATCH', body: JSON.stringify({ done }) })
+  },
+
+  // Follow-ups
+  getFollowUps(done?: boolean): Promise<FollowUp[]> {
+    const qs = done !== undefined ? `?done=${done}` : ''
+    return request(`/followups${qs}`)
+  },
+  createFollowUp(f: Omit<FollowUp, 'id' | 'created_at' | 'done'>): Promise<{ id: number }> {
+    return request('/followups', { method: 'POST', body: JSON.stringify({ ...f, done: false }) })
+  },
+  setFollowUpDone(id: number, done: boolean): Promise<void> {
+    return request(`/followups/${id}`, { method: 'PATCH', body: JSON.stringify({ done }) })
+  },
+  deleteFollowUp(id: number): Promise<void> {
+    return request(`/followups/${id}`, { method: 'DELETE' })
+  },
+
+  // Templates
+  getTemplates(): Promise<Template[]> {
+    return request('/templates')
+  },
+  createTemplate(t: Omit<Template, 'id'>): Promise<{ id: number }> {
+    return request('/templates', { method: 'POST', body: JSON.stringify(t) })
+  },
+  updateTemplate(id: number, t: Template): Promise<void> {
+    return request(`/templates/${id}`, { method: 'PUT', body: JSON.stringify(t) })
+  },
+  deleteTemplate(id: number): Promise<void> {
+    return request(`/templates/${id}`, { method: 'DELETE' })
+  },
+
+  // Analytics
+  getAnalytics(days = 30): Promise<AnalyticsResponse> {
+    return request(`/analytics?days=${days}`)
+  },
+
+  // Sender stats
+  getSenderStats(sender: string): Promise<SenderStats> {
+    return request(`/sender/${encodeURIComponent(sender)}`)
   },
 }

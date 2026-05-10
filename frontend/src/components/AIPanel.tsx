@@ -1,10 +1,12 @@
 import { useState } from 'react'
-import type { AIRecommendation } from '../types'
+import { api } from '../api/client'
+import type { AIRecommendation, EmailMessage } from '../types'
 
 interface Props {
   rec: AIRecommendation | null
   loading: boolean
   error: string
+  email: EmailMessage | null
 }
 
 const URGENCY_STYLES: Record<string, string> = {
@@ -15,15 +17,23 @@ const URGENCY_STYLES: Record<string, string> = {
 }
 
 const TONE_ICON: Record<string, string> = {
-  formal: '🎩',
-  casual: '💬',
-  urgent: '⚡',
-  friendly: '😊',
-  neutral: '📄',
+  formal: '🎩', casual: '💬', urgent: '⚡', friendly: '😊', neutral: '📄',
 }
 
-export function AIPanel({ rec, loading, error }: Props) {
+const LABELS = ['Brief', 'Professional', 'Detailed']
+
+export function AIPanel({ rec, loading, error, email }: Props) {
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
+  const [draftIdx, setDraftIdx] = useState<number | null>(null)
+  const [draftText, setDraftText] = useState('')
+  const [showFollowUp, setShowFollowUp] = useState(false)
+  const [dueDate, setDueDate] = useState('')
+  const [followUpNote, setFollowUpNote] = useState('')
+  const [actionsSaved, setActionsSaved] = useState(false)
+  const [senderStats, setSenderStats] = useState<{
+    total_emails: number; first_contact: string | null; last_contact: string | null; recent_subjects: string[]
+  } | null>(null)
+  const [loadingSender, setLoadingSender] = useState(false)
 
   const copy = (text: string, idx: number) => {
     navigator.clipboard.writeText(text)
@@ -31,14 +41,57 @@ export function AIPanel({ rec, loading, error }: Props) {
     setTimeout(() => setCopiedIdx(null), 1500)
   }
 
+  const openDraft = (text: string, idx: number) => {
+    setDraftIdx(idx)
+    setDraftText(text)
+  }
+
+  const saveActions = async () => {
+    if (!email || !rec?.action_items.length) return
+    // Send action items to backend via a simple fetch
+    await fetch('/api/actions/bulk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email_id: email.id,
+        email_subject: email.subject,
+        items: rec.action_items,
+      }),
+    })
+    setActionsSaved(true)
+    setTimeout(() => setActionsSaved(false), 2000)
+  }
+
+  const createFollowUp = async () => {
+    if (!email || !dueDate) return
+    await api.createFollowUp({
+      email_id: email.id,
+      subject: email.subject,
+      sender: email.sender,
+      due_date: dueDate,
+      note: followUpNote,
+    })
+    setShowFollowUp(false)
+    setDueDate('')
+    setFollowUpNote('')
+  }
+
+  const loadSenderStats = async () => {
+    if (!email) return
+    setLoadingSender(true)
+    try {
+      setSenderStats(await api.getSenderStats(email.sender))
+    } finally {
+      setLoadingSender(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="w-80 flex-shrink-0 bg-gray-50 border-l border-gray-200 flex flex-col items-center justify-center gap-3 p-6">
         <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
         <p className="text-sm text-gray-500">Analyzing email…</p>
-        <p className="text-xs text-gray-400 text-center">
-          RAG search + Claude re-ranking + generating replies
-        </p>
+        <p className="text-xs text-gray-400 text-center">RAG search + Claude re-ranking + generating replies</p>
       </div>
     )
   }
@@ -55,24 +108,67 @@ export function AIPanel({ rec, loading, error }: Props) {
     return (
       <div className="w-80 flex-shrink-0 bg-gray-50 border-l border-gray-200 flex flex-col items-center justify-center gap-2 p-6">
         <div className="text-3xl">✦</div>
-        <p className="text-sm text-gray-400 text-center">
-          Click "AI Analysis" to get reply suggestions
-        </p>
+        <p className="text-sm text-gray-400 text-center">Click "AI Analysis" to get reply suggestions</p>
+        {email && (
+          <button
+            onClick={() => { setSenderStats(null); loadSenderStats() }}
+            className="mt-2 text-xs text-accent hover:underline"
+          >
+            View sender stats
+          </button>
+        )}
+        {senderStats && <SenderStatsCard sender={email?.sender ?? ''} stats={senderStats} />}
+        {loadingSender && <p className="text-xs text-gray-400">Loading…</p>}
       </div>
     )
   }
 
   return (
     <div className="w-80 flex-shrink-0 bg-gray-50 border-l border-gray-200 flex flex-col overflow-y-auto">
-      {/* Urgency + tone badges */}
-      <div className="px-4 pt-4 flex gap-2 flex-wrap">
+      {/* Urgency + tone + follow-up button */}
+      <div className="px-4 pt-4 flex gap-2 flex-wrap items-center">
         <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${URGENCY_STYLES[rec.urgency] ?? 'bg-gray-100 text-gray-600'}`}>
           {rec.urgency.charAt(0).toUpperCase() + rec.urgency.slice(1)} urgency
         </span>
         <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-600">
           {TONE_ICON[rec.tone] ?? '📄'} {rec.tone}
         </span>
+        <button
+          onClick={() => setShowFollowUp(true)}
+          className="ml-auto text-xs border border-gray-300 text-gray-600 px-2 py-0.5 rounded hover:bg-gray-100"
+        >
+          Follow up
+        </button>
       </div>
+
+      {/* Follow-up form */}
+      {showFollowUp && (
+        <div className="mx-4 mt-3 p-3 border border-accent rounded-xl bg-blue-50 space-y-2">
+          <p className="text-xs font-medium text-gray-700">Schedule follow-up</p>
+          <input
+            type="date"
+            value={dueDate}
+            onChange={(e) => setDueDate(e.target.value)}
+            className="w-full text-xs border border-gray-300 rounded px-2 py-1"
+          />
+          <input
+            value={followUpNote}
+            onChange={(e) => setFollowUpNote(e.target.value)}
+            placeholder="Note (optional)"
+            className="w-full text-xs border border-gray-300 rounded px-2 py-1"
+          />
+          <div className="flex gap-2">
+            <button
+              onClick={createFollowUp}
+              disabled={!dueDate}
+              className="text-xs bg-accent text-white px-2.5 py-1 rounded disabled:opacity-50"
+            >
+              Save
+            </button>
+            <button onClick={() => setShowFollowUp(false)} className="text-xs text-gray-500">Cancel</button>
+          </div>
+        </div>
+      )}
 
       {/* Analysis */}
       {rec.analysis && (
@@ -98,7 +194,7 @@ export function AIPanel({ rec, loading, error }: Props) {
       {/* Action Items */}
       {rec.action_items.length > 0 && (
         <Section title="Action Items">
-          <ul className="space-y-1">
+          <ul className="space-y-1 mb-2">
             {rec.action_items.map((a, i) => (
               <li key={i} className="flex gap-2 text-xs text-gray-700">
                 <span className="text-accent mt-0.5">☐</span>
@@ -106,31 +202,76 @@ export function AIPanel({ rec, loading, error }: Props) {
               </li>
             ))}
           </ul>
+          <button
+            onClick={saveActions}
+            className="text-xs text-accent hover:underline"
+          >
+            {actionsSaved ? '✓ Saved to board' : 'Save to action board'}
+          </button>
         </Section>
       )}
 
-      {/* Suggested Replies */}
+      {/* Suggested Replies — with Draft Composer */}
       {rec.suggested_replies.length > 0 && (
         <Section title="Suggested Replies">
           <div className="space-y-2">
-            {rec.suggested_replies.map((reply, i) => {
-              const labels = ['Brief', 'Professional', 'Detailed']
-              return (
-                <div key={i} className="bg-white border border-gray-200 rounded-lg p-3">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs font-medium text-gray-500">{labels[i] ?? `Option ${i + 1}`}</span>
+            {rec.suggested_replies.map((reply, i) => (
+              <div key={i} className="bg-white border border-gray-200 rounded-lg p-3">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-xs font-medium text-gray-500">{LABELS[i] ?? `Option ${i + 1}`}</span>
+                  <div className="flex gap-2">
                     <button
-                      onClick={() => copy(reply, i)}
-                      className="text-xs text-accent hover:text-blue-700 transition-colors"
+                      onClick={() => openDraft(reply, i)}
+                      className="text-xs text-gray-400 hover:text-gray-700"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => copy(draftIdx === i ? draftText : reply, i)}
+                      className="text-xs text-accent hover:text-blue-700"
                     >
                       {copiedIdx === i ? '✓ Copied' : 'Copy'}
                     </button>
                   </div>
-                  <p className="text-xs text-gray-700 leading-relaxed">{reply}</p>
                 </div>
-              )
-            })}
+                {draftIdx === i ? (
+                  <textarea
+                    value={draftText}
+                    onChange={(e) => setDraftText(e.target.value)}
+                    rows={6}
+                    className="w-full text-xs text-gray-700 border border-accent rounded p-1.5 resize-none focus:outline-none"
+                    autoFocus
+                  />
+                ) : (
+                  <p className="text-xs text-gray-700 leading-relaxed">{reply}</p>
+                )}
+                {draftIdx === i && (
+                  <button
+                    onClick={() => setDraftIdx(null)}
+                    className="text-xs text-gray-400 hover:text-gray-700 mt-1"
+                  >
+                    Done editing
+                  </button>
+                )}
+              </div>
+            ))}
           </div>
+        </Section>
+      )}
+
+      {/* Sender stats */}
+      {email && (
+        <Section title="Sender">
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-gray-600 truncate">{email.sender}</p>
+            <button
+              onClick={loadSenderStats}
+              className="text-xs text-accent hover:underline flex-shrink-0"
+            >
+              {loadingSender ? '…' : 'Stats'}
+            </button>
+          </div>
+          {senderStats && <SenderStatsCard sender={email.sender} stats={senderStats} />}
         </Section>
       )}
 
@@ -154,6 +295,43 @@ export function AIPanel({ rec, loading, error }: Props) {
       )}
 
       <div className="h-4" />
+    </div>
+  )
+}
+
+function SenderStatsCard({
+  sender,
+  stats,
+}: {
+  sender: string
+  stats: { total_emails: number; first_contact: string | null; last_contact: string | null; recent_subjects: string[] }
+}) {
+  return (
+    <div className="mt-2 p-2.5 bg-white border border-gray-200 rounded-lg space-y-1.5">
+      <div className="flex justify-between text-xs">
+        <span className="text-gray-500">Total emails</span>
+        <span className="font-medium text-gray-800">{stats.total_emails}</span>
+      </div>
+      {stats.first_contact && (
+        <div className="flex justify-between text-xs">
+          <span className="text-gray-500">First contact</span>
+          <span className="text-gray-600">{stats.first_contact.slice(0, 10)}</span>
+        </div>
+      )}
+      {stats.last_contact && (
+        <div className="flex justify-between text-xs">
+          <span className="text-gray-500">Last contact</span>
+          <span className="text-gray-600">{stats.last_contact.slice(0, 10)}</span>
+        </div>
+      )}
+      {stats.recent_subjects.length > 0 && (
+        <div className="pt-1 border-t border-gray-100">
+          <p className="text-xs text-gray-400 mb-1">Recent subjects</p>
+          {stats.recent_subjects.slice(0, 3).map((s, i) => (
+            <p key={i} className="text-xs text-gray-600 truncate">· {s}</p>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

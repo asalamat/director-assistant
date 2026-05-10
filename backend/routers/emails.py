@@ -145,10 +145,31 @@ async def search(req: SearchRequest, request: Request):
 
     results = rag.semantic_search(req.query, n=req.n_results)
 
-    # Enrich with cached body previews if available
     for r in results:
         cached = cache.get(r["email_id"])
         if cached:
             r["preview"] = (cached.body or "")[:300]
 
     return {"results": results, "total": len(results)}
+
+
+@router.post("/{email_id}/classify")
+async def classify_email(request: Request, email_id: str):
+    cache: EmailCache = request.app.state.cache
+    classifier = request.app.state.classifier
+    email = cache.get(email_id)
+    if not email:
+        from fastapi import HTTPException
+        raise HTTPException(404, "Email not found in cache")
+    cat = await classifier.classify(
+        email_id, email.subject or "", email.sender or "", (email.body or "")[:200]
+    )
+    cache.set_category(email_id, cat)
+    return {"email_id": email_id, "category": cat}
+
+
+@router.get("/{email_id}/category")
+async def get_email_category(request: Request, email_id: str):
+    cache: EmailCache = request.app.state.cache
+    cat = cache.get_category(email_id)
+    return {"email_id": email_id, "category": cat}

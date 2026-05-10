@@ -10,7 +10,10 @@ import anthropic
 from services.rag_engine import RAGEngine
 from services.ai_advisor import AIAdvisor
 from services.email_cache import EmailCache
+from services.digest import DigestService
+from services.classifier import ClassifierService
 from routers import connection, emails
+from routers import digest, actions, followups, templates, analytics, sender
 
 load_dotenv()
 
@@ -79,9 +82,11 @@ async def _poll_new_emails(rag: RAGEngine, cache: EmailCache):
 async def lifespan(app: FastAPI):
     api_key = os.getenv("ANTHROPIC_API_KEY", "")
     client = anthropic.AsyncAnthropic(api_key=api_key)
-    app.state.cache = EmailCache()                        # must init before RAGEngine
-    app.state.rag = RAGEngine(client, app.state.cache)   # RAG uses cache for FTS5
+    app.state.cache = EmailCache()
+    app.state.rag = RAGEngine(client, app.state.cache)
     app.state.advisor = AIAdvisor(client)
+    app.state.digest = DigestService(client)
+    app.state.classifier = ClassifierService(client)
 
     # Start background new-email poller
     poll_task = asyncio.create_task(
@@ -107,6 +112,12 @@ app.add_middleware(
 
 app.include_router(connection.router)
 app.include_router(emails.router)
+app.include_router(digest.router)
+app.include_router(actions.router)
+app.include_router(followups.router)
+app.include_router(templates.router)
+app.include_router(analytics.router)
+app.include_router(sender.router)
 
 
 @app.get("/health")

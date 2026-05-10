@@ -43,3 +43,61 @@ export interface ConnectionStatus {
 }
 
 export type EmailProvider = 'yahoo_imap' | 'generic_imap' | 'office365'
+
+export type EmailCategory = 'action_required' | 'meeting' | 'fyi' | 'newsletter' | 'other'
+
+export interface ActionItem {
+  id: number
+  email_id: string
+  email_subject: string
+  text: string
+  done: boolean
+  created_at: string | null
+}
+
+export interface FollowUp {
+  id: number
+  email_id: string
+  subject: string
+  sender: string
+  due_date: string
+  note: string
+  done: boolean
+  created_at: string | null
+}
+
+export interface Template {
+  id?: number
+  name: string
+  body: string
+  created_at?: string
+  updated_at?: string
+}
+
+export interface DigestResponse {
+  date: string
+  summary: string
+  top_action_items: string[]
+  highlights: string[]
+  email_count: number
+}
+
+export interface SenderStats {
+  sender: string
+  total_emails: number
+  first_contact: string | null
+  last_contact: string | null
+  recent_subjects: string[]
+}
+
+export interface AnalyticsPeriod {
+  date: string
+  count: number
+}
+
+export interface AnalyticsResponse {
+  daily_volume: AnalyticsPeriod[]
+  top_senders: { sender: string; count: number }[]
+  folder_breakdown: Record<string, number>
+  total_emails: number
+}
