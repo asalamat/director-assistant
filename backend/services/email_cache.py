@@ -9,7 +9,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import List, Optional
 
-from models import EmailMessage, EmailSummary, ActionItem, FollowUp, Template
+import json as _json
+from models import EmailMessage, EmailSummary, ActionItem, FollowUp, Template, Account
 
 
 class EmailCache:
@@ -118,7 +119,30 @@ class EmailCache:
                 )
             """)
 
-    def _email_to_row(self, email: EmailMessage) -> tuple:
+            # ── Multi-account support ──────────────────────────────────────────
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS accounts (
+                    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name         TEXT DEFAULT '',
+                    provider     TEXT NOT NULL,
+                    username     TEXT NOT NULL,
+                    config_json  TEXT DEFAULT '{}',
+                    active       INTEGER DEFAULT 1,
+                    last_ingested TEXT,
+                    created_at   TEXT DEFAULT (datetime('now'))
+                )
+            """)
+            # Extend emails table for multi-account (safe: ignored if column exists)
+            for col_def in [
+                "account_id INTEGER DEFAULT 0",
+                "server_id TEXT",
+            ]:
+                try:
+                    conn.execute(f"ALTER TABLE emails ADD COLUMN {col_def}")
+                except Exception:
+                    pass
+
+    def _email_to_row(self, email: EmailMessage, account_id: int = 0) -> tuple:
         return (
             email.id,
             email.subject or "",
@@ -130,9 +154,11 @@ class EmailCache:
             email.thread_id,
             email.folder or "INBOX",
             1 if email.is_read else 0,
+            account_id,
+            getattr(email, "_server_id", email.id),
         )
 
-    def save(self, email: EmailMessage) -> bool:
+    def save(self, email: EmailMessage, account_id: int = 0) -> bool:
         """Upsert single email. Returns True if newly inserted."""
         with self._conn() as conn:
             existing = conn.execute(
@@ -140,17 +166,18 @@ class EmailCache:
             ).fetchone()
             conn.execute(
                 """INSERT OR REPLACE INTO emails
-                   (id, subject, sender, recipients, date, body, body_html, thread_id, folder, is_read)
-                   VALUES (?,?,?,?,?,?,?,?,?,?)""",
-                self._email_to_row(email),
+                   (id, subject, sender, recipients, date, body, body_html,
+                    thread_id, folder, is_read, account_id, server_id)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+                self._email_to_row(email, account_id),
             )
         return existing is None
 
-    def save_batch(self, emails: List[EmailMessage]) -> int:
+    def save_batch(self, emails: List[EmailMessage], account_id: int = 0) -> int:
         """Bulk upsert using executemany. Returns count of new rows."""
         if not emails:
             return 0
-        rows = [self._email_to_row(e) for e in emails]
+        rows = [self._email_to_row(e, account_id) for e in emails]
         with self._conn() as conn:
             existing_ids = {
                 r[0] for r in conn.execute(
@@ -160,8 +187,9 @@ class EmailCache:
             }
             conn.executemany(
                 """INSERT OR REPLACE INTO emails
-                   (id, subject, sender, recipients, date, body, body_html, thread_id, folder, is_read)
-                   VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                   (id, subject, sender, recipients, date, body, body_html,
+                    thread_id, folder, is_read, account_id, server_id)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
                 rows,
             )
         return sum(1 for e in emails if e.id not in existing_ids)
@@ -372,6 +400,95 @@ class EmailCache:
             "last_contact": row["last_contact"],
             "recent_subjects": [r["subject"] for r in subjects],
         }
+
+    # ── Accounts ──────────────────────────────────────────────────────────────
+
+    def _row_to_account(self, row: dict) -> Account:
+        cfg = _json.loads(row.get("config_json") or "{}")
+        return Account(
+            id=row["id"],
+            name=row.get("name") or "",
+            provider=row["provider"],
+            username=row["username"],
+            active=bool(row.get("active", 1)),
+            last_ingested=row.get("last_ingested"),
+            created_at=row.get("created_at"),
+            password=cfg.get("password"),
+            imap_host=cfg.get("imap_host"),
+            imap_port=cfg.get("imap_port", 993),
+            tenant_id=cfg.get("tenant_id"),
+            client_id=cfg.get("client_id"),
+            client_secret=cfg.get("client_secret"),
+        )
+
+    def list_accounts(self) -> list[Account]:
+        with self._conn() as conn:
+            rows = conn.execute("SELECT * FROM accounts ORDER BY id").fetchall()
+        return [self._row_to_account(dict(r)) for r in rows]
+
+    def get_account(self, account_id: int) -> Account | None:
+        with self._conn() as conn:
+            row = conn.execute("SELECT * FROM accounts WHERE id = ?", (account_id,)).fetchone()
+        return self._row_to_account(dict(row)) if row else None
+
+    def add_account(self, account: Account) -> int:
+        cfg = _json.dumps({
+            "password": account.password,
+            "imap_host": account.imap_host,
+            "imap_port": account.imap_port,
+            "tenant_id": account.tenant_id,
+            "client_id": account.client_id,
+            "client_secret": account.client_secret,
+        })
+        with self._conn() as conn:
+            cur = conn.execute(
+                "INSERT INTO accounts (name, provider, username, config_json) VALUES (?,?,?,?)",
+                (account.name or account.username, account.provider, account.username, cfg),
+            )
+            return cur.lastrowid
+
+    def remove_account(self, account_id: int) -> bool:
+        with self._conn() as conn:
+            cur = conn.execute("DELETE FROM accounts WHERE id = ?", (account_id,))
+        return cur.rowcount > 0
+
+    def mark_ingested(self, account_id: int):
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE accounts SET last_ingested = datetime('now') WHERE id = ?",
+                (account_id,),
+            )
+
+    def import_legacy_config(self, config_json: str) -> int | None:
+        """Import single-account config.json as account 1 (idempotent)."""
+        try:
+            data = _json.loads(config_json)
+        except Exception:
+            return None
+        with self._conn() as conn:
+            count = conn.execute("SELECT COUNT(*) FROM accounts").fetchone()[0]
+            if count > 0:
+                return None      # accounts already set up
+        from models import Account, EmailProviderType
+        cfg = Account(
+            provider=data.get("provider", "generic_imap"),
+            username=data.get("username", ""),
+            name=data.get("username", ""),
+            password=data.get("password"),
+            imap_host=data.get("imap_host"),
+            imap_port=data.get("imap_port", 993),
+            tenant_id=data.get("tenant_id"),
+            client_id=data.get("client_id"),
+            client_secret=data.get("client_secret"),
+        )
+        return self.add_account(cfg)
+
+    def get_email_account(self, email_id: str) -> dict | None:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT account_id, server_id FROM emails WHERE id = ?", (email_id,)
+            ).fetchone()
+        return dict(row) if row else None
 
     def recent_emails_for_digest(self, hours: int = 24) -> list[EmailSummary]:
         with self._conn() as conn:

@@ -6,6 +6,8 @@ from enum import Enum
 
 class EmailProviderType(str, Enum):
     YAHOO_IMAP = "yahoo_imap"
+    GMAIL = "gmail"
+    HOTMAIL = "hotmail"
     GENERIC_IMAP = "generic_imap"
     OFFICE365 = "office365"
 
@@ -78,6 +80,34 @@ class SearchRequest(BaseModel):
     query: str
     n_results: int = 10
     folder: Optional[str] = None
+
+
+class Account(BaseModel):
+    id: Optional[int] = None
+    name: str = ""
+    provider: EmailProviderType
+    username: str
+    password: Optional[str] = None
+    imap_host: Optional[str] = None
+    imap_port: int = 993
+    tenant_id: Optional[str] = None
+    client_id: Optional[str] = None
+    client_secret: Optional[str] = None
+    active: bool = True
+    last_ingested: Optional[str] = None
+    created_at: Optional[str] = None
+
+    def to_connection_config(self) -> "ConnectionConfig":
+        return ConnectionConfig(
+            provider=self.provider,
+            username=self.username,
+            password=self.password,
+            imap_host=self.imap_host,
+            imap_port=self.imap_port,
+            tenant_id=self.tenant_id,
+            client_id=self.client_id,
+            client_secret=self.client_secret,
+        )
 
 
 # ── Productivity features ──────────────────────────────────────────────────────

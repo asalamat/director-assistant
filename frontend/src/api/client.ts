@@ -10,6 +10,7 @@ import type {
   DigestResponse,
   SenderStats,
   AnalyticsResponse,
+  Account,
 } from '../types'
 
 const BASE = '/api'
@@ -163,5 +164,29 @@ export const api = {
   // Sender stats
   getSenderStats(sender: string): Promise<SenderStats> {
     return request(`/sender/${encodeURIComponent(sender)}`)
+  },
+
+  // Accounts
+  getAccounts(): Promise<Account[]> {
+    return request('/accounts')
+  },
+  addAccount(data: object): Promise<{ id: number; status: string }> {
+    return request('/accounts', { method: 'POST', body: JSON.stringify(data) })
+  },
+  removeAccount(id: number): Promise<void> {
+    return request(`/accounts/${id}`, { method: 'DELETE' })
+  },
+  ingestAccount(id: number): Promise<void> {
+    return request(`/accounts/${id}/ingest`, { method: 'POST' })
+  },
+  ingestAll(): Promise<void> {
+    return request('/accounts/ingest-all', { method: 'POST' })
+  },
+  subscribeAccountsIngestProgress(onProgress: (p: IngestProgress) => void): EventSource {
+    const es = new EventSource('/api/accounts/ingest/progress')
+    es.onmessage = (e) => {
+      try { onProgress(JSON.parse(e.data)) } catch { /* ignore */ }
+    }
+    return es
   },
 }

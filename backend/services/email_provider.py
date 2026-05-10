@@ -66,16 +66,20 @@ def _extract_body(msg) -> tuple[Optional[str], Optional[str]]:
     return plain, html_body
 
 
+IMAP_HOSTS: dict[str, tuple[str, int]] = {
+    EmailProviderType.YAHOO_IMAP: ("imap.mail.yahoo.com", 993),
+    EmailProviderType.GMAIL:      ("imap.gmail.com", 993),
+    EmailProviderType.HOTMAIL:    ("outlook.office365.com", 993),
+}
+
+
 class IMAPProvider:
-    """Works with Yahoo (imap.mail.yahoo.com:993) and generic IMAP servers."""
+    """Works with Yahoo, Gmail, Hotmail, and generic IMAP servers."""
 
     def __init__(self, config: ConnectionConfig):
-        if config.provider == EmailProviderType.YAHOO_IMAP:
-            self.host = "imap.mail.yahoo.com"
-            self.port = 993
-        else:
-            self.host = config.imap_host or "imap.mail.yahoo.com"
-            self.port = config.imap_port
+        default_host, default_port = IMAP_HOSTS.get(config.provider, ("", 993))
+        self.host = config.imap_host or default_host or "imap.mail.yahoo.com"
+        self.port = config.imap_port or default_port
         self.username = config.username
         self.password = config.password or ""
         self._mail: Optional[imaplib.IMAP4_SSL] = None
@@ -358,4 +362,4 @@ class Office365Provider:
 def build_provider(config: ConnectionConfig):
     if config.provider == EmailProviderType.OFFICE365:
         return Office365Provider(config)
-    return IMAPProvider(config)
+    return IMAPProvider(config)    # covers yahoo_imap, gmail, hotmail, generic_imap

@@ -42,7 +42,17 @@ export interface ConnectionStatus {
   provider: string | null
 }
 
-export type EmailProvider = 'yahoo_imap' | 'generic_imap' | 'office365'
+export type EmailProvider = 'yahoo_imap' | 'gmail' | 'hotmail' | 'generic_imap' | 'office365'
+
+export interface Account {
+  id: number
+  name: string
+  provider: EmailProvider
+  username: string
+  active: boolean
+  last_ingested: string | null
+  created_at: string | null
+}
 
 export type EmailCategory = 'action_required' | 'meeting' | 'fyi' | 'newsletter' | 'other'
 

@@ -5,19 +5,14 @@ from typing import Optional, AsyncIterator
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Request
 from fastapi.responses import StreamingResponse
 
-from models import ConnectionConfig, IngestProgress, IngestRequest, EmailProviderType
-from services.email_provider import build_provider, IMAPProvider, Office365Provider
+from models import ConnectionConfig, IngestProgress, IngestRequest, Account
+from services.email_provider import build_provider
 
 router = APIRouter(prefix="/api/connection", tags=["connection"])
 
 CONFIG_PATH = Path.home() / ".director-assistant" / "config.json"
 _progress = IngestProgress()
 _provider = None
-
-
-def _save_config(config: ConnectionConfig):
-    CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    CONFIG_PATH.write_text(config.model_dump_json())
 
 
 def load_config() -> Optional[ConnectionConfig]:
@@ -32,31 +27,64 @@ def get_provider():
 
 @router.post("/connect")
 async def connect(config: ConnectionConfig, request: Request):
+    """Legacy single-account connect — adds as account in the accounts table."""
     global _provider
     provider = build_provider(config)
     if not provider.test_connection():
         raise HTTPException(400, "Connection failed — check credentials")
+
     _provider = provider
-    _save_config(config)
+    cache = request.app.state.cache
+    account = Account(
+        provider=config.provider,
+        username=config.username,
+        name=config.username,
+        password=config.password,
+        imap_host=config.imap_host,
+        imap_port=config.imap_port,
+        tenant_id=config.tenant_id,
+        client_id=config.client_id,
+        client_secret=config.client_secret,
+    )
+    # Don't duplicate if same username already exists
+    existing = [a for a in cache.list_accounts() if a.username == config.username]
+    if not existing:
+        cache.add_account(account)
+
+    # Save legacy config for backwards compat
+    CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    CONFIG_PATH.write_text(config.model_dump_json())
     return {"status": "connected", "provider": config.provider}
 
 
 @router.get("/status")
-async def status():
+async def status(request: Request):
     global _provider
-    cfg = load_config()
-    if _provider is None and cfg:
-        _provider = build_provider(cfg)
+    cache = request.app.state.cache
+    accounts = cache.list_accounts()
+    connected = len(accounts) > 0
+
+    # Migrate legacy config.json on first startup
+    if not connected and CONFIG_PATH.exists():
+        cache.import_legacy_config(CONFIG_PATH.read_text())
+        accounts = cache.list_accounts()
+        connected = len(accounts) > 0
+
     return {
-        "connected": _provider is not None,
-        "provider": cfg.provider if cfg else None,
+        "connected": connected,
+        "accounts": len(accounts),
+        "provider": accounts[0].provider if accounts else None,
     }
 
 
 @router.delete("/disconnect")
-async def disconnect():
+async def disconnect(request: Request):
     global _provider
     _provider = None
+    # Clear all accounts
+    cache = request.app.state.cache
+    for acc in cache.list_accounts():
+        cache.remove_account(acc.id)
     if CONFIG_PATH.exists():
         CONFIG_PATH.unlink()
     return {"status": "disconnected"}
@@ -67,14 +95,17 @@ async def _run_ingest(rag, cache, from_date=None, custom_folders=None):
     import traceback
     from datetime import datetime
 
-    if _provider is None:
+    accounts = cache.list_accounts()
+
+    # Fall back to legacy single config if no accounts in DB
+    if not accounts:
         cfg = load_config()
         if not cfg:
-            _progress = IngestProgress(status="error", message="Not connected — connect first")
+            _progress = IngestProgress(status="error", message="No accounts configured")
             return
-        _provider = build_provider(cfg)
+        if _provider is None:
+            _provider = build_provider(cfg)
 
-    # Parse from_date
     dt_from = None
     if from_date:
         try:
@@ -82,49 +113,63 @@ async def _run_ingest(rag, cache, from_date=None, custom_folders=None):
         except Exception:
             pass
 
-    _progress = IngestProgress(status="running", message="Detecting folders…", from_date=from_date)
+    _progress = IngestProgress(status="running", message="Starting…", from_date=from_date)
 
     try:
         loop = asyncio.get_event_loop()
-        folders = custom_folders or _provider.get_ingest_folders()
         total_processed = 0
         total_skipped = 0
         IMAP_BATCH = 500
 
-        def fetch_folder(folder: str):
-            nonlocal total_processed, total_skipped
-            date_label = f" from {from_date}" if from_date else ""
-            _progress.message = f"Scanning {folder}{date_label}…"
-            known_ids = rag._known_ids()
+        providers_to_run = []
+        if accounts:
+            for acc in accounts:
+                cfg = acc.to_connection_config()
+                prov = build_provider(cfg)
+                folders = custom_folders or prov.get_ingest_folders()
+                providers_to_run.append((acc, prov, folders))
+        else:
+            folders = custom_folders or _provider.get_ingest_folders()
+            providers_to_run = [(None, _provider, folders)]
 
-            buffer: list = []
-            folder_total = 0
+        for acc, prov, folders in providers_to_run:
+            account_id = acc.id if acc else 0
+            prefix = f"[{acc.username}] " if acc else ""
 
-            for email, t in _provider.fetch_all(folder=folder, batch_size=100, from_date=dt_from):
-                folder_total = max(folder_total, t)
-                buffer.append(email)
+            def fetch_folder(folder: str):
+                nonlocal total_processed, total_skipped
+                date_label = f" from {from_date}" if from_date else ""
+                _progress.message = f"{prefix}{folder}{date_label}…"
+                buffer = []
+                folder_total = 0
 
-                if len(buffer) >= IMAP_BATCH:
-                    cache.save_batch(buffer)
-                    new = rag.ingest_batch(buffer, known_ids)
+                for email, t in prov.fetch_all(folder=folder, batch_size=100, from_date=dt_from):
+                    folder_total = max(folder_total, t)
+                    if account_id:
+                        email._server_id = email.id  # type: ignore[attr-defined]
+                        email.id = f"a{account_id}_{email.id}"
+                    buffer.append(email)
+
+                    if len(buffer) >= IMAP_BATCH:
+                        cache.save_batch(buffer, account_id=account_id)
+                        new = rag.ingest_batch(buffer)
+                        total_processed += new
+                        total_skipped += len(buffer) - new
+                        buffer = []
+                        _progress.total = folder_total
+                        _progress.processed = total_processed + total_skipped
+
+                if buffer:
+                    cache.save_batch(buffer, account_id=account_id)
+                    new = rag.ingest_batch(buffer)
                     total_processed += new
                     total_skipped += len(buffer) - new
-                    buffer = []
-                    _progress.total = folder_total
-                    _progress.processed = total_processed + total_skipped
-                    _progress.message = (
-                        f"{folder}{date_label}: {total_processed} new, {total_skipped} existing "
-                        f"({total_processed + total_skipped}/{folder_total})"
-                    )
 
-            if buffer:
-                cache.save_batch(buffer)
-                new = rag.ingest_batch(buffer, known_ids)
-                total_processed += new
-                total_skipped += len(buffer) - new
+            for folder in folders:
+                await loop.run_in_executor(None, fetch_folder, folder)
 
-        for folder in folders:
-            await loop.run_in_executor(None, fetch_folder, folder)
+            if acc:
+                cache.mark_ingested(acc.id)
 
         rag.flush_bm25()
         _progress = IngestProgress(
@@ -132,12 +177,9 @@ async def _run_ingest(rag, cache, from_date=None, custom_folders=None):
             processed=total_processed + total_skipped,
             status="completed",
             from_date=from_date,
-            message=(
-                f"Done — {total_processed} new emails indexed across "
-                f"{', '.join(folders)}"
-                + (f" from {from_date}" if from_date else "")
-                + f" ({total_skipped} already existed)"
-            ),
+            message=f"Done — {total_processed} new across {sum(len(f) for _, _, f in providers_to_run)} folders"
+                    + (f" from {from_date}" if from_date else "")
+                    + f" ({total_skipped} already existed)",
         )
     except Exception as e:
         tb = traceback.format_exc()
@@ -150,16 +192,6 @@ async def start_ingest(req: IngestRequest, background_tasks: BackgroundTasks, re
     global _progress
     if _progress.status == "running":
         raise HTTPException(409, "Ingestion already running")
-
-    if _provider is None:
-        cfg = load_config()
-        if not cfg:
-            raise HTTPException(400, "Not connected — go to Settings and connect first")
-        try:
-            p = build_provider(cfg)
-            p.test_connection()
-        except Exception as e:
-            raise HTTPException(400, f"Cannot reach mailbox: {e}")
 
     rag = request.app.state.rag
     cache = request.app.state.cache

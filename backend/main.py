@@ -5,6 +5,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 import anthropic
 
 from services.rag_engine import RAGEngine
@@ -13,43 +14,54 @@ from services.email_cache import EmailCache
 from services.digest import DigestService
 from services.classifier import ClassifierService
 from routers import connection, emails
-from routers import digest, actions, followups, templates, analytics, sender
+from routers import digest, actions, followups, templates, analytics, sender, accounts as accounts_router
 
 load_dotenv()
 
-NEW_EMAIL_POLL_SECONDS = int(os.getenv("POLL_INTERVAL_SECONDS", "120"))  # 2 min default
+NEW_EMAIL_POLL_SECONDS = int(os.getenv("POLL_INTERVAL_SECONDS", "120"))
+POLL_SCAN_LIMIT = 100
 
 
 async def _poll_new_emails(rag: RAGEngine, cache: EmailCache):
-    """Background task: check Inbox + Sent every POLL_INTERVAL_SECONDS for new emails."""
-    await asyncio.sleep(30)  # initial delay — let startup complete
+    """Background task: check all accounts for new emails every POLL_INTERVAL_SECONDS."""
+    await asyncio.sleep(30)
     while True:
         try:
-            from routers.connection import load_config, _progress
+            from routers.connection import _progress, load_config
             from services.email_provider import build_provider
 
             if _progress.status == "running":
                 await asyncio.sleep(NEW_EMAIL_POLL_SECONDS)
                 continue
 
-            cfg = load_config()
-            if not cfg:
-                await asyncio.sleep(NEW_EMAIL_POLL_SECONDS)
-                continue
-
-            provider = build_provider(cfg)
-            folders = provider.get_ingest_folders()
             known_ids = rag._known_ids()
             new_total = 0
 
-            def check_folder(folder: str) -> int:
+            all_accounts = cache.list_accounts()
+
+            # Build provider list: prefer accounts table, fall back to config.json
+            providers_to_check = []
+            if all_accounts:
+                for acc in all_accounts:
+                    try:
+                        providers_to_check.append((acc.id, build_provider(acc.to_connection_config())))
+                    except Exception:
+                        pass
+            else:
+                cfg = load_config()
+                if cfg:
+                    providers_to_check = [(0, build_provider(cfg))]
+
+            loop = asyncio.get_event_loop()
+
+            def check_folder(account_id: int, provider, folder: str) -> int:
                 count = 0
                 seen = 0
-                # Scan the most recent POLL_SCAN_LIMIT emails per folder
-                # fetch_all yields one email at a time — collect up to limit
-                POLL_SCAN_LIMIT = 100
                 buffer = []
                 for email, _ in provider.fetch_all(folder=folder, batch_size=POLL_SCAN_LIMIT):
+                    if account_id:
+                        email._server_id = email.id  # type: ignore[attr-defined]
+                        email.id = f"a{account_id}_{email.id}"
                     if email.id not in known_ids:
                         buffer.append(email)
                     seen += 1
@@ -57,16 +69,22 @@ async def _poll_new_emails(rag: RAGEngine, cache: EmailCache):
                         break
 
                 if buffer:
-                    cache.save_batch(buffer)
-                    for email in buffer:
-                        if rag.ingest_email(email):
-                            known_ids.add(email.id)
+                    cache.save_batch(buffer, account_id=account_id)
+                    for em in buffer:
+                        if rag.ingest_email(em):
+                            known_ids.add(em.id)
                             count += 1
                 return count
 
-            loop = asyncio.get_event_loop()
-            for folder in folders:
-                new_total += await loop.run_in_executor(None, check_folder, folder)
+            for account_id, provider in providers_to_check:
+                try:
+                    folders = provider.get_ingest_folders()
+                    for folder in folders:
+                        new_total += await loop.run_in_executor(
+                            None, check_folder, account_id, provider, folder
+                        )
+                except Exception as e:
+                    print(f"[poll] account {account_id} error: {e}")
 
             if new_total > 0:
                 rag.flush_bm25()
@@ -88,7 +106,6 @@ async def lifespan(app: FastAPI):
     app.state.digest = DigestService(client)
     app.state.classifier = ClassifierService(client)
 
-    # Start background new-email poller
     poll_task = asyncio.create_task(
         _poll_new_emails(app.state.rag, app.state.cache)
     )
@@ -104,7 +121,7 @@ app = FastAPI(title="Director Assistant API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173"],
+    allow_origins=["http://localhost:3000", "http://localhost:5173", "http://localhost:8000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -118,6 +135,7 @@ app.include_router(followups.router)
 app.include_router(templates.router)
 app.include_router(analytics.router)
 app.include_router(sender.router)
+app.include_router(accounts_router.router)
 
 
 @app.get("/health")
@@ -132,7 +150,6 @@ async def stats(request: Request):
     cache = request.app.state.cache
     rag_stats = rag.stats()
 
-    # Disk usage — ChromaDB + SQLite
     da_dir = Path.home() / ".director-assistant"
     db_bytes = sum(f.stat().st_size for f in da_dir.rglob("*") if f.is_file()) if da_dir.exists() else 0
 
@@ -140,8 +157,8 @@ async def stats(request: Request):
     return {
         "rag": {
             "total_chunks": rag_stats["total_chunks"],
-            "unique_emails_indexed": rag.count_unique_emails(),  # O(1) counter
-            "cached_emails": cache.count(),                       # SQLite count, instant
+            "unique_emails_indexed": rag.count_unique_emails(),
+            "cached_emails": cache.count(),
             "db_size_mb": round(db_bytes / 1024 / 1024, 2),
         },
         "ingest": {
@@ -151,3 +168,9 @@ async def stats(request: Request):
             "message": _progress.message,
         },
     }
+
+
+# Serve built frontend from backend/static/ (production mode)
+_static_dir = Path(__file__).parent / "static"
+if _static_dir.exists():
+    app.mount("/", StaticFiles(directory=str(_static_dir), html=True), name="static")
