@@ -65,13 +65,31 @@ async def _poll_new_emails(rag: RAGEngine, cache: EmailCache):
                     providers_to_check = [(0, build_provider(cfg))]
 
             loop = asyncio.get_event_loop()
+            since_str = since_dt.strftime("%Y-%m-%d")
 
             def check_folder(account_id: int, provider, folder: str) -> int:
+                # ── Step 1: get UIDs currently on server (cheap, no body download) ──
+                try:
+                    server_uids = provider.get_uid_list(folder=folder, from_date=since_dt)
+                except Exception as e:
+                    print(f"[poll] uid_list failed account={account_id} folder={folder}: {e}")
+                    server_uids = None
+
+                # ── Step 2: remove locally cached emails deleted from server ──
+                if server_uids is not None:
+                    cached = cache.get_cached_server_ids(account_id, folder, since_str)
+                    for srv_id, cache_id in cached.items():
+                        if srv_id not in server_uids:
+                            cache.delete_email(cache_id)
+                            rag.remove_email(cache_id)
+                            known_ids.discard(cache_id)
+                            print(f"[poll] removed deleted email cache_id={cache_id}")
+
+                # ── Step 3: fetch new emails from server ──
                 buffer = []
                 fetch_fn = (
                     lambda: provider.fetch_recent_n(folder=folder, n=POLL_RECENT_N, from_date=since_dt)
                     if isinstance(provider, IMAPProvider)
-                    # Office365: fetch_all with since_dt returns newest N via Graph pagination
                     else provider.fetch_all(folder=folder, batch_size=POLL_RECENT_N, from_date=since_dt)
                 )
                 for email, _ in fetch_fn():
@@ -225,7 +243,7 @@ async def _poll_new_emails_once(rag: RAGEngine, cache: EmailCache):
     global _last_poll_time, _last_poll_new
     from datetime import datetime, timedelta, timezone
     from routers.connection import _progress, load_config
-    from services.email_provider import build_provider, IMAPProvider
+    from services.email_provider import build_provider, IMAPProvider, Office365Provider
 
     if _progress.status == "running":
         return
@@ -248,8 +266,25 @@ async def _poll_new_emails_once(rag: RAGEngine, cache: EmailCache):
             providers_to_check = [(0, build_provider(cfg))]
 
     loop = asyncio.get_event_loop()
+    since_str = since_dt.strftime("%Y-%m-%d")
 
     def check_folder(account_id: int, provider, folder: str) -> int:
+        # Step 1: detect server-side deletions
+        try:
+            server_uids = provider.get_uid_list(folder=folder, from_date=since_dt)
+        except Exception as e:
+            print(f"[poll-now] uid_list failed account={account_id} folder={folder}: {e}")
+            server_uids = None
+
+        if server_uids is not None:
+            cached = cache.get_cached_server_ids(account_id, folder, since_str)
+            for srv_id, cache_id in cached.items():
+                if srv_id not in server_uids:
+                    cache.delete_email(cache_id)
+                    rag.remove_email(cache_id)
+                    known_ids.discard(cache_id)
+
+        # Step 2: fetch new emails
         buffer = []
         fetch_fn = (
             lambda: provider.fetch_recent_n(folder=folder, n=POLL_RECENT_N, from_date=since_dt)

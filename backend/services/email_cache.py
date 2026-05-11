@@ -297,6 +297,18 @@ class EmailCache:
         with self._conn() as conn:
             return conn.execute("SELECT COUNT(*) FROM emails").fetchone()[0]
 
+    def get_cached_server_ids(self, account_id: int, folder: str, since_str: str) -> dict:
+        """Return {server_id: cache_id} for emails in this account/folder since a date.
+        Used by the poll to detect which emails were deleted from the server.
+        """
+        with self._conn() as conn:
+            rows = conn.execute(
+                """SELECT id, server_id FROM emails
+                   WHERE account_id = ? AND UPPER(folder) = UPPER(?) AND date >= ?""",
+                (account_id, folder, since_str),
+            ).fetchall()
+        return {r["server_id"]: r["id"] for r in rows if r["server_id"]}
+
     def delete_email(self, email_id: str) -> bool:
         """Remove email and its FTS entry. Returns True if it existed."""
         with self._conn() as conn:

@@ -216,6 +216,17 @@ class IMAPProvider:
                 except Exception as e:
                     print(f"[provider] parse error uid={uid}: {e}")
 
+    def get_uid_list(self, folder: str = "INBOX", from_date=None) -> set:
+        """Return the set of UIDs currently on the server (no body download).
+        Used to detect deletions: UIDs in our cache but not here were removed.
+        """
+        if not self._mail:
+            self.connect()
+        self._mail.select(f'"{folder}"')
+        criteria = f'SINCE "{self._imap_date(from_date)}"' if from_date else "ALL"
+        _, data = self._mail.search(None, criteria)
+        return {u.decode() for u in data[0].split() if u}
+
     @staticmethod
     def _imap_date(dt) -> str:
         """Convert date to IMAP SINCE format: 01-Jan-2024"""
@@ -419,6 +430,34 @@ class Office365Provider:
                         continue
 
                 url = data.get("@odata.nextLink")
+
+    def get_uid_list(self, folder: str = "inbox", from_date=None) -> set:
+        """Return the set of Graph message IDs currently on the server (ID only, no body).
+        Used for deletion detection — does NOT download message content.
+        """
+        token = self._get_token()
+        date_filter = ""
+        if from_date:
+            iso = from_date.strftime("%Y-%m-%dT00:00:00Z")
+            date_filter = f"&$filter=receivedDateTime ge {iso}"
+        url = (
+            f"{self.BASE_URL}/me/mailFolders/{folder}/messages"
+            f"?$top=1000&$select=id{date_filter}"
+        )
+        ids: set = set()
+        with httpx.Client(timeout=30) as client:
+            while url:
+                try:
+                    r = client.get(url, headers={"Authorization": f"Bearer {token}"})
+                    r.raise_for_status()
+                    data = r.json()
+                    for msg in data.get("value", []):
+                        if msg.get("id"):
+                            ids.add(msg["id"])
+                    url = data.get("@odata.nextLink")
+                except Exception:
+                    break
+        return ids
 
     def fetch_one(self, msg_id: str) -> Optional[EmailMessage]:
         token = self._get_token()
