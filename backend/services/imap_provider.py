@@ -96,15 +96,15 @@ class IMAPProvider:
         try:
             self._mail = imaplib.IMAP4_SSL(self.host, self.port, timeout=IMAP_CONNECT_TIMEOUT)
             if self.access_token:
-                # OAuth2 / Modern Auth — works with Microsoft accounts that have disabled basic auth
-                xoauth2 = base64.b64encode(
-                    f"user={self.username}\x01auth=Bearer {self.access_token}\x01\x01".encode()
-                ).decode()
+                # OAuth2 / Modern Auth — works with Microsoft accounts that have disabled basic auth.
+                # imaplib._Authenticator.encode() base64-encodes the callback return value,
+                # so we must return RAW bytes (not pre-base64 string).
+                xoauth2_raw = f"user={self.username}\x01auth=Bearer {self.access_token}\x01\x01".encode()
                 calls = []
                 def _xoauth2_cb(challenge):
                     if not calls:          # first call — send credentials
                         calls.append(1)
-                        return xoauth2
+                        return xoauth2_raw
                     # Second call = server returned a base64-encoded JSON error
                     if challenge:
                         try:
@@ -120,7 +120,7 @@ class IMAPProvider:
                             raise
                         except Exception:
                             pass
-                    return ""              # must send empty to complete SASL exchange
+                    return b""             # must send empty to complete SASL exchange
                 self._mail.authenticate("XOAUTH2", _xoauth2_cb)
             else:
                 try:
@@ -129,7 +129,7 @@ class IMAPProvider:
                     # Fallback: some servers reject LOGIN but accept AUTHENTICATE PLAIN
                     creds = f"\x00{self.username}\x00{password}".encode()
                     self._mail.authenticate(
-                        "PLAIN", lambda _: base64.b64encode(creds).decode()
+                        "PLAIN", lambda _: creds
                     )
         finally:
             _socket.setdefaulttimeout(old)

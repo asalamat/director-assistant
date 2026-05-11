@@ -41,11 +41,24 @@ class DirectorAssistantApp(rumps.App):
 
     def _start_backend(self):
         if _port_open():
-            return  # already running — skip
+            return
+        log_path = os.path.expanduser("~/.director-assistant/server.log")
+        env = {**os.environ, "PYTHONUNBUFFERED": "1"}
         self._backend = subprocess.Popen(
             [_UVICORN, "main:app", "--host", "127.0.0.1", "--port", str(_PORT)],
             cwd=_BACKEND_DIR,
+            env=env,
+            stdout=open(log_path, "a"),
+            stderr=subprocess.STDOUT,
         )
+
+    @rumps.timer(10)
+    def _watchdog(self, _):
+        """Restart the backend if it has exited unexpectedly."""
+        if self._backend is not None and self._backend.poll() is not None:
+            self._backend = None
+        if self._backend is None and not _port_open():
+            self._start_backend()
 
     @rumps.clicked("Open Director Assistant")
     def open_browser(self, _):

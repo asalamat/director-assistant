@@ -44,7 +44,7 @@ async def add_account(account: Account, request: Request):
     try:
         build_provider(cfg).test_connection()
     except Exception as e:
-        msg = str(e).strip("b'\"")   # strip Python bytes repr e.g. b'LOGIN failed.'
+        msg = str(e).strip("b'\"")
         raise HTTPException(400, f"Connection failed: {msg}")
 
     aid = cache.add_account(account)
