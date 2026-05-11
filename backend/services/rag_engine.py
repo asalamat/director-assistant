@@ -196,6 +196,10 @@ class RAGEngine:
                 scores[id_] = scores.get(id_, 0.0) + 1.0 / (self.RRF_K + rank + 1)
         return sorted(scores, key=lambda x: scores[x], reverse=True)
 
+    # Cosine distance threshold: 0 = identical, 1 = orthogonal.
+    # Candidates with distance > this value are excluded before reranking.
+    SIMILARITY_THRESHOLD = 0.50
+
     def hybrid_search(self, query: str, n_results: int = 20) -> List[dict]:
         """Dense (ChromaDB) + Sparse (SQLite FTS5), fused with RRF."""
         count = self._col.count()
@@ -211,12 +215,20 @@ class RAGEngine:
             include=["documents", "metadatas", "distances"],
         )
         dense_ids = dense["ids"][0]
+        dense_distances = dense["distances"][0]
         id_to_meta = {i: m for i, m in zip(dense_ids, dense["metadatas"][0])}
         id_to_doc = {i: d for i, d in zip(dense_ids, dense["documents"][0])}
+        id_to_dist = {i: d for i, d in zip(dense_ids, dense_distances)}
+
+        # Track best (lowest) distance per email_id
+        email_to_dist: dict[str, float] = {}
+        for chunk_id, dist in zip(dense_ids, dense_distances):
+            eid = id_to_meta.get(chunk_id, {}).get("email_id", "")
+            if eid:
+                email_to_dist[eid] = min(email_to_dist.get(eid, 999.0), dist)
 
         # 2. Sparse full-text search via SQLite FTS5 (disk-based, no memory limit)
         fts_summaries = self._cache.fts_search(query, limit=n)
-        # Map FTS email_ids to fake chunk IDs for RRF (use email_id as key)
         fts_email_ids = [s.id for s in fts_summaries]
 
         # 3. Collect dense email_ids in order
@@ -232,7 +244,6 @@ class RAGEngine:
         merged_email_ids = self._rrf(dense_email_ids, fts_email_ids)
 
         # 5. Build result objects (best chunk per email for preview)
-        # Build reverse map: email_id → best chunk text from dense results
         email_to_chunk: dict[str, tuple[str, dict]] = {}
         for chunk_id in dense_ids:
             meta = id_to_meta.get(chunk_id, {})
@@ -240,7 +251,6 @@ class RAGEngine:
             if eid and eid not in email_to_chunk:
                 email_to_chunk[eid] = (id_to_doc.get(chunk_id, ""), meta)
 
-        # Supplement with FTS results for emails not in dense
         fts_by_id = {s.id: s for s in fts_summaries}
 
         results: List[dict] = []
@@ -259,9 +269,12 @@ class RAGEngine:
                     "date": meta.get("date", ""),
                     "folder": meta.get("folder", ""),
                     "text": text,
+                    "_distance": email_to_dist.get(email_id, 1.0),
                 })
             elif email_id in fts_by_id:
                 s = fts_by_id[email_id]
+                # FTS-only hits get a conservative distance so they aren't
+                # promoted ahead of strong dense matches but still appear
                 results.append({
                     "email_id": email_id,
                     "subject": s.subject,
@@ -269,6 +282,7 @@ class RAGEngine:
                     "date": s.date or "",
                     "folder": "",
                     "text": s.preview,
+                    "_distance": 0.45,  # treat as moderate relevance
                 })
 
             if len(results) >= n_results:
@@ -279,9 +293,13 @@ class RAGEngine:
     async def rerank_with_claude(
         self, target: EmailMessage, candidates: List[dict], top_n: int = 5
     ) -> List[dict]:
-        """Cross-encoder re-ranking via Claude Haiku."""
+        """Cross-encoder re-ranking via Claude Haiku.
+        Returns only genuinely relevant results — may return fewer than top_n.
+        """
+        if not candidates:
+            return []
         if len(candidates) <= top_n:
-            return candidates[:top_n]
+            return candidates
 
         pool = candidates[:15]
         listed = "\n".join(
@@ -293,8 +311,10 @@ class RAGEngine:
             f"TARGET EMAIL:\nSubject: {target.subject}\nFrom: {target.sender}\n"
             f"Preview: {(target.body or '')[:300]}\n\n"
             f"CANDIDATE EMAILS:\n{listed}\n\n"
-            f"Return ONLY a JSON array of the {top_n} most relevant candidate numbers "
-            f"(1-indexed), ordered best-first. Example: [3,1,7,2,5]"
+            f"Return a JSON array of candidate numbers (1-indexed) that are GENUINELY "
+            f"relevant to the target email, ordered best-first. Include at most {top_n}. "
+            f"If a candidate is unrelated, do NOT include it — accuracy matters more than "
+            f"filling the list. Return [] if none are relevant. Example: [3,1,2]"
         )
         try:
             resp = await self.ai.messages.create(
@@ -304,22 +324,34 @@ class RAGEngine:
             )
             indices = json.loads(resp.content[0].text.strip())
             reranked = [pool[i - 1] for i in indices if isinstance(i, int) and 1 <= i <= len(pool)]
-            if reranked:
-                return reranked[:top_n]
+            return reranked[:top_n]
         except Exception as e:
             logger.warning(f"[rerank] Claude rerank failed ({type(e).__name__}: {e}), using unranked results")
 
         return candidates[:top_n]
 
     async def get_similar_emails(self, email: EmailMessage, n: int = 5) -> List[dict]:
-        """Full pipeline: hybrid search → Claude re-rank."""
+        """Full pipeline: hybrid search → distance filter → Claude re-rank."""
         query = f"{email.subject} {(email.body or '')[:500]}"
-        candidates = self.hybrid_search(query, n_results=20)
-        candidates = [c for c in candidates if c["email_id"] != email.id]
-        return await self.rerank_with_claude(email, candidates, top_n=n)
+        candidates = self.hybrid_search(query, n_results=25)
+
+        # Exclude the email itself and those with too-low similarity
+        candidates = [
+            c for c in candidates
+            if c["email_id"] != email.id
+            and c.get("_distance", 1.0) <= self.SIMILARITY_THRESHOLD
+        ]
+
+        reranked = await self.rerank_with_claude(email, candidates, top_n=n)
+        for r in reranked:
+            r.pop("_distance", None)
+        return reranked
 
     def semantic_search(self, query: str, n: int = 10) -> List[dict]:
-        return self.hybrid_search(query, n_results=n)
+        results = self.hybrid_search(query, n_results=n)
+        for r in results:
+            r.pop("_distance", None)
+        return results
 
     # ── Stats ─────────────────────────────────────────────────────────────────
 
