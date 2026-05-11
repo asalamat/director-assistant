@@ -73,7 +73,7 @@ export default function App() {
   const [importing, setImporting] = useState(false)
   const [importMsg, setImportMsg] = useState('')
 
-  const { emails, total, loading: listLoading, hasMore, refresh, loadMore, setSort, currentParams, removeEmail } = useEmails()
+  const { emails, total, loading: listLoading, hasMore, refresh, mergeRefresh, loadMore, setSort, currentParams, removeEmail } = useEmails()
   const { email, loading: emailLoading, fetch: fetchEmail } = useEmailDetail()
   const { rec, loading: recLoading, error: recError, fetch: fetchRec } = useRecommendation()
 
@@ -119,7 +119,7 @@ export default function App() {
       const res = await api.importBySubject(importSubject.trim())
       if (res.count > 0) {
         setImportMsg(`Imported ${res.count} email${res.count !== 1 ? 's' : ''}`)
-        await refresh()
+        await mergeRefresh()
       } else {
         setImportMsg('No matching emails found')
       }
@@ -160,7 +160,7 @@ export default function App() {
             const newFound = s?.poll?.last_new ?? 0
             if (s?.poll?.last_checked !== prevChecked) {
               clearInterval(id)
-              await refresh()
+              await mergeRefresh()
               setRefreshMsg(newFound > 0 ? `+${newFound} new email${newFound !== 1 ? 's' : ''}` : 'Up to date')
               setTimeout(() => setRefreshMsg(''), 3000)
               resolve()

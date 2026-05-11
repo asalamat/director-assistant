@@ -37,6 +37,7 @@ class AppConfigUpdate(BaseModel):
     openai_api_key: Optional[str] = None
     poll_interval_seconds: Optional[int] = None
     budget_mode: Optional[bool] = None
+    sync_window_days: Optional[int] = None
 
 
 @router.get("")
@@ -51,6 +52,7 @@ async def get_config():
         "openai_key_preview": f"{oai_key[:8]}…" if oai_key else "",
         "poll_interval_seconds": cfg.get("poll_interval_seconds", 60),
         "budget_mode": cfg.get("budget_mode", False),
+        "sync_window_days": cfg.get("sync_window_days", 7),
     }
 
 
@@ -69,6 +71,9 @@ async def update_config(update: AppConfigUpdate, request: Request):
 
     if update.budget_mode is not None:
         cfg["budget_mode"] = update.budget_mode
+
+    if update.sync_window_days is not None:
+        cfg["sync_window_days"] = max(1, min(90, update.sync_window_days))
 
     save_app_config(cfg)
 

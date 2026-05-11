@@ -186,7 +186,7 @@ export const api = {
   getConfig(): Promise<AppConfig> {
     return request('/config')
   },
-  saveConfig(data: { anthropic_api_key?: string; openai_api_key?: string; poll_interval_seconds?: number; budget_mode?: boolean }): Promise<{ status: string; has_api_key: boolean; has_openai_key: boolean }> {
+  saveConfig(data: { anthropic_api_key?: string; openai_api_key?: string; poll_interval_seconds?: number; budget_mode?: boolean; sync_window_days?: number }): Promise<{ status: string; has_api_key: boolean; has_openai_key: boolean }> {
     return request('/config', { method: 'POST', body: JSON.stringify(data) })
   },
   testApiKey(key: string): Promise<{ valid: boolean; model?: string; error?: string }> {

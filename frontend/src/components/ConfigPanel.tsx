@@ -153,6 +153,7 @@ export function ConfigPanel({ onSaved }: Props) {
   const [anthropicKey, setAnthropicKey] = useState('')
   const [openaiKey, setOpenaiKey] = useState('')
   const [pollInterval, setPollInterval] = useState(60)
+  const [syncWindowDays, setSyncWindowDays] = useState(7)
   const [budgetMode, setBudgetMode] = useState(false)
 
   const [testingAnt, setTestingAnt] = useState(false)
@@ -168,6 +169,7 @@ export function ConfigPanel({ onSaved }: Props) {
     api.getConfig().then((cfg) => {
       setConfig(cfg)
       setPollInterval(cfg.poll_interval_seconds)
+      setSyncWindowDays(cfg.sync_window_days ?? 7)
       setBudgetMode(cfg.budget_mode ?? false)
     }).catch(() => {})
   }, [])
@@ -199,8 +201,9 @@ export function ConfigPanel({ onSaved }: Props) {
   const handleSave = async () => {
     setSaving(true); setSaveMsg('')
     try {
-      const payload: { anthropic_api_key?: string; openai_api_key?: string; poll_interval_seconds?: number; budget_mode?: boolean } = {
+      const payload: { anthropic_api_key?: string; openai_api_key?: string; poll_interval_seconds?: number; budget_mode?: boolean; sync_window_days?: number } = {
         poll_interval_seconds: pollInterval,
+        sync_window_days: syncWindowDays,
         budget_mode: budgetMode,
       }
       if (anthropicKey) payload.anthropic_api_key = anthropicKey
@@ -288,6 +291,29 @@ export function ConfigPanel({ onSaved }: Props) {
             {pollInterval >= 60
               ? `${Math.round(pollInterval / 60)} min${Math.round(pollInterval / 60) !== 1 ? 's' : ''}`
               : `${pollInterval}s`}
+          </span>
+        </div>
+      </div>
+
+      {/* Sync window */}
+      <div>
+        <h2 className="text-sm font-semibold text-gray-800 mb-1">Sync window</h2>
+        <p className="text-xs text-gray-500 mb-3">
+          How far back to look for new and deleted emails on each poll.
+          Wider = catches older changes; narrower = faster polls.
+        </p>
+        <div className="flex items-center gap-3">
+          <input
+            type="range"
+            min={1}
+            max={30}
+            step={1}
+            value={syncWindowDays}
+            onChange={e => setSyncWindowDays(Number(e.target.value))}
+            className="flex-1 accent-accent"
+          />
+          <span className="text-sm font-medium text-gray-700 w-20 text-right">
+            {syncWindowDays} {syncWindowDays === 1 ? 'day' : 'days'}
           </span>
         </div>
       </div>

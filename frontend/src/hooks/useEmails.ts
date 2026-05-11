@@ -56,9 +56,36 @@ export function useEmails(defaultFolder = 'INBOX') {
     setTotal((prev) => Math.max(0, prev - 1))
   }, [])
 
+  // Smart merge after a poll: prepend new arrivals, remove deleted ones,
+  // keep older "load more" pages intact — no full-list reload.
+  const mergeRefresh = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await api.listEmails({ skip: 0, limit: 50, ...paramsRef.current })
+      const freshIds = new Set(res.emails.map((e) => e.id))
+      const oldestFreshDate = res.emails.length > 0 ? res.emails[res.emails.length - 1].date : null
+
+      setEmails((prev) => {
+        // Keep emails loaded via "load more" that are older than our fresh page
+        const beyond = prev.filter((e) => {
+          if (freshIds.has(e.id)) return false  // already in fresh page
+          // If older than the oldest email in the fresh page → it's a "load more" page, keep it
+          if (oldestFreshDate && e.date && e.date < oldestFreshDate) return true
+          // Otherwise it was in the recent window and is now gone (deleted on server)
+          return false
+        })
+        return [...res.emails, ...beyond]
+      })
+      setTotal(res.total)
+      setHasMore(res.has_more)
+      skipRef.current = res.emails.length
+    } catch { /* ignore — stale list is acceptable */ }
+    finally { setLoading(false) }
+  }, [])
+
   return {
     emails, total, hasMore, loading, error,
-    refresh, loadMore, setSort, removeEmail,
+    refresh, mergeRefresh, loadMore, setSort, removeEmail,
     currentParams: paramsRef.current,
   }
 }

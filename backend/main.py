@@ -49,7 +49,10 @@ async def _poll_new_emails(rag: RAGEngine, cache: EmailCache):
 
             known_ids = rag._known_ids()
             new_total = 0
-            since_dt = datetime.now(timezone.utc) - timedelta(days=POLL_SINCE_DAYS)
+            from routers.config import load_app_config as _load_cfg
+            _cfg = _load_cfg()
+            _sync_days = _cfg.get("sync_window_days", POLL_SINCE_DAYS)
+            since_dt = datetime.now(timezone.utc) - timedelta(days=_sync_days)
 
             all_accounts = cache.list_accounts()
             providers_to_check = []
@@ -250,7 +253,9 @@ async def _poll_new_emails_once(rag: RAGEngine, cache: EmailCache):
 
     known_ids = rag._known_ids()
     new_total = 0
-    since_dt = datetime.now(timezone.utc) - timedelta(days=POLL_SINCE_DAYS)
+    from routers.config import load_app_config as _load_cfg
+    _sync_days = _load_cfg().get("sync_window_days", POLL_SINCE_DAYS)
+    since_dt = datetime.now(timezone.utc) - timedelta(days=_sync_days)
 
     all_accounts = cache.list_accounts()
     providers_to_check = []

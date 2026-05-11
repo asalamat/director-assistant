@@ -119,4 +119,5 @@ export interface AppConfig {
   openai_key_preview: string
   poll_interval_seconds: number
   budget_mode: boolean
+  sync_window_days: number
 }
