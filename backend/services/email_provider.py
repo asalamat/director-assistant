@@ -72,6 +72,8 @@ IMAP_HOSTS: dict[str, tuple[str, int]] = {
     EmailProviderType.HOTMAIL:    ("outlook.office365.com", 993),
 }
 
+IMAP_CONNECT_TIMEOUT = 10  # seconds — bounds TCP connect + SSL handshake
+
 
 class IMAPProvider:
     """Works with Yahoo, Gmail, Hotmail, and generic IMAP servers."""
@@ -85,8 +87,14 @@ class IMAPProvider:
         self._mail: Optional[imaplib.IMAP4_SSL] = None
 
     def connect(self):
-        self._mail = imaplib.IMAP4_SSL(self.host, self.port)
-        self._mail.login(self.username, self.password)
+        import socket as _socket
+        old = _socket.getdefaulttimeout()
+        _socket.setdefaulttimeout(IMAP_CONNECT_TIMEOUT)
+        try:
+            self._mail = imaplib.IMAP4_SSL(self.host, self.port, timeout=IMAP_CONNECT_TIMEOUT)
+            self._mail.login(self.username, self.password)
+        finally:
+            _socket.setdefaulttimeout(old)
 
     def disconnect(self):
         if self._mail:

@@ -13,22 +13,22 @@ _IMAP_TIMEOUT = 8  # seconds — fails fast when network is down
 def _imap_ping(host: str, port: int, username: str, password: str) -> str:
     """
     Quick IMAP login test — returns 'ok' or an error string.
-    Uses an 8-second timeout so a dropped WiFi connection fails immediately
-    rather than hanging until the OS TCP timeout (which can be minutes).
+    Sets socket.setdefaulttimeout as a hard cap so both the TCP connect
+    and the SSL handshake are bounded (the timeout= kwarg alone doesn't
+    cover the SSL phase on all platforms).
     """
     import imaplib
     import socket
     if not host:
         return "No IMAP host configured"
+    old = socket.getdefaulttimeout()
+    socket.setdefaulttimeout(_IMAP_TIMEOUT)
     try:
-        # timeout= param added in Python 3.9 — ensures fast failure when offline
         mail = imaplib.IMAP4_SSL(host, port, timeout=_IMAP_TIMEOUT)
         mail.login(username, password)
         mail.logout()
         return "ok"
-    except TimeoutError:
-        return "Connection timed out — no network or server unreachable"
-    except socket.timeout:
+    except (TimeoutError, socket.timeout):
         return "Connection timed out — no network or server unreachable"
     except imaplib.IMAP4.error as e:
         return f"Auth failed: {e}"
@@ -36,6 +36,8 @@ def _imap_ping(host: str, port: int, username: str, password: str) -> str:
         return f"Connection failed: {e}"
     except Exception as e:
         return f"{type(e).__name__}: {e}"
+    finally:
+        socket.setdefaulttimeout(old)
 
 
 @router.get("/full")
