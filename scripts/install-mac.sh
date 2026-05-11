@@ -117,7 +117,7 @@ LAUNCHER_EOF
 chmod +x "$LAUNCHER"
 
 # ── 7. Create macOS .app bundle ──────────────────────────────
-APP_BUNDLE="$HOME/Desktop/$APP_NAME.app"
+APP_BUNDLE="$HOME/Applications/$APP_NAME.app"
 mkdir -p "$APP_BUNDLE/Contents/MacOS"
 mkdir -p "$APP_BUNDLE/Contents/Resources"
 
@@ -142,7 +142,7 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << PLISTEOF
 </plist>
 PLISTEOF
 
-success "App bundle created: $APP_BUNDLE"
+success "App bundle created: ~/Applications/$APP_NAME.app"
 
 # ── 8. Install LaunchAgent (auto-start on login) ──────────────
 PLIST_DIR="$HOME/Library/LaunchAgents"

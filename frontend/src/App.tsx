@@ -9,6 +9,7 @@ import { ActionBoard } from './components/ActionBoard'
 import { Analytics } from './components/Analytics'
 import { TemplatesPanel } from './components/TemplatesPanel'
 import { HealthPanel } from './components/HealthPanel'
+import { HelpModal } from './components/HelpModal'
 import { useEmails, useEmailDetail, useRecommendation } from './hooks/useEmails'
 import { api } from './api/client'
 import type { EmailSummary } from './types'
@@ -68,6 +69,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('inbox')
   const [refreshing, setRefreshing] = useState(false)
   const [refreshMsg, setRefreshMsg] = useState('')
+  const [showHelp, setShowHelp] = useState(false)
   const [importPrompt, setImportPrompt] = useState(false)
   const [importSubject, setImportSubject] = useState('')
   const [importing, setImporting] = useState(false)
@@ -232,6 +234,16 @@ export default function App() {
             </>
           )}
           <button
+            onClick={() => setShowHelp(true)}
+            title="Help"
+            className="text-xs text-gray-500 hover:text-gray-800 px-2 py-1 rounded hover:bg-gray-100 transition-colors flex items-center gap-1"
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd"/>
+            </svg>
+            <span>Help</span>
+          </button>
+          <button
             onClick={() => { setSettingsInitialTab('accounts'); setShowSettings(true) }}
             className="text-xs text-gray-500 hover:text-gray-800 px-2 py-1 rounded hover:bg-gray-100 transition-colors flex items-center gap-1"
           >
@@ -344,6 +356,7 @@ export default function App() {
         </div>
       )}
 
+      {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
       <StatusBar />
     </div>
   )

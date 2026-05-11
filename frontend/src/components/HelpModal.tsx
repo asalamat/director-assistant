@@ -1,0 +1,286 @@
+import { useState } from 'react'
+
+interface Props {
+  onClose: () => void
+}
+
+type Section = 'start' | 'features' | 'ai' | 'tips'
+
+const SECTIONS: { id: Section; label: string }[] = [
+  { id: 'start',    label: 'Getting Started' },
+  { id: 'features', label: 'Features' },
+  { id: 'ai',       label: 'AI Features' },
+  { id: 'tips',     label: 'Tips & Tricks' },
+]
+
+function H3({ children }: { children: React.ReactNode }) {
+  return <h3 className="text-sm font-semibold text-gray-800 mt-5 mb-2 first:mt-0">{children}</h3>
+}
+function P({ children }: { children: React.ReactNode }) {
+  return <p className="text-sm text-gray-600 leading-relaxed mb-2">{children}</p>
+}
+function Step({ n, children }: { n: number; children: React.ReactNode }) {
+  return (
+    <div className="flex gap-3 mb-3">
+      <span className="flex-shrink-0 w-6 h-6 rounded-full bg-accent text-white text-xs font-bold flex items-center justify-center">{n}</span>
+      <span className="text-sm text-gray-600 leading-relaxed">{children}</span>
+    </div>
+  )
+}
+function Badge({ children, color = 'blue' }: { children: React.ReactNode; color?: string }) {
+  const cls = color === 'blue'   ? 'bg-blue-100 text-blue-700'
+            : color === 'green'  ? 'bg-green-100 text-green-700'
+            : color === 'purple' ? 'bg-purple-100 text-purple-700'
+            :                      'bg-gray-100 text-gray-700'
+  return <span className={`inline-block text-xs font-medium px-2 py-0.5 rounded ${cls}`}>{children}</span>
+}
+function Note({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-800 mb-3">
+      {children}
+    </div>
+  )
+}
+
+function GettingStarted() {
+  return (
+    <div>
+      <H3>1. Add your email account</H3>
+      <Step n={1}>Go to <strong>Settings</strong> (top-right gear icon) → <strong>Email Accounts</strong>.</Step>
+      <Step n={2}>Choose your provider: Gmail, Yahoo, Hotmail, or Office 365.</Step>
+      <Step n={3}>Enter your email address and an <strong>App Password</strong> (not your regular password).</Step>
+      <Step n={4}>Click <strong>Connect</strong>. The app will verify the connection.</Step>
+
+      <Note>
+        <strong>App Passwords are required</strong> for Gmail, Yahoo, and Hotmail because those providers block
+        regular passwords for third-party apps. Enable 2-factor authentication first, then generate an App Password
+        from your account's Security settings.
+      </Note>
+
+      <H3>2. Ingest your emails</H3>
+      <Step n={1}>After connecting, click <strong>Ingest</strong> next to your account.</Step>
+      <Step n={2}>The app downloads and indexes your emails (INBOX, Sent, Bulk/Spam).</Step>
+      <Step n={3}>Large mailboxes may take a few minutes. Progress is shown on-screen.</Step>
+      <P>Emails are stored locally — nothing is sent to the cloud except AI queries.</P>
+
+      <H3>3. Add your AI API key</H3>
+      <Step n={1}>Go to <strong>Settings → App Settings</strong>.</Step>
+      <Step n={2}>Paste your <strong>Anthropic</strong> or <strong>OpenAI</strong> API key.</Step>
+      <Step n={3}>Save. AI features (analysis, Brief, recommendations) will now work.</Step>
+      <P>API keys are stored locally on your device and never shared.</P>
+    </div>
+  )
+}
+
+function Features() {
+  return (
+    <div>
+      <H3>Inbox <Badge color="blue">Main view</Badge></H3>
+      <P>Browse all your ingested emails. Click any email to read it in the right panel.</P>
+      <ul className="text-sm text-gray-600 space-y-1 mb-3 pl-4 list-disc">
+        <li><strong>Search:</strong> type in the search box — uses AI semantic search + full-text</li>
+        <li><strong>Sort:</strong> click the sort icon to sort by date, sender, or subject</li>
+        <li><strong>Refresh:</strong> pulls new emails from the server without a full re-ingest</li>
+        <li><strong>Import:</strong> find a specific email by pasting its subject line</li>
+        <li><strong>Delete:</strong> removes an email from the local cache only (not from your mail server)</li>
+      </ul>
+
+      <H3>Brief <Badge color="green">AI digest</Badge></H3>
+      <P>
+        Generates an AI summary of your most important recent emails. Click <strong>Generate Brief</strong> and the
+        app reads your recent inbox and produces a concise executive summary with key points and action items.
+      </P>
+
+      <H3>Actions</H3>
+      <P>
+        Tracks to-do items extracted from your emails. When AI analyzes an email it may suggest action items —
+        these appear here. Mark them done as you complete them.
+      </P>
+
+      <H3>Analytics</H3>
+      <P>
+        Charts and statistics about your email patterns: volume over time, top senders, response times, and
+        category breakdown. Useful for understanding where your email time goes.
+      </P>
+
+      <H3>Templates</H3>
+      <P>
+        Save frequently-used reply templates. Create a template once, then paste it into any reply to save time
+        on repetitive responses.
+      </P>
+
+      <H3>Health <Badge color="purple">Status</Badge></H3>
+      <P>
+        Shows the connection status of all components: IMAP server, AI provider, database, and the background
+        polling loop. The colored dot in the tab indicates overall system health.
+      </P>
+    </div>
+  )
+}
+
+function AIFeatures() {
+  return (
+    <div>
+      <H3>Email Analysis</H3>
+      <P>Select any email and click the <strong>Analyze</strong> button in the email viewer.</P>
+      <P>The AI will:</P>
+      <ul className="text-sm text-gray-600 space-y-1 mb-3 pl-4 list-disc">
+        <li>Summarize the email in plain language</li>
+        <li>Identify the tone and urgency level</li>
+        <li>Suggest 2–3 reply options you can copy and adapt</li>
+        <li>Extract action items you need to follow up on</li>
+        <li>Show similar past emails from your inbox for context</li>
+      </ul>
+      <Note>Analysis results are cached for 60 seconds. Re-clicking Analyze on the same email within that window returns the cached result instantly.</Note>
+
+      <H3>Daily Brief</H3>
+      <P>
+        Switch to the <strong>Brief</strong> tab and click <strong>Generate Brief</strong>. The AI reads your
+        most recent emails and produces a 1-page executive summary. Configure the date range and number of
+        emails to include in App Settings.
+      </P>
+
+      <H3>Semantic Search</H3>
+      <P>
+        The search box uses <strong>vector similarity search</strong> — you don't need exact keywords.
+        Searching "invoice overdue" will also find emails about "payment late" or "unpaid bill".
+        Full-text fallback is used when no semantic matches are found.
+      </P>
+
+      <H3>Auto-classification</H3>
+      <P>
+        The app automatically assigns categories to emails (Work, Personal, Newsletter, Finance, etc.).
+        Categories appear in Analytics and can be used to filter the inbox.
+      </P>
+
+      <H3>Budget Mode</H3>
+      <P>
+        Enable <strong>Budget Mode</strong> in App Settings to use a smaller, cheaper AI model for routine
+        tasks. This reduces API costs while keeping full AI capabilities for complex analysis.
+      </P>
+    </div>
+  )
+}
+
+function Tips() {
+  return (
+    <div>
+      <H3>Keep emails fresh</H3>
+      <ul className="text-sm text-gray-600 space-y-2 mb-3 pl-4 list-disc">
+        <li>The app polls for new emails every 60 seconds automatically.</li>
+        <li>Click <strong>Refresh</strong> in the toolbar for an immediate check.</li>
+        <li>Use <strong>Import by subject</strong> to pull in a specific thread you know exists.</li>
+      </ul>
+
+      <H3>Configure the sync window</H3>
+      <P>
+        By default the app syncs emails from the last 7 days. Change <strong>Sync Window (days)</strong> in
+        App Settings to go further back — useful if you want to search older email history.
+        Re-run Ingest after changing this.
+      </P>
+
+      <H3>Multiple email accounts</H3>
+      <P>
+        You can connect multiple accounts (Gmail + Yahoo + work Office 365, for example). All accounts are
+        searched together and appear in the same inbox view, prefixed by account.
+      </P>
+
+      <H3>Deleted emails</H3>
+      <P>
+        Deleting an email in Director Assistant only removes it from the <em>local cache</em> — it is not
+        deleted from your mail server. If you re-ingest, it will come back.
+      </P>
+
+      <H3>Passwords are stored securely</H3>
+      <P>
+        App Passwords are stored in your operating system keychain (macOS Keychain / Windows Credential
+        Manager), not in the app database.
+      </P>
+
+      <H3>Running as a Docker container</H3>
+      <P>
+        For server or team deployments, use the included <code className="bg-gray-100 px-1 rounded text-xs">docker-compose.yml</code>:
+      </P>
+      <pre className="bg-gray-50 border border-gray-200 rounded-lg text-xs p-3 overflow-x-auto mb-3">
+{`docker compose up -d
+# App runs at http://localhost:8000`}
+      </pre>
+      <P>Email data persists in the <code className="bg-gray-100 px-1 rounded text-xs">director_data</code> Docker volume across restarts.</P>
+    </div>
+  )
+}
+
+const CONTENT: Record<Section, React.ReactNode> = {
+  start:    <GettingStarted />,
+  features: <Features />,
+  ai:       <AIFeatures />,
+  tips:     <Tips />,
+}
+
+export function HelpModal({ onClose }: Props) {
+  const [section, setSection] = useState<Section>('start')
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 flex-shrink-0">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">Director Assistant — Help</h2>
+            <p className="text-xs text-gray-500">Your AI-powered email assistant</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 transition-colors"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd"/>
+            </svg>
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="flex flex-1 overflow-hidden">
+          {/* Sidebar nav */}
+          <nav className="w-44 flex-shrink-0 border-r border-gray-100 bg-gray-50 p-3 space-y-1">
+            {SECTIONS.map(s => (
+              <button
+                key={s.id}
+                onClick={() => setSection(s.id)}
+                className={`w-full text-left text-sm px-3 py-2 rounded-lg transition-colors ${
+                  section === s.id
+                    ? 'bg-accent text-white font-medium'
+                    : 'text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                {s.label}
+              </button>
+            ))}
+          </nav>
+
+          {/* Content */}
+          <div className="flex-1 overflow-y-auto p-6">
+            {CONTENT[section]}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-3 border-t border-gray-100 bg-gray-50 flex items-center justify-between flex-shrink-0">
+          <span className="text-xs text-gray-400">Director Assistant v2.1</span>
+          <button
+            onClick={onClose}
+            className="text-xs bg-accent text-white px-4 py-1.5 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
