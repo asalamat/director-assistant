@@ -90,6 +90,12 @@ async def update_config(update: AppConfigUpdate, request: Request):
                                openai_key=oai_key or None,
                                budget_mode=budget)
 
+    # Restart the poll loop so the new interval takes effect immediately
+    if update.poll_interval_seconds is not None:
+        restart = getattr(request.app.state, "restart_poll", None)
+        if restart:
+            restart()
+
     return {
         "status": "saved",
         "has_api_key": bool(ant_key),

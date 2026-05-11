@@ -1,6 +1,7 @@
 """
 SQLite-backed local email cache with FTS5 full-text search.
 Eliminates repeated IMAP round-trips for list/fetch operations.
+Productivity tables, analytics, and account management live in email_extras.py.
 """
 
 import json
@@ -10,11 +11,11 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import List, Optional
 
-import json as _json
-from models import EmailMessage, EmailSummary, ActionItem, FollowUp, Template, Account
+from models import EmailMessage, EmailSummary
+from services.email_extras import EmailExtrasMixin
 
 
-class EmailCache:
+class EmailCache(EmailExtrasMixin):
     def __init__(self):
         db_dir = Path.home() / ".director-assistant"
         db_dir.mkdir(parents=True, exist_ok=True)
@@ -60,7 +61,6 @@ class EmailCache:
                     content_rowid='rowid'
                 )
             """)
-            # Keep FTS index in sync automatically
             for trigger, event, cols in [
                 ("emails_ai", "INSERT", "new"),
                 ("emails_au", "UPDATE", "new"),
@@ -80,8 +80,7 @@ class EmailCache:
             """)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_folder_date ON emails(folder, date DESC)")
 
-            # One-time migration: normalize folder names stored before the
-            # _normalize_folder fix (e.g. "inbox" → "INBOX", "sentitems" → "Sent")
+            # One-time migration: normalize folder names stored before _normalize_folder
             for old, new in [
                 ("inbox", "INBOX"), ("Inbox", "INBOX"),
                 ("sentitems", "Sent"), ("sent items", "Sent"), ("Sent Items", "Sent"),
@@ -90,7 +89,6 @@ class EmailCache:
             ]:
                 conn.execute("UPDATE emails SET folder = ? WHERE folder = ?", (new, old))
 
-            # ── Productivity tables ────────────────────────────────────────────
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS action_items (
                     id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -129,8 +127,6 @@ class EmailCache:
                     classified_at TEXT DEFAULT (datetime('now'))
                 )
             """)
-
-            # ── Multi-account support ──────────────────────────────────────────
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS accounts (
                     id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -143,11 +139,7 @@ class EmailCache:
                     created_at   TEXT DEFAULT (datetime('now'))
                 )
             """)
-            # Extend emails table for multi-account (safe: ignored if column exists)
-            for col_def in [
-                "account_id INTEGER DEFAULT 0",
-                "server_id TEXT",
-            ]:
+            for col_def in ["account_id INTEGER DEFAULT 0", "server_id TEXT"]:
                 try:
                     conn.execute(f"ALTER TABLE emails ADD COLUMN {col_def}")
                 except Exception:
@@ -155,7 +147,7 @@ class EmailCache:
 
     # Canonical names for well-known folders so case-inconsistent providers
     # (Office365 returns "inbox"/"sentitems", IMAP returns "INBOX") all map
-    # to the same value and appear correctly in the UI.
+    # to the same value.
     _FOLDER_MAP = {
         "inbox": "INBOX",
         "sentitems": "Sent",
@@ -245,9 +237,6 @@ class EmailCache:
     ) -> tuple[list[EmailSummary], int]:
         col = self.SORT_COLS.get(sort_by, "date")
         direction = "ASC" if sort_order.lower() == "asc" else "DESC"
-
-        # Normalize the requested folder and compare case-insensitively so that
-        # emails stored before the folder-normalization fix still appear correctly.
         normalized = self._normalize_folder(folder)
         where = "UPPER(folder) = UPPER(?)"
         params: list = [normalized]
@@ -266,17 +255,12 @@ class EmailCache:
                     ORDER BY {col} {direction} LIMIT ? OFFSET ?""",
                 params + [limit, skip],
             ).fetchall()
-        summaries = [self._row_to_summary(dict(r)) for r in rows]
-        return summaries, total
+        return [self._row_to_summary(dict(r)) for r in rows], total
 
     def fts_search(self, query: str, limit: int = 30) -> list[EmailSummary]:
-        """Full-text search using SQLite FTS5.
-        FTS5 interprets ':', '-', '+', '*' etc. as operators, so we strip them
-        and fall back to empty list on any parse error.
-        """
-        # Keep only alphanumerics and whitespace — avoids FTS5 operator collisions
+        """Full-text search via FTS5. Strips operators to avoid parse errors."""
         safe = re.sub(r'[^\w\s]', ' ', query)
-        safe = ' '.join(safe.split()[:20])   # cap at 20 tokens
+        safe = ' '.join(safe.split()[:20])
         if not safe:
             return []
         try:
@@ -298,9 +282,7 @@ class EmailCache:
             return conn.execute("SELECT COUNT(*) FROM emails").fetchone()[0]
 
     def get_cached_server_ids(self, account_id: int, folder: str, since_str: str) -> dict:
-        """Return {server_id: cache_id} for emails in this account/folder since a date.
-        Used by the poll to detect which emails were deleted from the server.
-        """
+        """Return {server_id: cache_id} for emails in this account/folder since a date."""
         with self._conn() as conn:
             rows = conn.execute(
                 """SELECT id, server_id FROM emails
@@ -318,253 +300,6 @@ class EmailCache:
             conn.execute("DELETE FROM emails_fts WHERE id = ?", (email_id,))
             conn.execute("DELETE FROM action_items WHERE email_id = ?", (email_id,))
         return deleted > 0
-
-    # ── Action Items ──────────────────────────────────────────────────────────
-
-    def add_action_items(self, email_id: str, email_subject: str, items: list[str]) -> int:
-        rows = [(email_id, email_subject, t) for t in items if t.strip()]
-        with self._conn() as conn:
-            conn.execute("DELETE FROM action_items WHERE email_id = ?", (email_id,))
-            conn.executemany(
-                "INSERT INTO action_items (email_id, email_subject, text) VALUES (?,?,?)", rows
-            )
-        return len(rows)
-
-    def list_action_items(self, done: bool | None = None) -> list[ActionItem]:
-        where = "" if done is None else f"WHERE done = {1 if done else 0}"
-        with self._conn() as conn:
-            rows = conn.execute(
-                f"SELECT * FROM action_items {where} ORDER BY created_at DESC"
-            ).fetchall()
-        return [ActionItem(**{**dict(r), "done": bool(r["done"])}) for r in rows]
-
-    def set_action_done(self, item_id: int, done: bool) -> bool:
-        with self._conn() as conn:
-            cur = conn.execute(
-                "UPDATE action_items SET done = ? WHERE id = ?", (1 if done else 0, item_id)
-            )
-        return cur.rowcount > 0
-
-    # ── Follow-ups ────────────────────────────────────────────────────────────
-
-    def add_follow_up(self, f: FollowUp) -> int:
-        with self._conn() as conn:
-            cur = conn.execute(
-                """INSERT INTO follow_ups (email_id, subject, sender, due_date, note)
-                   VALUES (?,?,?,?,?)""",
-                (f.email_id, f.subject, f.sender, f.due_date, f.note),
-            )
-            return cur.lastrowid
-
-    def list_follow_ups(self, done: bool | None = None) -> list[FollowUp]:
-        where = "" if done is None else f"WHERE done = {1 if done else 0}"
-        with self._conn() as conn:
-            rows = conn.execute(
-                f"SELECT * FROM follow_ups {where} ORDER BY due_date ASC"
-            ).fetchall()
-        return [FollowUp(**{**dict(r), "done": bool(r["done"])}) for r in rows]
-
-    def set_follow_up_done(self, fid: int, done: bool) -> bool:
-        with self._conn() as conn:
-            cur = conn.execute(
-                "UPDATE follow_ups SET done = ? WHERE id = ?", (1 if done else 0, fid)
-            )
-        return cur.rowcount > 0
-
-    def delete_follow_up(self, fid: int) -> bool:
-        with self._conn() as conn:
-            cur = conn.execute("DELETE FROM follow_ups WHERE id = ?", (fid,))
-        return cur.rowcount > 0
-
-    # ── Templates ─────────────────────────────────────────────────────────────
-
-    def list_templates(self) -> list[Template]:
-        with self._conn() as conn:
-            rows = conn.execute("SELECT * FROM templates ORDER BY name").fetchall()
-        return [Template(**dict(r)) for r in rows]
-
-    def save_template(self, t: Template) -> int:
-        with self._conn() as conn:
-            if t.id:
-                conn.execute(
-                    "UPDATE templates SET name=?, body=?, updated_at=datetime('now') WHERE id=?",
-                    (t.name, t.body, t.id),
-                )
-                return t.id
-            cur = conn.execute(
-                "INSERT INTO templates (name, body) VALUES (?,?)", (t.name, t.body)
-            )
-            return cur.lastrowid
-
-    def delete_template(self, tid: int) -> bool:
-        with self._conn() as conn:
-            cur = conn.execute("DELETE FROM templates WHERE id = ?", (tid,))
-        return cur.rowcount > 0
-
-    # ── Categories ────────────────────────────────────────────────────────────
-
-    def set_category(self, email_id: str, category: str):
-        with self._conn() as conn:
-            conn.execute(
-                "INSERT OR REPLACE INTO email_categories (email_id, category) VALUES (?,?)",
-                (email_id, category),
-            )
-
-    def get_category(self, email_id: str) -> str | None:
-        with self._conn() as conn:
-            row = conn.execute(
-                "SELECT category FROM email_categories WHERE email_id = ?", (email_id,)
-            ).fetchone()
-        return row[0] if row else None
-
-    # ── Analytics ─────────────────────────────────────────────────────────────
-
-    def daily_volume(self, days: int = 30) -> list[dict]:
-        with self._conn() as conn:
-            rows = conn.execute(
-                """SELECT substr(date, 1, 10) AS day, COUNT(*) AS cnt
-                   FROM emails
-                   WHERE date >= date('now', ? || ' days')
-                   GROUP BY day ORDER BY day""",
-                (f"-{days}",),
-            ).fetchall()
-        return [{"date": r["day"], "count": r["cnt"]} for r in rows]
-
-    def top_senders(self, limit: int = 10) -> list[dict]:
-        with self._conn() as conn:
-            rows = conn.execute(
-                """SELECT sender, COUNT(*) AS cnt FROM emails
-                   GROUP BY sender ORDER BY cnt DESC LIMIT ?""",
-                (limit,),
-            ).fetchall()
-        return [{"sender": r["sender"], "count": r["cnt"]} for r in rows]
-
-    def folder_breakdown(self) -> dict[str, int]:
-        with self._conn() as conn:
-            rows = conn.execute(
-                "SELECT folder, COUNT(*) AS cnt FROM emails GROUP BY folder"
-            ).fetchall()
-        return {r["folder"]: r["cnt"] for r in rows}
-
-    def sender_stats(self, sender: str) -> dict:
-        with self._conn() as conn:
-            row = conn.execute(
-                """SELECT COUNT(*) AS cnt,
-                          MIN(date) AS first_contact,
-                          MAX(date) AS last_contact
-                   FROM emails WHERE sender = ?""",
-                (sender,),
-            ).fetchone()
-            subjects = conn.execute(
-                """SELECT subject FROM emails WHERE sender = ?
-                   ORDER BY date DESC LIMIT 5""",
-                (sender,),
-            ).fetchall()
-        return {
-            "total_emails": row["cnt"],
-            "first_contact": row["first_contact"],
-            "last_contact": row["last_contact"],
-            "recent_subjects": [r["subject"] for r in subjects],
-        }
-
-    # ── Accounts ──────────────────────────────────────────────────────────────
-
-    def _row_to_account(self, row: dict) -> Account:
-        cfg = _json.loads(row.get("config_json") or "{}")
-        return Account(
-            id=row["id"],
-            name=row.get("name") or "",
-            provider=row["provider"],
-            username=row["username"],
-            active=bool(row.get("active", 1)),
-            last_ingested=row.get("last_ingested"),
-            created_at=row.get("created_at"),
-            password=cfg.get("password"),
-            imap_host=cfg.get("imap_host"),
-            imap_port=cfg.get("imap_port", 993),
-            tenant_id=cfg.get("tenant_id"),
-            client_id=cfg.get("client_id"),
-            client_secret=cfg.get("client_secret"),
-        )
-
-    def list_accounts(self) -> list[Account]:
-        with self._conn() as conn:
-            rows = conn.execute("SELECT * FROM accounts ORDER BY id").fetchall()
-        return [self._row_to_account(dict(r)) for r in rows]
-
-    def get_account(self, account_id: int) -> Account | None:
-        with self._conn() as conn:
-            row = conn.execute("SELECT * FROM accounts WHERE id = ?", (account_id,)).fetchone()
-        return self._row_to_account(dict(row)) if row else None
-
-    def add_account(self, account: Account) -> int:
-        cfg = _json.dumps({
-            "password": account.password,
-            "imap_host": account.imap_host,
-            "imap_port": account.imap_port,
-            "tenant_id": account.tenant_id,
-            "client_id": account.client_id,
-            "client_secret": account.client_secret,
-        })
-        with self._conn() as conn:
-            cur = conn.execute(
-                "INSERT INTO accounts (name, provider, username, config_json) VALUES (?,?,?,?)",
-                (account.name or account.username, account.provider, account.username, cfg),
-            )
-            return cur.lastrowid
-
-    def remove_account(self, account_id: int) -> bool:
-        with self._conn() as conn:
-            cur = conn.execute("DELETE FROM accounts WHERE id = ?", (account_id,))
-        return cur.rowcount > 0
-
-    def mark_ingested(self, account_id: int):
-        with self._conn() as conn:
-            conn.execute(
-                "UPDATE accounts SET last_ingested = datetime('now') WHERE id = ?",
-                (account_id,),
-            )
-
-    def import_legacy_config(self, config_json: str) -> int | None:
-        """Import single-account config.json as account 1 (idempotent)."""
-        try:
-            data = _json.loads(config_json)
-        except Exception:
-            return None
-        with self._conn() as conn:
-            count = conn.execute("SELECT COUNT(*) FROM accounts").fetchone()[0]
-            if count > 0:
-                return None      # accounts already set up
-        from models import Account, EmailProviderType
-        cfg = Account(
-            provider=data.get("provider", "generic_imap"),
-            username=data.get("username", ""),
-            name=data.get("username", ""),
-            password=data.get("password"),
-            imap_host=data.get("imap_host"),
-            imap_port=data.get("imap_port", 993),
-            tenant_id=data.get("tenant_id"),
-            client_id=data.get("client_id"),
-            client_secret=data.get("client_secret"),
-        )
-        return self.add_account(cfg)
-
-    def get_email_account(self, email_id: str) -> dict | None:
-        with self._conn() as conn:
-            row = conn.execute(
-                "SELECT account_id, server_id FROM emails WHERE id = ?", (email_id,)
-            ).fetchone()
-        return dict(row) if row else None
-
-    def recent_emails_for_digest(self, hours: int = 24) -> list[EmailSummary]:
-        with self._conn() as conn:
-            rows = conn.execute(
-                """SELECT id, subject, sender, date, body, is_read FROM emails
-                   WHERE date >= datetime('now', ? || ' hours')
-                   ORDER BY date DESC""",
-                (f"-{hours}",),
-            ).fetchall()
-        return [self._row_to_summary(dict(r)) for r in rows]
 
     def _to_message(self, row: dict) -> EmailMessage:
         try:

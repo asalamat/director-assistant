@@ -31,14 +31,14 @@ _last_poll_error: str = ""  # last poll error message if any
 
 
 async def _poll_new_emails(rag: RAGEngine, cache: EmailCache):
-    """Background: every POLL_INTERVAL_SECONDS, fetch newest emails from all accounts
-    and ingest any that aren't already in RAG."""
+    """Background: poll all accounts on a configurable interval, read dynamically each cycle."""
     global _last_poll_time, _last_poll_new
     from datetime import datetime, timedelta, timezone
 
     await asyncio.sleep(20)   # short initial delay — let startup settle
 
     while True:
+        interval = load_app_config().get("poll_interval_seconds", NEW_EMAIL_POLL_SECONDS)
         try:
             from routers.connection import _progress, load_config
             from services.email_provider import build_provider, IMAPProvider, Office365Provider
@@ -136,7 +136,21 @@ async def _poll_new_emails(rag: RAGEngine, cache: EmailCache):
             _last_poll_error = str(e)
             print(f"[poll error] {e}")
 
-        await asyncio.sleep(NEW_EMAIL_POLL_SECONDS)
+        await asyncio.sleep(interval)
+
+
+async def _restart_poll(app: FastAPI):
+    """Cancel the running poll task and start a fresh one (picks up new interval)."""
+    task: asyncio.Task | None = getattr(app.state, "poll_task", None)
+    if task and not task.done():
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+    app.state.poll_task = asyncio.create_task(
+        _poll_new_emails(app.state.rag, app.state.cache)
+    )
 
 
 @asynccontextmanager
@@ -153,13 +167,14 @@ async def lifespan(app: FastAPI):
     app.state.digest = DigestService(client)
     app.state.classifier = ClassifierService(client)
 
-    poll_task = asyncio.create_task(
+    app.state.poll_task = asyncio.create_task(
         _poll_new_emails(app.state.rag, app.state.cache)
     )
+    app.state.restart_poll = lambda: asyncio.create_task(_restart_poll(app))
     yield
-    poll_task.cancel()
+    app.state.poll_task.cancel()
     try:
-        await poll_task
+        await app.state.poll_task
     except asyncio.CancelledError:
         pass
 
