@@ -226,6 +226,7 @@ class EmailExtrasMixin:
             tenant_id=cfg.get("tenant_id"),
             client_id=cfg.get("client_id"),
             client_secret=cfg.get("client_secret"),
+            access_token=cfg.get("access_token"),
         )
 
     def _clear_db_password(self, account_id: int):
@@ -262,6 +263,7 @@ class EmailExtrasMixin:
             "tenant_id": account.tenant_id,
             "client_id": account.client_id,
             "client_secret": account.client_secret,
+            "access_token": account.access_token,
         })
         with self._conn() as conn:
             cur = conn.execute(
@@ -280,6 +282,21 @@ class EmailExtrasMixin:
         with self._conn() as conn:
             cur = conn.execute("DELETE FROM accounts WHERE id = ?", (account_id,))
         return cur.rowcount > 0
+
+    def store_account_token(self, account_id: int, access_token: str):
+        """Persist an OAuth access token for an existing account."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT config_json FROM accounts WHERE id = ?", (account_id,)
+            ).fetchone()
+            if not row:
+                return
+            cfg = _json.loads(row[0] or "{}")
+            cfg["access_token"] = access_token
+            conn.execute(
+                "UPDATE accounts SET config_json = ? WHERE id = ?",
+                (_json.dumps(cfg), account_id),
+            )
 
     def mark_ingested(self, account_id: int):
         with self._conn() as conn:

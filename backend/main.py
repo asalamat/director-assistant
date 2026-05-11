@@ -16,6 +16,7 @@ from routers import connection, emails
 from routers import digest, actions, followups, templates, analytics, sender, accounts as accounts_router
 from routers import config as config_router
 from routers import health as health_router
+from routers import oauth as oauth_router
 from routers.config import get_effective_api_key, load_app_config
 from services.ai_client import AIClient
 
@@ -242,6 +243,7 @@ app.include_router(sender.router)
 app.include_router(accounts_router.router)
 app.include_router(config_router.router)
 app.include_router(health_router.router)
+app.include_router(oauth_router.router)
 
 
 @app.get("/health")

@@ -94,6 +94,7 @@ class Account(BaseModel):
     tenant_id: Optional[str] = None
     client_id: Optional[str] = None
     client_secret: Optional[str] = None
+    access_token: Optional[str] = None
     active: bool = True
     last_ingested: Optional[str] = None
     created_at: Optional[str] = None
@@ -108,6 +109,7 @@ class Account(BaseModel):
             tenant_id=self.tenant_id,
             client_id=self.client_id,
             client_secret=self.client_secret,
+            access_token=self.access_token,
         )
 
 

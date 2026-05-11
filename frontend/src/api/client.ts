@@ -212,6 +212,18 @@ export const api = {
   ingestAll(): Promise<void> {
     return request('/accounts/ingest-all', { method: 'POST' })
   },
+  // Microsoft OAuth2 device flow
+  startMicrosoftOAuth(client_id: string, username: string): Promise<{
+    flow_id: string; user_code: string; verification_uri: string; expires_in: number
+  }> {
+    return request('/oauth/microsoft/start', { method: 'POST', body: JSON.stringify({ client_id, username }) })
+  },
+  pollMicrosoftOAuth(flow_id: string): Promise<{
+    status: 'pending' | 'completed'; access_token?: string; username?: string
+  }> {
+    return request(`/oauth/microsoft/poll?flow_id=${encodeURIComponent(flow_id)}`)
+  },
+
   subscribeAccountsIngestProgress(onProgress: (p: IngestProgress) => void): EventSource {
     const es = new EventSource('/api/accounts/ingest/progress')
     es.onmessage = (e) => {

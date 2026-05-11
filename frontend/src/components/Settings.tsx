@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { api } from '../api/client'
 import type { EmailProvider, Account, IngestProgress } from '../types'
 import { ConfigPanel } from './ConfigPanel'
@@ -57,6 +57,59 @@ export function Settings({ onConnected, initialTab = 'accounts' }: Props) {
   const [error, setError] = useState('')
   const [progress, setProgress] = useState<IngestProgress | null>(null)
   const [ingestingId, setIngestingId] = useState<number | 'all' | null>(null)
+
+  // Microsoft OAuth2 device flow state
+  const [hotmailMode, setHotmailMode] = useState<'password' | 'oauth'>('password')
+  const [oauthClientId, setOauthClientId] = useState('')
+  const [oauthFlow, setOauthFlow] = useState<{
+    flow_id: string; user_code: string; verification_uri: string
+  } | null>(null)
+  const [oauthStatus, setOauthStatus] = useState<'idle' | 'waiting' | 'done' | 'error'>('idle')
+  const [oauthMsg, setOauthMsg] = useState('')
+  const oauthPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const stopOauthPoll = () => {
+    if (oauthPollRef.current) { clearInterval(oauthPollRef.current); oauthPollRef.current = null }
+  }
+
+  const handleStartOAuth = async () => {
+    if (!oauthClientId.trim() || !username.trim()) return
+    setOauthStatus('idle'); setOauthMsg(''); setOauthFlow(null); setError('')
+    try {
+      const res = await api.startMicrosoftOAuth(oauthClientId.trim(), username.trim())
+      setOauthFlow(res)
+      setOauthStatus('waiting')
+      stopOauthPoll()
+      oauthPollRef.current = setInterval(async () => {
+        try {
+          const poll = await api.pollMicrosoftOAuth(res.flow_id)
+          if (poll.status === 'completed' && poll.access_token) {
+            stopOauthPoll()
+            setOauthStatus('done')
+            setOauthMsg('Signed in! Saving account…')
+            // Add account with access_token (no password)
+            await api.addAccount({
+              provider: 'hotmail',
+              username: username.trim(),
+              client_id: oauthClientId.trim(),
+              access_token: poll.access_token,
+            })
+            await loadAccounts()
+            setShowAdd(false)
+            setOauthFlow(null); setOauthStatus('idle'); setOauthMsg('')
+            setUsername(''); setOauthClientId('')
+          }
+        } catch (e: unknown) {
+          stopOauthPoll()
+          setOauthStatus('error')
+          setOauthMsg(e instanceof Error ? e.message : 'Sign-in failed')
+        }
+      }, 3000)
+    } catch (e: unknown) {
+      setOauthStatus('error')
+      setOauthMsg(e instanceof Error ? e.message : 'Failed to start sign-in')
+    }
+  }
 
   const loadAccounts = async () => {
     try {
@@ -283,7 +336,24 @@ export function Settings({ onConnected, initialTab = 'accounts' }: Props) {
               />
             </div>
 
-            {IMAP_PROVIDERS.includes(provider) && (
+            {provider === 'hotmail' && (
+              <div className="flex gap-2 text-xs">
+                <button
+                  onClick={() => setHotmailMode('password')}
+                  className={`px-3 py-1.5 rounded-lg border transition-colors ${hotmailMode === 'password' ? 'bg-accent text-white border-accent' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}
+                >
+                  App Password
+                </button>
+                <button
+                  onClick={() => setHotmailMode('oauth')}
+                  className={`px-3 py-1.5 rounded-lg border transition-colors ${hotmailMode === 'oauth' ? 'bg-accent text-white border-accent' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}
+                >
+                  Sign in with Microsoft (OAuth2)
+                </button>
+              </div>
+            )}
+
+            {IMAP_PROVIDERS.includes(provider) && (provider !== 'hotmail' || hotmailMode === 'password') && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">App password</label>
                 <input
@@ -293,6 +363,54 @@ export function Settings({ onConnected, initialTab = 'accounts' }: Props) {
                   placeholder="••••••••••••"
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                 />
+              </div>
+            )}
+
+            {provider === 'hotmail' && hotmailMode === 'oauth' && (
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Azure App Client ID</label>
+                  <input
+                    value={oauthClientId}
+                    onChange={e => setOauthClientId(e.target.value)}
+                    placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent font-mono"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    Register a free app at <strong>portal.azure.com</strong> → Azure AD → App registrations → New → Personal accounts only → Authentication → Enable "Allow public client flows". Add API permission: Office 365 Exchange Online → IMAP.AccessAsUser.All (delegated).
+                  </p>
+                </div>
+
+                {!oauthFlow && (
+                  <button
+                    onClick={handleStartOAuth}
+                    disabled={!oauthClientId.trim() || !username.trim()}
+                    className="w-full bg-blue-600 text-white rounded-lg px-4 py-2.5 text-sm font-medium disabled:opacity-50 hover:bg-blue-700"
+                  >
+                    Start Sign In
+                  </button>
+                )}
+
+                {oauthFlow && oauthStatus === 'waiting' && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-2">
+                    <p className="text-sm font-semibold text-blue-800">Step 1 — Open in your browser:</p>
+                    <a href={oauthFlow.verification_uri} target="_blank" rel="noreferrer"
+                       className="text-sm text-blue-600 underline break-all">{oauthFlow.verification_uri}</a>
+                    <p className="text-sm font-semibold text-blue-800 pt-1">Step 2 — Enter this code:</p>
+                    <p className="text-2xl font-mono font-bold text-blue-900 tracking-widest">{oauthFlow.user_code}</p>
+                    <p className="text-xs text-blue-600 flex items-center gap-1">
+                      <span className="inline-block w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                      Waiting for you to sign in…
+                    </p>
+                  </div>
+                )}
+
+                {oauthStatus === 'done' && (
+                  <p className="text-sm text-green-600 font-medium">{oauthMsg}</p>
+                )}
+                {oauthStatus === 'error' && (
+                  <p className="text-sm text-red-600">{oauthMsg}</p>
+                )}
               </div>
             )}
 
@@ -333,13 +451,15 @@ export function Settings({ onConnected, initialTab = 'accounts' }: Props) {
             )}
 
             <div className="flex gap-2">
+              {!(provider === 'hotmail' && hotmailMode === 'oauth') && (
               <button
                 onClick={hasAccounts ? handleAdd : handleLegacyConnect}
-                disabled={loading || !username || (IMAP_PROVIDERS.includes(provider) && !password)}
+                disabled={loading || !username || (IMAP_PROVIDERS.includes(provider) && provider !== 'hotmail' && !password) || (provider === 'hotmail' && hotmailMode === 'password' && !password)}
                 className="flex-1 bg-accent text-white rounded-lg px-4 py-2.5 text-sm font-medium disabled:opacity-50 hover:bg-blue-700 transition-colors"
               >
                 {loading ? 'Connecting…' : 'Connect'}
               </button>
+              )}
               {hasAccounts && (
                 <button onClick={() => setShowAdd(false)}
                   className="px-4 py-2.5 border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50">
