@@ -123,7 +123,7 @@ async def full_health(request: Request, check_imap: bool = True):
                 "provider": acc.provider if isinstance(acc.provider, str) else acc.provider.value,
                 "imap_status": "not_tested",
             }
-            if check_imap and acc.provider not in ("office365",):
+            if check_imap and acc.provider not in ("office365",) and not acc.access_token:
                 try:
                     host = acc.imap_host or _imap_host_for(entry["provider"])
                     port = acc.imap_port or 993
@@ -133,6 +133,8 @@ async def full_health(request: Request, check_imap: bool = True):
                     entry["imap_status"] = result
                 except Exception as e:
                     entry["imap_status"] = f"error: {e}"
+            elif acc.access_token:
+                entry["imap_status"] = "oauth"
             accounts_health.append(entry)
 
     # ── Overall status ────────────────────────────────────────────────────────
@@ -140,7 +142,7 @@ async def full_health(request: Request, check_imap: bool = True):
     has_accounts = len(accounts_health) > 0
     # Any tested IMAP that came back non-ok counts as degraded
     imap_failed = any(
-        a["imap_status"] not in ("ok", "not_tested")
+        a["imap_status"] not in ("ok", "not_tested", "oauth")
         for a in accounts_health
     )
     core_ok = (rag_health["status"] == "ok" and db_health["status"] == "ok"
