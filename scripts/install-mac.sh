@@ -94,6 +94,7 @@ $PYTHON -m venv .venv
 source .venv/bin/activate
 pip install -q --upgrade pip
 pip install -q -r requirements.txt
+pip install -q rumps
 success "Python dependencies installed"
 
 # ── 5. Build frontend ─────────────────────────────────────────
@@ -111,16 +112,7 @@ LAUNCHER="$INSTALL_DIR/scripts/launch-mac.sh"
 cat > "$LAUNCHER" << 'LAUNCHER_EOF'
 #!/bin/bash
 INSTALL_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-cd "$INSTALL_DIR/backend"
-source .venv/bin/activate
-uvicorn main:app --host 127.0.0.1 --port 8000 &
-BACKEND_PID=$!
-sleep 3
-open "http://localhost:8000"
-echo "Director Assistant running at http://localhost:8000"
-echo "Press Ctrl+C to stop"
-trap "kill $BACKEND_PID 2>/dev/null" SIGINT SIGTERM
-wait $BACKEND_PID
+exec "$INSTALL_DIR/backend/.venv/bin/python" "$INSTALL_DIR/scripts/menubar.py" --open
 LAUNCHER_EOF
 chmod +x "$LAUNCHER"
 
@@ -162,9 +154,7 @@ BACKGROUND_LAUNCHER="$INSTALL_DIR/scripts/launch-background.sh"
 cat > "$BACKGROUND_LAUNCHER" << 'BG_EOF'
 #!/bin/bash
 INSTALL_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-cd "$INSTALL_DIR/backend"
-source .venv/bin/activate
-exec uvicorn main:app --host 127.0.0.1 --port 8000
+exec "$INSTALL_DIR/backend/.venv/bin/python" "$INSTALL_DIR/scripts/menubar.py"
 BG_EOF
 chmod +x "$BACKGROUND_LAUNCHER"
 
@@ -183,7 +173,7 @@ cat > "$PLIST_FILE" << PLIST_EOF
   <key>RunAtLoad</key>
   <true/>
   <key>KeepAlive</key>
-  <true/>
+  <dict><key>SuccessfulExit</key><false/></dict>
   <key>StandardOutPath</key>
   <string>$HOME/.director-assistant/server.log</string>
   <key>StandardErrorPath</key>
