@@ -29,6 +29,38 @@ _last_poll_time: str = ""
 _last_poll_new: int = 0
 _last_poll_error: str = ""
 
+# Reuse provider instances across poll cycles so IMAP connections stay open.
+# Key 0 is reserved for the legacy single-account config.
+_provider_cache: dict[int, object] = {}
+
+
+def _get_provider(account_id: int, acc):
+    if account_id not in _provider_cache:
+        from services.email_provider import build_provider
+        _provider_cache[account_id] = build_provider(acc.to_connection_config())
+    return _provider_cache[account_id]
+
+
+def _evict_provider(account_id: int):
+    """Remove and cleanly disconnect a cached provider."""
+    p = _provider_cache.pop(account_id, None)
+    if p is not None and hasattr(p, "disconnect"):
+        try:
+            p.disconnect()
+        except Exception:
+            pass
+
+
+def _is_connection_error(exc: Exception) -> bool:
+    import imaplib
+    if isinstance(exc, (BrokenPipeError, ConnectionResetError, EOFError, TimeoutError)):
+        return True
+    if isinstance(exc, imaplib.IMAP4.abort):
+        return True
+    if isinstance(exc, imaplib.IMAP4.error):
+        return any(kw in str(exc).upper() for kw in ("EOF", "BYE", "CLOSED"))
+    return False
+
 
 async def _run_poll_cycle(rag: RAGEngine, cache: EmailCache) -> tuple[int, list[str]]:
     """
@@ -38,7 +70,7 @@ async def _run_poll_cycle(rag: RAGEngine, cache: EmailCache) -> tuple[int, list[
     global _last_poll_time, _last_poll_new, _last_poll_error
 
     from routers.connection import _progress, load_config
-    from services.email_provider import build_provider, IMAPProvider
+    from services.email_provider import build_provider, IMAPProvider  # IMAPProvider for isinstance check
 
     if _progress.status == "running":
         return 0, []
@@ -51,15 +83,21 @@ async def _run_poll_cycle(rag: RAGEngine, cache: EmailCache) -> tuple[int, list[
     all_accounts = cache.list_accounts()
     providers_to_check: list[tuple[int, object]] = []
     if all_accounts:
+        # Evict cached providers for accounts that have been removed
+        current_ids = {acc.id for acc in all_accounts}
+        for stale_id in set(_provider_cache.keys()) - current_ids:
+            _evict_provider(stale_id)
         for acc in all_accounts:
             try:
-                providers_to_check.append((acc.id, build_provider(acc.to_connection_config())))
+                providers_to_check.append((acc.id, _get_provider(acc.id, acc)))
             except Exception:
                 pass
     else:
         legacy = load_config()
         if legacy:
-            providers_to_check = [(0, build_provider(legacy))]
+            if 0 not in _provider_cache:
+                _provider_cache[0] = build_provider(legacy)
+            providers_to_check = [(0, _provider_cache[0])]
 
     known_ids = rag._known_ids()
     loop = asyncio.get_event_loop()
@@ -113,6 +151,8 @@ async def _run_poll_cycle(rag: RAGEngine, cache: EmailCache) -> tuple[int, list[
                     None, check_folder, account_id, provider, folder
                 )
         except Exception as e:
+            if _is_connection_error(e):
+                _evict_provider(account_id)   # next cycle will reconnect
             msg = f"account {account_id}: {type(e).__name__}: {e}"
             print(f"[poll] {msg}")
             errors.append(msg)
