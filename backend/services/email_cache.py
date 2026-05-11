@@ -238,17 +238,19 @@ class EmailCache(EmailExtrasMixin):
     ) -> tuple[list[EmailSummary], int]:
         col = self.SORT_COLS.get(sort_by, "date")
         direction = "ASC" if sort_order.lower() == "asc" else "DESC"
-        normalized = self._normalize_folder(folder)
-        where = "UPPER(folder) = UPPER(?)"
-        params: list = [normalized]
+
+        if account_id is not None:
+            # Show all folders for a specific account
+            where = "account_id = ?"
+            params: list = [account_id]
+        else:
+            normalized = self._normalize_folder(folder)
+            where = "UPPER(folder) = UPPER(?)"
+            params = [normalized]
 
         if from_date:
             where += " AND date >= ?"
             params.append(from_date)
-
-        if account_id is not None:
-            where += " AND account_id = ?"
-            params.append(account_id)
 
         with self._conn() as conn:
             total = conn.execute(
