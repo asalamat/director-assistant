@@ -80,6 +80,16 @@ class EmailCache:
             """)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_folder_date ON emails(folder, date DESC)")
 
+            # One-time migration: normalize folder names stored before the
+            # _normalize_folder fix (e.g. "inbox" → "INBOX", "sentitems" → "Sent")
+            for old, new in [
+                ("inbox", "INBOX"), ("Inbox", "INBOX"),
+                ("sentitems", "Sent"), ("sent items", "Sent"), ("Sent Items", "Sent"),
+                ("deleted items", "Trash"), ("deleteditems", "Trash"),
+                ("junkemail", "Junk"), ("junk email", "Junk"),
+            ]:
+                conn.execute("UPDATE emails SET folder = ? WHERE folder = ?", (new, old))
+
             # ── Productivity tables ────────────────────────────────────────────
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS action_items (
@@ -143,6 +153,26 @@ class EmailCache:
                 except Exception:
                     pass
 
+    # Canonical names for well-known folders so case-inconsistent providers
+    # (Office365 returns "inbox"/"sentitems", IMAP returns "INBOX") all map
+    # to the same value and appear correctly in the UI.
+    _FOLDER_MAP = {
+        "inbox": "INBOX",
+        "sentitems": "Sent",
+        "sent items": "Sent",
+        "sent": "Sent",
+        "drafts": "Drafts",
+        "trash": "Trash",
+        "deleted items": "Trash",
+        "deleteditems": "Trash",
+        "junk": "Junk",
+        "junkemail": "Junk",
+        "spam": "Junk",
+    }
+
+    def _normalize_folder(self, folder: str) -> str:
+        return self._FOLDER_MAP.get(folder.strip().lower(), folder)
+
     def _email_to_row(self, email: EmailMessage, account_id: int = 0) -> tuple:
         return (
             email.id,
@@ -153,7 +183,7 @@ class EmailCache:
             email.body,
             email.body_html,
             email.thread_id,
-            email.folder or "INBOX",
+            self._normalize_folder(email.folder or "INBOX"),
             1 if email.is_read else 0,
             account_id,
             getattr(email, "_server_id", email.id),
@@ -216,8 +246,11 @@ class EmailCache:
         col = self.SORT_COLS.get(sort_by, "date")
         direction = "ASC" if sort_order.lower() == "asc" else "DESC"
 
-        where = "folder = ?"
-        params: list = [folder]
+        # Normalize the requested folder and compare case-insensitively so that
+        # emails stored before the folder-normalization fix still appear correctly.
+        normalized = self._normalize_folder(folder)
+        where = "UPPER(folder) = UPPER(?)"
+        params: list = [normalized]
 
         if from_date:
             where += " AND date >= ?"
