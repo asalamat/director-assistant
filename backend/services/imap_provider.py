@@ -87,12 +87,23 @@ class IMAPProvider:
         self._mail: Optional[imaplib.IMAP4_SSL] = None
 
     def connect(self):
+        import base64
         import socket as _socket
         old = _socket.getdefaulttimeout()
         _socket.setdefaulttimeout(IMAP_CONNECT_TIMEOUT)
+        # Strip spaces — Microsoft displays app passwords with spaces for readability
+        # but the actual password must not contain them.
+        password = self.password.replace(" ", "")
         try:
             self._mail = imaplib.IMAP4_SSL(self.host, self.port, timeout=IMAP_CONNECT_TIMEOUT)
-            self._mail.login(self.username, self.password)
+            try:
+                self._mail.login(self.username, password)
+            except imaplib.IMAP4.error:
+                # Some Microsoft servers reject LOGIN but accept AUTHENTICATE PLAIN.
+                creds = f"\x00{self.username}\x00{password}".encode()
+                self._mail.authenticate(
+                    "PLAIN", lambda _: base64.b64encode(creds).decode()
+                )
         finally:
             _socket.setdefaulttimeout(old)
 

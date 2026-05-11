@@ -33,7 +33,8 @@ async def connect(config: ConnectionConfig, request: Request):
     try:
         provider.test_connection()
     except Exception as e:
-        raise HTTPException(400, f"Connection failed: {e}")
+        msg = str(e).strip("b'\"")
+        raise HTTPException(400, f"Connection failed: {msg}")
 
     _provider = provider
     cache = request.app.state.cache
