@@ -51,9 +51,14 @@ export function useEmails(defaultFolder = 'INBOX') {
     refresh({ sort_by, sort_order })
   }, [refresh])
 
+  const removeEmail = useCallback((id: string) => {
+    setEmails((prev) => prev.filter((e) => e.id !== id))
+    setTotal((prev) => Math.max(0, prev - 1))
+  }, [])
+
   return {
     emails, total, hasMore, loading, error,
-    refresh, loadMore, setSort,
+    refresh, loadMore, setSort, removeEmail,
     currentParams: paramsRef.current,
   }
 }

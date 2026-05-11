@@ -11,6 +11,7 @@ import type {
   SenderStats,
   AnalyticsResponse,
   Account,
+  AppConfig,
 } from '../types'
 
 const BASE = '/api'
@@ -74,6 +75,10 @@ export const api = {
     return request(`/emails/${id}?folder=${folder}`)
   },
 
+  deleteEmail(id: string): Promise<{ deleted: string }> {
+    return request(`/emails/${id}`, { method: 'DELETE' })
+  },
+
   getRecommendation(id: string, folder = 'INBOX'): Promise<AIRecommendation> {
     return request(`/emails/${id}/recommend?folder=${folder}`)
   },
@@ -88,6 +93,8 @@ export const api = {
   getStats(): Promise<{
     rag: { total_chunks: number; unique_emails_indexed: number; cached_emails: number; db_size_mb: number }
     ingest: { status: string; processed: number; total: number; message: string }
+    poll: { interval_seconds: number; last_checked: string; last_new: number }
+    accounts: { id: number; username: string; provider: string; last_ingested: string | null }[]
   }> {
     return fetch('/api/stats').then(r => r.json())
   },
@@ -169,6 +176,20 @@ export const api = {
   // Manual poll trigger
   pollNow(): Promise<{ status: string }> {
     return request('/poll/now', { method: 'POST' })
+  },
+
+  // App config
+  getConfig(): Promise<AppConfig> {
+    return request('/config')
+  },
+  saveConfig(data: { anthropic_api_key?: string; openai_api_key?: string; poll_interval_seconds?: number; budget_mode?: boolean }): Promise<{ status: string; has_api_key: boolean; has_openai_key: boolean }> {
+    return request('/config', { method: 'POST', body: JSON.stringify(data) })
+  },
+  testApiKey(key: string): Promise<{ valid: boolean; model?: string; error?: string }> {
+    return request('/config/test-key', { method: 'POST', body: JSON.stringify({ anthropic_api_key: key }) })
+  },
+  testOpenAIKey(key: string): Promise<{ valid: boolean; model?: string; error?: string }> {
+    return request('/config/test-openai-key', { method: 'POST', body: JSON.stringify({ openai_api_key: key }) })
   },
 
   // Accounts

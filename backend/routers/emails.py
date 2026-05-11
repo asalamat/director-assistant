@@ -17,8 +17,8 @@ async def list_emails(
     limit: int = Query(50, ge=1, le=200),
     folder: str = Query("INBOX"),
     q: Optional[str] = Query(None),
-    sort_by: str = Query("date", regex="^(date|sender|subject)$"),
-    sort_order: str = Query("desc", regex="^(asc|desc)$"),
+    sort_by: str = Query("date", pattern="^(date|sender|subject)$"),
+    sort_order: str = Query("desc", pattern="^(asc|desc)$"),
     from_date: Optional[str] = Query(None),
 ):
     cache: EmailCache = request.app.state.cache
@@ -173,3 +173,14 @@ async def get_email_category(request: Request, email_id: str):
     cache: EmailCache = request.app.state.cache
     cat = cache.get_category(email_id)
     return {"email_id": email_id, "category": cat}
+
+
+@router.delete("/{email_id}")
+async def delete_email(request: Request, email_id: str):
+    cache: EmailCache = request.app.state.cache
+    rag: RAGEngine = request.app.state.rag
+    found = cache.delete_email(email_id)
+    rag.remove_email(email_id)
+    if not found:
+        raise HTTPException(404, "Email not found")
+    return {"deleted": email_id}

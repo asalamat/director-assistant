@@ -3,10 +3,9 @@
 import logging
 from typing import TYPE_CHECKING
 
-import anthropic
-
 if TYPE_CHECKING:
     from services.email_cache import EmailCache
+    from services.ai_client import AIClient
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +13,7 @@ CATEGORIES = ("action_required", "meeting", "fyi", "newsletter", "other")
 
 
 class ClassifierService:
-    def __init__(self, client: anthropic.AsyncAnthropic):
+    def __init__(self, client: "AIClient"):
         self.ai = client
 
     async def classify(self, email_id: str, subject: str, sender: str, preview: str) -> str:

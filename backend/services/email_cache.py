@@ -264,6 +264,16 @@ class EmailCache:
         with self._conn() as conn:
             return conn.execute("SELECT COUNT(*) FROM emails").fetchone()[0]
 
+    def delete_email(self, email_id: str) -> bool:
+        """Remove email and its FTS entry. Returns True if it existed."""
+        with self._conn() as conn:
+            deleted = conn.execute(
+                "DELETE FROM emails WHERE id = ?", (email_id,)
+            ).rowcount
+            conn.execute("DELETE FROM emails_fts WHERE id = ?", (email_id,))
+            conn.execute("DELETE FROM action_items WHERE email_id = ?", (email_id,))
+        return deleted > 0
+
     # ── Action Items ──────────────────────────────────────────────────────────
 
     def add_action_items(self, email_id: str, email_subject: str, items: list[str]) -> int:

@@ -19,12 +19,11 @@ from typing import TYPE_CHECKING, List, Optional
 
 import chromadb
 from chromadb.utils.embedding_functions import SentenceTransformerEmbeddingFunction
-import anthropic
-
 from models import EmailMessage
 
 if TYPE_CHECKING:
     from services.email_cache import EmailCache
+    from services.ai_client import AIClient
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +34,7 @@ class RAGEngine:
     RRF_K = 60
     CHROMA_UPSERT_BATCH = 500   # vectors per ChromaDB upsert call
 
-    def __init__(self, anthropic_client: anthropic.AsyncAnthropic, cache: "EmailCache"):
+    def __init__(self, anthropic_client: "AIClient", cache: "EmailCache"):
         self.ai = anthropic_client
         self._cache = cache   # used for FTS5 sparse search
 
@@ -323,6 +322,16 @@ class RAGEngine:
         return self.hybrid_search(query, n_results=n)
 
     # ── Stats ─────────────────────────────────────────────────────────────────
+
+    def remove_email(self, email_id: str) -> bool:
+        """Delete all chunks for an email from ChromaDB and the ID set."""
+        if email_id not in self._indexed_email_ids:
+            return False
+        existing = self._col.get(where={"email_id": email_id})
+        if existing and existing.get("ids"):
+            self._col.delete(ids=existing["ids"])
+        self._indexed_email_ids.discard(email_id)
+        return True
 
     def count_unique_emails(self) -> int:
         return len(self._indexed_email_ids)

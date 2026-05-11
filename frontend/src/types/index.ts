@@ -111,3 +111,12 @@ export interface AnalyticsResponse {
   folder_breakdown: Record<string, number>
   total_emails: number
 }
+
+export interface AppConfig {
+  has_api_key: boolean
+  api_key_preview: string
+  has_openai_key: boolean
+  openai_key_preview: string
+  poll_interval_seconds: number
+  budget_mode: boolean
+}

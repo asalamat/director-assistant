@@ -8,11 +8,47 @@ import { DigestView } from './components/DigestView'
 import { ActionBoard } from './components/ActionBoard'
 import { Analytics } from './components/Analytics'
 import { TemplatesPanel } from './components/TemplatesPanel'
+import { HealthPanel } from './components/HealthPanel'
 import { useEmails, useEmailDetail, useRecommendation } from './hooks/useEmails'
 import { api } from './api/client'
 import type { EmailSummary } from './types'
 
-type Tab = 'inbox' | 'actions' | 'digest' | 'analytics' | 'templates'
+type Tab = 'inbox' | 'actions' | 'digest' | 'analytics' | 'templates' | 'health'
+
+// Simple SVG icons
+const Icons: Record<Tab, JSX.Element> = {
+  inbox: (
+    <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+      <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
+      <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
+    </svg>
+  ),
+  actions: (
+    <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+      <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+    </svg>
+  ),
+  digest: (
+    <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+      <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
+    </svg>
+  ),
+  analytics: (
+    <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+      <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zm6-4a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zm6-3a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
+    </svg>
+  ),
+  templates: (
+    <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+      <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm0 6a1 1 0 011-1h6a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h6a1 1 0 110 2H4a1 1 0 01-1-1z" />
+    </svg>
+  ),
+  health: (
+    <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+      <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
+    </svg>
+  ),
+}
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'inbox', label: 'Inbox' },
@@ -20,17 +56,20 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'digest', label: 'Brief' },
   { id: 'analytics', label: 'Analytics' },
   { id: 'templates', label: 'Templates' },
+  { id: 'health', label: 'Health' },
 ]
 
 export default function App() {
   const [connected, setConnected] = useState<boolean | null>(null)
   const [showSettings, setShowSettings] = useState(false)
+  const [settingsInitialTab, setSettingsInitialTab] = useState<'accounts' | 'config'>('accounts')
+  const [healthStatus, setHealthStatus] = useState<'ok' | 'degraded' | 'error' | null>(null)
   const [selectedEmail, setSelectedEmail] = useState<EmailSummary | null>(null)
   const [activeTab, setActiveTab] = useState<Tab>('inbox')
   const [refreshing, setRefreshing] = useState(false)
   const [refreshMsg, setRefreshMsg] = useState('')
 
-  const { emails, total, loading: listLoading, hasMore, refresh, loadMore, setSort, currentParams } = useEmails()
+  const { emails, total, loading: listLoading, hasMore, refresh, loadMore, setSort, currentParams, removeEmail } = useEmails()
   const { email, loading: emailLoading, fetch: fetchEmail } = useEmailDetail()
   const { rec, loading: recLoading, error: recError, fetch: fetchRec } = useRecommendation()
 
@@ -39,6 +78,17 @@ export default function App() {
       setConnected(s.connected)
       if (s.connected) refresh()
     }).catch(() => setConnected(false))
+  }, [])
+
+  useEffect(() => {
+    const check = () =>
+      fetch('/api/health/full?check_imap=false')
+        .then(r => r.json())
+        .then(d => setHealthStatus(d.overall))
+        .catch(() => setHealthStatus('error'))
+    check()
+    const id = setInterval(check, 30000)
+    return () => clearInterval(id)
   }, [])
 
   const handleConnected = () => {
@@ -57,22 +107,55 @@ export default function App() {
     if (selectedEmail) fetchRec(selectedEmail.id)
   }
 
+  const handleDelete = async (emailId: string) => {
+    try {
+      await api.deleteEmail(emailId)
+      removeEmail(emailId)
+      setSelectedEmail(null)
+    } catch (e) {
+      console.error('Delete failed:', e)
+    }
+  }
+
   const handleRefresh = async () => {
     setRefreshing(true)
     setRefreshMsg('Checking mailboxes…')
     try {
+      const before = await api.getStats().catch(() => null)
+      const prevChecked = (before as any)?.poll?.last_checked ?? ''
       await api.pollNow()
-      // Wait a moment for the background task to start, then reload emails
-      setTimeout(async () => {
-        await refresh()
-        setRefreshMsg('Done')
-        setTimeout(() => setRefreshMsg(''), 2000)
-        setRefreshing(false)
-      }, 3000)
+
+      let waited = 0
+      const tick = 2000
+      const maxWait = 45000
+      await new Promise<void>((resolve) => {
+        const id = setInterval(async () => {
+          waited += tick
+          try {
+            const s = await api.getStats() as any
+            const newFound = s?.poll?.last_new ?? 0
+            if (s?.poll?.last_checked !== prevChecked) {
+              clearInterval(id)
+              await refresh()
+              setRefreshMsg(newFound > 0 ? `+${newFound} new email${newFound !== 1 ? 's' : ''}` : 'Up to date')
+              setTimeout(() => setRefreshMsg(''), 3000)
+              resolve()
+            }
+          } catch { /* ignore */ }
+          if (waited >= maxWait) {
+            clearInterval(id)
+            await refresh()
+            setRefreshMsg('Done')
+            setTimeout(() => setRefreshMsg(''), 2000)
+            resolve()
+          }
+        }, tick)
+      })
     } catch {
       setRefreshMsg('Check failed')
-      setRefreshing(false)
       setTimeout(() => setRefreshMsg(''), 2000)
+    } finally {
+      setRefreshing(false)
     }
   }
 
@@ -85,8 +168,14 @@ export default function App() {
   }
 
   if (!connected || showSettings) {
-    return <Settings onConnected={handleConnected} />
+    return <Settings onConnected={handleConnected} initialTab={settingsInitialTab} />
   }
+
+  // Health dot color
+  const healthDotClass =
+    healthStatus === 'ok' ? 'text-green-500' :
+    healthStatus === 'degraded' ? 'text-orange-400' :
+    healthStatus === 'error' ? 'text-red-500' : 'text-gray-300'
 
   return (
     <div className="h-screen flex flex-col bg-white overflow-hidden">
@@ -100,15 +189,20 @@ export default function App() {
               disabled={refreshing}
               className="text-xs text-gray-500 hover:text-gray-800 px-2 py-1 rounded hover:bg-gray-100 transition-colors disabled:opacity-60 flex items-center gap-1"
             >
-              <span className={refreshing ? 'animate-spin inline-block' : ''}>↻</span>
+              <svg className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
+              </svg>
               <span>{refreshMsg || 'Refresh'}</span>
             </button>
           )}
           <button
-            onClick={() => setShowSettings(true)}
-            className="text-xs text-gray-500 hover:text-gray-800 px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+            onClick={() => { setSettingsInitialTab('accounts'); setShowSettings(true) }}
+            className="text-xs text-gray-500 hover:text-gray-800 px-2 py-1 rounded hover:bg-gray-100 transition-colors flex items-center gap-1"
           >
-            ⚙ Settings
+            <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+            </svg>
+            <span>Settings</span>
           </button>
         </div>
       </div>
@@ -119,13 +213,24 @@ export default function App() {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`px-4 py-2.5 text-xs font-medium border-b-2 transition-colors ${
+            className={`px-4 py-2.5 text-xs font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
               activeTab === tab.id
                 ? 'border-accent text-accent'
                 : 'border-transparent text-gray-500 hover:text-gray-800'
             }`}
           >
-            {tab.label}
+            {tab.id === 'health' ? (
+              <span className={healthDotClass}>
+                {Icons.health}
+              </span>
+            ) : Icons[tab.id]}
+            <span>{tab.label}</span>
+            {tab.id === 'health' && healthStatus && (
+              <span className={`ml-0.5 w-1.5 h-1.5 rounded-full inline-block ${
+                healthStatus === 'ok' ? 'bg-green-500' :
+                healthStatus === 'degraded' ? 'bg-orange-400' : 'bg-red-500'
+              }`} />
+            )}
           </button>
         ))}
       </div>
@@ -134,7 +239,6 @@ export default function App() {
       <div className="flex-1 flex overflow-hidden">
         {activeTab === 'inbox' && (
           <>
-            {/* Email list — 260px */}
             <div className="w-64 flex-shrink-0">
               <EmailList
                 emails={emails}
@@ -151,15 +255,14 @@ export default function App() {
               />
             </div>
 
-            {/* Email viewer — flex-1 */}
             <EmailViewer
               email={email}
               loading={emailLoading}
               onAnalyze={handleAnalyze}
               analyzing={recLoading}
+              onDelete={handleDelete}
             />
 
-            {/* AI panel — 320px */}
             <AIPanel rec={rec} loading={recLoading} error={recError} email={email} />
           </>
         )}
@@ -168,9 +271,9 @@ export default function App() {
         {activeTab === 'digest' && <DigestView />}
         {activeTab === 'analytics' && <Analytics />}
         {activeTab === 'templates' && <TemplatesPanel />}
+        {activeTab === 'health' && <HealthPanel />}
       </div>
 
-      {/* Status bar */}
       <StatusBar />
     </div>
   )

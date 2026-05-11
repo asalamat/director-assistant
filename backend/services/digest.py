@@ -5,16 +5,15 @@ import logging
 from datetime import date
 from typing import TYPE_CHECKING
 
-import anthropic
-
 if TYPE_CHECKING:
     from services.email_cache import EmailCache
+    from services.ai_client import AIClient
 
 logger = logging.getLogger(__name__)
 
 
 class DigestService:
-    def __init__(self, client: anthropic.AsyncAnthropic):
+    def __init__(self, client: "AIClient"):
         self.ai = client
 
     async def generate(self, cache: "EmailCache", hours: int = 24) -> dict:

@@ -1,11 +1,11 @@
 import json
-import anthropic
 from models import EmailMessage, AIRecommendation, EmailSummary
+from services.ai_client import AIClient
 
 
 class AIAdvisor:
-    def __init__(self, client: anthropic.AsyncAnthropic):
-        self.client = client
+    def __init__(self, client: AIClient):
+        self.ai = client
 
     async def get_recommendation(
         self, email: EmailMessage, similar: list[dict]
@@ -48,7 +48,7 @@ Return a JSON object with exactly these fields:
 
 Return ONLY valid JSON. No markdown, no explanation."""
 
-        resp = await self.client.messages.create(
+        resp = await self.ai.messages.create(
             model="claude-sonnet-4-6",
             max_tokens=1800,
             messages=[{"role": "user", "content": prompt}],

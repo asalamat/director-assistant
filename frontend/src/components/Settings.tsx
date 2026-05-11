@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
 import { api } from '../api/client'
 import type { EmailProvider, Account, IngestProgress } from '../types'
+import { ConfigPanel } from './ConfigPanel'
 
 interface Props {
   onConnected: () => void
+  initialTab?: 'accounts' | 'config'
 }
 
 const PROVIDER_LABELS: Record<EmailProvider, string> = {
@@ -39,7 +41,8 @@ function ProviderBadge({ provider }: { provider: EmailProvider }) {
   )
 }
 
-export function Settings({ onConnected }: Props) {
+export function Settings({ onConnected, initialTab = 'accounts' }: Props) {
+  const [settingsTab, setSettingsTab] = useState<'accounts' | 'config'>(initialTab)
   const [accounts, setAccounts] = useState<Account[]>([])
   const [showAdd, setShowAdd] = useState(false)
   const [provider, setProvider] = useState<EmailProvider>('gmail')
@@ -142,7 +145,28 @@ export function Settings({ onConnected }: Props) {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 w-full max-w-lg p-8">
         <h1 className="text-2xl font-semibold text-gray-900 mb-1">Director Assistant</h1>
-        <p className="text-gray-500 text-sm mb-6">Manage your email accounts</p>
+        <p className="text-gray-500 text-sm mb-4">Configure your assistant</p>
+
+        {/* Tab bar */}
+        <div className="flex border-b border-gray-200 mb-6">
+          {(['accounts', 'config'] as const).map(tab => (
+            <button
+              key={tab}
+              onClick={() => setSettingsTab(tab)}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                settingsTab === tab
+                  ? 'border-accent text-accent'
+                  : 'border-transparent text-gray-500 hover:text-gray-800'
+              }`}
+            >
+              {tab === 'accounts' ? 'Email Accounts' : 'App Settings'}
+            </button>
+          ))}
+        </div>
+
+        {settingsTab === 'config' && <ConfigPanel />}
+
+        {settingsTab === 'accounts' && <>
 
         {/* Account list */}
         {hasAccounts && (
@@ -337,6 +361,7 @@ export function Settings({ onConnected }: Props) {
             </div>
           </div>
         )}
+        </>}
       </div>
     </div>
   )

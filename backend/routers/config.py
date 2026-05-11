@@ -1,0 +1,134 @@
+"""App configuration API — replaces manual .env editing."""
+
+import json
+import os
+from pathlib import Path
+from typing import Optional
+from fastapi import APIRouter, Request
+from pydantic import BaseModel
+
+APP_CONFIG_PATH = Path.home() / ".director-assistant" / "app-config.json"
+
+router = APIRouter(prefix="/api/config", tags=["config"])
+
+
+def load_app_config() -> dict:
+    if APP_CONFIG_PATH.exists():
+        try:
+            return json.loads(APP_CONFIG_PATH.read_text())
+        except Exception:
+            pass
+    return {}
+
+
+def save_app_config(data: dict):
+    APP_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    APP_CONFIG_PATH.write_text(json.dumps(data, indent=2))
+
+
+def get_effective_api_key() -> str:
+    """Anthropic key: config file takes precedence over .env."""
+    cfg = load_app_config()
+    return cfg.get("anthropic_api_key") or os.getenv("ANTHROPIC_API_KEY", "")
+
+
+class AppConfigUpdate(BaseModel):
+    anthropic_api_key: Optional[str] = None
+    openai_api_key: Optional[str] = None
+    poll_interval_seconds: Optional[int] = None
+    budget_mode: Optional[bool] = None
+
+
+@router.get("")
+async def get_config():
+    cfg = load_app_config()
+    ant_key = cfg.get("anthropic_api_key", "")
+    oai_key = cfg.get("openai_api_key", "")
+    return {
+        "has_api_key": bool(ant_key),
+        "api_key_preview": f"{ant_key[:8]}…" if ant_key else "",
+        "has_openai_key": bool(oai_key),
+        "openai_key_preview": f"{oai_key[:8]}…" if oai_key else "",
+        "poll_interval_seconds": cfg.get("poll_interval_seconds", 60),
+        "budget_mode": cfg.get("budget_mode", False),
+    }
+
+
+@router.post("")
+async def update_config(update: AppConfigUpdate, request: Request):
+    cfg = load_app_config()
+
+    if update.anthropic_api_key is not None:
+        cfg["anthropic_api_key"] = update.anthropic_api_key
+
+    if update.openai_api_key is not None:
+        cfg["openai_api_key"] = update.openai_api_key
+
+    if update.poll_interval_seconds is not None:
+        cfg["poll_interval_seconds"] = update.poll_interval_seconds
+
+    if update.budget_mode is not None:
+        cfg["budget_mode"] = update.budget_mode
+
+    save_app_config(cfg)
+
+    # Hot-reload keys + budget mode into the shared AIClient
+    ant_key = cfg.get("anthropic_api_key", "")
+    oai_key = cfg.get("openai_api_key", "")
+    budget = cfg.get("budget_mode", False)
+    for svc_name in ("rag", "advisor", "digest", "classifier"):
+        obj = getattr(request.app.state, svc_name, None)
+        if obj and hasattr(obj, "ai"):
+            ai = obj.ai
+            if hasattr(ai, "update_keys"):
+                ai.update_keys(anthropic_key=ant_key or None,
+                               openai_key=oai_key or None,
+                               budget_mode=budget)
+
+    return {
+        "status": "saved",
+        "has_api_key": bool(ant_key),
+        "has_openai_key": bool(oai_key),
+    }
+
+
+@router.post("/test-key")
+async def test_api_key(update: AppConfigUpdate):
+    """Validate an Anthropic API key by making a minimal API call."""
+    key = update.anthropic_api_key or ""
+    if not key:
+        return {"valid": False, "error": "No key provided"}
+    try:
+        import anthropic
+        client = anthropic.AsyncAnthropic(api_key=key)
+        resp = await client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=5,
+            messages=[{"role": "user", "content": "Hi"}],
+        )
+        return {"valid": True, "model": resp.model}
+    except anthropic.AuthenticationError:
+        return {"valid": False, "error": "Invalid API key"}
+    except Exception as e:
+        return {"valid": False, "error": str(e)}
+
+
+@router.post("/test-openai-key")
+async def test_openai_key(update: AppConfigUpdate):
+    """Validate an OpenAI API key by making a minimal API call."""
+    key = update.openai_api_key or ""
+    if not key:
+        return {"valid": False, "error": "No key provided"}
+    try:
+        from openai import AsyncOpenAI, AuthenticationError
+        client = AsyncOpenAI(api_key=key)
+        resp = await client.chat.completions.create(
+            model="gpt-4o-mini",
+            max_tokens=5,
+            messages=[{"role": "user", "content": "Hi"}],
+        )
+        return {"valid": True, "model": resp.model}
+    except AuthenticationError:
+        return {"valid": False, "error": "Invalid API key"}
+    except Exception as e:
+        return {"valid": False, "error": str(e)}

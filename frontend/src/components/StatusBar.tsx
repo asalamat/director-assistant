@@ -4,7 +4,7 @@ import { api } from '../api/client'
 interface Stats {
   rag: { total_chunks: number; unique_emails_indexed: number; cached_emails: number; db_size_mb: number }
   ingest: { status: string; processed: number; total: number; message: string }
-  poll: { interval_seconds: number; last_checked: string; last_new: number }
+  poll: { interval_seconds: number; last_checked: string; last_new: number; last_error: string }
   accounts: { id: number; username: string; provider: string; last_ingested: string | null }[]
 }
 
@@ -66,10 +66,16 @@ export function StatusBar() {
               <span className="truncate max-w-[120px]">{a.username}</span>
             </span>
           ))}
-          <span className="text-xs text-gray-400 ml-auto whitespace-nowrap flex-shrink-0">
-            Checked {timeAgo(poll.last_checked)}
+          <span className="text-xs text-gray-400 ml-auto whitespace-nowrap flex-shrink-0 flex items-center gap-2">
+            {poll.last_error ? (
+              <span className="text-red-500" title={poll.last_error}>⚠ Poll error</span>
+            ) : poll.last_checked ? (
+              <span>Checked {timeAgo(poll.last_checked)}</span>
+            ) : (
+              <span>Waiting for first check…</span>
+            )}
             {poll.last_new > 0 && (
-              <span className="ml-1 text-green-600 font-medium">+{poll.last_new} new</span>
+              <span className="text-green-600 font-medium">+{poll.last_new} new</span>
             )}
           </span>
         </div>

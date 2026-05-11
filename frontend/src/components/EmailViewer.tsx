@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { EmailMessage } from '../types'
 
 interface Props {
@@ -5,6 +6,7 @@ interface Props {
   loading: boolean
   onAnalyze: () => void
   analyzing: boolean
+  onDelete: (id: string) => void
 }
 
 function formatDateFull(dateStr: string | null): string {
@@ -15,7 +17,19 @@ function formatDateFull(dateStr: string | null): string {
   })
 }
 
-export function EmailViewer({ email, loading, onAnalyze, analyzing }: Props) {
+export function EmailViewer({ email, loading, onAnalyze, analyzing, onDelete }: Props) {
+  const [deleting, setDeleting] = useState(false)
+
+  const handleDelete = async () => {
+    if (!email) return
+    setDeleting(true)
+    try {
+      onDelete(email.id)
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center bg-white">
@@ -39,23 +53,36 @@ export function EmailViewer({ email, loading, onAnalyze, analyzing }: Props) {
       <div className="px-6 py-4 border-b border-gray-100">
         <div className="flex items-start justify-between gap-4">
           <h2 className="text-lg font-semibold text-gray-900 flex-1">{email.subject || '(no subject)'}</h2>
-          <button
-            onClick={onAnalyze}
-            disabled={analyzing}
-            className="flex-shrink-0 flex items-center gap-1.5 bg-accent text-white text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-60"
-          >
-            {analyzing ? (
-              <>
-                <span className="animate-spin">⟳</span>
-                <span>Analyzing…</span>
-              </>
-            ) : (
-              <>
-                <span>✦</span>
-                <span>AI Analysis</span>
-              </>
-            )}
-          </button>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={onAnalyze}
+              disabled={analyzing}
+              className="flex items-center gap-1.5 bg-accent text-white text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-60"
+            >
+              {analyzing ? (
+                <>
+                  <span className="animate-spin">⟳</span>
+                  <span>Analyzing…</span>
+                </>
+              ) : (
+                <>
+                  <span>✦</span>
+                  <span>AI Analysis</span>
+                </>
+              )}
+            </button>
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              title="Delete email"
+              className="flex items-center gap-1 text-xs text-gray-400 hover:text-red-500 px-2 py-1.5 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-60"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+              <span>Delete</span>
+            </button>
+          </div>
         </div>
 
         <div className="mt-2 space-y-1">

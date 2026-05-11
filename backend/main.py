@@ -6,8 +6,6 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-import anthropic
-
 from services.rag_engine import RAGEngine
 from services.ai_advisor import AIAdvisor
 from services.email_cache import EmailCache
@@ -15,6 +13,10 @@ from services.digest import DigestService
 from services.classifier import ClassifierService
 from routers import connection, emails
 from routers import digest, actions, followups, templates, analytics, sender, accounts as accounts_router
+from routers import config as config_router
+from routers import health as health_router
+from routers.config import get_effective_api_key, load_app_config
+from services.ai_client import AIClient
 
 load_dotenv()
 
@@ -25,13 +27,14 @@ POLL_SINCE_DAYS = 7         # server-side SINCE window — avoids downloading ol
 
 _last_poll_time: str = ""   # ISO timestamp of the last successful poll cycle
 _last_poll_new: int = 0     # how many new emails were found last poll
+_last_poll_error: str = ""  # last poll error message if any
 
 
 async def _poll_new_emails(rag: RAGEngine, cache: EmailCache):
     """Background: every POLL_INTERVAL_SECONDS, fetch newest emails from all accounts
     and ingest any that aren't already in RAG."""
     global _last_poll_time, _last_poll_new
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
 
     await asyncio.sleep(20)   # short initial delay — let startup settle
 
@@ -46,7 +49,7 @@ async def _poll_new_emails(rag: RAGEngine, cache: EmailCache):
 
             known_ids = rag._known_ids()
             new_total = 0
-            since_dt = datetime.utcnow() - timedelta(days=POLL_SINCE_DAYS)
+            since_dt = datetime.now(timezone.utc) - timedelta(days=POLL_SINCE_DAYS)
 
             all_accounts = cache.list_accounts()
             providers_to_check = []
@@ -87,6 +90,7 @@ async def _poll_new_emails(rag: RAGEngine, cache: EmailCache):
                             count += 1
                 return count
 
+            errors = []
             for account_id, provider in providers_to_check:
                 try:
                     folders = provider.get_ingest_folders()
@@ -95,16 +99,20 @@ async def _poll_new_emails(rag: RAGEngine, cache: EmailCache):
                             None, check_folder, account_id, provider, folder
                         )
                 except Exception as e:
-                    print(f"[poll] account {account_id} error: {e}")
+                    msg = f"account {account_id}: {type(e).__name__}: {e}"
+                    print(f"[poll] {msg}")
+                    errors.append(msg)
 
             if new_total > 0:
                 rag.flush_bm25()
                 print(f"[poll] {new_total} new email(s) indexed")
 
-            _last_poll_time = datetime.utcnow().isoformat(timespec="seconds") + "Z"
+            _last_poll_time = datetime.now(timezone.utc).isoformat(timespec="seconds") + "Z"
             _last_poll_new = new_total
+            _last_poll_error = "; ".join(errors) if errors else ""
 
         except Exception as e:
+            _last_poll_error = str(e)
             print(f"[poll error] {e}")
 
         await asyncio.sleep(NEW_EMAIL_POLL_SECONDS)
@@ -112,8 +120,12 @@ async def _poll_new_emails(rag: RAGEngine, cache: EmailCache):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    api_key = os.getenv("ANTHROPIC_API_KEY", "")
-    client = anthropic.AsyncAnthropic(api_key=api_key)
+    cfg = load_app_config()
+    anthropic_key = cfg.get("anthropic_api_key") or os.getenv("ANTHROPIC_API_KEY", "")
+    openai_key = cfg.get("openai_api_key") or os.getenv("OPENAI_API_KEY", "")
+    budget_mode = cfg.get("budget_mode", False)
+    client = AIClient(anthropic_key=anthropic_key, openai_key=openai_key,
+                      budget_mode=budget_mode)
     app.state.cache = EmailCache()
     app.state.rag = RAGEngine(client, app.state.cache)
     app.state.advisor = AIAdvisor(client)
@@ -150,6 +162,8 @@ app.include_router(templates.router)
 app.include_router(analytics.router)
 app.include_router(sender.router)
 app.include_router(accounts_router.router)
+app.include_router(config_router.router)
+app.include_router(health_router.router)
 
 
 @app.get("/health")
@@ -186,6 +200,7 @@ async def stats(request: Request):
             "interval_seconds": NEW_EMAIL_POLL_SECONDS,
             "last_checked": _last_poll_time,
             "last_new": _last_poll_new,
+            "last_error": _last_poll_error,
         },
         "accounts": [
             {"id": a.id, "username": a.username, "provider": a.provider,
@@ -208,7 +223,7 @@ async def poll_now(request: Request):
 async def _poll_new_emails_once(rag: RAGEngine, cache: EmailCache):
     """Single poll cycle — same logic as the loop but runs once."""
     global _last_poll_time, _last_poll_new
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
     from routers.connection import _progress, load_config
     from services.email_provider import build_provider, IMAPProvider
 
@@ -217,7 +232,7 @@ async def _poll_new_emails_once(rag: RAGEngine, cache: EmailCache):
 
     known_ids = rag._known_ids()
     new_total = 0
-    since_dt = datetime.utcnow() - timedelta(days=POLL_SINCE_DAYS)
+    since_dt = datetime.now(timezone.utc) - timedelta(days=POLL_SINCE_DAYS)
 
     all_accounts = cache.list_accounts()
     providers_to_check = []
@@ -256,19 +271,23 @@ async def _poll_new_emails_once(rag: RAGEngine, cache: EmailCache):
                     count += 1
         return count
 
+    errors = []
     for account_id, provider in providers_to_check:
         try:
             for folder in provider.get_ingest_folders():
                 new_total += await loop.run_in_executor(None, check_folder, account_id, provider, folder)
         except Exception as e:
-            print(f"[poll-now] account {account_id} error: {e}")
+            msg = f"account {account_id}: {type(e).__name__}: {e}"
+            print(f"[poll-now] {msg}")
+            errors.append(msg)
 
     if new_total > 0:
         rag.flush_bm25()
 
-    _last_poll_time = datetime.utcnow().isoformat(timespec="seconds") + "Z"
+    _last_poll_time = datetime.now(timezone.utc).isoformat(timespec="seconds") + "Z"
     _last_poll_new = new_total
-    print(f"[poll-now] {new_total} new email(s) indexed")
+    _last_poll_error = "; ".join(errors) if errors else ""
+    print(f"[poll-now] {new_total} new email(s) indexed" + (f" | errors: {_last_poll_error}" if errors else ""))
 
 
 # Serve built frontend from backend/static/ (production mode)
