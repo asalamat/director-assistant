@@ -79,6 +79,10 @@ export const api = {
     return request(`/emails/${id}`, { method: 'DELETE' })
   },
 
+  importBySubject(subject: string): Promise<{ imported: { id: string; subject: string; sender: string; folder: string }[]; count: number; errors: string[] }> {
+    return request('/emails/import-by-subject', { method: 'POST', body: JSON.stringify({ subject }) })
+  },
+
   getRecommendation(id: string, folder = 'INBOX'): Promise<AIRecommendation> {
     return request(`/emails/${id}/recommend?folder=${folder}`)
   },

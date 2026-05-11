@@ -138,6 +138,71 @@ async def recommend(request: Request, email_id: str, folder: str = Query("INBOX"
     return await advisor.get_recommendation(email, similar)
 
 
+@router.post("/import-by-subject")
+async def import_by_subject(request: Request, body: dict):
+    """Search all IMAP folders for emails matching a subject string and ingest them."""
+    subject = (body.get("subject") or "").strip()
+    if not subject:
+        raise HTTPException(400, "subject is required")
+
+    cache: EmailCache = request.app.state.cache
+    rag: RAGEngine = request.app.state.rag
+
+    from services.email_provider import build_provider, IMAPProvider
+    from routers.connection import load_config
+
+    all_accounts = cache.list_accounts()
+    providers = []
+    if all_accounts:
+        for acc in all_accounts:
+            try:
+                providers.append((acc.id, build_provider(acc.to_connection_config())))
+            except Exception:
+                pass
+    else:
+        cfg = load_config()
+        if cfg:
+            providers = [(0, build_provider(cfg))]
+
+    if not providers:
+        raise HTTPException(400, "Not connected to any email account")
+
+    imported = []
+    errors = []
+    import asyncio
+    loop = asyncio.get_event_loop()
+
+    def do_search(account_id, provider):
+        found = []
+        folders = provider.get_ingest_folders() if hasattr(provider, 'get_ingest_folders') else ["INBOX"]
+        for folder in folders:
+            try:
+                if isinstance(provider, IMAPProvider):
+                    for email_obj, _ in provider.search_by_subject(subject, folder=folder):
+                        if account_id:
+                            email_obj._server_id = email_obj.id
+                            email_obj.id = f"a{account_id}_{email_obj.id}"
+                        cache.save(email_obj, account_id=account_id)
+                        rag.ingest_email(email_obj)
+                        found.append({"id": email_obj.id, "subject": email_obj.subject,
+                                      "sender": email_obj.sender, "folder": folder})
+            except Exception as e:
+                errors.append(f"folder={folder}: {e}")
+        return found
+
+    for account_id, provider in providers:
+        try:
+            results = await loop.run_in_executor(None, do_search, account_id, provider)
+            imported.extend(results)
+        except Exception as e:
+            errors.append(str(e))
+
+    if imported:
+        rag.flush_bm25()
+
+    return {"imported": imported, "count": len(imported), "errors": errors}
+
+
 @router.post("/search")
 async def search(req: SearchRequest, request: Request):
     rag: RAGEngine = request.app.state.rag

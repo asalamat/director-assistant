@@ -169,9 +169,52 @@ class IMAPProvider:
             pass
         return "Sent"
 
+    def _find_folder(self, candidates: List[str]) -> Optional[str]:
+        """Return the first candidate folder that actually exists, or None."""
+        try:
+            folders = self.list_folders()
+            folders_lower = {f.lower(): f for f in folders}
+            for c in candidates:
+                match = folders_lower.get(c.lower())
+                if match:
+                    return match
+        except Exception:
+            pass
+        return None
+
     def get_ingest_folders(self) -> List[str]:
-        """Return [INBOX, Sent] with correct folder names for this account."""
-        return ["INBOX", self.find_sent_folder()]
+        """INBOX + Sent + Bulk/Spam so marketing and notification emails are caught."""
+        folders = ["INBOX", self.find_sent_folder()]
+        # Auto-detect bulk/spam — name varies by provider/locale
+        bulk = self._find_folder([
+            "Bulk Mail", "Bulk", "Spam", "Junk", "Junk Mail",
+            "Junk E-mail", "JUNK", "SPAM",
+        ])
+        if bulk:
+            folders.append(bulk)
+        return folders
+
+    def search_by_subject(self, subject: str, folder: str = "INBOX", limit: int = 10):
+        """Search IMAP folder for emails matching subject. Yields (EmailMessage, total)."""
+        if not self._mail:
+            self.connect()
+        self._mail.select(f'"{folder}"')
+        safe = subject.replace('"', '')
+        _, data = self._mail.search(None, f'SUBJECT "{safe}"')
+        uids = data[0].split()
+        total = len(uids)
+        recent = uids[-limit:] if len(uids) > limit else uids
+        if not recent:
+            return
+        uid_str = ",".join(u.decode() for u in recent)
+        _, fetch_data = self._mail.fetch(uid_str, "(RFC822)")
+        for item in fetch_data:
+            if isinstance(item, tuple):
+                uid = item[0].decode().split()[0]
+                try:
+                    yield self._parse_message(item[1], uid, folder), total
+                except Exception as e:
+                    print(f"[provider] parse error uid={uid}: {e}")
 
     @staticmethod
     def _imap_date(dt) -> str:
@@ -207,7 +250,8 @@ class IMAPProvider:
                     try:
                         msg = self._parse_message(item[1], uid, folder)
                         yield msg, total
-                    except Exception:
+                    except Exception as e:
+                        print(f"[fetch_all] parse error uid={uid} folder={folder}: {e}")
                         continue
 
     def fetch_recent_n(self, folder: str = "INBOX", n: int = 50, from_date=None):
@@ -236,7 +280,8 @@ class IMAPProvider:
                 uid = item[0].decode().split()[0]
                 try:
                     yield self._parse_message(item[1], uid, folder), total
-                except Exception:
+                except Exception as e:
+                    print(f"[fetch_recent_n] parse error uid={uid} folder={folder}: {e}")
                     continue
 
     def fetch_one(self, uid: str, folder: str = "INBOX") -> Optional[EmailMessage]:

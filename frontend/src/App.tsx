@@ -68,6 +68,10 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('inbox')
   const [refreshing, setRefreshing] = useState(false)
   const [refreshMsg, setRefreshMsg] = useState('')
+  const [importPrompt, setImportPrompt] = useState(false)
+  const [importSubject, setImportSubject] = useState('')
+  const [importing, setImporting] = useState(false)
+  const [importMsg, setImportMsg] = useState('')
 
   const { emails, total, loading: listLoading, hasMore, refresh, loadMore, setSort, currentParams, removeEmail } = useEmails()
   const { email, loading: emailLoading, fetch: fetchEmail } = useEmailDetail()
@@ -105,6 +109,26 @@ export default function App() {
 
   const handleAnalyze = () => {
     if (selectedEmail) fetchRec(selectedEmail.id)
+  }
+
+  const handleImport = async () => {
+    if (!importSubject.trim()) return
+    setImporting(true)
+    setImportMsg('')
+    try {
+      const res = await api.importBySubject(importSubject.trim())
+      if (res.count > 0) {
+        setImportMsg(`Imported ${res.count} email${res.count !== 1 ? 's' : ''}`)
+        await refresh()
+      } else {
+        setImportMsg('No matching emails found')
+      }
+    } catch {
+      setImportMsg('Import failed')
+    } finally {
+      setImporting(false)
+      setTimeout(() => { setImportPrompt(false); setImportSubject(''); setImportMsg('') }, 2000)
+    }
   }
 
   const handleDelete = async (emailId: string) => {
@@ -184,16 +208,28 @@ export default function App() {
         <span className="text-sm font-semibold text-gray-800">Director Assistant</span>
         <div className="flex gap-2">
           {activeTab === 'inbox' && (
-            <button
-              onClick={handleRefresh}
-              disabled={refreshing}
-              className="text-xs text-gray-500 hover:text-gray-800 px-2 py-1 rounded hover:bg-gray-100 transition-colors disabled:opacity-60 flex items-center gap-1"
-            >
-              <svg className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
-              </svg>
-              <span>{refreshMsg || 'Refresh'}</span>
-            </button>
+            <>
+              <button
+                onClick={handleRefresh}
+                disabled={refreshing}
+                className="text-xs text-gray-500 hover:text-gray-800 px-2 py-1 rounded hover:bg-gray-100 transition-colors disabled:opacity-60 flex items-center gap-1"
+              >
+                <svg className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
+                </svg>
+                <span>{refreshMsg || 'Refresh'}</span>
+              </button>
+              <button
+                onClick={() => setImportPrompt(true)}
+                title="Import a specific email by subject"
+                className="text-xs text-gray-500 hover:text-gray-800 px-2 py-1 rounded hover:bg-gray-100 transition-colors flex items-center gap-1"
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+                <span>Import</span>
+              </button>
+            </>
           )}
           <button
             onClick={() => { setSettingsInitialTab('accounts'); setShowSettings(true) }}
@@ -273,6 +309,40 @@ export default function App() {
         {activeTab === 'templates' && <TemplatesPanel />}
         {activeTab === 'health' && <HealthPanel />}
       </div>
+
+      {/* Import by subject modal */}
+      {importPrompt && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onClick={() => setImportPrompt(false)}>
+          <div className="bg-white rounded-xl shadow-xl p-6 w-96" onClick={e => e.stopPropagation()}>
+            <h3 className="text-sm font-semibold text-gray-800 mb-1">Import email by subject</h3>
+            <p className="text-xs text-gray-500 mb-3">Searches all folders (INBOX, Sent, Bulk, Spam) across all accounts</p>
+            <input
+              autoFocus
+              type="text"
+              value={importSubject}
+              onChange={e => setImportSubject(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleImport()}
+              placeholder="Paste the subject line…"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent mb-3"
+            />
+            {importMsg && (
+              <p className={`text-xs mb-3 ${importMsg.includes('failed') || importMsg.includes('No matching') ? 'text-red-500' : 'text-green-600'}`}>
+                {importMsg}
+              </p>
+            )}
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setImportPrompt(false)} className="text-xs text-gray-500 px-3 py-1.5 rounded hover:bg-gray-100">Cancel</button>
+              <button
+                onClick={handleImport}
+                disabled={importing || !importSubject.trim()}
+                className="text-xs bg-accent text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 disabled:opacity-60 flex items-center gap-1"
+              >
+                {importing ? <><span className="animate-spin">⟳</span> Searching…</> : 'Import'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <StatusBar />
     </div>
