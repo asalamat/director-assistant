@@ -10,7 +10,7 @@ router = APIRouter(prefix="/api/oauth", tags=["oauth"])
 
 _flows: dict[str, dict] = {}
 
-_MS_AUTHORITY = "https://login.microsoftonline.com/consumers/oauth2/v2.0"
+_MS_AUTHORITY = "https://login.microsoftonline.com/common/oauth2/v2.0"
 _SCOPES = "https://outlook.office.com/IMAP.AccessAsUser.All offline_access"
 
 
