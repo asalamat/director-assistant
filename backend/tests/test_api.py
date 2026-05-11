@@ -318,8 +318,15 @@ def test_imap_ping_bad_host():
 
 
 def test_imap_ping_invalid_creds():
-    """Real Yahoo IMAP with wrong password must return auth error (not ok)."""
+    """Bad credentials must return an auth error (mocked — no live network call)."""
+    import imaplib
     from routers.health import _imap_ping
-    result = _imap_ping("imap.mail.yahoo.com", 993, "notauser@yahoo.com", "wrongpassword")
+
+    mock_imap = MagicMock()
+    mock_imap.login.side_effect = imaplib.IMAP4.error("[AUTH] Login failed: bad credentials")
+
+    with patch("imaplib.IMAP4_SSL", return_value=mock_imap):
+        result = _imap_ping("imap.mail.yahoo.com", 993, "notauser@yahoo.com", "wrongpassword")
+
     assert result != "ok"
-    assert "auth" in result.lower() or "failed" in result.lower() or "connection" in result.lower()
+    assert "auth" in result.lower() or "failed" in result.lower()
