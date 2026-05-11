@@ -283,8 +283,8 @@ class EmailExtrasMixin:
             cur = conn.execute("DELETE FROM accounts WHERE id = ?", (account_id,))
         return cur.rowcount > 0
 
-    def store_account_token(self, account_id: int, access_token: str):
-        """Persist an OAuth access token for an existing account."""
+    def store_account_token(self, account_id: int, access_token: str, refresh_token: str = ""):
+        """Persist an OAuth access token (and optional refresh token) for an existing account."""
         with self._conn() as conn:
             row = conn.execute(
                 "SELECT config_json FROM accounts WHERE id = ?", (account_id,)
@@ -293,10 +293,48 @@ class EmailExtrasMixin:
                 return
             cfg = _json.loads(row[0] or "{}")
             cfg["access_token"] = access_token
+            if refresh_token:
+                cfg["refresh_token"] = refresh_token
             conn.execute(
                 "UPDATE accounts SET config_json = ? WHERE id = ?",
                 (_json.dumps(cfg), account_id),
             )
+
+    def refresh_oauth_token(self, account_id: int) -> str | None:
+        """Use the stored refresh_token to get a new access_token. Returns new token or None."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT config_json FROM accounts WHERE id = ?", (account_id,)
+            ).fetchone()
+        if not row:
+            return None
+        cfg = _json.loads(row[0] or "{}")
+        refresh_token = cfg.get("refresh_token", "")
+        client_id = cfg.get("client_id", "")
+        if not refresh_token or not client_id:
+            return None
+        try:
+            import httpx
+            r = httpx.post(
+                "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+                data={
+                    "grant_type": "refresh_token",
+                    "client_id": client_id,
+                    "refresh_token": refresh_token,
+                    "scope": "https://outlook.office.com/IMAP.AccessAsUser.All offline_access",
+                },
+                timeout=15,
+            )
+            data = r.json()
+            new_token = data.get("access_token")
+            new_refresh = data.get("refresh_token", refresh_token)
+            if new_token:
+                self.store_account_token(account_id, new_token, refresh_token=new_refresh)
+                print(f"[oauth] refreshed access token for account {account_id}", flush=True)
+                return new_token
+        except Exception as e:
+            print(f"[oauth] token refresh failed for account {account_id}: {e}", flush=True)
+        return None
 
     def mark_ingested(self, account_id: int):
         with self._conn() as conn:

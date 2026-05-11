@@ -59,7 +59,7 @@ def _is_connection_error(exc: Exception) -> bool:
     if isinstance(exc, imaplib.IMAP4.abort):
         return True
     if isinstance(exc, imaplib.IMAP4.error):
-        return any(kw in str(exc).upper() for kw in ("EOF", "BYE", "CLOSED"))
+        return any(kw in str(exc).upper() for kw in ("EOF", "BYE", "CLOSED", "NONAUTH"))
     return False
 
 
@@ -154,6 +154,13 @@ async def _run_poll_cycle(rag: RAGEngine, cache: EmailCache) -> tuple[int, list[
         except Exception as e:
             if _is_connection_error(e):
                 _evict_provider(account_id)   # next cycle will reconnect
+                # For OAuth accounts, try refreshing the token so the next
+                # reconnect uses a valid credential.
+                acc_obj = next((a for a in all_accounts if a.id == account_id), None)
+                if acc_obj and acc_obj.access_token:
+                    new_token = cache.refresh_oauth_token(account_id)
+                    if new_token:
+                        print(f"[poll] refreshed oauth token for account {account_id}", flush=True)
             msg = f"account {account_id}: {type(e).__name__}: {e}"
             print(f"[poll] {msg}")
             errors.append(msg)

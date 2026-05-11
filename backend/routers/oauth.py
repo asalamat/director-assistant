@@ -66,6 +66,7 @@ async def poll_microsoft_oauth(flow_id: str, request: Request):
 
     if "access_token" in data:
         access_token = data["access_token"]
+        refresh_token = data.get("refresh_token", "")
         username = entry["username"]
         del _flows[flow_id]
 
@@ -74,7 +75,7 @@ async def poll_microsoft_oauth(flow_id: str, request: Request):
         accounts = cache.list_accounts()
         for acc in accounts:
             if acc.username.lower() == username.lower():
-                cache.store_account_token(acc.id, access_token)
+                cache.store_account_token(acc.id, access_token, refresh_token=refresh_token)
                 break
 
         return {"status": "completed", "access_token": access_token, "username": username}
