@@ -23,6 +23,7 @@ class EmailMessage(BaseModel):
     thread_id: Optional[str] = None
     folder: str = "INBOX"
     is_read: bool = True
+    server_id: Optional[str] = None  # original provider ID before account prefix is added
 
 
 class EmailSummary(BaseModel):

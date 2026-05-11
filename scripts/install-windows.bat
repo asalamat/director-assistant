@@ -7,7 +7,7 @@ REM  Requirements: Windows 10+, Internet connection
 REM  Run as Administrator if auto-install of Python/Node fails
 REM ============================================================
 
-set APP_VERSION=2.0
+set APP_VERSION=2.1
 set APP_NAME=Director Assistant
 set INSTALL_DIR=%USERPROFILE%\DirectorAssistant
 set PYTHON_MIN=3.11

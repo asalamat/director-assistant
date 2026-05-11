@@ -147,7 +147,12 @@ async def recommend(request: Request, email_id: str, folder: str = Query("INBOX"
 
     similar = await rag.get_similar_emails(email, n=5)
     rec = await advisor.get_recommendation(email, similar)
-    _rec_cache[email_id] = (monotonic(), rec)
+    now2 = monotonic()
+    _rec_cache[email_id] = (now2, rec)
+    # Prune entries that have expired so the dict doesn't grow unbounded
+    expired = [k for k, (ts, _) in _rec_cache.items() if now2 - ts >= _REC_COOLDOWN]
+    for k in expired:
+        _rec_cache.pop(k, None)
     return rec
 
 

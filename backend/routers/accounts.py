@@ -83,7 +83,7 @@ async def _ingest_account(account: Account, rag, cache):
             buffer = []
             for email, total in provider.fetch_all(folder=folder, batch_size=100):
                 # Prefix ID with account to avoid cross-account collisions
-                email._server_id = email.id  # type: ignore[attr-defined]
+                email.server_id = email.id
                 email.id = f"a{account.id}_{email.id}"
                 buffer.append(email)
                 _ingest_progress.total = max(_ingest_progress.total, total)

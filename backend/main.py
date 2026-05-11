@@ -128,7 +128,7 @@ async def _run_poll_cycle(rag: RAGEngine, cache: EmailCache) -> tuple[int, list[
         buffer = []
         for email, _ in fetch_fn():
             if account_id:
-                email._server_id = email.id  # type: ignore[attr-defined]
+                email.server_id = email.id
                 email.id = f"a{account_id}_{email.id}"
             if email.id not in known_ids:
                 buffer.append(email)

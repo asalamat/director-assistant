@@ -146,7 +146,7 @@ async def _run_ingest(rag, cache, from_date=None, custom_folders=None):
                 for email, t in prov.fetch_all(folder=folder, batch_size=100, from_date=dt_from):
                     folder_total = max(folder_total, t)
                     if account_id:
-                        email._server_id = email.id  # type: ignore[attr-defined]
+                        email.server_id = email.id
                         email.id = f"a{account_id}_{email.id}"
                     buffer.append(email)
 

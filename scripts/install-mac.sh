@@ -9,7 +9,7 @@
 set -e
 
 APP_NAME="Director Assistant"
-APP_VERSION="2.0"
+APP_VERSION="2.1"
 INSTALL_DIR="$HOME/Applications/DirectorAssistant"
 PYTHON_MIN="3.11"
 NODE_MIN="18"
@@ -142,7 +142,7 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << PLISTEOF
 <dict>
   <key>CFBundleName</key>         <string>Director Assistant</string>
   <key>CFBundleIdentifier</key>   <string>com.director-assistant.app</string>
-  <key>CFBundleVersion</key>      <string>2.0</string>
+  <key>CFBundleVersion</key>      <string>2.1</string>
   <key>CFBundleExecutable</key>   <string>launch</string>
   <key>CFBundlePackageType</key>  <string>APPL</string>
   <key>LSUIElement</key>          <true/>

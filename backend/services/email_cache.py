@@ -178,7 +178,7 @@ class EmailCache(EmailExtrasMixin):
             self._normalize_folder(email.folder or "INBOX"),
             1 if email.is_read else 0,
             account_id,
-            getattr(email, "_server_id", email.id),
+            email.server_id or email.id,
         )
 
     def save(self, email: EmailMessage, account_id: int = 0) -> bool:

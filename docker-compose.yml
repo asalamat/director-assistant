@@ -1,0 +1,16 @@
+services:
+  director-assistant:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persist the SQLite DB and ChromaDB index across container restarts
+      - director_data:/root/.director-assistant
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      # Override in .env or here; app also accepts keys via Settings UI
+    restart: unless-stopped
+
+volumes:
+  director_data:
