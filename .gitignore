@@ -1,0 +1,44 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment / secrets
+.env
+.env.*
+*.env
+
+# Frontend dependencies
+frontend/node_modules/
+
+# Backend static (copied from frontend dist at package time)
+backend/static/
+
+# Release archives
+dist/*.zip
+dist/*.tar.gz
+dist/*.dmg
+dist/*.exe
+
+# Runtime data
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+
+# claude-flow sessions
+.claude-flow/sessions/
+backend/.claude-flow/sessions/
+
+# macOS
+.DS_Store
+
+# Editor
+.idea/
+.vscode/
+*.swp
