@@ -1,3 +1,4 @@
+from time import monotonic
 from fastapi import APIRouter, HTTPException, Query, Request
 from typing import Optional
 from models import EmailListResponse, EmailSummary, AIRecommendation, SearchRequest
@@ -8,6 +9,9 @@ from services.email_cache import EmailCache
 from routers.connection import load_config
 
 router = APIRouter(prefix="/api/emails", tags=["emails"])
+
+_REC_COOLDOWN = 60.0  # seconds between AI calls for the same email
+_rec_cache: dict[str, tuple[float, AIRecommendation]] = {}
 
 
 @router.get("/", response_model=EmailListResponse)
@@ -115,6 +119,13 @@ async def recommend(request: Request, email_id: str, folder: str = Query("INBOX"
     advisor: AIAdvisor = request.app.state.advisor
     cache: EmailCache = request.app.state.cache
 
+    # Return cached result if within cooldown window
+    now = monotonic()
+    if email_id in _rec_cache:
+        ts, cached_rec = _rec_cache[email_id]
+        if now - ts < _REC_COOLDOWN:
+            return cached_rec
+
     # Fetch from cache first, fall back to IMAP
     email = cache.get(email_id)
     if not email:
@@ -135,7 +146,9 @@ async def recommend(request: Request, email_id: str, folder: str = Query("INBOX"
         rag.flush_bm25()
 
     similar = await rag.get_similar_emails(email, n=5)
-    return await advisor.get_recommendation(email, similar)
+    rec = await advisor.get_recommendation(email, similar)
+    _rec_cache[email_id] = (monotonic(), rec)
+    return rec
 
 
 @router.post("/import-by-subject")

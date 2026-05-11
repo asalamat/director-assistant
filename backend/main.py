@@ -1,6 +1,7 @@
 import os
 import asyncio
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
@@ -20,122 +21,123 @@ from services.ai_client import AIClient
 
 load_dotenv()
 
-NEW_EMAIL_POLL_SECONDS = int(os.getenv("POLL_INTERVAL_SECONDS", "60"))   # default 1 min
-POLL_RECENT_N = 50          # newest N emails to inspect per folder per poll
-POLL_SINCE_DAYS = 7         # server-side SINCE window — avoids downloading old emails
+NEW_EMAIL_POLL_SECONDS = int(os.getenv("POLL_INTERVAL_SECONDS", "60"))
+POLL_RECENT_N = 50
+POLL_SINCE_DAYS = 7
+
+_last_poll_time: str = ""
+_last_poll_new: int = 0
+_last_poll_error: str = ""
 
 
-_last_poll_time: str = ""   # ISO timestamp of the last successful poll cycle
-_last_poll_new: int = 0     # how many new emails were found last poll
-_last_poll_error: str = ""  # last poll error message if any
+async def _run_poll_cycle(rag: RAGEngine, cache: EmailCache) -> tuple[int, list[str]]:
+    """
+    One complete poll cycle: detect deletions, fetch new emails for all accounts.
+    Returns (new_count, error_list). Updates _last_poll_* globals on completion.
+    """
+    global _last_poll_time, _last_poll_new, _last_poll_error
+
+    from routers.connection import _progress, load_config
+    from services.email_provider import build_provider, IMAPProvider
+
+    if _progress.status == "running":
+        return 0, []
+
+    cfg = load_app_config()
+    sync_days = cfg.get("sync_window_days", POLL_SINCE_DAYS)
+    since_dt = datetime.now(timezone.utc) - timedelta(days=sync_days)
+    since_str = since_dt.strftime("%Y-%m-%d")
+
+    all_accounts = cache.list_accounts()
+    providers_to_check: list[tuple[int, object]] = []
+    if all_accounts:
+        for acc in all_accounts:
+            try:
+                providers_to_check.append((acc.id, build_provider(acc.to_connection_config())))
+            except Exception:
+                pass
+    else:
+        legacy = load_config()
+        if legacy:
+            providers_to_check = [(0, build_provider(legacy))]
+
+    known_ids = rag._known_ids()
+    loop = asyncio.get_event_loop()
+
+    def check_folder(account_id: int, provider, folder: str) -> int:
+        # Step 1: detect server-side deletions (cheap UID list, no body download)
+        try:
+            server_uids = provider.get_uid_list(folder=folder, from_date=since_dt)
+        except Exception as e:
+            print(f"[poll] uid_list failed account={account_id} folder={folder}: {e}")
+            server_uids = None
+
+        if server_uids is not None:
+            cached = cache.get_cached_server_ids(account_id, folder, since_str)
+            for srv_id, cache_id in cached.items():
+                if srv_id not in server_uids:
+                    cache.delete_email(cache_id)
+                    rag.remove_email(cache_id)
+                    known_ids.discard(cache_id)
+                    print(f"[poll] removed deleted email cache_id={cache_id}")
+
+        # Step 2: fetch new emails
+        fetch_fn = (
+            lambda: provider.fetch_recent_n(folder=folder, n=POLL_RECENT_N, from_date=since_dt)
+            if isinstance(provider, IMAPProvider)
+            else provider.fetch_all(folder=folder, batch_size=POLL_RECENT_N, from_date=since_dt)
+        )
+        buffer = []
+        for email, _ in fetch_fn():
+            if account_id:
+                email._server_id = email.id  # type: ignore[attr-defined]
+                email.id = f"a{account_id}_{email.id}"
+            if email.id not in known_ids:
+                buffer.append(email)
+
+        count = 0
+        if buffer:
+            cache.save_batch(buffer, account_id=account_id)
+            for em in buffer:
+                if rag.ingest_email(em):
+                    known_ids.add(em.id)
+                    count += 1
+        return count
+
+    new_total = 0
+    errors: list[str] = []
+    for account_id, provider in providers_to_check:
+        try:
+            for folder in provider.get_ingest_folders():
+                new_total += await loop.run_in_executor(
+                    None, check_folder, account_id, provider, folder
+                )
+        except Exception as e:
+            msg = f"account {account_id}: {type(e).__name__}: {e}"
+            print(f"[poll] {msg}")
+            errors.append(msg)
+
+    if new_total > 0:
+        rag.flush_bm25()
+        print(f"[poll] {new_total} new email(s) indexed")
+
+    _last_poll_time = datetime.now(timezone.utc).isoformat(timespec="seconds") + "Z"
+    _last_poll_new = new_total
+    _last_poll_error = "; ".join(errors) if errors else ""
+    return new_total, errors
 
 
 async def _poll_new_emails(rag: RAGEngine, cache: EmailCache):
-    """Background: poll all accounts on a configurable interval, read dynamically each cycle."""
-    global _last_poll_time, _last_poll_new
-    from datetime import datetime, timedelta, timezone
-
-    await asyncio.sleep(20)   # short initial delay — let startup settle
-
+    """Background loop: poll on a configurable interval, read from config each cycle."""
+    global _last_poll_error
+    await asyncio.sleep(20)   # let startup settle
     while True:
         interval = load_app_config().get("poll_interval_seconds", NEW_EMAIL_POLL_SECONDS)
         try:
-            from routers.connection import _progress, load_config
-            from services.email_provider import build_provider, IMAPProvider, Office365Provider
-
-            if _progress.status == "running":
-                await asyncio.sleep(NEW_EMAIL_POLL_SECONDS)
-                continue
-
-            known_ids = rag._known_ids()
-            new_total = 0
-            from routers.config import load_app_config as _load_cfg
-            _cfg = _load_cfg()
-            _sync_days = _cfg.get("sync_window_days", POLL_SINCE_DAYS)
-            since_dt = datetime.now(timezone.utc) - timedelta(days=_sync_days)
-
-            all_accounts = cache.list_accounts()
-            providers_to_check = []
-            if all_accounts:
-                for acc in all_accounts:
-                    try:
-                        providers_to_check.append((acc.id, build_provider(acc.to_connection_config())))
-                    except Exception:
-                        pass
-            else:
-                cfg = load_config()
-                if cfg:
-                    providers_to_check = [(0, build_provider(cfg))]
-
-            loop = asyncio.get_event_loop()
-            since_str = since_dt.strftime("%Y-%m-%d")
-
-            def check_folder(account_id: int, provider, folder: str) -> int:
-                # ── Step 1: get UIDs currently on server (cheap, no body download) ──
-                try:
-                    server_uids = provider.get_uid_list(folder=folder, from_date=since_dt)
-                except Exception as e:
-                    print(f"[poll] uid_list failed account={account_id} folder={folder}: {e}")
-                    server_uids = None
-
-                # ── Step 2: remove locally cached emails deleted from server ──
-                if server_uids is not None:
-                    cached = cache.get_cached_server_ids(account_id, folder, since_str)
-                    for srv_id, cache_id in cached.items():
-                        if srv_id not in server_uids:
-                            cache.delete_email(cache_id)
-                            rag.remove_email(cache_id)
-                            known_ids.discard(cache_id)
-                            print(f"[poll] removed deleted email cache_id={cache_id}")
-
-                # ── Step 3: fetch new emails from server ──
-                buffer = []
-                fetch_fn = (
-                    lambda: provider.fetch_recent_n(folder=folder, n=POLL_RECENT_N, from_date=since_dt)
-                    if isinstance(provider, IMAPProvider)
-                    else provider.fetch_all(folder=folder, batch_size=POLL_RECENT_N, from_date=since_dt)
-                )
-                for email, _ in fetch_fn():
-                    if account_id:
-                        email._server_id = email.id  # type: ignore[attr-defined]
-                        email.id = f"a{account_id}_{email.id}"
-                    if email.id not in known_ids:
-                        buffer.append(email)
-
-                count = 0
-                if buffer:
-                    cache.save_batch(buffer, account_id=account_id)
-                    for em in buffer:
-                        if rag.ingest_email(em):
-                            known_ids.add(em.id)
-                            count += 1
-                return count
-
-            errors = []
-            for account_id, provider in providers_to_check:
-                try:
-                    folders = provider.get_ingest_folders()
-                    for folder in folders:
-                        new_total += await loop.run_in_executor(
-                            None, check_folder, account_id, provider, folder
-                        )
-                except Exception as e:
-                    msg = f"account {account_id}: {type(e).__name__}: {e}"
-                    print(f"[poll] {msg}")
-                    errors.append(msg)
-
-            if new_total > 0:
-                rag.flush_bm25()
-                print(f"[poll] {new_total} new email(s) indexed")
-
-            _last_poll_time = datetime.now(timezone.utc).isoformat(timespec="seconds") + "Z"
-            _last_poll_new = new_total
-            _last_poll_error = "; ".join(errors) if errors else ""
-
+            await _run_poll_cycle(rag, cache)
         except Exception as e:
             _last_poll_error = str(e)
             print(f"[poll error] {e}")
-
         await asyncio.sleep(interval)
 
 
@@ -251,98 +253,8 @@ async def poll_now(request: Request):
     """Manually trigger one poll cycle immediately (used by Refresh button)."""
     rag: RAGEngine = request.app.state.rag
     cache = request.app.state.cache
-    # Run in background so the response is instant
-    asyncio.create_task(_poll_new_emails_once(rag, cache))
+    asyncio.create_task(_run_poll_cycle(rag, cache))
     return {"status": "polling"}
-
-
-async def _poll_new_emails_once(rag: RAGEngine, cache: EmailCache):
-    """Single poll cycle — same logic as the loop but runs once."""
-    global _last_poll_time, _last_poll_new
-    from datetime import datetime, timedelta, timezone
-    from routers.connection import _progress, load_config
-    from services.email_provider import build_provider, IMAPProvider, Office365Provider
-
-    if _progress.status == "running":
-        return
-
-    known_ids = rag._known_ids()
-    new_total = 0
-    from routers.config import load_app_config as _load_cfg
-    _sync_days = _load_cfg().get("sync_window_days", POLL_SINCE_DAYS)
-    since_dt = datetime.now(timezone.utc) - timedelta(days=_sync_days)
-
-    all_accounts = cache.list_accounts()
-    providers_to_check = []
-    if all_accounts:
-        for acc in all_accounts:
-            try:
-                providers_to_check.append((acc.id, build_provider(acc.to_connection_config())))
-            except Exception:
-                pass
-    else:
-        cfg = load_config()
-        if cfg:
-            providers_to_check = [(0, build_provider(cfg))]
-
-    loop = asyncio.get_event_loop()
-    since_str = since_dt.strftime("%Y-%m-%d")
-
-    def check_folder(account_id: int, provider, folder: str) -> int:
-        # Step 1: detect server-side deletions
-        try:
-            server_uids = provider.get_uid_list(folder=folder, from_date=since_dt)
-        except Exception as e:
-            print(f"[poll-now] uid_list failed account={account_id} folder={folder}: {e}")
-            server_uids = None
-
-        if server_uids is not None:
-            cached = cache.get_cached_server_ids(account_id, folder, since_str)
-            for srv_id, cache_id in cached.items():
-                if srv_id not in server_uids:
-                    cache.delete_email(cache_id)
-                    rag.remove_email(cache_id)
-                    known_ids.discard(cache_id)
-
-        # Step 2: fetch new emails
-        buffer = []
-        fetch_fn = (
-            lambda: provider.fetch_recent_n(folder=folder, n=POLL_RECENT_N, from_date=since_dt)
-            if isinstance(provider, IMAPProvider)
-            else provider.fetch_all(folder=folder, batch_size=POLL_RECENT_N, from_date=since_dt)
-        )
-        for email, _ in fetch_fn():
-            if account_id:
-                email._server_id = email.id  # type: ignore[attr-defined]
-                email.id = f"a{account_id}_{email.id}"
-            if email.id not in known_ids:
-                buffer.append(email)
-        count = 0
-        if buffer:
-            cache.save_batch(buffer, account_id=account_id)
-            for em in buffer:
-                if rag.ingest_email(em):
-                    known_ids.add(em.id)
-                    count += 1
-        return count
-
-    errors = []
-    for account_id, provider in providers_to_check:
-        try:
-            for folder in provider.get_ingest_folders():
-                new_total += await loop.run_in_executor(None, check_folder, account_id, provider, folder)
-        except Exception as e:
-            msg = f"account {account_id}: {type(e).__name__}: {e}"
-            print(f"[poll-now] {msg}")
-            errors.append(msg)
-
-    if new_total > 0:
-        rag.flush_bm25()
-
-    _last_poll_time = datetime.now(timezone.utc).isoformat(timespec="seconds") + "Z"
-    _last_poll_new = new_total
-    _last_poll_error = "; ".join(errors) if errors else ""
-    print(f"[poll-now] {new_total} new email(s) indexed" + (f" | errors: {_last_poll_error}" if errors else ""))
 
 
 # Serve built frontend from backend/static/ (production mode)
