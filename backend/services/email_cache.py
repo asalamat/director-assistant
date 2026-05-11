@@ -234,6 +234,7 @@ class EmailCache(EmailExtrasMixin):
         sort_by: str = "date",
         sort_order: str = "desc",
         from_date: Optional[str] = None,
+        account_id: Optional[int] = None,
     ) -> tuple[list[EmailSummary], int]:
         col = self.SORT_COLS.get(sort_by, "date")
         direction = "ASC" if sort_order.lower() == "asc" else "DESC"
@@ -244,6 +245,10 @@ class EmailCache(EmailExtrasMixin):
         if from_date:
             where += " AND date >= ?"
             params.append(from_date)
+
+        if account_id is not None:
+            where += " AND account_id = ?"
+            params.append(account_id)
 
         with self._conn() as conn:
             total = conn.execute(

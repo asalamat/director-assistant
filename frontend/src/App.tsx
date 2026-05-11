@@ -67,6 +67,8 @@ export default function App() {
   const [healthStatus, setHealthStatus] = useState<'ok' | 'degraded' | 'error' | null>(null)
   const [selectedEmail, setSelectedEmail] = useState<EmailSummary | null>(null)
   const [activeTab, setActiveTab] = useState<Tab>('inbox')
+  const [accounts, setAccounts] = useState<{ id: number; username: string; provider: string }[]>([])
+  const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshMsg, setRefreshMsg] = useState('')
   const [showHelp, setShowHelp] = useState(false)
@@ -84,6 +86,7 @@ export default function App() {
       setConnected(s.connected)
       if (s.connected) refresh()
     }).catch(() => setConnected(false))
+    api.getAccounts().then(setAccounts).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -101,6 +104,7 @@ export default function App() {
     setConnected(true)
     setShowSettings(false)
     refresh()
+    api.getAccounts().then(setAccounts).catch(() => {})
   }
 
   const handleSelect = (summary: EmailSummary) => {
@@ -287,7 +291,29 @@ export default function App() {
       <div className="flex-1 flex overflow-hidden">
         {activeTab === 'inbox' && (
           <>
-            <div className="w-64 flex-shrink-0">
+            <div className="w-64 flex-shrink-0 flex flex-col">
+              {accounts.length > 1 && (
+                <div className="flex flex-wrap gap-1 px-2 pt-2 pb-1 border-b border-gray-100">
+                  <button
+                    onClick={() => { setSelectedAccountId(null); refresh({ account_id: undefined }) }}
+                    className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${selectedAccountId === null ? 'bg-accent text-white border-accent' : 'border-gray-300 text-gray-500 hover:bg-gray-50'}`}
+                  >All</button>
+                  {accounts.map(acc => (
+                    <button
+                      key={acc.id}
+                      onClick={() => {
+                        const next = selectedAccountId === acc.id ? null : acc.id
+                        setSelectedAccountId(next)
+                        refresh({ account_id: next ?? undefined })
+                      }}
+                      className={`text-xs px-2 py-0.5 rounded-full border transition-colors truncate max-w-[120px] ${selectedAccountId === acc.id ? 'bg-accent text-white border-accent' : 'border-gray-300 text-gray-500 hover:bg-gray-50'}`}
+                      title={acc.username}
+                    >
+                      {acc.username.split('@')[0]}
+                    </button>
+                  ))}
+                </div>
+              )}
               <EmailList
                 emails={emails}
                 total={total}

@@ -24,6 +24,7 @@ async def list_emails(
     sort_by: str = Query("date", pattern="^(date|sender|subject)$"),
     sort_order: str = Query("desc", pattern="^(asc|desc)$"),
     from_date: Optional[str] = Query(None),
+    account_id: Optional[int] = Query(None),
 ):
     cache: EmailCache = request.app.state.cache
     rag: RAGEngine = request.app.state.rag
@@ -53,6 +54,7 @@ async def list_emails(
         summaries, total = cache.list_emails(
             folder=folder, skip=skip, limit=limit,
             sort_by=sort_by, sort_order=sort_order, from_date=from_date,
+            account_id=account_id,
         )
         return EmailListResponse(
             emails=summaries,

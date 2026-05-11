@@ -184,9 +184,9 @@ export function HealthPanel() {
             <Row
               key={acc.id}
               label={acc.username}
-              status={acc.imap_status === 'ok' ? 'ok' : acc.imap_status === 'not_tested' ? 'not_tested' : 'error'}
+              status={acc.imap_status === 'ok' || acc.imap_status === 'oauth' ? 'ok' : acc.imap_status === 'not_tested' ? 'not_tested' : 'error'}
               detail={acc.provider.replace('_imap', '').replace('EmailProviderType.', '').toUpperCase()}
-              sub={acc.imap_status === 'not_tested' ? 'Click "Test IMAP" to verify connection' : acc.imap_status === 'ok' ? 'IMAP login verified' : acc.imap_status}
+              sub={acc.imap_status === 'not_tested' ? 'Click "Re-test connections" to verify' : acc.imap_status === 'ok' ? 'IMAP login verified' : acc.imap_status === 'oauth' ? 'OAuth2 / XOAUTH2 connected' : acc.imap_status}
             />
           ))
         )}

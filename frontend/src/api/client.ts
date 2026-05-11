@@ -55,6 +55,7 @@ export const api = {
     sort_by?: 'date' | 'sender' | 'subject'
     sort_order?: 'asc' | 'desc'
     from_date?: string
+    account_id?: number
   }): Promise<{ emails: EmailSummary[]; total: number; has_more: boolean }> {
     const qs = new URLSearchParams()
     if (params.skip !== undefined) qs.set('skip', String(params.skip))
@@ -64,6 +65,7 @@ export const api = {
     if (params.sort_by) qs.set('sort_by', params.sort_by)
     if (params.sort_order) qs.set('sort_order', params.sort_order)
     if (params.from_date) qs.set('from_date', params.from_date)
+    if (params.account_id !== undefined) qs.set('account_id', String(params.account_id))
     return request(`/emails/?${qs}`)
   },
 
