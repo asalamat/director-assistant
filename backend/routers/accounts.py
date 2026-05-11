@@ -42,13 +42,9 @@ async def add_account(account: Account, request: Request):
 
     cfg = account.to_connection_config()
     try:
-        provider = build_provider(cfg)
-        ok = provider.test_connection()
+        build_provider(cfg).test_connection()
     except Exception as e:
         raise HTTPException(400, f"Connection failed: {e}")
-
-    if not ok:
-        raise HTTPException(400, "Connection failed — check credentials")
 
     aid = cache.add_account(account)
     return {"id": aid, "status": "connected"}

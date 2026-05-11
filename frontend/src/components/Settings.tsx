@@ -19,7 +19,7 @@ const PROVIDER_LABELS: Record<EmailProvider, string> = {
 const PROVIDER_HINTS: Record<EmailProvider, string> = {
   yahoo_imap:   'Use an App Password from Yahoo Account Security',
   gmail:        'Use an App Password (enable 2FA first in Google Account)',
-  hotmail:      'Use an App Password from Microsoft Account Security',
+  hotmail:      'Enable IMAP in Outlook Settings → Mail → Sync email, then use an App Password (requires 2FA on your Microsoft account)',
   generic_imap: 'Enter your IMAP server address',
   office365:    'Requires Tenant ID, Client ID, and Client Secret',
 }

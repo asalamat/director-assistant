@@ -105,12 +105,9 @@ class IMAPProvider:
             self._mail = None
 
     def test_connection(self) -> bool:
-        try:
-            self.connect()
-            self.disconnect()
-            return True
-        except Exception:
-            return False
+        self.connect()
+        self.disconnect()
+        return True
 
     def _imap_op(self, fn):
         """Run fn() with one automatic reconnect if the server dropped the connection."""

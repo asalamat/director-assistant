@@ -30,8 +30,10 @@ async def connect(config: ConnectionConfig, request: Request):
     """Legacy single-account connect — adds as account in the accounts table."""
     global _provider
     provider = build_provider(config)
-    if not provider.test_connection():
-        raise HTTPException(400, "Connection failed — check credentials")
+    try:
+        provider.test_connection()
+    except Exception as e:
+        raise HTTPException(400, f"Connection failed: {e}")
 
     _provider = provider
     cache = request.app.state.cache
