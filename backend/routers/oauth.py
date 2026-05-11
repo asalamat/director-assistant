@@ -25,7 +25,7 @@ async def start_microsoft_oauth(body: dict):
     async with httpx.AsyncClient(timeout=15) as client:
         r = await client.post(
             f"{_MS_AUTHORITY}/devicecode",
-            data={"client_id": client_id, "scope": _SCOPES},
+            data={"client_id": client_id, "scope": _SCOPES, "login_hint": username},
         )
     data = r.json()
     if "error" in data:
