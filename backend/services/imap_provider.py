@@ -100,7 +100,28 @@ class IMAPProvider:
                 xoauth2 = base64.b64encode(
                     f"user={self.username}\x01auth=Bearer {self.access_token}\x01\x01".encode()
                 ).decode()
-                self._mail.authenticate("XOAUTH2", lambda _: xoauth2)
+                calls = []
+                def _xoauth2_cb(challenge):
+                    if not calls:          # first call — send credentials
+                        calls.append(1)
+                        return xoauth2
+                    # Second call = server returned a base64-encoded JSON error
+                    if challenge:
+                        try:
+                            import json
+                            err = json.loads(base64.b64decode(challenge))
+                            scope = err.get("scope", "")
+                            raise imaplib.IMAP4.error(
+                                f"XOAUTH2 rejected — token missing scope. "
+                                f"Add IMAP.AccessAsUser.All to your Azure app. "
+                                f"Server requires: {scope}"
+                            )
+                        except imaplib.IMAP4.error:
+                            raise
+                        except Exception:
+                            pass
+                    return ""              # must send empty to complete SASL exchange
+                self._mail.authenticate("XOAUTH2", _xoauth2_cb)
             else:
                 try:
                     self._mail.login(self.username, password)
