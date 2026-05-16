@@ -8,7 +8,7 @@
 
 set -e
 
-VERSION="2.1"
+VERSION="2.3"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DIST="$ROOT/dist"
 TMP="$DIST/tmp"
@@ -50,8 +50,11 @@ rsync -a \
   --exclude='*.pyc' \
   --exclude='.venv' \
   --exclude='frontend/dist' \
+  --exclude='dist/' \
   --exclude='.env' \
   --exclude='*.egg-info' \
+  --exclude='.claude' \
+  --exclude='.claude-flow' \
   "$ROOT/" "$TMP/DirectorAssistant/"
 success "Files staged to $TMP/DirectorAssistant"
 
