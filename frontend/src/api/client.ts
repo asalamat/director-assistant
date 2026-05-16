@@ -179,6 +179,14 @@ export const api = {
     return request(`/sender/${encodeURIComponent(sender)}`)
   },
 
+  // Ask DB
+  askDB(question: string, n_results = 15): Promise<{
+    answer: string
+    sources: { email_id: string; subject: string; sender: string; date: string }[]
+  }> {
+    return request('/ask', { method: 'POST', body: JSON.stringify({ question, n_results }) })
+  },
+
   // Manual poll trigger
   pollNow(): Promise<{ status: string }> {
     return request('/poll/now', { method: 'POST' })

@@ -21,7 +21,10 @@ def _decode_mime_header(value: str) -> str:
     result = []
     for text, charset in parts:
         if isinstance(text, bytes):
-            result.append(text.decode(charset or "utf-8", errors="replace"))
+            try:
+                result.append(text.decode(charset or "utf-8", errors="replace"))
+            except (LookupError, UnicodeDecodeError):
+                result.append(text.decode("latin-1", errors="replace"))
         else:
             result.append(text)
     return "".join(result)
@@ -33,6 +36,14 @@ def _html_to_text(html_body: str) -> str:
     text = re.sub(r'<[^>]+>', '', text)
     text = html.unescape(text)
     return re.sub(r'\n{3,}', '\n\n', text).strip()
+
+
+def _safe_decode(payload: bytes, charset: str) -> str:
+    """Decode bytes with fallback to latin-1 when the charset name is unknown."""
+    try:
+        return payload.decode(charset, errors="replace")
+    except (LookupError, UnicodeDecodeError):
+        return payload.decode("latin-1", errors="replace")
 
 
 def _extract_body(msg) -> tuple[Optional[str], Optional[str]]:
@@ -48,21 +59,21 @@ def _extract_body(msg) -> tuple[Optional[str], Optional[str]]:
                 payload = part.get_payload(decode=True)
                 if payload:
                     charset = part.get_content_charset() or "utf-8"
-                    plain = payload.decode(charset, errors="replace")
+                    plain = _safe_decode(payload, charset)
             elif ct == "text/html" and html_body is None:
                 payload = part.get_payload(decode=True)
                 if payload:
                     charset = part.get_content_charset() or "utf-8"
-                    html_body = payload.decode(charset, errors="replace")
+                    html_body = _safe_decode(payload, charset)
     else:
         payload = msg.get_payload(decode=True)
         if payload:
             charset = msg.get_content_charset() or "utf-8"
             ct = msg.get_content_type()
             if ct == "text/html":
-                html_body = payload.decode(charset, errors="replace")
+                html_body = _safe_decode(payload, charset)
             else:
-                plain = payload.decode(charset, errors="replace")
+                plain = _safe_decode(payload, charset)
     return plain, html_body
 
 
@@ -153,7 +164,8 @@ class IMAPProvider:
             self.connect()
         try:
             return fn()
-        except imaplib.IMAP4.abort:
+        except (imaplib.IMAP4.abort, SystemError):
+            # SystemError covers Python 3.13 PyMemoryView_FromBuffer bug on bad IMAP responses
             self._mail = None
             self.connect()
             return fn()
@@ -249,7 +261,7 @@ class IMAPProvider:
 
         def _setup():
             self._mail.select(f'"{folder}"')
-            _, data = self._mail.search(None, f'SUBJECT "{safe}"')
+            _, data = self._mail.uid("SEARCH", None, f'SUBJECT "{safe}"')
             uids = data[0].split()
             recent = uids[-limit:] if len(uids) > limit else uids
             return uids, recent
@@ -258,23 +270,25 @@ class IMAPProvider:
         total = len(uids)
         if not recent:
             return
-        uid_str = ",".join(u.decode() for u in recent)
-        _, fetch_data = self._mail.fetch(uid_str, "(RFC822)")
+        uid_str = b",".join(recent).decode()
+        _, fetch_data = self._mail.uid("FETCH", uid_str, "(RFC822)")
         for item in fetch_data:
             if isinstance(item, tuple):
-                uid = item[0].decode().split()[0]
+                header = item[0].decode()
+                uid_match = re.search(r"UID (\d+)", header)
+                uid = uid_match.group(1) if uid_match else header.split()[0]
                 try:
                     yield self._parse_message(item[1], uid, folder), total
                 except Exception as e:
                     print(f"[provider] parse error uid={uid}: {e}")
 
     def get_uid_list(self, folder: str = "INBOX", from_date=None) -> set:
-        """Return server UIDs for the folder (no body download). Used for deletion detection."""
+        """Return stable server UIDs for the folder. Used for deletion detection."""
         criteria = f'SINCE "{self._imap_date(from_date)}"' if from_date else "ALL"
 
         def _op():
             self._mail.select(f'"{folder}"')
-            _, data = self._mail.search(None, criteria)
+            _, data = self._mail.uid("SEARCH", None, criteria)
             return {u.decode() for u in data[0].split() if u}
 
         return self._imap_op(_op)
@@ -291,7 +305,7 @@ class IMAPProvider:
 
         def _setup():
             self._mail.select(f'"{folder}"')
-            _, data = self._mail.search(None, criteria)
+            _, data = self._mail.uid("SEARCH", None, criteria)
             return data[0].split()
 
         uids = self._imap_op(_setup)
@@ -299,23 +313,41 @@ class IMAPProvider:
 
         for i in range(0, total, batch_size):
             batch = uids[i: i + batch_size]
-            uid_str = ",".join(u.decode() for u in batch)
-            _, fetch_data = self._mail.fetch(uid_str, "(RFC822)")
+            uid_str = b",".join(batch).decode()
+            try:
+                _, fetch_data = self._mail.uid("FETCH", uid_str, "(RFC822)")
+            except (imaplib.IMAP4.abort, SystemError):
+                self._mail = None
+                self.connect()
+                self._mail.select(f'"{folder}"')
+                fetch_data = []
+                for single_uid in batch:
+                    try:
+                        _, d = self._mail.uid("FETCH", single_uid.decode(), "(RFC822)")
+                        fetch_data.extend(d)
+                    except (imaplib.IMAP4.abort, SystemError):
+                        self._mail = None
+                        self.connect()
+                        self._mail.select(f'"{folder}"')
+                    except Exception:
+                        pass
             for item in fetch_data:
                 if isinstance(item, tuple):
-                    uid = item[0].decode().split()[0]
+                    header = item[0].decode()
+                    uid_match = re.search(r"UID (\d+)", header)
+                    uid = uid_match.group(1) if uid_match else header.split()[0]
                     try:
                         yield self._parse_message(item[1], uid, folder), total
                     except Exception as e:
                         print(f"[fetch_all] parse error uid={uid} folder={folder}: {e}")
 
     def fetch_recent_n(self, folder: str = "INBOX", n: int = 50, from_date=None):
-        """Fetch the N most recent emails. Newest UIDs = newest emails in IMAP."""
+        """Fetch the N most recent emails using stable UIDs."""
         criteria = f'SINCE "{self._imap_date(from_date)}"' if from_date else "ALL"
 
         def _setup():
             self._mail.select(f'"{folder}"')
-            _, data = self._mail.search(None, criteria)
+            _, data = self._mail.uid("SEARCH", None, criteria)
             return data[0].split()
 
         uids = self._imap_op(_setup)
@@ -324,11 +356,31 @@ class IMAPProvider:
         if not recent:
             return
 
-        uid_str = ",".join(u.decode() for u in recent)
-        _, fetch_data = self._mail.fetch(uid_str, "(RFC822)")
+        uid_str = b",".join(recent).decode()
+        try:
+            _, fetch_data = self._mail.uid("FETCH", uid_str, "(RFC822)")
+        except (imaplib.IMAP4.abort, SystemError):
+            # Batch fetch failed — reconnect and fall back to one-at-a-time
+            self._mail = None
+            self.connect()
+            self._mail.select(f'"{folder}"')
+            fetch_data = []
+            for single_uid in recent:
+                try:
+                    _, d = self._mail.uid("FETCH", single_uid.decode(), "(RFC822)")
+                    fetch_data.extend(d)
+                except (imaplib.IMAP4.abort, SystemError):
+                    self._mail = None
+                    self.connect()
+                    self._mail.select(f'"{folder}"')
+                except Exception:
+                    pass
         for item in fetch_data:
             if isinstance(item, tuple):
-                uid = item[0].decode().split()[0]
+                # UID FETCH response format: "N (UID uid FLAGS ...)"
+                header = item[0].decode()
+                uid_match = re.search(r"UID (\d+)", header)
+                uid = uid_match.group(1) if uid_match else header.split()[0]
                 try:
                     yield self._parse_message(item[1], uid, folder), total
                 except Exception as e:
@@ -337,7 +389,7 @@ class IMAPProvider:
     def fetch_one(self, uid: str, folder: str = "INBOX") -> Optional[EmailMessage]:
         def _op():
             self._mail.select(f'"{folder}"')
-            _, data = self._mail.fetch(uid, "(RFC822)")
+            _, data = self._mail.uid("FETCH", uid, "(RFC822)")
             for item in data:
                 if isinstance(item, tuple):
                     return self._parse_message(item[1], uid, folder)

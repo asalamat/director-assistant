@@ -17,6 +17,7 @@ from routers import digest, actions, followups, templates, analytics, sender, ac
 from routers import config as config_router
 from routers import health as health_router
 from routers import oauth as oauth_router
+from routers import ask as ask_router
 from routers.config import get_effective_api_key, load_app_config
 from services.ai_client import AIClient
 
@@ -54,7 +55,7 @@ def _evict_provider(account_id: int):
 
 def _is_connection_error(exc: Exception) -> bool:
     import imaplib
-    if isinstance(exc, (BrokenPipeError, ConnectionResetError, EOFError, TimeoutError)):
+    if isinstance(exc, (BrokenPipeError, ConnectionResetError, EOFError, TimeoutError, SystemError)):
         return True
     if isinstance(exc, imaplib.IMAP4.abort):
         return True
@@ -111,7 +112,10 @@ async def _run_poll_cycle(rag: RAGEngine, cache: EmailCache) -> tuple[int, list[
             print(f"[poll] uid_list failed account={account_id} folder={folder}: {e}")
             server_uids = None
 
-        if server_uids is not None:
+        if server_uids is not None and len(server_uids) > 0:
+            # Only run deletion detection when server returned something.
+            # An empty set likely means a transient auth/connection issue — skip
+            # to avoid mass-deleting all cached emails.
             cached = cache.get_cached_server_ids(account_id, folder, since_str)
             for srv_id, cache_id in cached.items():
                 if srv_id not in server_uids:
@@ -251,6 +255,7 @@ app.include_router(accounts_router.router)
 app.include_router(config_router.router)
 app.include_router(health_router.router)
 app.include_router(oauth_router.router)
+app.include_router(ask_router.router)
 
 
 @app.get("/health")
