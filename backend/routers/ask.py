@@ -1,4 +1,5 @@
 import json
+import re
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
@@ -52,9 +53,17 @@ async def ask_db(req: AskRequest, request: Request):
             messages=[{"role": "user", "content": prompt}],
         )
         raw = resp.content[0].text.strip()
-        parsed = json.loads(raw)
-        answer = parsed.get("answer", raw)
-        indices = parsed.get("source_indices", [])
+        # Strip markdown code fences if present
+        raw = re.sub(r"^```(?:json)?\s*", "", raw)
+        raw = re.sub(r"\s*```$", "", raw).strip()
+        try:
+            parsed = json.loads(raw)
+            answer = parsed.get("answer", raw)
+            indices = parsed.get("source_indices", [])
+        except json.JSONDecodeError:
+            # Model returned plain text — use it directly
+            answer = raw
+            indices = []
         sources = [
             {
                 "email_id": results[i - 1]["email_id"],
