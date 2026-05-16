@@ -333,10 +333,15 @@ class IMAPProvider:
         def _op():
             _, folders = self._mail.list()
             result = []
-            for f in folders:
-                parts = f.decode().split('"/"')
-                if parts:
-                    result.append(parts[-1].strip().strip('"'))
+            for f in (folders or []):
+                if not f:
+                    continue
+                raw = f.decode() if isinstance(f, bytes) else str(f)
+                # LIST response format: (\Flags) "separator" "folder name"
+                # Extract the last quoted token or unquoted trailing word
+                m = re.search(r'"([^"]+)"\s*$', raw) or re.search(r'(\S+)\s*$', raw)
+                if m:
+                    result.append(m.group(1).strip('"'))
             return result
         return self._imap_op(_op)
 
