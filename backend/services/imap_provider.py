@@ -399,7 +399,7 @@ class IMAPProvider:
         def _setup():
             self._mail.select(f'"{folder}"')
             _, data = self._mail.uid("SEARCH", None, f'SUBJECT "{safe}"')
-            uids = data[0].split()
+            uids = (data[0] or b"").split()
             recent = uids[-limit:] if len(uids) > limit else uids
             return uids, recent
 
@@ -426,7 +426,7 @@ class IMAPProvider:
         def _op():
             self._mail.select(f'"{folder}"')
             _, data = self._mail.uid("SEARCH", None, criteria)
-            return {u.decode() for u in data[0].split() if u}
+            return {u.decode() for u in (data[0] or b"").split() if u}
 
         return self._imap_op(_op)
 
@@ -443,7 +443,7 @@ class IMAPProvider:
         def _setup():
             self._mail.select(f'"{folder}"')
             _, data = self._mail.uid("SEARCH", None, criteria)
-            return data[0].split()
+            return (data[0] or b"").split()
 
         uids = self._imap_op(_setup)
         total = len(uids)
@@ -485,7 +485,7 @@ class IMAPProvider:
         def _setup():
             self._mail.select(f'"{folder}"')
             _, data = self._mail.uid("SEARCH", None, criteria)
-            return data[0].split()
+            return (data[0] or b"").split()
 
         uids = self._imap_op(_setup)
         total = len(uids)
