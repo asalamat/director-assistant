@@ -47,20 +47,71 @@ def _safe_decode(payload: bytes, charset: str) -> str:
 
 
 def _extract_attachment_text(part) -> Optional[str]:
-    """Extract readable text from a text/plain or text/html attachment."""
+    """Extract readable text from common attachment types."""
     ct = part.get_content_type()
-    if ct not in ("text/plain", "text/html"):
-        return None
     payload = part.get_payload(decode=True)
     if not payload:
         return None
-    charset = part.get_content_charset() or "utf-8"
-    text = _safe_decode(payload, charset)
-    if ct == "text/html":
-        text = re.sub(r'<[^>]+>', ' ', text)
+    filename = _decode_mime_header(part.get_filename() or "") or "attachment"
+
+    text = None
+
+    if ct == "text/plain":
+        charset = part.get_content_charset() or "utf-8"
+        text = _safe_decode(payload, charset)
+
+    elif ct == "text/html":
+        charset = part.get_content_charset() or "utf-8"
+        raw = _safe_decode(payload, charset)
+        text = re.sub(r'<[^>]+>', ' ', raw)
         text = re.sub(r'\s+', ' ', text).strip()
-    filename = part.get_filename() or "attachment"
-    return f"[Attachment: {filename}]\n{text[:2000]}"
+
+    elif ct == "application/pdf":
+        try:
+            import io
+            from pdfminer.high_level import extract_text as pdf_extract
+            text = pdf_extract(io.BytesIO(payload))
+        except Exception:
+            return None
+
+    elif ct in (
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/msword",
+    ):
+        try:
+            import io
+            from docx import Document
+            doc = Document(io.BytesIO(payload))
+            text = "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+        except Exception:
+            return None
+
+    elif ct in (
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.ms-excel",
+    ):
+        try:
+            import io
+            import openpyxl
+            wb = openpyxl.load_workbook(io.BytesIO(payload), read_only=True, data_only=True)
+            rows = []
+            for ws in wb.worksheets:
+                for row in ws.iter_rows(values_only=True):
+                    line = "\t".join(str(c) for c in row if c is not None)
+                    if line.strip():
+                        rows.append(line)
+                    if len(rows) >= 200:
+                        break
+                if len(rows) >= 200:
+                    break
+            text = "\n".join(rows)
+        except Exception:
+            return None
+
+    if not text or not text.strip():
+        return None
+
+    return f"[Attachment: {filename}]\n{text.strip()[:3000]}"
 
 
 def _extract_body(msg) -> tuple[Optional[str], Optional[str]]:
