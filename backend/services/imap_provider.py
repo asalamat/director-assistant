@@ -46,13 +46,41 @@ def _safe_decode(payload: bytes, charset: str) -> str:
         return payload.decode("latin-1", errors="replace")
 
 
+_IMAGE_TYPES = frozenset({"image/jpeg", "image/jpg", "image/png", "image/gif",
+                           "image/webp", "image/bmp", "image/tiff"})
+
+_EXT_TO_CT = {
+    ".pdf":  "application/pdf",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".doc":  "application/msword",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ".xls":  "application/vnd.ms-excel",
+    ".txt":  "text/plain",
+    ".csv":  "text/plain",
+}
+
+
+def _resolve_ct(ct: str, filename: str) -> str:
+    """Use filename extension to fix generic application/octet-stream content-types."""
+    if ct != "application/octet-stream":
+        return ct
+    ext = ("." + filename.rsplit(".", 1)[-1].lower()) if "." in filename else ""
+    return _EXT_TO_CT.get(ext, ct)
+
+
 def _extract_attachment_text(part) -> Optional[str]:
-    """Extract readable text from common attachment types."""
-    ct = part.get_content_type()
+    """Extract readable text from common attachment types; note images by name."""
+    filename = _decode_mime_header(part.get_filename() or "") or ""
+    ct = _resolve_ct(part.get_content_type(), filename)
+    filename = filename or "attachment"
+
+    # Images: we can't read pixels, but note the filename so the AI is aware
+    if ct in _IMAGE_TYPES or ct.startswith("image/"):
+        return f"[Image attachment: {filename}]"
+
     payload = part.get_payload(decode=True)
     if not payload:
         return None
-    filename = _decode_mime_header(part.get_filename() or "") or "attachment"
 
     text = None
 
@@ -72,7 +100,7 @@ def _extract_attachment_text(part) -> Optional[str]:
             from pdfminer.high_level import extract_text as pdf_extract
             text = pdf_extract(io.BytesIO(payload))
         except Exception:
-            return None
+            return f"[PDF attachment: {filename} — could not extract text]"
 
     elif ct in (
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -84,7 +112,7 @@ def _extract_attachment_text(part) -> Optional[str]:
             doc = Document(io.BytesIO(payload))
             text = "\n".join(p.text for p in doc.paragraphs if p.text.strip())
         except Exception:
-            return None
+            return f"[Word attachment: {filename} — could not extract text]"
 
     elif ct in (
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -106,12 +134,26 @@ def _extract_attachment_text(part) -> Optional[str]:
                     break
             text = "\n".join(rows)
         except Exception:
-            return None
+            return f"[Excel attachment: {filename} — could not extract text]"
 
     if not text or not text.strip():
         return None
 
     return f"[Attachment: {filename}]\n{text.strip()[:3000]}"
+
+
+def _is_attachment_part(part) -> bool:
+    """Detect attachment parts including inline-with-filename."""
+    cd = str(part.get("Content-Disposition", ""))
+    if "attachment" in cd:
+        return True
+    # Inline parts with an explicit filename are effectively attachments
+    if part.get_filename():
+        ct = part.get_content_type()
+        # Don't treat inline text/plain or text/html without disposition as attachments
+        if ct not in ("text/plain", "text/html") or "inline" not in cd:
+            return True
+    return False
 
 
 def _extract_body(msg) -> tuple[Optional[str], Optional[str]]:
@@ -122,8 +164,7 @@ def _extract_body(msg) -> tuple[Optional[str], Optional[str]]:
     if msg.is_multipart():
         for part in msg.walk():
             ct = part.get_content_type()
-            cd = str(part.get("Content-Disposition", ""))
-            if "attachment" in cd:
+            if _is_attachment_part(part):
                 att = _extract_attachment_text(part)
                 if att:
                     attachment_texts.append(att)
