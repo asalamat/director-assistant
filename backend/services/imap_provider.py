@@ -46,14 +46,36 @@ def _safe_decode(payload: bytes, charset: str) -> str:
         return payload.decode("latin-1", errors="replace")
 
 
+def _extract_attachment_text(part) -> Optional[str]:
+    """Extract readable text from a text/plain or text/html attachment."""
+    ct = part.get_content_type()
+    if ct not in ("text/plain", "text/html"):
+        return None
+    payload = part.get_payload(decode=True)
+    if not payload:
+        return None
+    charset = part.get_content_charset() or "utf-8"
+    text = _safe_decode(payload, charset)
+    if ct == "text/html":
+        text = re.sub(r'<[^>]+>', ' ', text)
+        text = re.sub(r'\s+', ' ', text).strip()
+    filename = part.get_filename() or "attachment"
+    return f"[Attachment: {filename}]\n{text[:2000]}"
+
+
 def _extract_body(msg) -> tuple[Optional[str], Optional[str]]:
     plain = None
     html_body = None
+    attachment_texts: list[str] = []
+
     if msg.is_multipart():
         for part in msg.walk():
             ct = part.get_content_type()
             cd = str(part.get("Content-Disposition", ""))
             if "attachment" in cd:
+                att = _extract_attachment_text(part)
+                if att:
+                    attachment_texts.append(att)
                 continue
             if ct == "text/plain" and plain is None:
                 payload = part.get_payload(decode=True)
@@ -74,6 +96,14 @@ def _extract_body(msg) -> tuple[Optional[str], Optional[str]]:
                 html_body = _safe_decode(payload, charset)
             else:
                 plain = _safe_decode(payload, charset)
+
+    if attachment_texts:
+        suffix = "\n\n" + "\n\n".join(attachment_texts)
+        if plain is not None:
+            plain = plain + suffix
+        else:
+            plain = suffix.strip()
+
     return plain, html_body
 
 
@@ -245,15 +275,25 @@ class IMAPProvider:
         return None
 
     def get_ingest_folders(self) -> List[str]:
-        """INBOX + Sent + Bulk/Spam so marketing and notification emails are caught."""
-        folders = ["INBOX", self.find_sent_folder()]
-        bulk = self._find_folder([
-            "Bulk Mail", "Bulk", "Spam", "Junk", "Junk Mail",
-            "Junk E-mail", "JUNK", "SPAM",
-        ])
-        if bulk:
-            folders.append(bulk)
-        return folders
+        """All folders on the server except Junk/Trash/Drafts."""
+        _SKIP = {
+            "junk", "junk mail", "junk e-mail", "spam", "bulk", "bulk mail",
+            "trash", "deleted", "deleted items", "deleted messages",
+            "drafts", "draft",
+        }
+        try:
+            all_folders = self.list_folders()
+        except Exception:
+            all_folders = ["INBOX"]
+
+        kept: list[str] = []
+        for f in all_folders:
+            if f.lower().strip('"') not in _SKIP:
+                kept.append(f)
+
+        if not kept:
+            kept = ["INBOX"]
+        return kept
 
     def search_by_subject(self, subject: str, folder: str = "INBOX", limit: int = 10):
         """Search IMAP folder for emails matching subject. Yields (EmailMessage, total)."""

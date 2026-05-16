@@ -91,8 +91,33 @@ class Office365Provider:
             is_read=msg.get("isRead", True),
         )
 
+    def list_folders(self) -> List[str]:
+        """Return all mail folder IDs from Graph API."""
+        _SKIP = {"junkemail", "deleteditems", "drafts", "recoverableitemsdeletions"}
+        token = self._get_token()
+        url = f"{self.BASE_URL}/me/mailFolders?$top=50&$select=id,displayName"
+        folders: List[str] = []
+        with httpx.Client(timeout=15) as client:
+            while url:
+                try:
+                    r = client.get(url, headers={"Authorization": f"Bearer {token}"})
+                    r.raise_for_status()
+                    data = r.json()
+                    for f in data.get("value", []):
+                        fid = f.get("id", "")
+                        name = f.get("displayName", "").lower().replace(" ", "")
+                        if fid and name not in _SKIP:
+                            folders.append(fid)
+                    url = data.get("@odata.nextLink")
+                except Exception:
+                    break
+        return folders or ["inbox", "sentitems"]
+
     def get_ingest_folders(self) -> List[str]:
-        return ["inbox", "sentitems"]
+        try:
+            return self.list_folders()
+        except Exception:
+            return ["inbox", "sentitems"]
 
     def fetch_all(self, folder: str = "inbox", batch_size: int = 100, from_date=None):
         """Yield (EmailMessage, total) using Graph API pagination."""

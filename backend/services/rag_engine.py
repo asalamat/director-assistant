@@ -78,9 +78,36 @@ class RAGEngine:
     # ── Helpers ───────────────────────────────────────────────────────────────
 
     def _html_to_text(self, html: str) -> str:
-        text = re.sub(r'<br\s*/?>', '\n', html, flags=re.IGNORECASE)
+        # Drop entire style/script blocks
+        text = re.sub(r'<(style|script)[^>]*>.*?</\1>', ' ', html, flags=re.IGNORECASE | re.DOTALL)
+        text = re.sub(r'<br\s*/?>', '\n', text, flags=re.IGNORECASE)
+        text = re.sub(r'</?p[^>]*>', '\n', text, flags=re.IGNORECASE)
         text = re.sub(r'<[^>]+>', ' ', text)
+        # Decode common HTML entities
+        text = text.replace('&nbsp;', ' ').replace('&amp;', '&').replace('&lt;', '<') \
+                   .replace('&gt;', '>').replace('&quot;', '"').replace('&#39;', "'")
+        text = re.sub(r'&[a-zA-Z]{2,6};', ' ', text)
         return re.sub(r'\s+', ' ', text).strip()
+
+    @staticmethod
+    def _is_garbage_body(text: str) -> bool:
+        """Return True when the plain-text body is mostly URL-encoded tracking junk."""
+        if not text or len(text) < 40:
+            return False
+        # Count URL-encoded sequences like -2B, -2F (Salesforce/ExactTarget links)
+        encoded_hits = len(re.findall(r'-[0-9A-F]{2}', text))
+        # If more than 10% of characters are part of these sequences it's garbage
+        return (encoded_hits * 3) / len(text) > 0.10
+
+    def _clean_body(self, body: str) -> str:
+        """Strip URL-encoded garbage lines and normalize whitespace."""
+        lines = []
+        for line in body.splitlines():
+            stripped = line.strip()
+            # Skip lines that are mostly URL-encoded junk
+            if stripped and not self._is_garbage_body(stripped):
+                lines.append(stripped)
+        return "\n".join(lines).strip()
 
     def _make_chunks(self, email: EmailMessage) -> List[tuple[str, dict]]:
         header = (
@@ -89,8 +116,16 @@ class RAGEngine:
             f"Date: {email.date}"
         )
         body = email.body or ""
-        if not body and email.body_html:
-            body = self._html_to_text(email.body_html)
+
+        # Fall back to HTML if plain body is missing or garbage
+        if not body or self._is_garbage_body(body):
+            if email.body_html:
+                body = self._html_to_text(email.body_html)
+            elif body:
+                body = self._clean_body(body)
+
+        if body:
+            body = self._clean_body(body)
 
         if not body:
             return [(header, {"chunk_index": 0, "chunk_total": 1})]
