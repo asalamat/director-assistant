@@ -224,8 +224,8 @@ if sys.platform == "darwin":
         bundle_identifier="com.director-assistant.app",
         info_plist={
             "NSHighResolutionCapable": True,
-            "CFBundleShortVersionString": "2.4.0",
-            "CFBundleVersion": "2.4.0",
+            "CFBundleShortVersionString": "2.5.0",
+            "CFBundleVersion": "2.5.0",
             "LSMinimumSystemVersion": "12.0",
             "NSAppTransportSecurity": {"NSAllowsArbitraryLoads": True},
         },
