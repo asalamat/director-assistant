@@ -11,9 +11,12 @@ interface Props {
   onLoadMore: () => void
   onSearch: (q: string) => void
   onSort: (by: SortBy, order: SortOrder) => void
+  onFolderChange: (folder: string) => void
   sortBy: SortBy
   sortOrder: SortOrder
   total: number
+  folders: Record<string, number>
+  currentFolder: string
 }
 
 function formatDate(dateStr: string | null): string {
@@ -46,7 +49,7 @@ function avatarColor(sender: string): string {
   return AVATAR_COLORS[hash % AVATAR_COLORS.length]
 }
 
-export function EmailList({ emails, selectedId, loading, hasMore, total, onSelect, onLoadMore, onSearch, onSort, sortBy, sortOrder }: Props) {
+export function EmailList({ emails, selectedId, loading, hasMore, total, folders, currentFolder, onSelect, onLoadMore, onSearch, onSort, onFolderChange, sortBy, sortOrder }: Props) {
   const [query, setQuery] = useState('')
   const sentinelRef = useRef<HTMLDivElement>(null)
 
@@ -89,8 +92,33 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, onSelec
     </button>
   )
 
+  const folderNames = Object.keys(folders).sort()
+
   return (
     <div className="flex flex-col h-full border-r border-gray-200 bg-white">
+      {/* Folder selector */}
+      {folderNames.length > 1 && (
+        <div className="flex gap-1 px-3 py-2 border-b border-gray-100 overflow-x-auto flex-shrink-0">
+          {folderNames.map((f) => (
+            <button
+              key={f}
+              onClick={() => onFolderChange(f)}
+              title={`${folders[f].toLocaleString()} emails`}
+              className={`text-xs px-2.5 py-0.5 rounded-full whitespace-nowrap transition-colors ${
+                currentFolder === f
+                  ? 'bg-accent text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              {f}
+              <span className={`ml-1 ${currentFolder === f ? 'text-blue-200' : 'text-gray-400'}`}>
+                {folders[f] > 999 ? `${Math.floor(folders[f] / 1000)}k` : folders[f]}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Search */}
       <div className="px-3 pt-3 pb-2 border-b border-gray-100 space-y-2">
         <form onSubmit={handleSearch}>

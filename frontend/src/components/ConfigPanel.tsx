@@ -305,16 +305,20 @@ export function ConfigPanel({ onSaved }: Props) {
         <div className="flex items-center gap-3">
           <input
             type="range"
-            min={0}
-            max={30}
+            min={1}
+            max={31}
             step={1}
-            value={syncWindowDays}
-            onChange={e => setSyncWindowDays(Number(e.target.value))}
+            value={syncWindowDays === 0 ? 31 : syncWindowDays}
+            onChange={e => setSyncWindowDays(Number(e.target.value) === 31 ? 0 : Number(e.target.value))}
             className="flex-1 accent-accent"
           />
           <span className="text-sm font-medium text-gray-700 w-20 text-right">
             {syncWindowDays === 0 ? 'Unlimited' : `${syncWindowDays} ${syncWindowDays === 1 ? 'day' : 'days'}`}
           </span>
+        </div>
+        <div className="flex justify-between text-xs text-gray-400 mt-1">
+          <span>1 day</span>
+          <span>Unlimited →</span>
         </div>
       </div>
 

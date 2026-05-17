@@ -73,8 +73,8 @@ async def update_config(update: AppConfigUpdate, request: Request):
         cfg["budget_mode"] = update.budget_mode
 
     if update.sync_window_days is not None:
-        # 0 = unlimited; positive values clamped to 90 days
-        cfg["sync_window_days"] = 0 if update.sync_window_days == 0 else max(1, min(90, update.sync_window_days))
+        # 0 = unlimited; positive values must be at least 1
+        cfg["sync_window_days"] = 0 if update.sync_window_days == 0 else max(1, update.sync_window_days)
 
     save_app_config(cfg)
 
