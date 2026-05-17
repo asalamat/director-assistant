@@ -153,7 +153,7 @@ export function ConfigPanel({ onSaved }: Props) {
   const [anthropicKey, setAnthropicKey] = useState('')
   const [openaiKey, setOpenaiKey] = useState('')
   const [pollInterval, setPollInterval] = useState(60)
-  const [syncWindowDays, setSyncWindowDays] = useState(7)
+  const [syncWindowDays, setSyncWindowDays] = useState(0)
   const [budgetMode, setBudgetMode] = useState(false)
 
   const [testingAnt, setTestingAnt] = useState(false)
@@ -305,7 +305,7 @@ export function ConfigPanel({ onSaved }: Props) {
         <div className="flex items-center gap-3">
           <input
             type="range"
-            min={1}
+            min={0}
             max={30}
             step={1}
             value={syncWindowDays}
@@ -313,7 +313,7 @@ export function ConfigPanel({ onSaved }: Props) {
             className="flex-1 accent-accent"
           />
           <span className="text-sm font-medium text-gray-700 w-20 text-right">
-            {syncWindowDays} {syncWindowDays === 1 ? 'day' : 'days'}
+            {syncWindowDays === 0 ? 'Unlimited' : `${syncWindowDays} ${syncWindowDays === 1 ? 'day' : 'days'}`}
           </span>
         </div>
       </div>

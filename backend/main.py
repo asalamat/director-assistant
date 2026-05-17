@@ -18,6 +18,7 @@ from routers import config as config_router
 from routers import health as health_router
 from routers import oauth as oauth_router
 from routers import ask as ask_router
+from routers import documents as documents_router
 from routers.config import get_effective_api_key, load_app_config
 from services.ai_client import AIClient
 
@@ -34,6 +35,7 @@ _last_poll_error: str = ""
 # Reuse provider instances across poll cycles so IMAP connections stay open.
 # Key 0 is reserved for the legacy single-account config.
 _provider_cache: dict[int, object] = {}
+_folder_cache: dict[int, list[str]] = {}   # avoid IMAP LIST on every poll cycle
 
 
 def _get_provider(account_id: int, acc):
@@ -46,11 +48,19 @@ def _get_provider(account_id: int, acc):
 def _evict_provider(account_id: int):
     """Remove and cleanly disconnect a cached provider."""
     p = _provider_cache.pop(account_id, None)
+    _folder_cache.pop(account_id, None)
     if p is not None and hasattr(p, "disconnect"):
         try:
             p.disconnect()
         except Exception:
             pass
+
+
+def _get_ingest_folders(account_id: int, provider) -> list[str]:
+    """Cache per-account folder list so each poll cycle avoids an IMAP LIST call."""
+    if account_id not in _folder_cache:
+        _folder_cache[account_id] = provider.get_ingest_folders()
+    return _folder_cache[account_id]
 
 
 def _is_connection_error(exc: Exception) -> bool:
@@ -79,8 +89,12 @@ async def _run_poll_cycle(rag: RAGEngine, cache: EmailCache) -> tuple[int, list[
 
     cfg = load_app_config()
     sync_days = cfg.get("sync_window_days", POLL_SINCE_DAYS)
-    since_dt = datetime.now(timezone.utc) - timedelta(days=sync_days)
-    since_str = since_dt.strftime("%Y-%m-%d")
+    if sync_days == 0:
+        since_dt = None   # unlimited — no date filter
+        since_str = None
+    else:
+        since_dt = datetime.now(timezone.utc) - timedelta(days=sync_days)
+        since_str = since_dt.strftime("%Y-%m-%d")
 
     all_accounts = cache.list_accounts()
     providers_to_check: list[tuple[int, object]] = []
@@ -104,7 +118,16 @@ async def _run_poll_cycle(rag: RAGEngine, cache: EmailCache) -> tuple[int, list[
     known_ids = rag._known_ids()
     loop = asyncio.get_event_loop()
 
-    def check_folder(account_id: int, provider, folder: str) -> int:
+    # Accounts that have never completed a full ingest get fetch_all (no N cap, no date cap).
+    never_ingested_ids: set[int] = {
+        acc.id for acc in all_accounts if not acc.last_ingested
+    }
+
+    # Legacy single-account path: full sweep if the flag file doesn't exist yet
+    from routers.connection import _LEGACY_INGESTED_FLAG
+    legacy_needs_full_sweep = (len(all_accounts) == 0 and not _LEGACY_INGESTED_FLAG.exists())
+
+    def check_folder(account_id: int, provider, folder: str, full_sweep: bool = False) -> int:
         # Step 1: detect server-side deletions (cheap UID list, no body download)
         try:
             server_uids = provider.get_uid_list(folder=folder, from_date=since_dt)
@@ -125,11 +148,14 @@ async def _run_poll_cycle(rag: RAGEngine, cache: EmailCache) -> tuple[int, list[
                     print(f"[poll] removed deleted email cache_id={cache_id}")
 
         # Step 2: fetch new emails
-        fetch_fn = (
-            lambda: provider.fetch_recent_n(folder=folder, n=POLL_RECENT_N, from_date=since_dt)
-            if isinstance(provider, IMAPProvider)
-            else provider.fetch_all(folder=folder, batch_size=POLL_RECENT_N, from_date=since_dt)
-        )
+        # First-time accounts get a full unlimited sweep so nothing is missed.
+        if full_sweep:
+            fetch_fn = lambda: provider.fetch_all(folder=folder, batch_size=200)
+        elif isinstance(provider, IMAPProvider):
+            fetch_fn = lambda: provider.fetch_recent_n(folder=folder, n=POLL_RECENT_N, from_date=since_dt)
+        else:
+            fetch_fn = lambda: provider.fetch_all(folder=folder, batch_size=POLL_RECENT_N, from_date=since_dt)
+
         buffer = []
         for email, _ in fetch_fn():
             if account_id:
@@ -151,10 +177,19 @@ async def _run_poll_cycle(rag: RAGEngine, cache: EmailCache) -> tuple[int, list[
     errors: list[str] = []
     for account_id, provider in providers_to_check:
         try:
-            for folder in provider.get_ingest_folders():
+            full_sweep = (account_id in never_ingested_ids) or (account_id == 0 and legacy_needs_full_sweep)
+            if full_sweep:
+                print(f"[poll] account {account_id} has never been fully ingested — running full sweep")
+            for folder in _get_ingest_folders(account_id, provider):
                 new_total += await loop.run_in_executor(
-                    None, check_folder, account_id, provider, folder
+                    None, check_folder, account_id, provider, folder, full_sweep
                 )
+            if full_sweep:
+                if account_id != 0:
+                    cache.mark_ingested(account_id)
+                else:
+                    _LEGACY_INGESTED_FLAG.touch(exist_ok=True)
+                print(f"[poll] account {account_id} full sweep complete — marked as ingested")
         except Exception as e:
             if _is_connection_error(e):
                 _evict_provider(account_id)   # next cycle will reconnect
@@ -256,6 +291,7 @@ app.include_router(config_router.router)
 app.include_router(health_router.router)
 app.include_router(oauth_router.router)
 app.include_router(ask_router.router)
+app.include_router(documents_router.router)
 
 
 @app.get("/health")

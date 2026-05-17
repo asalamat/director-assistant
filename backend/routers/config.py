@@ -52,7 +52,7 @@ async def get_config():
         "openai_key_preview": f"{oai_key[:8]}…" if oai_key else "",
         "poll_interval_seconds": cfg.get("poll_interval_seconds", 60),
         "budget_mode": cfg.get("budget_mode", False),
-        "sync_window_days": cfg.get("sync_window_days", 7),
+        "sync_window_days": cfg.get("sync_window_days", 0),
     }
 
 
@@ -73,7 +73,8 @@ async def update_config(update: AppConfigUpdate, request: Request):
         cfg["budget_mode"] = update.budget_mode
 
     if update.sync_window_days is not None:
-        cfg["sync_window_days"] = max(1, min(90, update.sync_window_days))
+        # 0 = unlimited; positive values clamped to 90 days
+        cfg["sync_window_days"] = 0 if update.sync_window_days == 0 else max(1, min(90, update.sync_window_days))
 
     save_app_config(cfg)
 
