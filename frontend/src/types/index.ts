@@ -121,3 +121,39 @@ export interface AppConfig {
   budget_mode: boolean
   sync_window_days: number
 }
+
+export interface Person {
+  email: string
+  name: string
+  sent_count: number
+  received_count: number
+  subjects: string[]
+  last_contact: string
+  score: number
+}
+
+export interface Cluster {
+  id: string
+  name: string
+  description: string
+  email_count: number
+  last_activity: string
+  keywords: string[]
+  status: 'active' | 'dormant' | 'resolved'
+}
+
+export interface OpenLoop {
+  type: 'commitment' | 'awaiting' | 'deadline'
+  text: string
+  sender: string
+  date: string
+  urgency: 'high' | 'medium' | 'low'
+}
+
+export interface TimelineEvent {
+  id: string
+  subject: string
+  sender: string
+  date: string
+  snippet: string
+}

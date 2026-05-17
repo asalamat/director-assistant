@@ -1,0 +1,344 @@
+"""
+Role-transition intelligence: briefing, people graph, open loops, project clusters.
+"""
+import json
+import re
+import time
+import logging
+from collections import defaultdict
+from typing import AsyncIterator, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from services.email_cache import EmailCache
+    from services.ai_client import AIClient
+    from services.rag_engine import RAGEngine
+
+logger = logging.getLogger(__name__)
+
+_CACHE: dict[str, tuple[float, object]] = {}
+_CACHE_TTL = 300
+
+
+def _cached(key: str, ttl: int = _CACHE_TTL):
+    entry = _CACHE.get(key)
+    if entry and time.time() - entry[0] < ttl:
+        return entry[1]
+    return None
+
+
+def _store(key: str, value: object):
+    _CACHE[key] = (time.time(), value)
+
+
+class IntelligenceService:
+    def __init__(self, ai: "AIClient", cache: "EmailCache", rag: "RAGEngine"):
+        self.ai = ai
+        self.cache = cache
+        self.rag = rag
+
+    # ── People Graph ─────────────────────────────────────────────────────────
+
+    def get_people(self, limit: int = 60) -> list[dict]:
+        """Extract top contacts from email corpus with interaction stats."""
+        cached = _cached("people")
+        if cached is not None:
+            return cached
+
+        freq: dict[str, dict] = defaultdict(lambda: {
+            "email": "", "name": "", "sent_count": 0, "received_count": 0,
+            "subjects": [], "last_contact": ""
+        })
+
+        with self.cache._conn() as conn:
+            rows = conn.execute(
+                "SELECT sender, recipients, subject, date FROM emails ORDER BY date DESC"
+            ).fetchall()
+
+        for row in rows:
+            sender = row["sender"] or ""
+            subj = (row["subject"] or "").strip()
+            date_str = row["date"] or ""
+
+            sender_email, sender_name = _parse_address(sender)
+            if sender_email and not _is_automated(sender_email):
+                e = freq[sender_email]
+                e["email"] = sender_email
+                if not e["name"] and sender_name:
+                    e["name"] = sender_name
+                e["received_count"] += 1
+                if subj and len(e["subjects"]) < 3 and subj not in e["subjects"]:
+                    e["subjects"].append(subj)
+                if date_str and (not e["last_contact"] or date_str > e["last_contact"]):
+                    e["last_contact"] = date_str
+
+            try:
+                recipients = json.loads(row["recipients"] or "[]")
+            except Exception:
+                recipients = []
+            for addr in recipients:
+                recp_email, recp_name = _parse_address(str(addr))
+                if recp_email and not _is_automated(recp_email):
+                    e = freq[recp_email]
+                    e["email"] = recp_email
+                    if not e["name"] and recp_name:
+                        e["name"] = recp_name
+                    e["sent_count"] += 1
+                    if date_str and (not e["last_contact"] or date_str > e["last_contact"]):
+                        e["last_contact"] = date_str
+
+        people = []
+        for addr, data in freq.items():
+            if not data["name"]:
+                data["name"] = addr.split("@")[0].replace(".", " ").title()
+            score = data["received_count"] * 2 + data["sent_count"]
+            people.append({**data, "score": score})
+
+        people.sort(key=lambda p: p["score"], reverse=True)
+        result = people[:limit]
+        _store("people", result)
+        return result
+
+    # ── Open Loops ────────────────────────────────────────────────────────────
+
+    async def get_open_loops(self, max_emails: int = 300) -> list[dict]:
+        """AI-powered scan for unresolved commitments and awaited responses."""
+        cached = _cached("open_loops", ttl=600)
+        if cached is not None:
+            return cached
+
+        with self.cache._conn() as conn:
+            rows = conn.execute(
+                """SELECT id, subject, sender, body, date FROM emails
+                   ORDER BY date DESC LIMIT ?""",
+                (max_emails,)
+            ).fetchall()
+
+        if not rows:
+            return []
+
+        batches = [rows[i:i+25] for i in range(0, min(len(rows), 150), 25)]
+        all_loops: list[dict] = []
+
+        for batch in batches:
+            text_blocks = []
+            for row in batch:
+                snip = (row["body"] or "")[:300].replace("\n", " ")
+                text_blocks.append(
+                    f"[{row['date'] or '?'}] From: {row['sender'] or '?'} | "
+                    f"Subject: {row['subject'] or '?'} | Snippet: {snip}"
+                )
+            prompt = (
+                "Analyze these emails and identify ONLY open/unresolved items:\n"
+                "1. Commitments made (I will, I'll, we will, will send, will follow up, will get back)\n"
+                "2. Responses awaited (please let me know, waiting for, can you, need your response, please confirm)\n"
+                "3. Deadlines or time-sensitive items mentioned\n\n"
+                "Return ONLY a JSON array (empty [] if none). Each item has keys:\n"
+                "- type: 'commitment' | 'awaiting' | 'deadline'\n"
+                "- text: one-sentence description of the open item\n"
+                "- sender: who is involved\n"
+                "- date: date string from the email\n"
+                "- urgency: 'high' | 'medium' | 'low'\n\n"
+                "Emails:\n" + "\n---\n".join(text_blocks)
+            )
+
+            try:
+                resp = await self.ai.messages.create(
+                    model="claude-haiku-4-5-20251001",
+                    max_tokens=1000,
+                    messages=[{"role": "user", "content": prompt}]
+                )
+                text = resp.content[0].text.strip()
+                m = re.search(r'\[.*\]', text, re.DOTALL)
+                if m:
+                    items = json.loads(m.group())
+                    if isinstance(items, list):
+                        all_loops.extend(items)
+            except Exception as e:
+                logger.warning(f"[intelligence] open_loops batch failed: {e}")
+
+        _store("open_loops", all_loops)
+        return all_loops
+
+    # ── Project Clusters ──────────────────────────────────────────────────────
+
+    async def get_clusters(self, max_emails: int = 400) -> list[dict]:
+        """Group emails into project/topic clusters using AI subject analysis."""
+        cached = _cached("clusters", ttl=600)
+        if cached is not None:
+            return cached
+
+        with self.cache._conn() as conn:
+            rows = conn.execute(
+                """SELECT subject, sender, date FROM emails
+                   ORDER BY date DESC LIMIT ?""",
+                (max_emails,)
+            ).fetchall()
+
+        if not rows:
+            return []
+
+        subjects_text = "\n".join(
+            f"{r['date'] or '?'} | {r['subject'] or '(no subject)'} | {r['sender'] or ''}"
+            for r in rows[:300]
+        )
+
+        prompt = (
+            "Analyze these email subjects and group them into 6-12 meaningful project/topic clusters.\n"
+            "Each cluster = a distinct ongoing thread, project, or recurring topic.\n\n"
+            "Return ONLY a JSON array. Each cluster object has keys:\n"
+            "- id: short kebab-case slug\n"
+            "- name: cluster name (2-5 words)\n"
+            "- description: one-sentence summary of what this cluster is about\n"
+            "- email_count: estimated number of emails (integer)\n"
+            "- last_activity: most recent date string seen in this cluster\n"
+            "- keywords: array of 3-5 search keywords for this cluster\n"
+            "- status: 'active' | 'dormant' | 'resolved'\n\n"
+            "Email subjects (date | subject | sender):\n" + subjects_text
+        )
+
+        try:
+            resp = await self.ai.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=1500,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            text = resp.content[0].text.strip()
+            m = re.search(r'\[.*\]', text, re.DOTALL)
+            if m:
+                clusters = json.loads(m.group())
+                if isinstance(clusters, list):
+                    _store("clusters", clusters)
+                    return clusters
+        except Exception as e:
+            logger.warning(f"[intelligence] clusters failed: {e}")
+
+        return []
+
+    # ── Timeline ──────────────────────────────────────────────────────────────
+
+    def get_timeline(self, query: str, limit: int = 60) -> list[dict]:
+        """Chronological timeline of emails matching a topic/cluster query."""
+        with self.cache._conn() as conn:
+            try:
+                rows = conn.execute(
+                    """SELECT e.id, e.subject, e.sender, e.date, e.body
+                       FROM emails e
+                       JOIN emails_fts f ON e.rowid = f.rowid
+                       WHERE emails_fts MATCH ?
+                       ORDER BY e.date ASC LIMIT ?""",
+                    (query, limit)
+                ).fetchall()
+            except Exception:
+                rows = conn.execute(
+                    """SELECT id, subject, sender, date, body FROM emails
+                       WHERE subject LIKE ? OR body LIKE ?
+                       ORDER BY date ASC LIMIT ?""",
+                    (f"%{query}%", f"%{query}%", limit)
+                ).fetchall()
+
+        return [
+            {
+                "id": r["id"],
+                "subject": r["subject"] or "",
+                "sender": r["sender"] or "",
+                "date": r["date"] or "",
+                "snippet": (r["body"] or "")[:200].replace("\n", " "),
+            }
+            for r in rows
+        ]
+
+    # ── Briefing Stream ───────────────────────────────────────────────────────
+
+    async def stream_briefing(self):
+        """Yield JSON lines for SSE — structured role-transition briefing."""
+
+        def evt(section: str, content) -> str:
+            return json.dumps({"section": section, "content": content}) + "\n"
+
+        yield evt("status", "Analyzing key relationships…")
+        people = self.get_people(limit=10)
+        if people:
+            lines = [
+                f"{p['name']} ({p['email']}) — {p['received_count']} from, {p['sent_count']} to, last: {p['last_contact'][:10] if p['last_contact'] else '?'}"
+                for p in people[:8]
+            ]
+            yield evt("people", lines)
+
+        yield evt("status", "Identifying active projects…")
+        clusters = await self.get_clusters()
+        if clusters:
+            yield evt("projects", clusters)
+
+        yield evt("status", "Scanning for open commitments…")
+        loops = await self.get_open_loops(max_emails=150)
+        if loops:
+            high = [l for l in loops if l.get("urgency") == "high"]
+            others = [l for l in loops if l.get("urgency") != "high"]
+            yield evt("loops", (high + others)[:15])
+
+        yield evt("status", "Generating executive summary…")
+
+        with self.cache._conn() as conn:
+            stats = conn.execute(
+                "SELECT COUNT(*) as cnt, MIN(date) as oldest, MAX(date) as newest FROM emails"
+            ).fetchone()
+
+        email_count = stats["cnt"] if stats else 0
+        oldest = (stats["oldest"] or "")[:10] if stats else ""
+        newest = (stats["newest"] or "")[:10] if stats else ""
+        project_names = ", ".join(c["name"] for c in clusters[:6]) if clusters else "none detected"
+        contact_names = ", ".join(p["name"] for p in people[:5]) if people else "none detected"
+
+        summary_prompt = (
+            f"You are briefing someone who just joined a new company and took over a role. "
+            f"Based on {email_count} emails from {oldest} to {newest}, write a concise 3-paragraph "
+            f"executive briefing covering:\n"
+            f"1. Overall state of affairs and most important ongoing work\n"
+            f"2. Key relationships to prioritize immediately\n"
+            f"3. Recommended actions for their first week\n\n"
+            f"Context:\n"
+            f"- Active projects: {project_names}\n"
+            f"- Top contacts: {contact_names}\n"
+            f"- Open items: {len(loops)} pending commitments/responses found\n\n"
+            f"Write in second person. Be specific and actionable. 3 short paragraphs max."
+        )
+
+        try:
+            resp = await self.ai.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=700,
+                messages=[{"role": "user", "content": summary_prompt}]
+            )
+            yield evt("summary", resp.content[0].text)
+        except Exception as e:
+            yield evt("summary", f"Summary unavailable: {e}")
+
+        yield evt("done", "")
+
+    def invalidate_cache(self):
+        """Clear cached results so next request recomputes."""
+        _CACHE.clear()
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _parse_address(addr: str) -> tuple[str, str]:
+    if not addr:
+        return "", ""
+    m = re.search(r'<([^>]+)>', addr)
+    if m:
+        email = m.group(1).strip().lower()
+        name = addr[:addr.index('<')].strip().strip('"').strip("'").strip()
+        return email, name
+    addr = addr.strip()
+    if '@' in addr:
+        return addr.lower(), ""
+    return "", ""
+
+
+def _is_automated(email: str) -> bool:
+    skip = ('noreply', 'no-reply', 'donotreply', 'notifications@', 'mailer@',
+            'bounce', 'postmaster', 'daemon', 'auto-confirm', 'alerts@',
+            'newsletter@', 'unsubscribe')
+    el = email.lower()
+    return any(s in el for s in skip)

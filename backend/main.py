@@ -19,6 +19,8 @@ from routers import health as health_router
 from routers import oauth as oauth_router
 from routers import ask as ask_router
 from routers import documents as documents_router
+from routers import intelligence as intelligence_router
+from services.intelligence_service import IntelligenceService
 from routers.config import get_effective_api_key, load_app_config
 from services.ai_client import AIClient
 
@@ -255,6 +257,7 @@ async def lifespan(app: FastAPI):
     app.state.advisor = AIAdvisor(client)
     app.state.digest = DigestService(client)
     app.state.classifier = ClassifierService(client)
+    app.state.intelligence = IntelligenceService(client, app.state.cache, app.state.rag)
 
     app.state.poll_task = asyncio.create_task(
         _poll_new_emails(app.state.rag, app.state.cache)
@@ -292,6 +295,7 @@ app.include_router(health_router.router)
 app.include_router(oauth_router.router)
 app.include_router(ask_router.router)
 app.include_router(documents_router.router)
+app.include_router(intelligence_router.router)
 
 
 @app.get("/health")

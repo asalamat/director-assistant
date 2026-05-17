@@ -4,13 +4,14 @@ interface Props {
   onClose: () => void
 }
 
-type Section = 'start' | 'features' | 'ai' | 'tips'
+type Section = 'start' | 'features' | 'ai' | 'knowledge' | 'tips'
 
 const SECTIONS: { id: Section; label: string }[] = [
-  { id: 'start',    label: 'Getting Started' },
-  { id: 'features', label: 'Features' },
-  { id: 'ai',       label: 'AI Features' },
-  { id: 'tips',     label: 'Tips & Tricks' },
+  { id: 'start',     label: 'Getting Started' },
+  { id: 'features',  label: 'Features' },
+  { id: 'ai',        label: 'AI Features' },
+  { id: 'knowledge', label: 'Knowledge Base' },
+  { id: 'tips',      label: 'Tips & Tricks' },
 ]
 
 function H3({ children }: { children: React.ReactNode }) {
@@ -162,6 +163,60 @@ function AIFeatures() {
   )
 }
 
+function KnowledgeBase() {
+  return (
+    <div>
+      <H3>Knowledge Base <Badge color="purple">New</Badge></H3>
+      <P>
+        The <strong>Knowledge</strong> tab turns your email corpus into a structured knowledge base.
+        It is designed for role transitions — when you join a new company and inherit someone's mailbox.
+      </P>
+
+      <H3>Role Briefing</H3>
+      <P>Click <strong>"Brief me on this role"</strong> to generate an AI-powered executive briefing covering:</P>
+      <ul className="text-sm text-gray-600 space-y-1 mb-3 pl-4 list-disc">
+        <li><strong>Active projects</strong> — auto-detected ongoing topics and threads</li>
+        <li><strong>Key relationships</strong> — who your predecessor communicated with most</li>
+        <li><strong>Open commitments</strong> — unresolved promises, awaited responses, deadlines</li>
+        <li><strong>Executive summary</strong> — AI narrative covering state of affairs and first-week actions</li>
+      </ul>
+      <Note>Briefing analysis scans up to 300 recent emails and takes 30–60 seconds the first time. Results are cached for 10 minutes.</Note>
+
+      <H3>People Graph</H3>
+      <P>
+        Shows all contacts extracted from your email corpus with interaction stats: emails received from,
+        sent to, last contact date, and recent subjects. Sort by relevance, volume, or recency.
+        Use this to identify who to reach out to first when joining a new team.
+      </P>
+
+      <H3>Open Loops</H3>
+      <P>
+        AI scans recent emails for three types of open items:
+      </P>
+      <ul className="text-sm text-gray-600 space-y-1 mb-3 pl-4 list-disc">
+        <li><strong>Commitments</strong> — "I will send", "I'll follow up", "we will…"</li>
+        <li><strong>Awaiting</strong> — "please let me know", "waiting for your response"</li>
+        <li><strong>Deadlines</strong> — time-sensitive items and mentioned dates</li>
+      </ul>
+      <P>Items are scored by urgency (high/medium/low) and filterable by type.</P>
+
+      <H3>Projects</H3>
+      <P>
+        AI groups your emails into 6–12 topic clusters representing ongoing projects or recurring threads.
+        Each cluster shows status (active / dormant / resolved), email count, and keywords.
+        Click a project to jump to its Timeline view.
+      </P>
+
+      <H3>Timeline</H3>
+      <P>
+        Search any topic or keyword to see all related emails in chronological order — oldest to newest.
+        Perfect for understanding how a situation evolved: "what happened with the contract renewal?" or
+        "how did the hiring process unfold?". You can navigate here directly from a Projects cluster.
+      </P>
+    </div>
+  )
+}
+
 function Tips() {
   return (
     <div>
@@ -211,10 +266,11 @@ function Tips() {
 }
 
 const CONTENT: Record<Section, React.ReactNode> = {
-  start:    <GettingStarted />,
-  features: <Features />,
-  ai:       <AIFeatures />,
-  tips:     <Tips />,
+  start:     <GettingStarted />,
+  features:  <Features />,
+  ai:        <AIFeatures />,
+  knowledge: <KnowledgeBase />,
+  tips:      <Tips />,
 }
 
 export function HelpModal({ onClose }: Props) {

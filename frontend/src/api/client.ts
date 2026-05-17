@@ -262,4 +262,50 @@ export const api = {
     }
     return es
   },
+
+  // Intelligence / Knowledge Base
+  getPeople(limit = 60): Promise<{ people: import('../types').Person[] }> {
+    return request(`/intelligence/people?limit=${limit}`)
+  },
+  getClusters(): Promise<{ clusters: import('../types').Cluster[] }> {
+    return request('/intelligence/clusters')
+  },
+  getTimeline(q: string, limit = 60): Promise<{ events: import('../types').TimelineEvent[] }> {
+    return request(`/intelligence/timeline?q=${encodeURIComponent(q)}&limit=${limit}`)
+  },
+  getOpenLoops(): Promise<{ loops: import('../types').OpenLoop[] }> {
+    return request('/intelligence/loops', { method: 'POST' })
+  },
+  streamBriefing(onEvent: (section: string, content: unknown) => void): () => void {
+    const es = new EventSource('/api/intelligence/briefing')
+    // EventSource only does GET; use fetch for POST SSE
+    es.close()
+    const ctrl = new AbortController()
+    fetch('/api/intelligence/briefing', { method: 'POST', signal: ctrl.signal })
+      .then(async (res) => {
+        const reader = res.body!.getReader()
+        const dec = new TextDecoder()
+        let buf = ''
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          buf += dec.decode(value, { stream: true })
+          const lines = buf.split('\n')
+          buf = lines.pop() ?? ''
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const evt = JSON.parse(line.slice(6))
+                onEvent(evt.section, evt.content)
+              } catch { /* ignore */ }
+            }
+          }
+        }
+      })
+      .catch(() => {})
+    return () => ctrl.abort()
+  },
+  invalidateIntelligence(): Promise<{ status: string }> {
+    return request('/intelligence/invalidate', { method: 'POST' })
+  },
 }

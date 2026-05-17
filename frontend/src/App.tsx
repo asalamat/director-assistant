@@ -11,11 +11,12 @@ import { TemplatesPanel } from './components/TemplatesPanel'
 import { HealthPanel } from './components/HealthPanel'
 import { AskPanel } from './components/AskPanel'
 import { HelpModal } from './components/HelpModal'
+import { IntelligencePanel } from './components/IntelligencePanel'
 import { useEmails, useEmailDetail, useRecommendation } from './hooks/useEmails'
 import { api } from './api/client'
 import type { EmailSummary } from './types'
 
-type Tab = 'inbox' | 'actions' | 'digest' | 'analytics' | 'templates' | 'health' | 'ask'
+type Tab = 'inbox' | 'actions' | 'digest' | 'analytics' | 'templates' | 'health' | 'ask' | 'knowledge'
 
 // Simple SVG icons
 const Icons: Record<Tab, JSX.Element> = {
@@ -55,6 +56,11 @@ const Icons: Record<Tab, JSX.Element> = {
       <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
     </svg>
   ),
+  knowledge: (
+    <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+      <path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.255 0 2.443.29 3.5.804V4.804zM14.5 4c-1.255 0-2.443.29-3.5.804V14.8a7.968 7.968 0 013.5-.8c1.255 0 2.443.29 3.5.804V4.804A7.969 7.969 0 0014.5 4z"/>
+    </svg>
+  ),
 }
 
 const TABS: { id: Tab; label: string }[] = [
@@ -65,6 +71,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'analytics', label: 'Analytics' },
   { id: 'templates', label: 'Templates' },
   { id: 'health', label: 'Health' },
+  { id: 'knowledge', label: 'Knowledge' },
 ]
 
 export default function App() {
@@ -379,6 +386,7 @@ export default function App() {
         {activeTab === 'analytics' && <Analytics />}
         {activeTab === 'templates' && <TemplatesPanel />}
         {activeTab === 'health' && <HealthPanel />}
+        {activeTab === 'knowledge' && <IntelligencePanel />}
       </div>
 
       {/* Import by subject modal */}
