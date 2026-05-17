@@ -1,81 +1,161 @@
 import json
 import re
+from typing import List
+
 from fastapi import APIRouter, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/ask", tags=["ask"])
+
+_QUESTION_PREAMBLES = re.compile(
+    r"^(?:who\s+is|who\s+are|what\s+is|what\s+are|where\s+is|when\s+is|"
+    r"how\s+(?:many\s+|much\s+)?(?:emails?\s+|messages?\s+)?(?:(?:from|about|by|to)\s+)?|"
+    r"how\s+is|tell\s+me\s+about|do\s+you\s+know\s+(?:about\s+)?|"
+    r"show\s+me\s+(?:emails?\s+(?:from|about)\s+)?|"
+    r"find\s+(?:emails?\s+(?:from|about)\s+)?|"
+    r"(?:list|count|get)\s+(?:all\s+)?(?:emails?\s+)?(?:(?:from|about|by)\s+)?|"
+    r"emails?\s+(?:from|about|by)\s+)\s*",
+    re.IGNORECASE,
+)
+
+_COUNT_QUESTION = re.compile(
+    r"\b(?:how\s+many|count|total\s+(?:number\s+of)?)\b.*\b(?:email|message)s?\b",
+    re.IGNORECASE,
+)
+
+_SENDER_EXTRACT = re.compile(
+    r"\b(?:from|by|sent\s+by)\s+([A-Za-z][A-Za-z .'-]{1,40}?)(?:\s*[?,.]|\s*$)",
+    re.IGNORECASE,
+)
+
+_META_WORDS = frozenset({
+    "how", "many", "much", "count", "number", "total", "list",
+    "email", "emails", "message", "messages", "mail",
+    "from", "about", "by", "in", "for",
+})
+
+
+def _search_query(question: str) -> str:
+    stripped = _QUESTION_PREAMBLES.sub("", question).strip()
+    words = stripped.split()
+    filtered = [w for w in words if w.lower() not in _META_WORDS]
+    return " ".join(filtered).strip() or stripped or question
+
+
+def _extract_sender_name(question: str) -> str | None:
+    m = _SENDER_EXTRACT.search(question)
+    if m:
+        return m.group(1).strip()
+    q = _search_query(question)
+    if q and len(q.split()) <= 3 and q[0].isupper():
+        return q
+    return None
+
+
+class HistoryMessage(BaseModel):
+    role: str   # 'user' | 'assistant'
+    content: str
 
 
 class AskRequest(BaseModel):
     question: str
     n_results: int = 15
+    history: List[HistoryMessage] = []
 
 
 @router.post("")
 async def ask_db(req: AskRequest, request: Request):
     rag = request.app.state.rag
+    cache = request.app.state.cache
     ai = request.app.state.advisor.ai
 
     question = req.question.strip()
-    if not question:
-        return {"answer": "Please enter a question.", "sources": []}
 
-    results = rag.hybrid_search(question, n_results=req.n_results)
-    if not results:
-        return {
-            "answer": "No emails found in the database. Try ingesting some emails first.",
-            "sources": [],
-        }
+    async def generate():
+        if not question:
+            yield 'data: {"type":"token","text":"Please enter a question."}\n\n'
+            yield 'data: {"type":"done"}\n\n'
+            return
 
-    context = "\n\n".join(
-        f"[{i+1}] Subject: {r['subject']}\n"
-        f"    From: {r['sender']}\n"
-        f"    Date: {r['date']}\n"
-        f"    Preview: {r['text'][:500]}"
-        for i, r in enumerate(results[:10])
-    )
+        # Count hint — instant DB query, done before streaming starts
+        count_hint = ""
+        if _COUNT_QUESTION.search(question):
+            sender_name = _extract_sender_name(question)
+            if sender_name:
+                exact_count = cache.count_by_sender(sender_name)
+                count_hint = (
+                    f"\n\nDB FACT: There are exactly {exact_count} emails from "
+                    f"'{sender_name}' in the database. Use this exact number."
+                )
 
-    prompt = (
-        f"You are an assistant with access to an email database. "
-        f"Answer the user's question based ONLY on the emails shown below. "
-        f"Be concise and specific. If the answer isn't in the emails, say so.\n\n"
-        f"EMAILS:\n{context}\n\n"
-        f"QUESTION: {question}\n\n"
-        f'Return a JSON object: {{"answer": "your answer here", "source_indices": [1, 2, ...]}} '
-        f"where source_indices lists which email numbers (1-indexed) you used. "
-        f"Return ONLY valid JSON."
-    )
+        results = rag.hybrid_search(_search_query(question), n_results=req.n_results)
+        if not results:
+            yield 'data: {"type":"token","text":"No emails found in the database. Try importing some emails first."}\n\n'
+            yield 'data: {"type":"done"}\n\n'
+            return
 
-    try:
-        resp = await ai.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=600,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        raw = resp.content[0].text.strip()
-        # Strip markdown code fences if present
-        raw = re.sub(r"^```(?:json)?\s*", "", raw)
-        raw = re.sub(r"\s*```$", "", raw).strip()
+        def _format_result(i: int, r: dict) -> str:
+            if r.get("source_type") == "document":
+                return (
+                    f"[{i+1}] FILE: {r.get('filename', 'unknown')}\n"
+                    f"    Type: {r.get('file_type', '').upper()}\n"
+                    f"    Content: {r['text'][:400]}"
+                )
+            return (
+                f"[{i+1}] EMAIL — Subject: {r['subject']}\n"
+                f"    From: {r['sender']}\n"
+                f"    Date: {r['date']}\n"
+                f"    Preview: {r['text'][:400]}"
+            )
+
+        context = "\n\n".join(_format_result(i, r) for i, r in enumerate(results[:10]))
+
+        # Build messages: conversation history + current question with context
+        messages = []
+        for h in req.history[-6:]:  # last 3 turns (6 messages)
+            messages.append({"role": h.role, "content": h.content})
+
+        messages.append({
+            "role": "user",
+            "content": (
+                "You are an executive assistant with access to an email database. "
+                "Answer based ONLY on the emails shown. Be concise and specific.\n\n"
+                f"EMAILS:\n{context}"
+                f"{count_hint}\n\n"
+                f"QUESTION: {question}"
+            ),
+        })
+
         try:
-            parsed = json.loads(raw)
-            answer = parsed.get("answer", raw)
-            indices = parsed.get("source_indices", [])
-        except json.JSONDecodeError:
-            # Model returned plain text — use it directly
-            answer = raw
-            indices = []
-        sources = [
-            {
-                "email_id": results[i - 1]["email_id"],
-                "subject": results[i - 1]["subject"],
-                "sender": results[i - 1]["sender"],
-                "date": results[i - 1]["date"],
-            }
-            for i in indices
-            if isinstance(i, int) and 1 <= i <= len(results)
-        ]
-    except Exception as e:
-        answer = f"Error generating answer: {e}"
-        sources = []
+            async with ai.messages.stream(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=800,
+                messages=messages,
+            ) as stream:
+                async for text in stream.text_stream:
+                    yield f"data: {json.dumps({'type': 'token', 'text': text})}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'token', 'text': f'Error generating answer: {e}'})}\n\n"
 
-    return {"answer": answer, "sources": sources}
+        sources = []
+        for r in results[:5]:
+            src: dict = {
+                "email_id": r["email_id"],
+                "source_type": r.get("source_type", "email"),
+                "subject": r.get("subject", ""),
+                "sender": r.get("sender", ""),
+                "date": r.get("date", ""),
+            }
+            if r.get("source_type") == "document":
+                src["filename"] = r.get("filename", "")
+                src["file_type"] = r.get("file_type", "")
+            sources.append(src)
+        yield f"data: {json.dumps({'type': 'sources', 'sources': sources})}\n\n"
+        yield 'data: {"type":"done"}\n\n'
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )

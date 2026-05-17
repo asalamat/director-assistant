@@ -192,6 +192,27 @@ export const api = {
     return request('/poll/now', { method: 'POST' })
   },
 
+  // Documents
+  browseFolder(path?: string): Promise<{ current: string; parent: string | null; dirs: { name: string; path: string }[] }> {
+    const qs = path ? `?path=${encodeURIComponent(path)}` : ''
+    return request(`/documents/browse${qs}`)
+  },
+  getDocumentFolders(): Promise<{ folders: string[] }> {
+    return request('/documents/folders')
+  },
+  setDocumentFolders(folders: string[]): Promise<{ status: string; folders: string[] }> {
+    return request('/documents/folders', { method: 'POST', body: JSON.stringify({ folders }) })
+  },
+  ingestDocuments(): Promise<{ status: string; folders: string[] }> {
+    return request('/documents/ingest', { method: 'POST' })
+  },
+  getDocumentIngestStatus(): Promise<{ status: string; processed: number; total: number; message: string }> {
+    return request('/documents/status')
+  },
+  listDocuments(): Promise<{ documents: { doc_id: string; filename: string; file_type: string; file_path: string; modified_at: string; chunk_total: number }[]; total: number }> {
+    return request('/documents')
+  },
+
   // App config
   getConfig(): Promise<AppConfig> {
     return request('/config')
@@ -216,11 +237,11 @@ export const api = {
   removeAccount(id: number): Promise<void> {
     return request(`/accounts/${id}`, { method: 'DELETE' })
   },
-  ingestAccount(id: number): Promise<void> {
-    return request(`/accounts/${id}/ingest`, { method: 'POST' })
+  ingestAccount(id: number, fromDate?: string): Promise<void> {
+    return request(`/accounts/${id}/ingest`, { method: 'POST', body: JSON.stringify({ from_date: fromDate || null }) })
   },
-  ingestAll(): Promise<void> {
-    return request('/accounts/ingest-all', { method: 'POST' })
+  ingestAll(fromDate?: string): Promise<void> {
+    return request('/accounts/ingest-all', { method: 'POST', body: JSON.stringify({ from_date: fromDate || null }) })
   },
   // Microsoft OAuth2 device flow
   startMicrosoftOAuth(client_id: string, username: string): Promise<{

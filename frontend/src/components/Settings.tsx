@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { api } from '../api/client'
 import type { EmailProvider, Account, IngestProgress } from '../types'
 import { ConfigPanel } from './ConfigPanel'
+import { FolderPicker } from './FolderPicker'
 
 interface Props {
   onConnected: () => void
@@ -57,6 +58,12 @@ export function Settings({ onConnected, initialTab = 'accounts' }: Props) {
   const [error, setError] = useState('')
   const [progress, setProgress] = useState<IngestProgress | null>(null)
   const [ingestingId, setIngestingId] = useState<number | 'all' | null>(null)
+
+  const [docFolders, setDocFolders] = useState<string[]>([])
+  const [docIngesting, setDocIngesting] = useState(false)
+  const [docMsg, setDocMsg] = useState('')
+  const [docCount, setDocCount] = useState<number | null>(null)
+  const [showFolderPicker, setShowFolderPicker] = useState(false)
 
   // Microsoft OAuth2 device flow state
   const [hotmailMode, setHotmailMode] = useState<'password' | 'oauth'>('password')
@@ -120,7 +127,11 @@ export function Settings({ onConnected, initialTab = 'accounts' }: Props) {
     }
   }
 
-  useEffect(() => { loadAccounts() }, [])
+  useEffect(() => {
+    loadAccounts()
+    api.getDocumentFolders().then(r => setDocFolders(r.folders || [])).catch(() => {})
+    api.listDocuments().then(r => setDocCount(r.total)).catch(() => {})
+  }, [])
 
   const handleAdd = async () => {
     setLoading(true)
@@ -154,9 +165,9 @@ export function Settings({ onConnected, initialTab = 'accounts' }: Props) {
     setProgress({ total: 0, processed: 0, status: 'running', message: 'Starting…' })
     try {
       if (id === 'all') {
-        await api.ingestAll()
+        await api.ingestAll(fromDate || undefined)
       } else {
-        await api.ingestAccount(id)
+        await api.ingestAccount(id, fromDate || undefined)
       }
       const es = api.subscribeAccountsIngestProgress((p) => {
         setProgress(p)
@@ -244,7 +255,7 @@ export function Settings({ onConnected, initialTab = 'accounts' }: Props) {
                     disabled={ingestingId !== null}
                     className="text-xs text-accent hover:underline disabled:opacity-50"
                   >
-                    {ingestingId === acc.id ? 'Ingesting…' : 'Ingest'}
+                    {ingestingId === acc.id ? 'Importing…' : 'Import'}
                   </button>
                   <span className="text-gray-200">|</span>
                   <button onClick={() => handleRemove(acc.id)} className="text-xs text-gray-400 hover:text-red-500">
@@ -254,6 +265,23 @@ export function Settings({ onConnected, initialTab = 'accounts' }: Props) {
               </div>
             ))}
 
+            {/* Date filter */}
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-gray-500 whitespace-nowrap">From date</label>
+              <input
+                type="date"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                className="flex-1 border border-gray-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-accent bg-white"
+              />
+              {fromDate && (
+                <button onClick={() => setFromDate('')} className="text-xs text-gray-400 hover:text-gray-600">
+                  Clear
+                </button>
+              )}
+            </div>
+            <p className="text-xs text-gray-400 -mt-1">Leave blank to import all emails (no date limit).</p>
+
             {/* Global actions */}
             <div className="flex gap-2 pt-1">
               <button
@@ -261,7 +289,7 @@ export function Settings({ onConnected, initialTab = 'accounts' }: Props) {
                 disabled={ingestingId !== null}
                 className="flex-1 bg-accent text-white text-sm font-medium py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
               >
-                {ingestingId === 'all' ? 'Ingesting all…' : 'Ingest all accounts'}
+                {ingestingId === 'all' ? 'Importing all…' : 'Import all emails'}
               </button>
               <button
                 onClick={onConnected}
@@ -302,6 +330,96 @@ export function Settings({ onConnected, initialTab = 'accounts' }: Props) {
               + Add another account
             </button>
           </div>
+        )}
+
+        {/* Documents section */}
+        {hasAccounts && !showAdd && (
+          <div className="mb-6 space-y-3 border-t border-gray-100 pt-5">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Documents</p>
+              {docCount !== null && docCount > 0 && (
+                <span className="text-xs text-gray-400">{docCount} file{docCount !== 1 ? 's' : ''} indexed</span>
+              )}
+            </div>
+            <p className="text-xs text-gray-400">Add folders to index — PDFs, Word, Excel, and text files are searchable alongside emails.</p>
+
+            {/* Folder list */}
+            {docFolders.length > 0 && (
+              <div className="space-y-1.5">
+                {docFolders.map((f, i) => (
+                  <div key={i} className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5">
+                    <span className="flex-1 text-xs text-gray-700 truncate font-mono">{f}</span>
+                    <button
+                      onClick={async () => {
+                        const next = docFolders.filter((_, j) => j !== i)
+                        await api.setDocumentFolders(next).catch(() => {})
+                        setDocFolders(next)
+                      }}
+                      className="text-xs text-gray-400 hover:text-red-500 flex-shrink-0"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Add folder button */}
+            <button
+              onClick={() => setShowFolderPicker(true)}
+              className="w-full flex items-center justify-center gap-2 border border-dashed border-amber-300 text-amber-600 hover:bg-amber-50 rounded-lg py-2 text-sm transition-colors"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
+              </svg>
+              Browse &amp; add folder…
+            </button>
+
+            <button
+              onClick={async () => {
+                setDocIngesting(true); setDocMsg('')
+                try {
+                  await api.ingestDocuments()
+                  let waited = 0
+                  const id = setInterval(async () => {
+                    waited += 1500
+                    const s = await api.getDocumentIngestStatus().catch(() => null)
+                    if (!s || s.status !== 'running') {
+                      clearInterval(id)
+                      setDocMsg(s?.message || 'Done')
+                      api.listDocuments().then(r => setDocCount(r.total)).catch(() => {})
+                      setDocIngesting(false)
+                    } else {
+                      setDocMsg(s.message)
+                    }
+                    if (waited > 120000) { clearInterval(id); setDocIngesting(false) }
+                  }, 1500)
+                } catch (e: unknown) {
+                  setDocMsg(e instanceof Error ? e.message : 'Failed')
+                  setDocIngesting(false)
+                }
+              }}
+              disabled={docIngesting || docFolders.length === 0}
+              className="w-full bg-amber-500 text-white text-sm font-medium py-2 rounded-lg hover:bg-amber-600 disabled:opacity-50"
+            >
+              {docIngesting ? 'Indexing…' : `Index Documents${docFolders.length > 1 ? ` (${docFolders.length} folders)` : ''}`}
+            </button>
+            {docMsg && (
+              <p className={`text-xs ${docMsg.toLowerCase().includes('fail') || docMsg.toLowerCase().includes('error') ? 'text-red-500' : 'text-green-600'}`}>{docMsg}</p>
+            )}
+          </div>
+        )}
+
+        {showFolderPicker && (
+          <FolderPicker
+            onSelect={async (path) => {
+              if (docFolders.includes(path)) return
+              const next = [...docFolders, path]
+              await api.setDocumentFolders(next).catch(() => {})
+              setDocFolders(next)
+            }}
+            onClose={() => setShowFolderPicker(false)}
+          />
         )}
 
         {/* Add account form */}
@@ -468,17 +586,6 @@ export function Settings({ onConnected, initialTab = 'accounts' }: Props) {
               )}
             </div>
 
-            {/* Date filter for ingest */}
-            <div className="border border-gray-200 rounded-xl p-4 space-y-2 bg-gray-50">
-              <p className="text-xs font-medium text-gray-700">Ingest from date <span className="text-gray-400 font-normal">(optional)</span></p>
-              <input
-                type="date"
-                value={fromDate}
-                onChange={(e) => setFromDate(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent bg-white"
-              />
-              <p className="text-xs text-gray-400">Leave blank to ingest all emails. Gmail and Yahoo require an App Password — enable 2FA first.</p>
-            </div>
           </div>
         )}
         </>}

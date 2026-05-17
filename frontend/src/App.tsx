@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Settings } from './components/Settings'
 import { EmailList } from './components/EmailList'
 import { EmailViewer } from './components/EmailViewer'
@@ -83,15 +83,29 @@ export default function App() {
   const [importSubject, setImportSubject] = useState('')
   const [importing, setImporting] = useState(false)
   const [importMsg, setImportMsg] = useState('')
+  const [unreadCount, setUnreadCount] = useState(0)
+  const [folders, setFolders] = useState<Record<string, number>>({})
+  const [currentFolder, setCurrentFolder] = useState('INBOX')
 
   const { emails, total, loading: listLoading, hasMore, refresh, mergeRefresh, loadMore, setSort, currentParams, removeEmail } = useEmails()
   const { email, loading: emailLoading, fetch: fetchEmail } = useEmailDetail()
   const { rec, loading: recLoading, error: recError, fetch: fetchRec } = useRecommendation()
 
+  const loadFolderData = useCallback(async () => {
+    try {
+      const [f, u] = await Promise.all([
+        fetch('/api/emails/folders').then(r => r.json()),
+        fetch('/api/emails/unread-count').then(r => r.json()),
+      ])
+      setFolders(f as Record<string, number>)
+      setUnreadCount((u as { unread: number }).unread)
+    } catch { /* ignore */ }
+  }, [])
+
   useEffect(() => {
     api.getStatus().then((s) => {
       setConnected(s.connected)
-      if (s.connected) refresh()
+      if (s.connected) { refresh(); loadFolderData() }
     }).catch(() => setConnected(false))
     api.getAccounts().then(setAccounts).catch(() => {})
   }, [])
@@ -284,6 +298,11 @@ export default function App() {
               </span>
             ) : Icons[tab.id]}
             <span>{tab.label}</span>
+            {tab.id === 'inbox' && unreadCount > 0 && (
+              <span className="ml-0.5 bg-accent text-white text-[10px] font-bold rounded-full min-w-[16px] h-4 flex items-center justify-center px-1 leading-none">
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            )}
             {tab.id === 'health' && healthStatus && (
               <span className={`ml-0.5 w-1.5 h-1.5 rounded-full inline-block ${
                 healthStatus === 'ok' ? 'bg-green-500' :
@@ -327,10 +346,16 @@ export default function App() {
                 selectedId={selectedEmail?.id ?? null}
                 loading={listLoading}
                 hasMore={hasMore}
+                folders={folders}
+                currentFolder={currentFolder}
                 onSelect={handleSelect}
                 onLoadMore={loadMore}
                 onSearch={(q) => refresh({ q })}
                 onSort={(by, order) => setSort(by, order)}
+                onFolderChange={(f) => {
+                  setCurrentFolder(f)
+                  refresh({ folder: f, q: undefined })
+                }}
                 sortBy={currentParams.sort_by ?? 'date'}
                 sortOrder={currentParams.sort_order ?? 'desc'}
               />
