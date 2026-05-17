@@ -1,6 +1,11 @@
 import os
 import asyncio
 from contextlib import asynccontextmanager
+
+# Must be set before any ML library imports to prevent segfaults on Python 3.13 + hnswlib
+for _k in ("TOKENIZERS_PARALLELISM", "OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS",
+           "MKL_NUM_THREADS", "VECLIB_MAXIMUM_THREADS", "NUMEXPR_NUM_THREADS"):
+    os.environ.setdefault(_k, "1" if _k != "TOKENIZERS_PARALLELISM" else "false")
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from dotenv import load_dotenv
@@ -246,6 +251,13 @@ async def _restart_poll(app: FastAPI):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    try:
+        import torch
+        torch.set_num_threads(1)
+        torch.set_num_interop_threads(1)
+    except Exception:
+        pass
+
     cfg = load_app_config()
     anthropic_key = cfg.get("anthropic_api_key") or os.getenv("ANTHROPIC_API_KEY", "")
     openai_key = cfg.get("openai_api_key") or os.getenv("OPENAI_API_KEY", "")

@@ -14,6 +14,7 @@ Why FTS5 instead of BM25:
 import re
 import json
 import logging
+import multiprocessing
 from pathlib import Path
 from typing import TYPE_CHECKING, List, Optional
 
@@ -26,6 +27,111 @@ if TYPE_CHECKING:
     from services.ai_client import AIClient
 
 logger = logging.getLogger(__name__)
+
+
+class _RAGQueryProxy:
+    """
+    Runs ChromaDB vector queries in a dedicated spawned subprocess.
+    Prevents the SIGSEGV from hnswlib/loky on Python 3.13 from killing uvicorn.
+    Falls back gracefully (FTS5-only) while the worker loads, or if it crashes.
+    Worker initializes in a background thread so server startup is not blocked.
+    """
+    _STARTUP_TIMEOUT = 120  # seconds — first run downloads/loads the 1.3 GB model
+    _QUERY_TIMEOUT   = 8    # seconds per query — fall back to FTS5 quickly if worker is slow
+
+    def __init__(self, db_path: str):
+        self._db_path = db_path
+        self._proc: Optional[multiprocessing.Process] = None
+        self._req_q = None
+        self._resp_q = None
+        self._available = False
+        self._starting = False   # prevents concurrent restarts
+        import threading
+        self._lock = threading.Lock()
+        # Start in background — server startup is not blocked
+        threading.Thread(target=self._start, daemon=True, name="rag-proxy-init").start()
+
+    def _start(self):
+        with self._lock:
+            if self._starting:
+                return
+            self._starting = True
+        try:
+            from services.rag_worker import worker_main
+            ctx = multiprocessing.get_context("spawn")
+            req_q = ctx.Queue()
+            resp_q = ctx.Queue()
+            proc = ctx.Process(
+                target=worker_main,
+                args=(self._db_path, req_q, resp_q),
+                daemon=True,
+            )
+            proc.start()
+            msg = resp_q.get(timeout=self._STARTUP_TIMEOUT)
+            if msg.get("ready"):
+                self._req_q = req_q
+                self._resp_q = resp_q
+                self._proc = proc
+                self._available = True
+                logger.info("[RAG proxy] worker ready — dense search active")
+            else:
+                logger.warning(f"[RAG proxy] worker init failed: {msg.get('error')}")
+        except Exception as e:
+            self._available = False
+            logger.warning(f"[RAG proxy] worker init error: {e}")
+        finally:
+            with self._lock:
+                self._starting = False
+
+    def _ensure_alive(self):
+        if self._proc and not self._proc.is_alive():
+            self._available = False
+            with self._lock:
+                restarting = self._starting
+            if not restarting:
+                logger.warning("[RAG proxy] worker died — restarting in background")
+                import threading
+                threading.Thread(target=self._start, daemon=True, name="rag-proxy-restart").start()
+
+    def query(self, query_text: str, n_results: int,
+              include: list) -> Optional[dict]:
+        self._ensure_alive()
+        if not self._available:
+            return None
+        self._req_q.put({"cmd": "query", "query": query_text,
+                         "n_results": n_results, "include": include})
+        try:
+            resp = self._resp_q.get(timeout=self._QUERY_TIMEOUT)
+            if resp.get("ok"):
+                return resp["result"]
+            logger.warning(f"[RAG proxy] query error: {resp.get('error')}")
+        except Exception as e:
+            logger.warning(f"[RAG proxy] query timeout/error: {e}")
+        return None
+
+    def count(self) -> int:
+        self._ensure_alive()
+        if not self._available:
+            return 0
+        self._req_q.put({"cmd": "count"})
+        try:
+            resp = self._resp_q.get(timeout=10)
+            if resp.get("ok"):
+                return resp["count"]
+        except Exception:
+            pass
+        return 0
+
+    def shutdown(self):
+        if self._req_q:
+            try:
+                self._req_q.put(None)
+            except Exception:
+                pass
+        if self._proc and self._proc.is_alive():
+            self._proc.join(timeout=3)
+            if self._proc.is_alive():
+                self._proc.kill()
 
 
 class RAGEngine:
@@ -45,7 +151,7 @@ class RAGEngine:
             model_name="BAAI/bge-large-en-v1.5"
         )
         self._chroma = chromadb.PersistentClient(path=str(db_path))
-        self._col = self._chroma.get_or_create_collection(
+        self._col = self._chroma.get_or_create_collection(  # noqa: E501 (used for upsert/delete/get — not queries)
             name="emails",
             embedding_function=self._embedding_fn,
             metadata={
@@ -59,21 +165,34 @@ class RAGEngine:
             },
         )
 
-        # O(1) membership check — built once from ChromaDB at startup
-        # then maintained incrementally. Never triggers a full collection scan.
+        # O(1) membership checks — built once at startup, maintained incrementally.
         self._indexed_email_ids: set[str] = set()
+        self._indexed_doc_ids: dict[str, str] = {}   # doc_id -> mtime
         self._load_indexed_ids()
+
+        # Subprocess proxy for vector queries — avoids SIGSEGV on Python 3.13 + hnswlib
+        self._proxy = _RAGQueryProxy(str(db_path))
 
     # ── Startup ───────────────────────────────────────────────────────────────
 
     def _load_indexed_ids(self):
-        """Build in-memory ID set from ChromaDB metadata. Called once at startup."""
+        """Build in-memory ID sets from ChromaDB metadata. Called once at startup."""
         result = self._col.get(include=["metadatas"])
-        self._indexed_email_ids = {
-            m.get("email_id", "") for m in (result["metadatas"] or [])
-        }
+        for m in (result["metadatas"] or []):
+            src = m.get("source_type", "email")
+            if src == "document":
+                doc_id = m.get("doc_id", "")
+                if doc_id:
+                    self._indexed_doc_ids[doc_id] = m.get("modified_at", "")
+            else:
+                eid = m.get("email_id", "")
+                if eid:
+                    self._indexed_email_ids.add(eid)
         self._indexed_email_ids.discard("")
-        logger.info(f"[RAG] loaded {len(self._indexed_email_ids)} indexed email IDs")
+        logger.info(
+            f"[RAG] loaded {len(self._indexed_email_ids)} emails, "
+            f"{len(self._indexed_doc_ids)} documents"
+        )
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -214,6 +333,63 @@ class RAGEngine:
 
         return new_count
 
+    def is_document_current(self, doc_id: str, mtime: str) -> bool:
+        """True if this exact doc version is already indexed."""
+        return self._indexed_doc_ids.get(doc_id) == mtime
+
+    def ingest_document(
+        self,
+        doc_id: str,
+        text: str,
+        filename: str,
+        file_path: str,
+        file_type: str,
+        modified_at: str,
+    ) -> bool:
+        """Chunk and index a document. Returns True if newly added/updated."""
+        # Delete stale chunks if file was updated
+        if doc_id in self._indexed_doc_ids:
+            existing = self._col.get(where={"doc_id": doc_id})
+            if existing and existing.get("ids"):
+                self._col.delete(ids=existing["ids"])
+
+        header = f"File: {filename}\nType: {file_type.upper()}"
+        chunks, ids, documents, metadatas = [], [], [], []
+
+        i = 0
+        while i < len(text):
+            segment = text[i: i + self.CHUNK_SIZE]
+            chunks.append(segment)
+            i += self.CHUNK_SIZE - self.CHUNK_OVERLAP
+
+        total = len(chunks)
+        for j, segment in enumerate(chunks):
+            chunk_id = f"{doc_id}__c{j}"
+            ids.append(chunk_id)
+            documents.append(f"{header}\n\n{segment}")
+            metadatas.append({
+                "doc_id": doc_id,
+                "email_id": doc_id,   # reuse field so search pipeline works unchanged
+                "source_type": "document",
+                "filename": filename,
+                "file_path": file_path,
+                "file_type": file_type,
+                "modified_at": modified_at,
+                "chunk_index": j,
+                "chunk_total": total,
+                # stub email fields so result-building code doesn't key-error
+                "subject": filename,
+                "sender": "",
+                "date": "",
+                "folder": "",
+                "thread_id": "",
+            })
+
+        if ids:
+            self._col.upsert(ids=ids, documents=documents, metadatas=metadatas)
+            self._indexed_doc_ids[doc_id] = modified_at
+        return True
+
     def flush_bm25(self):
         """No-op — kept for call-site compatibility. BM25 replaced by FTS5."""
         pass
@@ -243,12 +419,13 @@ class RAGEngine:
 
         n = min(n_results, count)
 
-        # 1. Dense semantic search
-        dense = self._col.query(
-            query_texts=[query],
-            n_results=n,
-            include=["documents", "metadatas", "distances"],
-        )
+        # 1. Dense semantic search — runs in isolated subprocess to prevent SIGSEGV
+        dense = self._proxy.query(query, n, ["documents", "metadatas", "distances"])
+        if dense is None:
+            # Proxy unavailable or crashed — use empty dense results, FTS5 still runs
+            logger.warning("[RAG] dense search unavailable, falling back to FTS5-only")
+            dense = {"ids": [[]], "distances": [[]], "metadatas": [[]], "documents": [[]]}
+
         dense_ids = dense["ids"][0]
         dense_distances = dense["distances"][0]
         id_to_meta = {i: m for i, m in zip(dense_ids, dense["metadatas"][0])}
@@ -297,27 +474,32 @@ class RAGEngine:
 
             if email_id in email_to_chunk:
                 text, meta = email_to_chunk[email_id]
-                results.append({
+                entry = {
                     "email_id": email_id,
+                    "source_type": meta.get("source_type", "email"),
                     "subject": meta.get("subject", ""),
                     "sender": meta.get("sender", ""),
                     "date": meta.get("date", ""),
                     "folder": meta.get("folder", ""),
                     "text": text,
                     "_distance": email_to_dist.get(email_id, 1.0),
-                })
+                }
+                if meta.get("source_type") == "document":
+                    entry["filename"] = meta.get("filename", "")
+                    entry["file_type"] = meta.get("file_type", "")
+                    entry["file_path"] = meta.get("file_path", "")
+                results.append(entry)
             elif email_id in fts_by_id:
                 s = fts_by_id[email_id]
-                # FTS-only hits get a conservative distance so they aren't
-                # promoted ahead of strong dense matches but still appear
                 results.append({
                     "email_id": email_id,
+                    "source_type": "email",
                     "subject": s.subject,
                     "sender": s.sender,
                     "date": s.date or "",
                     "folder": "",
                     "text": s.preview,
-                    "_distance": 0.45,  # treat as moderate relevance
+                    "_distance": 0.45,
                 })
 
             if len(results) >= n_results:
@@ -403,8 +585,32 @@ class RAGEngine:
     def count_unique_emails(self) -> int:
         return len(self._indexed_email_ids)
 
+    def count_unique_docs(self) -> int:
+        return len(self._indexed_doc_ids)
+
+    def list_indexed_docs(self) -> list[dict]:
+        """Return metadata for all indexed documents."""
+        result = self._col.get(
+            where={"source_type": "document"},
+            include=["metadatas"],
+        )
+        seen: dict[str, dict] = {}
+        for m in (result["metadatas"] or []):
+            doc_id = m.get("doc_id", "")
+            if doc_id and doc_id not in seen:
+                seen[doc_id] = {
+                    "doc_id": doc_id,
+                    "filename": m.get("filename", ""),
+                    "file_type": m.get("file_type", ""),
+                    "file_path": m.get("file_path", ""),
+                    "modified_at": m.get("modified_at", ""),
+                    "chunk_total": m.get("chunk_total", 1),
+                }
+        return list(seen.values())
+
     def stats(self) -> dict:
         return {
             "total_chunks": self._col.count(),
             "unique_emails_indexed": len(self._indexed_email_ids),
+            "unique_docs_indexed": len(self._indexed_doc_ids),
         }

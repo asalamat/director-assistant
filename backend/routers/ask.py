@@ -1,3 +1,4 @@
+import asyncio
 import json
 import re
 from typing import List
@@ -10,12 +11,24 @@ router = APIRouter(prefix="/api/ask", tags=["ask"])
 
 _QUESTION_PREAMBLES = re.compile(
     r"^(?:who\s+is|who\s+are|what\s+is|what\s+are|where\s+is|when\s+is|"
+    r"what\s+do\s+(?:you\s+)?know\s+(?:about\s+)?|"
+    r"what\s+can\s+you\s+tell\s+me\s+(?:about\s+)?|"
+    r"can\s+you\s+(?:please\s+)?(?:tell\s+me\s+|show\s+me\s+)?(?:about\s+)?|"
+    r"do\s+you\s+(?:have\s+(?:any\s+)?(?:emails?\s+)?(?:(?:about|from|on)\s+)?|know\s+(?:about\s+)?)|"
     r"how\s+(?:many\s+|much\s+)?(?:emails?\s+|messages?\s+)?(?:(?:from|about|by|to)\s+)?|"
-    r"how\s+is|tell\s+me\s+about|do\s+you\s+know\s+(?:about\s+)?|"
+    r"how\s+is|tell\s+me\s+(?:about\s+|more\s+about\s+)?|"
     r"show\s+me\s+(?:emails?\s+(?:from|about)\s+)?|"
     r"find\s+(?:emails?\s+(?:from|about)\s+)?|"
     r"(?:list|count|get)\s+(?:all\s+)?(?:emails?\s+)?(?:(?:from|about|by)\s+)?|"
-    r"emails?\s+(?:from|about|by)\s+)\s*",
+    r"emails?\s+(?:from|about|by)\s+|"
+    r"i\s+(?:want|need|would\s+like)\s+to\s+(?:know|find|see)\s+(?:about\s+|more\s+about\s+)?|"
+    r"(?:search|look)\s+(?:for\s+)?(?:emails?\s+(?:about|from)\s+)?)\s*",
+    re.IGNORECASE,
+)
+
+# Fallback: extract topic after "about", "regarding", "on", "concerning"
+_ABOUT_EXTRACTOR = re.compile(
+    r"\b(?:about|regarding|concerning|on\s+the\s+topic\s+of|related\s+to)\s+(.+?)(?:\s*[?.]?\s*$)",
     re.IGNORECASE,
 )
 
@@ -40,7 +53,16 @@ def _search_query(question: str) -> str:
     stripped = _QUESTION_PREAMBLES.sub("", question).strip()
     words = stripped.split()
     filtered = [w for w in words if w.lower() not in _META_WORDS]
-    return " ".join(filtered).strip() or stripped or question
+    result = " ".join(filtered).strip() or stripped or question
+    # If preamble stripping left too many generic words, try extracting what comes after "about"
+    if len(result.split()) > 4:
+        m = _ABOUT_EXTRACTOR.search(question)
+        if m:
+            candidate = m.group(1).strip()
+            cwords = [w for w in candidate.split() if w.lower() not in _META_WORDS]
+            if cwords:
+                result = " ".join(cwords)
+    return result
 
 
 def _extract_sender_name(question: str) -> str | None:
@@ -89,7 +111,10 @@ async def ask_db(req: AskRequest, request: Request):
                     f"'{sender_name}' in the database. Use this exact number."
                 )
 
-        results = rag.hybrid_search(_search_query(question), n_results=req.n_results)
+        loop = asyncio.get_event_loop()
+        results = await loop.run_in_executor(
+            None, rag.hybrid_search, _search_query(question), req.n_results
+        )
         if not results:
             yield 'data: {"type":"token","text":"No emails found in the database. Try importing some emails first."}\n\n'
             yield 'data: {"type":"done"}\n\n'

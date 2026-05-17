@@ -72,12 +72,23 @@ class EmailCache(EmailExtrasMixin):
                         VALUES ({cols}.rowid, {cols}.id, {cols}.subject, {cols}.sender, {cols}.body);
                     END
                 """)
+            # Always recreate the delete trigger — old version used incorrect
+            # "DELETE FROM emails_fts" which corrupts FTS5 content tables.
+            # The correct form uses FTS5's 'delete' command.
+            conn.execute("DROP TRIGGER IF EXISTS emails_ad")
             conn.execute("""
-                CREATE TRIGGER IF NOT EXISTS emails_ad
+                CREATE TRIGGER emails_ad
                 AFTER DELETE ON emails BEGIN
-                    DELETE FROM emails_fts WHERE id = old.id;
+                    INSERT INTO emails_fts(emails_fts, rowid, id, subject, sender, body)
+                    VALUES('delete', old.rowid, old.id,
+                           COALESCE(old.subject,''), COALESCE(old.sender,''), COALESCE(old.body,''));
                 END
             """)
+            # Rebuild FTS5 index if corrupt (missing rows from old bad trigger)
+            try:
+                conn.execute("SELECT COUNT(*) FROM emails_fts WHERE emails_fts MATCH 'test'").fetchone()
+            except Exception:
+                conn.execute("INSERT INTO emails_fts(emails_fts) VALUES('rebuild')")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_folder_date ON emails(folder, date DESC)")
 
             # One-time migration: normalize folder names stored before _normalize_folder
@@ -288,6 +299,14 @@ class EmailCache(EmailExtrasMixin):
         with self._conn() as conn:
             return conn.execute("SELECT COUNT(*) FROM emails").fetchone()[0]
 
+    def count_by_sender(self, name: str) -> int:
+        """Count emails whose sender field contains the given name (case-insensitive)."""
+        pattern = f"%{name.lower()}%"
+        with self._conn() as conn:
+            return conn.execute(
+                "SELECT COUNT(*) FROM emails WHERE LOWER(sender) LIKE ?", (pattern,)
+            ).fetchone()[0]
+
     def get_cached_server_ids(self, account_id: int, folder: str, since_str: str) -> dict:
         """Return {server_id: cache_id} for emails in this account/folder since a date."""
         with self._conn() as conn:
@@ -304,7 +323,7 @@ class EmailCache(EmailExtrasMixin):
             deleted = conn.execute(
                 "DELETE FROM emails WHERE id = ?", (email_id,)
             ).rowcount
-            conn.execute("DELETE FROM emails_fts WHERE id = ?", (email_id,))
+            # FTS5 deletion is handled by the emails_ad trigger — no manual delete needed
             conn.execute("DELETE FROM action_items WHERE email_id = ?", (email_id,))
         return deleted > 0
 
