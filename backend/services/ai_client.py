@@ -49,6 +49,87 @@ class _OpenAIResponse:
         self.provider = "openai"
 
 
+class _OpenAIStream:
+    """Async context manager wrapping OpenAI streaming to match Anthropic's interface."""
+
+    def __init__(self, client, model, max_tokens, messages, kwargs):
+        self._client = client
+        self._model = model
+        self._max_tokens = max_tokens
+        self._messages = messages
+        self._kwargs = kwargs
+        self._response = None
+
+    async def __aenter__(self):
+        oai_messages = list(self._messages)
+        system = self._kwargs.get("system")
+        if system:
+            oai_messages = [{"role": "system", "content": system}] + oai_messages
+        self._response = await self._client.chat.completions.create(
+            model=self._model,
+            max_tokens=self._max_tokens,
+            messages=oai_messages,
+            stream=True,
+            **{k: v for k, v in self._kwargs.items() if k not in ("system",)},
+        )
+        return self
+
+    async def __aexit__(self, *_):
+        pass
+
+    async def _gen(self):
+        async for chunk in self._response:
+            delta = chunk.choices[0].delta.content if chunk.choices else None
+            if delta:
+                yield delta
+
+    @property
+    def text_stream(self):
+        return self._gen()
+
+
+class _AnthropicStreamWithFallback:
+    """Enters Anthropic streaming; on quota errors falls back to _OpenAIStream."""
+
+    def __init__(self, ant_client, oai_client, model, oai_model,
+                 max_tokens, messages, kwargs):
+        self._ant = ant_client
+        self._oai = oai_client
+        self._model = model
+        self._oai_model = oai_model
+        self._max_tokens = max_tokens
+        self._messages = messages
+        self._kwargs = kwargs
+        self._ctx = None
+
+    async def __aenter__(self):
+        try:
+            self._ctx = self._ant.messages.stream(
+                model=self._model,
+                max_tokens=self._max_tokens,
+                messages=self._messages,
+                **self._kwargs,
+            )
+            return await self._ctx.__aenter__()
+        except (anthropic.RateLimitError, anthropic.OverloadedError) as e:
+            logger.warning(f"[ai] Claude stream quota error — falling back to OpenAI ({e})")
+        except anthropic.APIStatusError as e:
+            if e.status_code in _FALLBACK_STATUSES:
+                logger.warning(f"[ai] Claude stream HTTP {e.status_code} — falling back to OpenAI")
+            else:
+                raise
+
+        if not self._oai:
+            raise RuntimeError("No AI provider available after Claude quota error.")
+        self._ctx = _OpenAIStream(self._oai, self._oai_model, self._max_tokens,
+                                  self._messages, self._kwargs)
+        return await self._ctx.__aenter__()
+
+    async def __aexit__(self, *args):
+        if self._ctx:
+            await self._ctx.__aexit__(*args)
+
+
 class _Messages:
     """Nested namespace so callers can do `client.messages.create(…)`."""
 
@@ -58,6 +139,10 @@ class _Messages:
     async def create(self, *, model: str, max_tokens: int, messages: list, **kwargs):
         return await self._p._create(model=model, max_tokens=max_tokens,
                                      messages=messages, **kwargs)
+
+    def stream(self, *, model: str, max_tokens: int, messages: list, **kwargs):
+        return self._p._stream(model=model, max_tokens=max_tokens,
+                               messages=messages, **kwargs)
 
 
 class AIClient:
@@ -143,15 +228,37 @@ class AIClient:
         # 2. Fallback to OpenAI
         if self._openai:
             oai_model = _BUDGET_OPENAI if self._budget_mode else _MODEL_MAP.get(model, "gpt-4o-mini")
+            oai_messages = list(messages)
+            if kwargs.get("system"):
+                oai_messages = [{"role": "system", "content": kwargs["system"]}] + oai_messages
             logger.info(f"[ai] Using OpenAI {oai_model} (mapped from {model})")
             resp = await self._openai.chat.completions.create(
                 model=oai_model,
                 max_tokens=max_tokens,
-                messages=messages,
-                **{k: v for k, v in kwargs.items()
-                   if k not in ("system",)},  # filter Anthropic-only params
+                messages=oai_messages,
+                **{k: v for k, v in kwargs.items() if k not in ("system",)},
             )
             return _OpenAIResponse(resp)
+
+        raise RuntimeError(
+            "No AI provider is available. "
+            "Add an Anthropic or OpenAI API key in Settings → App Settings."
+        )
+
+    def _stream(self, *, model: str, max_tokens: int, messages: list, **kwargs):
+        """Return an async context manager with a .text_stream async generator."""
+        if self._budget_mode:
+            model = _BUDGET_ANTHROPIC
+
+        oai_model = _BUDGET_OPENAI if self._budget_mode else _MODEL_MAP.get(model, "gpt-4o-mini")
+
+        if self._anthropic:
+            return _AnthropicStreamWithFallback(
+                self._anthropic, self._openai, model, oai_model, max_tokens, messages, kwargs
+            )
+
+        if self._openai:
+            return _OpenAIStream(self._openai, oai_model, max_tokens, messages, kwargs)
 
         raise RuntimeError(
             "No AI provider is available. "

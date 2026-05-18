@@ -90,6 +90,19 @@ async def list_emails(
     return EmailListResponse(emails=emails, total=total, has_more=(skip + limit) < total)
 
 
+@router.get("/folders")
+async def list_folders(request: Request):
+    """Return {folder_name: email_count} for all folders in the cache."""
+    cache: EmailCache = request.app.state.cache
+    return cache.folder_breakdown()
+
+
+@router.get("/unread-count")
+async def unread_count(request: Request):
+    cache: EmailCache = request.app.state.cache
+    return {"unread": cache.count_unread()}
+
+
 @router.get("/{email_id}")
 async def get_email(request: Request, email_id: str, folder: str = Query("INBOX")):
     cache: EmailCache = request.app.state.cache

@@ -5,7 +5,7 @@ from typing import List
 
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 router = APIRouter(prefix="/api/ask", tags=["ask"])
 
@@ -76,8 +76,15 @@ def _extract_sender_name(question: str) -> str | None:
 
 
 class HistoryMessage(BaseModel):
-    role: str   # 'user' | 'assistant'
+    role: str
     content: str
+
+    @field_validator("role")
+    @classmethod
+    def validate_role(cls, v: str) -> str:
+        if v not in ("user", "assistant"):
+            raise ValueError(f"role must be 'user' or 'assistant', got {v!r}")
+        return v
 
 
 class AskRequest(BaseModel):
@@ -116,14 +123,14 @@ async def ask_db(req: AskRequest, request: Request):
             None, rag.hybrid_search, _search_query(question), req.n_results
         )
         if not results:
-            yield 'data: {"type":"token","text":"No emails found in the database. Try importing some emails first."}\n\n'
+            yield 'data: {"type":"token","text":"No emails or documents found in the database. Try importing emails or indexing a document folder first."}\n\n'
             yield 'data: {"type":"done"}\n\n'
             return
 
         def _format_result(i: int, r: dict) -> str:
             if r.get("source_type") == "document":
                 return (
-                    f"[{i+1}] FILE: {r.get('filename', 'unknown')}\n"
+                    f"[{i+1}] DOCUMENT: {r.get('filename', 'unknown')}\n"
                     f"    Type: {r.get('file_type', '').upper()}\n"
                     f"    Content: {r['text'][:400]}"
                 )
@@ -136,6 +143,14 @@ async def ask_db(req: AskRequest, request: Request):
 
         context = "\n\n".join(_format_result(i, r) for i, r in enumerate(results[:10]))
 
+        has_docs = any(r.get("source_type") == "document" for r in results[:10])
+        has_emails = any(r.get("source_type") != "document" for r in results[:10])
+        source_desc = (
+            "emails and documents" if has_docs and has_emails
+            else "documents" if has_docs
+            else "emails"
+        )
+
         # Build messages: conversation history + current question with context
         messages = []
         for h in req.history[-6:]:  # last 3 turns (6 messages)
@@ -144,9 +159,7 @@ async def ask_db(req: AskRequest, request: Request):
         messages.append({
             "role": "user",
             "content": (
-                "You are an executive assistant with access to an email database. "
-                "Answer based ONLY on the emails shown. Be concise and specific.\n\n"
-                f"EMAILS:\n{context}"
+                f"CONTEXT ({source_desc.upper()}):\n{context}"
                 f"{count_hint}\n\n"
                 f"QUESTION: {question}"
             ),
@@ -156,6 +169,10 @@ async def ask_db(req: AskRequest, request: Request):
             async with ai.messages.stream(
                 model="claude-haiku-4-5-20251001",
                 max_tokens=800,
+                system=(
+                    f"You are an executive assistant with access to a database of {source_desc}. "
+                    f"Answer based ONLY on the {source_desc} shown below. Be concise and specific."
+                ),
                 messages=messages,
             ) as stream:
                 async for text in stream.text_stream:

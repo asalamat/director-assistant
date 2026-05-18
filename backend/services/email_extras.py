@@ -9,28 +9,57 @@ from models import ActionItem, FollowUp, Template, Account
 
 _KR_SERVICE = "director-assistant"
 
+# In-memory cache so keychain is only accessed once per account per session.
+_kr_cache: dict[int, str | None] = {}
+# Accounts where keychain write has already failed this session — skip retries.
+_kr_set_failed: set[int] = set()
+
+
+def _is_permanent_kr_error(exc: Exception) -> bool:
+    """True only for errors indicating keychain is structurally absent, not transiently locked."""
+    try:
+        from keyring.errors import NoKeyringError
+        return isinstance(exc, NoKeyringError)
+    except ImportError:
+        return True  # keyring.errors not importable → no usable keyring
+
 
 def _kr_get(account_id: int) -> str | None:
     """Retrieve password from OS keychain. Returns None if unavailable."""
+    if account_id in _kr_cache:
+        return _kr_cache[account_id]
     try:
         import keyring
-        return keyring.get_password(_KR_SERVICE, str(account_id))
-    except Exception:
+        val = keyring.get_password(_KR_SERVICE, str(account_id))
+        _kr_cache[account_id] = val
+        return val
+    except Exception as e:
+        if _is_permanent_kr_error(e):
+            _kr_cache[account_id] = None
+            _kr_set_failed.add(account_id)
+        # transient error: don't cache so the next call retries
         return None
 
 
 def _kr_set(account_id: int, password: str) -> bool:
     """Store password in OS keychain. Returns True on success."""
+    if account_id in _kr_set_failed:
+        return False
     try:
         import keyring
         keyring.set_password(_KR_SERVICE, str(account_id), password)
+        _kr_cache[account_id] = password
         return True
-    except Exception:
+    except Exception as e:
+        if _is_permanent_kr_error(e):
+            _kr_set_failed.add(account_id)
         return False
 
 
 def _kr_delete(account_id: int):
     """Remove password from OS keychain (best-effort)."""
+    _kr_cache.pop(account_id, None)
+    _kr_set_failed.discard(account_id)
     try:
         import keyring
         keyring.delete_password(_KR_SERVICE, str(account_id))
@@ -166,6 +195,12 @@ class EmailExtrasMixin:
                 "SELECT folder, COUNT(*) AS cnt FROM emails GROUP BY folder"
             ).fetchall()
         return {r["folder"]: r["cnt"] for r in rows}
+
+    def count_unread(self) -> int:
+        with self._conn() as conn:
+            return conn.execute(
+                "SELECT COUNT(*) FROM emails WHERE is_read = 0"
+            ).fetchone()[0]
 
     def sender_stats(self, sender: str) -> dict:
         with self._conn() as conn:

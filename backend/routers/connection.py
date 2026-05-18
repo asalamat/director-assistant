@@ -114,7 +114,7 @@ async def _run_ingest(rag, cache, from_date=None, custom_folders=None):
         try:
             dt_from = datetime.fromisoformat(from_date)
         except Exception:
-            pass
+            print(f"[ingest] invalid from_date {from_date!r} — ignoring date filter")
 
     _progress = IngestProgress(status="running", message="Starting…", from_date=from_date)
 

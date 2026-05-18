@@ -1,8 +1,13 @@
 """Multi-account management: add / list / remove email accounts."""
 
 import asyncio
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Request
+import traceback
+from datetime import datetime
+from typing import Optional
+
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 
 from models import Account, IngestProgress
 from services.email_provider import build_provider
@@ -36,8 +41,12 @@ async def list_accounts(request: Request):
     return [_safe(a) for a in request.app.state.cache.list_accounts()]
 
 
+class IngestOptions(BaseModel):
+    from_date: Optional[str] = None
+
+
 @router.post("")
-async def add_account(account: Account, request: Request):
+async def add_account(account: Account, background_tasks: BackgroundTasks, request: Request):
     cache = request.app.state.cache
 
     cfg = account.to_connection_config()
@@ -48,7 +57,29 @@ async def add_account(account: Account, request: Request):
         raise HTTPException(400, f"Connection failed: {msg}")
 
     aid = cache.add_account(account)
-    return {"id": aid, "status": "connected"}
+    account.id = aid
+
+    rag = request.app.state.rag
+    global _ingest_progress
+    ingest_started = False
+    if _ingest_progress.status != "running":
+        _ingest_progress = IngestProgress(status="running", message="Starting…")
+        ingest_started = True
+
+        async def run():
+            global _ingest_progress
+            new, skip = await _ingest_account(account, rag, cache)
+            rag.flush_bm25()
+            _ingest_progress = IngestProgress(
+                status="completed",
+                processed=new + skip,
+                total=new + skip,
+                message=f"Done — {new} new, {skip} already existed",
+            )
+
+        background_tasks.add_task(run)
+
+    return {"id": aid, "status": "connected", "ingest": "started" if ingest_started else "skipped"}
 
 
 @router.delete("/{account_id}")
@@ -58,11 +89,20 @@ async def remove_account(account_id: int, request: Request):
     return {"ok": True}
 
 
-async def _ingest_account(account: Account, rag, cache):
-    """Ingest a single account's Inbox + Sent into RAG."""
+async def _ingest_account(account: Account, rag, cache, from_date: Optional[str] = None):
+    """Ingest all folders for one account into RAG.
+
+    Each folder is processed independently — a failure in one folder is logged
+    and skipped rather than aborting the entire ingest.
+    """
     global _ingest_progress
-    from datetime import datetime
-    import traceback
+
+    dt_from = None
+    if from_date:
+        try:
+            dt_from = datetime.fromisoformat(from_date)
+        except ValueError:
+            print(f"[ingest] invalid from_date {from_date!r} — ignoring date filter")
 
     cfg = account.to_connection_config()
     provider = build_provider(cfg)
@@ -70,49 +110,52 @@ async def _ingest_account(account: Account, rag, cache):
     BATCH = 500
     total_new = 0
     total_skip = 0
+    folder_errors: list[str] = []
 
-    try:
-        loop = asyncio.get_event_loop()
+    loop = asyncio.get_event_loop()
 
-        def fetch_folder(folder: str):
-            nonlocal total_new, total_skip
-            _ingest_progress.message = f"[{account.username}] {folder}…"
-            buffer = []
-            for email, total in provider.fetch_all(folder=folder, batch_size=100):
-                # Prefix ID with account to avoid cross-account collisions
-                email.server_id = email.id
-                email.id = f"a{account.id}_{email.id}"
-                buffer.append(email)
-                _ingest_progress.total = max(_ingest_progress.total, total)
+    def fetch_folder(folder: str):
+        nonlocal total_new, total_skip
+        _ingest_progress.message = f"[{account.username}] {folder}…"
+        buffer = []
+        for email, total in provider.fetch_all(folder=folder, batch_size=100, from_date=dt_from):
+            email.server_id = email.id
+            email.id = f"a{account.id}_{email.id}"
+            buffer.append(email)
+            _ingest_progress.total = max(_ingest_progress.total, total)
 
-                if len(buffer) >= BATCH:
-                    cache.save_batch(buffer, account_id=account.id)
-                    new = rag.ingest_batch(buffer)
-                    total_new += new
-                    total_skip += len(buffer) - new
-                    _ingest_progress.processed = total_new + total_skip
-                    buffer = []
-
-            if buffer:
+            if len(buffer) >= BATCH:
                 cache.save_batch(buffer, account_id=account.id)
                 new = rag.ingest_batch(buffer)
                 total_new += new
                 total_skip += len(buffer) - new
                 _ingest_progress.processed = total_new + total_skip
+                buffer = []
 
-        for folder in folders:
+        if buffer:
+            cache.save_batch(buffer, account_id=account.id)
+            new = rag.ingest_batch(buffer)
+            total_new += new
+            total_skip += len(buffer) - new
+            _ingest_progress.processed = total_new + total_skip
+
+    for folder in folders:
+        try:
             await loop.run_in_executor(None, fetch_folder, folder)
+        except Exception as e:
+            traceback.print_exc()
+            folder_errors.append(f"{folder}: {e}")
+            print(f"[ingest] skipping folder '{folder}' for {account.username}: {e}")
 
-        cache.mark_ingested(account.id)
-        return total_new, total_skip
+    if folder_errors:
+        print(f"[ingest] {account.username} completed with {len(folder_errors)} folder error(s): {folder_errors}")
 
-    except Exception as e:
-        traceback.print_exc()
-        return 0, 0
+    cache.mark_ingested(account.id)
+    return total_new, total_skip
 
 
 @router.post("/{account_id}/ingest")
-async def ingest_account(account_id: int, background_tasks: BackgroundTasks, request: Request):
+async def ingest_account(account_id: int, background_tasks: BackgroundTasks, request: Request, opts: IngestOptions = IngestOptions()):
     global _ingest_progress
     if _ingest_progress.status == "running":
         raise HTTPException(409, "Ingest already running")
@@ -123,17 +166,17 @@ async def ingest_account(account_id: int, background_tasks: BackgroundTasks, req
         raise HTTPException(404, "Account not found")
 
     rag = request.app.state.rag
+    _ingest_progress = IngestProgress(status="running", message="Starting…")
 
     async def run():
         global _ingest_progress
-        _ingest_progress = IngestProgress(status="running", message="Starting…")
-        new, skip = await _ingest_account(account, rag, cache)
+        new, skip = await _ingest_account(account, rag, cache, from_date=opts.from_date)
         rag.flush_bm25()
         _ingest_progress = IngestProgress(
             status="completed",
             processed=new + skip,
             total=new + skip,
-            message=f"Done — {new} new, {skip} existing",
+            message=f"Done — {new} new, {skip} already existed",
         )
 
     background_tasks.add_task(run)
@@ -141,7 +184,7 @@ async def ingest_account(account_id: int, background_tasks: BackgroundTasks, req
 
 
 @router.post("/ingest-all")
-async def ingest_all(background_tasks: BackgroundTasks, request: Request):
+async def ingest_all(background_tasks: BackgroundTasks, request: Request, opts: IngestOptions = IngestOptions()):
     global _ingest_progress
     if _ingest_progress.status == "running":
         raise HTTPException(409, "Ingest already running")
@@ -159,7 +202,7 @@ async def ingest_all(background_tasks: BackgroundTasks, request: Request):
         total_new = 0
         total_skip = 0
         for acc in accounts:
-            new, skip = await _ingest_account(acc, rag, cache)
+            new, skip = await _ingest_account(acc, rag, cache, from_date=opts.from_date)
             total_new += new
             total_skip += skip
 
@@ -168,7 +211,7 @@ async def ingest_all(background_tasks: BackgroundTasks, request: Request):
             status="completed",
             processed=total_new + total_skip,
             total=total_new + total_skip,
-            message=f"All accounts done — {total_new} new, {total_skip} existing",
+            message=f"All accounts done — {total_new} new, {total_skip} already existed",
         )
 
     background_tasks.add_task(run)

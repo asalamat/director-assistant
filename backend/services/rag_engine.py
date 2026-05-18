@@ -443,17 +443,37 @@ class RAGEngine:
         fts_summaries = self._cache.fts_search(query, limit=n)
         fts_email_ids = [s.id for s in fts_summaries]
 
-        # 3. Collect dense email_ids in order
+        # 3. Separate dense results by source type.
+        #    Documents are not in the SQLite emails table, so they can't participate
+        #    in FTS5. Mixing them into the same RRF leg would penalize docs vs every
+        #    email that got a FTS5 hit (double score). Keep them separate.
         dense_email_ids: List[str] = []
+        dense_doc_ids: List[str] = []
         seen_dense: set[str] = set()
         for chunk_id in dense_ids:
-            eid = id_to_meta.get(chunk_id, {}).get("email_id", "")
-            if eid and eid not in seen_dense:
+            meta = id_to_meta.get(chunk_id, {})
+            eid = meta.get("email_id", "")
+            if not eid or eid in seen_dense:
+                continue
+            seen_dense.add(eid)
+            if meta.get("source_type") == "document":
+                dense_doc_ids.append(eid)
+            else:
                 dense_email_ids.append(eid)
-                seen_dense.add(eid)
 
-        # 4. RRF on email_ids (not chunk_ids)
+        # 4. RRF emails only (dense + FTS5), then interleave with dense-ranked docs.
+        #    2-email-per-1-doc ratio ensures relevant documents always surface.
         merged_email_ids = self._rrf(dense_email_ids, fts_email_ids)
+        merged_ids: List[str] = []
+        ei = di = 0
+        while ei < len(merged_email_ids) or di < len(dense_doc_ids):
+            for _ in range(2):
+                if ei < len(merged_email_ids):
+                    merged_ids.append(merged_email_ids[ei])
+                    ei += 1
+            if di < len(dense_doc_ids):
+                merged_ids.append(dense_doc_ids[di])
+                di += 1
 
         # 5. Build result objects (best chunk per email for preview)
         email_to_chunk: dict[str, tuple[str, dict]] = {}
@@ -467,7 +487,7 @@ class RAGEngine:
 
         results: List[dict] = []
         seen: set[str] = set()
-        for email_id in merged_email_ids:
+        for email_id in merged_ids:
             if email_id in seen:
                 continue
             seen.add(email_id)
