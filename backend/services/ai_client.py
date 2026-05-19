@@ -26,8 +26,10 @@ _MODEL_MAP: dict[str, str] = {
 _BUDGET_ANTHROPIC = "claude-haiku-4-5-20251001"
 _BUDGET_OPENAI    = "gpt-4o-mini"
 
-# Anthropic HTTP status codes that indicate quota / capacity problems
-_FALLBACK_STATUSES = {429, 529}
+# Anthropic HTTP status codes that trigger OpenAI fallback.
+# 429 = rate limit, 529 = overloaded, 401 = auth error (bad/expired key),
+# 500/503 = server error — fall back rather than surfacing internal errors.
+_FALLBACK_STATUSES = {401, 429, 500, 503, 529}
 
 
 class _OpenAIContent:
@@ -111,8 +113,9 @@ class _AnthropicStreamWithFallback:
                 **self._kwargs,
             )
             return await self._ctx.__aenter__()
-        except (anthropic.RateLimitError, anthropic.OverloadedError) as e:
-            logger.warning(f"[ai] Claude stream quota error — falling back to OpenAI ({e})")
+        except (anthropic.RateLimitError, anthropic.OverloadedError,
+                anthropic.APIConnectionError, anthropic.APITimeoutError) as e:
+            logger.warning(f"[ai] Claude stream error — falling back to OpenAI ({e})")
         except anthropic.APIStatusError as e:
             if e.status_code in _FALLBACK_STATUSES:
                 logger.warning(f"[ai] Claude stream HTTP {e.status_code} — falling back to OpenAI")

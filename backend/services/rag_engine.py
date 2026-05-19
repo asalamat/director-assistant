@@ -19,7 +19,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, List, Optional
 
 import chromadb
-from chromadb.utils.embedding_functions import SentenceTransformerEmbeddingFunction
 from models import EmailMessage
 
 if TYPE_CHECKING:
@@ -36,8 +35,9 @@ class _RAGQueryProxy:
     Falls back gracefully (FTS5-only) while the worker loads, or if it crashes.
     Worker initializes in a background thread so server startup is not blocked.
     """
-    _STARTUP_TIMEOUT = 120  # seconds — first run downloads/loads the 1.3 GB model
+    _STARTUP_TIMEOUT = 300  # seconds — first run downloads/loads the 1.3 GB model
     _QUERY_TIMEOUT   = 8    # seconds per query — fall back to FTS5 quickly if worker is slow
+    _UPSERT_TIMEOUT  = 300  # seconds — large batch embedding can take several minutes
 
     def __init__(self, db_path: str):
         self._db_path = db_path
@@ -67,18 +67,30 @@ class _RAGQueryProxy:
                 daemon=True,
             )
             proc.start()
-            msg = resp_q.get(timeout=self._STARTUP_TIMEOUT)
-            if msg.get("ready"):
-                self._req_q = req_q
-                self._resp_q = resp_q
-                self._proc = proc
-                self._available = True
-                logger.info("[RAG proxy] worker ready — dense search active")
-            else:
-                logger.warning(f"[RAG proxy] worker init failed: {msg.get('error')}")
+            try:
+                msg = resp_q.get(timeout=self._STARTUP_TIMEOUT)
+                if msg.get("ready"):
+                    self._req_q = req_q
+                    self._resp_q = resp_q
+                    self._proc = proc
+                    self._available = True
+                    logger.info("[RAG proxy] worker ready — dense search active")
+                else:
+                    logger.warning(f"[RAG proxy] worker init failed: {msg.get('error')}")
+            except Exception:
+                # Timed out — worker may still be loading (large HNSW index).
+                # Keep refs so _wait_available can poll for the delayed ready message.
+                if proc.is_alive():
+                    self._req_q = req_q
+                    self._resp_q = resp_q
+                    self._proc = proc
+                    logger.warning(
+                        "[RAG proxy] worker slow to start — will poll for delayed ready"
+                    )
+                else:
+                    logger.warning("[RAG proxy] worker died during startup")
         except Exception as e:
-            self._available = False
-            logger.warning(f"[RAG proxy] worker init error: {e}")
+            logger.warning(f"[RAG proxy] worker spawn error: {e}")
         finally:
             with self._lock:
                 self._starting = False
@@ -92,14 +104,29 @@ class _RAGQueryProxy:
                 logger.warning("[RAG proxy] worker died — restarting in background")
                 import threading
                 threading.Thread(target=self._start, daemon=True, name="rag-proxy-restart").start()
+            return
+        # Worker running but startup timed out — drain the delayed ready message.
+        if self._proc and not self._available and self._resp_q is not None:
+            try:
+                msg = self._resp_q.get_nowait()
+                if msg.get("ready"):
+                    self._available = True
+                    logger.info("[RAG proxy] worker ready (delayed) — dense search active")
+                else:
+                    self._resp_q.put_nowait(msg)  # put back non-ready messages
+            except Exception:
+                pass
 
     def query(self, query_text: str, n_results: int,
-              include: list) -> Optional[dict]:
+              include: list, where: Optional[dict] = None) -> Optional[dict]:
         self._ensure_alive()
         if not self._available:
             return None
-        self._req_q.put({"cmd": "query", "query": query_text,
-                         "n_results": n_results, "include": include})
+        req: dict = {"cmd": "query", "query": query_text,
+                     "n_results": n_results, "include": include}
+        if where:
+            req["where"] = where
+        self._req_q.put(req)
         try:
             resp = self._resp_q.get(timeout=self._QUERY_TIMEOUT)
             if resp.get("ok"):
@@ -121,6 +148,62 @@ class _RAGQueryProxy:
         except Exception:
             pass
         return 0
+
+    def _wait_available(self, timeout: float = 120.0) -> bool:
+        """Block until the worker is ready, up to timeout seconds.
+        If the worker is alive but hasn't sent the ready message yet (slow startup),
+        polls the response queue directly for the delayed ready signal.
+        """
+        import time
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if self._available:
+                return True
+            # Worker process is alive but _available is still False — poll for ready
+            if self._proc and self._proc.is_alive() and self._resp_q:
+                try:
+                    msg = self._resp_q.get(timeout=1.0)
+                    if msg.get("ready"):
+                        self._available = True
+                        logger.info("[RAG proxy] worker ready (delayed) — dense search active")
+                        return True
+                    else:
+                        logger.warning(f"[RAG proxy] worker init failed: {msg.get('error')}")
+                        return False
+                except Exception:
+                    pass   # no message yet — keep looping
+            else:
+                time.sleep(0.5)
+        return False
+
+    def upsert(self, ids: list, documents: list, metadatas: list) -> bool:
+        """Send an upsert command to the worker. Blocks until the worker is ready."""
+        if not self._wait_available(self._STARTUP_TIMEOUT):
+            logger.warning("[RAG proxy] upsert: worker not available — skipping")
+            return False
+        self._req_q.put({"cmd": "upsert", "ids": ids,
+                         "documents": documents, "metadatas": metadatas})
+        try:
+            resp = self._resp_q.get(timeout=self._UPSERT_TIMEOUT)
+            if resp.get("ok"):
+                return True
+            logger.warning(f"[RAG proxy] upsert error: {resp.get('error')}")
+        except Exception as e:
+            logger.warning(f"[RAG proxy] upsert timeout/error: {e}")
+        return False
+
+    def delete(self, ids: list) -> bool:
+        """Send a delete command to the worker."""
+        self._ensure_alive()
+        if not self._available:
+            return False
+        self._req_q.put({"cmd": "delete", "ids": ids})
+        try:
+            resp = self._resp_q.get(timeout=30)
+            return bool(resp.get("ok"))
+        except Exception as e:
+            logger.warning(f"[RAG proxy] delete error: {e}")
+        return False
 
     def shutdown(self):
         if self._req_q:
@@ -147,16 +230,19 @@ class RAGEngine:
         db_path = Path.home() / ".director-assistant" / "chromadb"
         db_path.mkdir(parents=True, exist_ok=True)
 
-        self._embedding_fn = SentenceTransformerEmbeddingFunction(
-            model_name="BAAI/bge-large-en-v1.5"
-        )
+        # Main process only reads metadata from ChromaDB (get/count) — never embeds.
+        # A no-op embedding function avoids loading the 1.3 GB model here so the
+        # worker subprocess can load it alone, without CPU/memory competition.
+        class _NoOpEF:
+            def __call__(self, input: list) -> list:
+                return [[0.0] * 1024 for _ in input]
+
         self._chroma = chromadb.PersistentClient(path=str(db_path))
-        self._col = self._chroma.get_or_create_collection(  # noqa: E501 (used for upsert/delete/get — not queries)
+        self._col = self._chroma.get_or_create_collection(
             name="emails",
-            embedding_function=self._embedding_fn,
+            embedding_function=_NoOpEF(),
             metadata={
                 "hnsw:space": "cosine",
-                # Tuned for 300k vectors (100k emails × ~3 chunks)
                 "hnsw:M": 48,
                 "hnsw:construction_ef": 256,
                 "hnsw:search_ef": 128,
@@ -170,7 +256,8 @@ class RAGEngine:
         self._indexed_doc_ids: dict[str, str] = {}   # doc_id -> mtime
         self._load_indexed_ids()
 
-        # Subprocess proxy for vector queries — avoids SIGSEGV on Python 3.13 + hnswlib
+        # Subprocess proxy for vector queries AND writes — avoids SIGSEGV and
+        # HNSW corruption by making the worker the sole owner of the HNSW index.
         self._proxy = _RAGQueryProxy(str(db_path))
 
     # ── Startup ───────────────────────────────────────────────────────────────
@@ -290,7 +377,7 @@ class RAGEngine:
                 **chunk_meta,
             })
 
-        self._col.upsert(ids=ids, documents=documents, metadatas=metadatas)
+        self._proxy.upsert(ids=ids, documents=documents, metadatas=metadatas)
         self._indexed_email_ids.add(email.id)
         return True
 
@@ -325,11 +412,11 @@ class RAGEngine:
 
             # Flush to ChromaDB in batches to avoid memory spikes
             if len(all_ids) >= self.CHROMA_UPSERT_BATCH:
-                self._col.upsert(ids=all_ids, documents=all_docs, metadatas=all_metas)
+                self._proxy.upsert(ids=all_ids, documents=all_docs, metadatas=all_metas)
                 all_ids, all_docs, all_metas = [], [], []
 
         if all_ids:
-            self._col.upsert(ids=all_ids, documents=all_docs, metadatas=all_metas)
+            self._proxy.upsert(ids=all_ids, documents=all_docs, metadatas=all_metas)
 
         return new_count
 
@@ -347,12 +434,6 @@ class RAGEngine:
         modified_at: str,
     ) -> bool:
         """Chunk and index a document. Returns True if newly added/updated."""
-        # Delete stale chunks if file was updated
-        if doc_id in self._indexed_doc_ids:
-            existing = self._col.get(where={"doc_id": doc_id})
-            if existing and existing.get("ids"):
-                self._col.delete(ids=existing["ids"])
-
         header = f"File: {filename}\nType: {file_type.upper()}"
         chunks, ids, documents, metadatas = [], [], [], []
 
@@ -386,9 +467,17 @@ class RAGEngine:
             })
 
         if ids:
-            self._col.upsert(ids=ids, documents=documents, metadatas=metadatas)
-            self._indexed_doc_ids[doc_id] = modified_at
-        return True
+            success = self._proxy.upsert(ids=ids, documents=documents, metadatas=metadatas)
+            if success:
+                self._indexed_doc_ids[doc_id] = modified_at
+            # Always index into FTS5 regardless of HNSW status so documents
+            # are keyword-searchable even when the vector proxy is unavailable.
+            self._cache.upsert_document_fts(
+                doc_id=doc_id, filename=filename, file_type=file_type,
+                file_path=file_path, modified_at=modified_at, body=text[:500_000],
+            )
+            return bool(success)
+        return False
 
     def flush_bm25(self):
         """No-op — kept for call-site compatibility. BM25 replaced by FTS5."""
@@ -425,6 +514,28 @@ class RAGEngine:
             # Proxy unavailable or crashed — use empty dense results, FTS5 still runs
             logger.warning("[RAG] dense search unavailable, falling back to FTS5-only")
             dense = {"ids": [[]], "distances": [[]], "metadatas": [[]], "documents": [[]]}
+
+        # 1b. Supplemental document-only query so documents always surface even when
+        #     the top-N mixed results are dominated by email chunks.
+        if len(self._indexed_doc_ids) > 0:
+            doc_count = min(n_results, len(self._indexed_doc_ids) * 2)
+            doc_dense = self._proxy.query(
+                query, doc_count,
+                ["documents", "metadatas", "distances"],
+                where={"source_type": "document"},
+            )
+            if doc_dense and doc_dense["ids"][0]:
+                existing_ids = set(dense["ids"][0])
+                for chunk_id, meta, doc, dist in zip(
+                    doc_dense["ids"][0], doc_dense["metadatas"][0],
+                    doc_dense["documents"][0], doc_dense["distances"][0],
+                ):
+                    if chunk_id not in existing_ids:
+                        dense["ids"][0].append(chunk_id)
+                        dense["metadatas"][0].append(meta)
+                        dense["documents"][0].append(doc)
+                        dense["distances"][0].append(dist)
+                        existing_ids.add(chunk_id)
 
         dense_ids = dense["ids"][0]
         dense_distances = dense["distances"][0]
@@ -525,6 +636,32 @@ class RAGEngine:
             if len(results) >= n_results:
                 break
 
+        # Append document FTS5 results not already in results (HNSW fallback).
+        # This ensures documents are always reachable even when the vector proxy
+        # is unavailable or returns no document hits.
+        if len(results) < n_results:
+            doc_slots = max(3, (n_results - len(results)) // 2)
+            doc_fts = self._cache.fts_search_documents(query, limit=doc_slots)
+            for d in doc_fts:
+                if d["doc_id"] in seen:
+                    continue
+                seen.add(d["doc_id"])
+                results.append({
+                    "email_id": d["doc_id"],
+                    "source_type": "document",
+                    "subject": d["filename"],
+                    "sender": "",
+                    "date": "",
+                    "folder": "",
+                    "text": d["snippet"],
+                    "filename": d["filename"],
+                    "file_type": d["file_type"],
+                    "file_path": d["file_path"],
+                    "_distance": 0.5,
+                })
+                if len(results) >= n_results:
+                    break
+
         return results
 
     async def rerank_with_claude(
@@ -598,7 +735,7 @@ class RAGEngine:
             return False
         existing = self._col.get(where={"email_id": email_id})
         if existing and existing.get("ids"):
-            self._col.delete(ids=existing["ids"])
+            self._proxy.delete(ids=existing["ids"])
         self._indexed_email_ids.discard(email_id)
         return True
 

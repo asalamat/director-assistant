@@ -105,6 +105,49 @@ async def browse_folder(path: str = ""):
     }
 
 
+@router.delete("/{doc_id:path}")
+async def delete_document(doc_id: str, request: Request):
+    """Mark a document for re-ingest by removing it from the in-memory index.
+    On the next ingest run the document will be re-extracted and its chunks
+    overwritten in ChromaDB (chunk IDs are deterministic, so upsert replaces them).
+    """
+    rag = request.app.state.rag
+    was_present = doc_id in rag._indexed_doc_ids
+    rag._indexed_doc_ids.pop(doc_id, None)
+    return {"queued_for_reingest": was_present, "doc_id": doc_id}
+
+
+@router.post("/reingest-force")
+async def reingest_force(background_tasks: BackgroundTasks, request: Request):
+    """Clear all indexed doc metadata (not the chunks) and re-run ingest.
+    Use when documents were indexed with bad extraction (e.g. scanned PDFs missed).
+    """
+    cfg = load_app_config()
+    folders = _get_folders(cfg)
+    if not folders:
+        raise HTTPException(400, "No document folders configured")
+
+    prog = get_progress()
+    if prog.status == "running":
+        raise HTTPException(409, "Document ingest already running")
+
+    rag = request.app.state.rag
+    # Clear in-memory doc index so every doc is treated as new
+    rag._indexed_doc_ids.clear()
+
+    def _run():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            for folder in folders:
+                ingest_folder(folder, rag)
+        finally:
+            loop.close()
+
+    background_tasks.add_task(_run)
+    return {"status": "started", "folders": folders, "force": True}
+
+
 @router.get("")
 async def list_documents(request: Request):
     rag = request.app.state.rag

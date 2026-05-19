@@ -31,7 +31,8 @@ async def list_emails(
 
     # Semantic / full-text search
     if q:
-        rag_results = rag.semantic_search(q, n=limit)
+        rag_results = [r for r in rag.semantic_search(q, n=limit)
+                       if r.get("source_type") != "document"]
         if rag_results:
             summaries = [
                 EmailSummary(

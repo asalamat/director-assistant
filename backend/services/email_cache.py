@@ -90,6 +90,25 @@ class EmailCache(EmailExtrasMixin):
             except Exception:
                 conn.execute("INSERT INTO emails_fts(emails_fts) VALUES('rebuild')")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_folder_date ON emails(folder, date DESC)")
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS documents_fts_store (
+                    doc_id      TEXT PRIMARY KEY,
+                    filename    TEXT DEFAULT '',
+                    file_type   TEXT DEFAULT '',
+                    file_path   TEXT DEFAULT '',
+                    modified_at TEXT DEFAULT '',
+                    body        TEXT DEFAULT ''
+                )
+            """)
+            conn.execute("""
+                CREATE VIRTUAL TABLE IF NOT EXISTS documents_fts USING fts5(
+                    doc_id  UNINDEXED,
+                    filename,
+                    body,
+                    content='documents_fts_store',
+                    content_rowid='rowid'
+                )
+            """)
 
             # One-time migration: normalize folder names stored before _normalize_folder
             for old, new in [
@@ -292,6 +311,60 @@ class EmailCache(EmailExtrasMixin):
                     (safe, limit),
                 ).fetchall()
             return [self._row_to_summary(dict(r)) for r in rows]
+        except Exception:
+            return []
+
+    def upsert_document_fts(self, doc_id: str, filename: str, file_type: str,
+                            file_path: str, modified_at: str, body: str) -> None:
+        """Index document text into the FTS5 table for keyword search."""
+        with self._conn() as conn:
+            conn.execute("""
+                INSERT OR REPLACE INTO documents_fts_store
+                    (doc_id, filename, file_type, file_path, modified_at, body)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (doc_id, filename, file_type, file_path, modified_at, body))
+            conn.execute("""
+                INSERT OR REPLACE INTO documents_fts(rowid, doc_id, filename, body)
+                SELECT rowid, doc_id, filename, body FROM documents_fts_store
+                WHERE doc_id = ?
+            """, (doc_id,))
+
+    def delete_document_fts(self, doc_id: str) -> None:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT rowid FROM documents_fts_store WHERE doc_id = ?", (doc_id,)
+            ).fetchone()
+            if row:
+                conn.execute(
+                    "INSERT INTO documents_fts(documents_fts, rowid, doc_id, filename, body) "
+                    "SELECT 'delete', rowid, doc_id, filename, body "
+                    "FROM documents_fts_store WHERE doc_id = ?", (doc_id,)
+                )
+                conn.execute("DELETE FROM documents_fts_store WHERE doc_id = ?", (doc_id,))
+
+    def fts_search_documents(self, query: str, limit: int = 10) -> list[dict]:
+        """Keyword search over indexed document content. Returns list of dicts."""
+        import re as _re
+        safe = _re.sub(r'[^\w\s]', ' ', query)
+        safe = ' '.join(safe.split()[:20])
+        if not safe:
+            return []
+        try:
+            with self._conn() as conn:
+                rows = conn.execute(
+                    """SELECT s.doc_id, s.filename, s.file_type, s.file_path,
+                              s.modified_at, snippet(documents_fts, 2, '', '', '…', 32) AS snippet
+                       FROM documents_fts_store s
+                       JOIN documents_fts ON documents_fts.doc_id = s.doc_id
+                       WHERE documents_fts MATCH ?
+                       ORDER BY rank LIMIT ?""",
+                    (safe, limit),
+                ).fetchall()
+            return [
+                {"doc_id": r[0], "filename": r[1], "file_type": r[2],
+                 "file_path": r[3], "modified_at": r[4], "snippet": r[5]}
+                for r in rows
+            ]
         except Exception:
             return []
 

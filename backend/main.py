@@ -131,7 +131,7 @@ async def _run_poll_cycle(rag: RAGEngine, cache: EmailCache) -> tuple[int, list[
     }
 
     # Legacy single-account path: full sweep if the flag file doesn't exist yet
-    from routers.connection import _LEGACY_INGESTED_FLAG
+    _LEGACY_INGESTED_FLAG = Path.home() / ".director-assistant" / ".legacy_ingested"
     legacy_needs_full_sweep = (len(all_accounts) == 0 and not _LEGACY_INGESTED_FLAG.exists())
 
     def check_folder(account_id: int, provider, folder: str, full_sweep: bool = False) -> int:
