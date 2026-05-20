@@ -192,6 +192,11 @@ export const api = {
     return request('/poll/now', { method: 'POST' })
   },
 
+  // Quit the application
+  shutdown(): Promise<{ status: string }> {
+    return request('/shutdown', { method: 'POST' })
+  },
+
   // Documents
   browseFolder(path?: string): Promise<{ current: string; parent: string | null; dirs: { name: string; path: string }[] }> {
     const qs = path ? `?path=${encodeURIComponent(path)}` : ''

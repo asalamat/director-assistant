@@ -1,4 +1,6 @@
 import os
+import signal
+import threading
 import asyncio
 from contextlib import asynccontextmanager
 
@@ -361,6 +363,13 @@ async def poll_now(request: Request):
     cache = request.app.state.cache
     asyncio.create_task(_run_poll_cycle(rag, cache))
     return {"status": "polling"}
+
+
+@app.post("/api/shutdown")
+async def shutdown():
+    """Gracefully terminate the application process."""
+    threading.Timer(0.3, lambda: os.kill(os.getpid(), signal.SIGTERM)).start()
+    return {"status": "shutting_down"}
 
 
 # Serve built frontend from backend/static/ (production mode)
