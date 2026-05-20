@@ -8,7 +8,7 @@
 
 set -e
 
-VERSION="2.3"
+VERSION="2.5.0"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DIST="$ROOT/dist"
 TMP="$DIST/tmp"
