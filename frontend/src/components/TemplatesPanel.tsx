@@ -65,7 +65,7 @@ export function TemplatesPanel({ onInsert }: Props) {
             <textarea
               value={draft.body}
               onChange={(e) => setDraft((d) => ({ ...d, body: e.target.value }))}
-              placeholder="Template body… Use {name}, {date} as variables"
+              placeholder="Template body… Use {subject}, {sender}, {name}, {date} as variables"
               rows={5}
               className="w-full text-sm border border-gray-300 rounded px-2 py-1.5 resize-none focus:outline-none focus:ring-2 focus:ring-accent"
             />

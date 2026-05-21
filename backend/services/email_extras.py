@@ -126,6 +126,19 @@ class EmailExtrasMixin:
             cur = conn.execute("DELETE FROM follow_ups WHERE id = ?", (fid,))
         return cur.rowcount > 0
 
+    # ── Snooze ────────────────────────────────────────────────────────────────
+
+    def snooze_email(self, email_id: str, wake_date: str) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO email_snooze (email_id, wake_date) VALUES (?,?)",
+                (email_id, wake_date),
+            )
+
+    def unsnooze_email(self, email_id: str) -> None:
+        with self._conn() as conn:
+            conn.execute("DELETE FROM email_snooze WHERE email_id = ?", (email_id,))
+
     # ── Templates ─────────────────────────────────────────────────────────────
 
     def list_templates(self) -> list[Template]:

@@ -7,6 +7,8 @@ interface Props {
   onAnalyze: () => void
   analyzing: boolean
   onDelete: (id: string) => void
+  onSnooze?: (emailId: string, wakeDate: string) => void
+  onAsk?: () => void
 }
 
 function formatDateFull(dateStr: string | null): string {
@@ -17,8 +19,21 @@ function formatDateFull(dateStr: string | null): string {
   })
 }
 
-export function EmailViewer({ email, loading, onAnalyze, analyzing, onDelete }: Props) {
+export function EmailViewer({ email, loading, onAnalyze, analyzing, onDelete, onSnooze, onAsk }: Props) {
   const [deleting, setDeleting] = useState(false)
+  const [showSnooze, setShowSnooze] = useState(false)
+  const [snoozeDate, setSnoozeDate] = useState('')
+
+  const tomorrow = new Date()
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  const tomorrowStr = tomorrow.toISOString().slice(0, 10)
+
+  const handleSnoozeConfirm = () => {
+    if (!email || !snoozeDate) return
+    onSnooze?.(email.id, snoozeDate)
+    setShowSnooze(false)
+    setSnoozeDate('')
+  }
 
   const handleDelete = async () => {
     if (!email) return
@@ -53,7 +68,7 @@ export function EmailViewer({ email, loading, onAnalyze, analyzing, onDelete }: 
       <div className="px-6 py-4 border-b border-gray-100">
         <div className="flex items-start justify-between gap-4">
           <h2 className="text-lg font-semibold text-gray-900 flex-1">{email.subject || '(no subject)'}</h2>
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
             <button
               onClick={onAnalyze}
               disabled={analyzing}
@@ -71,6 +86,51 @@ export function EmailViewer({ email, loading, onAnalyze, analyzing, onDelete }: 
                 </>
               )}
             </button>
+            {onAsk && (
+              <button
+                onClick={onAsk}
+                title="Ask AI about this email"
+                className="flex items-center gap-1 text-xs text-gray-500 hover:text-accent px-2 py-1.5 rounded-lg hover:bg-blue-50 transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7z" clipRule="evenodd" />
+                </svg>
+                <span>Ask</span>
+              </button>
+            )}
+            {onSnooze && (
+              <>
+                <button
+                  onClick={() => setShowSnooze(s => !s)}
+                  title="Snooze this email"
+                  className="flex items-center gap-1 text-xs text-gray-500 hover:text-amber-600 px-2 py-1.5 rounded-lg hover:bg-amber-50 transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                  </svg>
+                  <span>Snooze</span>
+                </button>
+                {showSnooze && (
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="date"
+                      value={snoozeDate}
+                      min={tomorrowStr}
+                      onChange={e => setSnoozeDate(e.target.value)}
+                      className="text-xs border border-gray-200 rounded px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-accent"
+                    />
+                    <button
+                      onClick={handleSnoozeConfirm}
+                      disabled={!snoozeDate}
+                      className="text-xs bg-amber-500 text-white px-2 py-1 rounded hover:bg-amber-600 disabled:opacity-50"
+                    >
+                      OK
+                    </button>
+                    <button onClick={() => setShowSnooze(false)} className="text-xs text-gray-400 hover:text-gray-600">✕</button>
+                  </div>
+                )}
+              </>
+            )}
             <button
               onClick={handleDelete}
               disabled={deleting}

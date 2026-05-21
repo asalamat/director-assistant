@@ -24,6 +24,15 @@ function BriefingTab() {
   const [done, setDone] = useState(false)
   const stopRef = useRef<(() => void) | null>(null)
 
+  // Features 6 + 9: auto-run on first daily visit
+  useEffect(() => {
+    const today = new Date().toISOString().slice(0, 10)
+    if (localStorage.getItem('lastBriefingDate') !== today) {
+      localStorage.setItem('lastBriefingDate', today)
+      handleGenerate()
+    }
+  }, [])
+
   const handleGenerate = () => {
     setPeople([]); setProjects([]); setLoops([]); setSummary('')
     setDone(false); setRunning(true)

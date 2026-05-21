@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { api } from '../api/client'
 import type { AIRecommendation, EmailMessage } from '../types'
 
@@ -30,6 +30,7 @@ export function AIPanel({ rec, loading, error, email }: Props) {
   const [dueDate, setDueDate] = useState('')
   const [followUpNote, setFollowUpNote] = useState('')
   const [actionsSaved, setActionsSaved] = useState(false)
+  const autoSavedFor = useRef<string | null>(null)
   const [senderStats, setSenderStats] = useState<{
     total_emails: number; first_contact: string | null; last_contact: string | null; recent_subjects: string[]
   } | null>(null)
@@ -46,20 +47,45 @@ export function AIPanel({ rec, loading, error, email }: Props) {
     setDraftText(text)
   }
 
+  // Feature 1: auto-save action items when analysis arrives for a new email
+  useEffect(() => {
+    if (rec?.action_items.length && email && autoSavedFor.current !== email.id) {
+      autoSavedFor.current = email.id
+      fetch('/api/actions/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email_id: email.id, email_subject: email.subject, items: rec.action_items }),
+      }).then(r => { if (r.ok) setActionsSaved(true) }).catch(() => {})
+    }
+  }, [rec, email])
+
+  // Feature 2: open default mail client with pre-filled reply
+  const openMailto = (body: string) => {
+    if (!email) return
+    const to = email.sender.match(/<([^>]+)>/)?.[1] || email.sender
+    const subject = email.subject.startsWith('Re:') ? email.subject : `Re: ${email.subject}`
+    window.location.href = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent('\n\n---\n' + body)}`
+  }
+
   const saveActions = async () => {
     if (!email || !rec?.action_items.length) return
-    // Send action items to backend via a simple fetch
-    await fetch('/api/actions/bulk', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email_id: email.id,
-        email_subject: email.subject,
-        items: rec.action_items,
-      }),
-    })
-    setActionsSaved(true)
-    setTimeout(() => setActionsSaved(false), 2000)
+    try {
+      const res = await fetch('/api/actions/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email_id: email.id,
+          email_subject: email.subject,
+          items: rec.action_items,
+        }),
+      })
+      if (!res.ok) throw new Error('Save failed')
+      setActionsSaved(true)
+      setTimeout(() => setActionsSaved(false), 2000)
+    } catch {
+      // show brief error feedback on the button
+      setActionsSaved(false)
+    }
   }
 
   const createFollowUp = async () => {
@@ -231,6 +257,13 @@ export function AIPanel({ rec, loading, error, email }: Props) {
                       className="text-xs text-accent hover:text-blue-700"
                     >
                       {copiedIdx === i ? '✓ Copied' : 'Copy'}
+                    </button>
+                    <button
+                      onClick={() => openMailto(draftIdx === i ? draftText : reply)}
+                      className="text-xs text-green-600 hover:text-green-800"
+                      title="Open in mail client"
+                    >
+                      Reply
                     </button>
                   </div>
                 </div>

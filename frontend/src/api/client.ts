@@ -169,6 +169,14 @@ export const api = {
     return request(`/templates/${id}`, { method: 'DELETE' })
   },
 
+  // Snooze
+  snoozeEmail(emailId: string, wakeDate: string): Promise<void> {
+    return request(`/snooze/${encodeURIComponent(emailId)}`, { method: 'POST', body: JSON.stringify({ wake_date: wakeDate }) })
+  },
+  unsnoozeEmail(emailId: string): Promise<void> {
+    return request(`/snooze/${encodeURIComponent(emailId)}`, { method: 'DELETE' })
+  },
+
   // Analytics
   getAnalytics(days = 30): Promise<AnalyticsResponse> {
     return request(`/analytics?days=${days}`)

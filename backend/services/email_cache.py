@@ -169,6 +169,13 @@ class EmailCache(EmailExtrasMixin):
                     created_at   TEXT DEFAULT (datetime('now'))
                 )
             """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS email_snooze (
+                    email_id   TEXT PRIMARY KEY,
+                    wake_date  TEXT NOT NULL,
+                    created_at TEXT DEFAULT (datetime('now'))
+                )
+            """)
             for col_def in ["account_id INTEGER DEFAULT 0", "server_id TEXT"]:
                 try:
                     conn.execute(f"ALTER TABLE emails ADD COLUMN {col_def}")
@@ -281,6 +288,9 @@ class EmailCache(EmailExtrasMixin):
         if from_date:
             where += " AND date >= ?"
             params.append(from_date)
+
+        # Exclude snoozed emails whose wake date hasn't arrived yet
+        where += " AND id NOT IN (SELECT email_id FROM email_snooze WHERE wake_date > date('now'))"
 
         with self._conn() as conn:
             total = conn.execute(

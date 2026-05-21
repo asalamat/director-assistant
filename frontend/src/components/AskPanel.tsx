@@ -28,19 +28,20 @@ const SUGGESTIONS = [
   'What were the last emails about the Q3 report?',
 ]
 
-export function AskPanel() {
+export function AskPanel({ initialQuery, onClear }: { initialQuery?: string; onClear?: () => void } = {}) {
   const [messages, setMessages] = useState<Message[]>([])
   const [history, setHistory] = useState<HistoryMessage[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const lastInitial = useRef<string | undefined>(undefined)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  const submit = async () => {
-    const q = input.trim()
+  const submit = async (overrideQ?: string) => {
+    const q = (overrideQ ?? input).trim()
     if (!q || loading) return
 
     setMessages(prev => [...prev, { role: 'user', text: q }])
@@ -111,6 +112,14 @@ export function AskPanel() {
 
     setLoading(false)
   }
+
+  useEffect(() => {
+    if (initialQuery && initialQuery !== lastInitial.current) {
+      lastInitial.current = initialQuery
+      onClear?.()
+      submit(initialQuery)
+    }
+  }, [initialQuery]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const clearChat = () => {
     setMessages([])
@@ -202,7 +211,7 @@ export function AskPanel() {
             className="flex-1 text-sm border border-gray-200 rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-accent disabled:opacity-60"
           />
           <button
-            onClick={submit}
+            onClick={() => submit()}
             disabled={loading || !input.trim()}
             className="px-4 py-2 bg-accent text-white text-sm rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-1.5"
           >

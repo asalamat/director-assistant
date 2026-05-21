@@ -49,6 +49,24 @@ function avatarColor(sender: string): string {
   return AVATAR_COLORS[hash % AVATAR_COLORS.length]
 }
 
+function priorityLabel(subject: string, preview: string): { text: string; cls: string } | null {
+  const hay = `${subject} ${preview}`.toLowerCase()
+  if (/\burgent\b|\basap\b|\bimmediately\b|\bdeadline\b/.test(hay))
+    return { text: 'urgent', cls: 'bg-red-100 text-red-600' }
+  if (/action required|action needed|please review|response required/.test(hay))
+    return { text: 'action', cls: 'bg-orange-100 text-orange-600' }
+  if (/\binvoice\b|\bpayment\b|\bcontract\b/.test(hay))
+    return { text: 'finance', cls: 'bg-purple-100 text-purple-600' }
+  return null
+}
+
+function replyDepth(subject: string): number {
+  let depth = 0
+  let s = subject
+  while (/^re:\s*/i.test(s)) { depth++; s = s.replace(/^re:\s*/i, '') }
+  return depth
+}
+
 export function EmailList({ emails, selectedId, loading, hasMore, total, folders, currentFolder, onSelect, onLoadMore, onSearch, onSort, onFolderChange, sortBy, sortOrder }: Props) {
   const [query, setQuery] = useState('')
   const sentinelRef = useRef<HTMLDivElement>(null)
@@ -150,40 +168,52 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
           <div className="text-center text-gray-400 text-sm mt-12">No emails</div>
         )}
 
-        {emails.map((email) => (
-          <button
-            key={email.id}
-            onClick={() => onSelect(email)}
-            className={`w-full text-left px-3 py-3 flex gap-3 transition-colors border-b border-gray-50 ${
-              selectedId === email.id
-                ? 'bg-blue-50 border-l-2 border-l-accent'
-                : !email.is_read
-                ? 'bg-amber-50 border-l-2 border-l-amber-400 hover:bg-amber-100'
-                : 'hover:bg-gray-50'
-            }`}
-          >
-            {/* Avatar */}
-            <div
-              className={`flex-shrink-0 w-8 h-8 rounded-full ${avatarColor(email.sender)} text-white text-xs font-semibold flex items-center justify-center mt-0.5`}
+        {emails.map((email) => {
+          const label = priorityLabel(email.subject || '', email.preview || '')
+          const depth = replyDepth(email.subject || '')
+          return (
+            <button
+              key={email.id}
+              onClick={() => onSelect(email)}
+              className={`w-full text-left px-3 py-3 flex gap-3 transition-colors border-b border-gray-50 ${
+                selectedId === email.id
+                  ? 'bg-blue-50 border-l-2 border-l-accent'
+                  : !email.is_read
+                  ? 'bg-amber-50 border-l-2 border-l-amber-400 hover:bg-amber-100'
+                  : 'hover:bg-gray-50'
+              }`}
             >
-              {initials(email.sender) || '?'}
-            </div>
+              {/* Avatar */}
+              <div
+                className={`flex-shrink-0 w-8 h-8 rounded-full ${avatarColor(email.sender)} text-white text-xs font-semibold flex items-center justify-center mt-0.5`}
+              >
+                {initials(email.sender) || '?'}
+              </div>
 
-            {/* Content */}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between gap-1">
-                <span className={`text-sm truncate ${!email.is_read ? 'font-bold text-gray-900' : 'text-gray-700'}`}>
-                  {email.sender.replace(/<[^>]+>/, '').trim() || email.sender}
-                </span>
-                <span className="text-xs text-gray-400 flex-shrink-0">{formatDate(email.date)}</span>
+              {/* Content */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-1">
+                  <span className={`text-sm truncate ${!email.is_read ? 'font-bold text-gray-900' : 'text-gray-700'}`}>
+                    {email.sender.replace(/<[^>]+>/, '').trim() || email.sender}
+                  </span>
+                  <span className="text-xs text-gray-400 flex-shrink-0">{formatDate(email.date)}</span>
+                </div>
+                <div className={`flex items-center gap-1 mt-0.5 ${!email.is_read ? 'font-semibold text-gray-800' : 'text-gray-600'}`}>
+                  {depth > 0 && (
+                    <span className="text-[10px] text-gray-400 border border-gray-200 rounded px-1 flex-shrink-0">
+                      ↩{depth > 1 ? depth : ''}
+                    </span>
+                  )}
+                  <span className="text-xs truncate">{email.subject || '(no subject)'}</span>
+                  {label && (
+                    <span className={`text-[10px] px-1.5 rounded-full font-medium flex-shrink-0 ${label.cls}`}>{label.text}</span>
+                  )}
+                </div>
+                <div className="text-xs text-gray-400 truncate mt-0.5">{email.preview}</div>
               </div>
-              <div className={`text-xs truncate mt-0.5 ${!email.is_read ? 'font-semibold text-gray-800' : 'text-gray-600'}`}>
-                {email.subject || '(no subject)'}
-              </div>
-              <div className="text-xs text-gray-400 truncate mt-0.5">{email.preview}</div>
-            </div>
-          </button>
-        ))}
+            </button>
+          )
+        })}
 
         <div ref={sentinelRef} className="h-4" />
         {loading && (

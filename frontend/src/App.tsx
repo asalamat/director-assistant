@@ -94,6 +94,8 @@ export default function App() {
   const [folders, setFolders] = useState<Record<string, number>>({})
   const [currentFolder, setCurrentFolder] = useState('INBOX')
   const [exiting, setExiting] = useState(false)
+  const [overdueCount, setOverdueCount] = useState(0)
+  const [askContext, setAskContext] = useState('')
 
   const { emails, total, loading: listLoading, hasMore, refresh, mergeRefresh, loadMore, setSort, currentParams, removeEmail } = useEmails()
   const { email, loading: emailLoading, fetch: fetchEmail } = useEmailDetail()
@@ -128,6 +130,35 @@ export default function App() {
     const id = setInterval(check, 30000)
     return () => clearInterval(id)
   }, [])
+
+  // Feature 7: poll overdue follow-ups for badge
+  useEffect(() => {
+    const check = () =>
+      api.getFollowUps(false).then(list => {
+        const today = new Date().toISOString().slice(0, 10)
+        setOverdueCount(list.filter(f => f.due_date < today).length)
+      }).catch(() => {})
+    check()
+    const id = setInterval(check, 60000)
+    return () => clearInterval(id)
+  }, [])
+
+  // Feature 3: keyboard shortcuts (j/k navigate, a analyze, Esc deselect)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      if (activeTab !== 'inbox') return
+      if (e.key === 'j' || e.key === 'k') {
+        const idx = emails.findIndex(em => em.id === selectedEmail?.id)
+        const next = e.key === 'j' ? Math.min(idx + 1, emails.length - 1) : Math.max(idx - 1, 0)
+        if (emails[next]) handleSelect(emails[next])
+      }
+      if (e.key === 'a' && selectedEmail) handleAnalyze()
+      if (e.key === 'Escape') setSelectedEmail(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [activeTab, emails, selectedEmail])
 
   const handleConnected = () => {
     setConnected(true)
@@ -174,6 +205,20 @@ export default function App() {
     } catch (e) {
       console.error('Delete failed:', e)
     }
+  }
+
+  const handleSnooze = async (emailId: string, wakeDate: string) => {
+    try {
+      await api.snoozeEmail(emailId, wakeDate)
+      removeEmail(emailId)
+      setSelectedEmail(null)
+    } catch { /* ignore */ }
+  }
+
+  const handleAskAboutEmail = () => {
+    if (!email) return
+    setAskContext(`Tell me about this email. Subject: "${email.subject}". From: ${email.sender}.`)
+    setActiveTab('ask')
   }
 
   const handleRefresh = async () => {
@@ -330,6 +375,11 @@ export default function App() {
                 {unreadCount > 99 ? '99+' : unreadCount}
               </span>
             )}
+            {tab.id === 'actions' && overdueCount > 0 && (
+              <span className="ml-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[16px] h-4 flex items-center justify-center px-1 leading-none">
+                {overdueCount}
+              </span>
+            )}
             {tab.id === 'health' && healthStatus && (
               <span className={`ml-0.5 w-1.5 h-1.5 rounded-full inline-block ${
                 healthStatus === 'ok' ? 'bg-green-500' :
@@ -394,13 +444,15 @@ export default function App() {
               onAnalyze={handleAnalyze}
               analyzing={recLoading}
               onDelete={handleDelete}
+              onSnooze={handleSnooze}
+              onAsk={handleAskAboutEmail}
             />
 
             <AIPanel rec={rec} loading={recLoading} error={recError} email={email} />
           </>
         )}
 
-        {activeTab === 'ask' && <AskPanel />}
+        {activeTab === 'ask' && <AskPanel initialQuery={askContext} onClear={() => setAskContext('')} />}
         {activeTab === 'actions' && <ActionBoard />}
         {activeTab === 'digest' && <DigestView />}
         {activeTab === 'analytics' && <Analytics />}

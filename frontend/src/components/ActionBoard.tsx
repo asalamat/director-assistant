@@ -11,14 +11,24 @@ export function ActionBoard() {
   const [followUps, setFollowUps] = useState<FollowUp[]>([])
   const [showDone, setShowDone] = useState(false)
   const [tab, setTab] = useState<'actions' | 'followups'>('actions')
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
 
   const reload = async () => {
-    const [a, f] = await Promise.all([
-      api.getActions(showDone ? undefined : false),
-      api.getFollowUps(showDone ? undefined : false),
-    ])
-    setActions(a)
-    setFollowUps(f)
+    setLoading(true)
+    setLoadError('')
+    try {
+      const [a, f] = await Promise.all([
+        api.getActions(showDone ? undefined : false),
+        api.getFollowUps(showDone ? undefined : false),
+      ])
+      setActions(a)
+      setFollowUps(f)
+    } catch (e) {
+      setLoadError('Failed to load — check backend is running')
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => { reload() }, [showDone])
@@ -66,11 +76,20 @@ export function ActionBoard() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-2">
-        {tab === 'actions' && (
+        {loading && (
+          <div className="flex justify-center py-12">
+            <div className="w-5 h-5 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+          </div>
+        )}
+        {!loading && loadError && (
+          <p className="text-sm text-red-400 text-center py-12">{loadError}</p>
+        )}
+        {!loading && !loadError && tab === 'actions' && (
           <>
             {actions.length === 0 && (
               <p className="text-sm text-gray-400 text-center py-12">
-                No action items yet. Analyze an email to extract them.
+                No action items yet.<br />
+                <span className="text-xs">Select an email → AI Analysis → Save to action board</span>
               </p>
             )}
             {actions.map((a) => (
@@ -97,7 +116,7 @@ export function ActionBoard() {
           </>
         )}
 
-        {tab === 'followups' && (
+        {!loading && !loadError && tab === 'followups' && (
           <>
             {followUps.length === 0 && (
               <p className="text-sm text-gray-400 text-center py-12">
