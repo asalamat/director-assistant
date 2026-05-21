@@ -37,12 +37,13 @@ from services.ai_client import AIClient
 load_dotenv()
 
 NEW_EMAIL_POLL_SECONDS = int(os.getenv("POLL_INTERVAL_SECONDS", "60"))
-POLL_RECENT_N = 50
+POLL_RECENT_N = 20
 POLL_SINCE_DAYS = 7
 
 _last_poll_time: str = ""
 _last_poll_new: int = 0
 _last_poll_error: str = ""
+_poll_running: bool = False   # prevent concurrent poll cycles from racing on shared provider state
 
 # Reuse provider instances across poll cycles so IMAP connections stay open.
 # Key 0 is reserved for the legacy single-account config.
@@ -68,10 +69,16 @@ def _evict_provider(account_id: int):
             pass
 
 
-def _get_ingest_folders(account_id: int, provider) -> list[str]:
-    """Cache per-account folder list so each poll cycle avoids an IMAP LIST call."""
+def _get_ingest_folders(account_id: int, provider, full_sweep: bool = False) -> list[str]:
+    """Return folders to check.
+
+    full_sweep=True  → all non-junk folders (initial ingest, not cached)
+    full_sweep=False → poll-only folders (INBOX + standard folders, cached)
+    """
+    if full_sweep:
+        return provider.get_ingest_folders()
     if account_id not in _folder_cache:
-        _folder_cache[account_id] = provider.get_ingest_folders()
+        _folder_cache[account_id] = provider.get_poll_folders()
     return _folder_cache[account_id]
 
 
@@ -91,13 +98,24 @@ async def _run_poll_cycle(rag: RAGEngine, cache: EmailCache) -> tuple[int, list[
     One complete poll cycle: detect deletions, fetch new emails for all accounts.
     Returns (new_count, error_list). Updates _last_poll_* globals on completion.
     """
-    global _last_poll_time, _last_poll_new, _last_poll_error
-
-    from routers.connection import _progress, load_config
-    from services.email_provider import build_provider, IMAPProvider  # IMAPProvider for isinstance check
+    global _poll_running
+    from routers.connection import _progress
 
     if _progress.status == "running":
         return 0, []
+    if _poll_running:
+        return 0, []
+    _poll_running = True
+    try:
+        return await _do_poll_cycle(rag, cache)
+    finally:
+        _poll_running = False
+
+
+async def _do_poll_cycle(rag: RAGEngine, cache: EmailCache) -> tuple[int, list[str]]:
+    global _last_poll_time, _last_poll_new, _last_poll_error
+    from routers.connection import load_config
+    from services.email_provider import build_provider, IMAPProvider
 
     cfg = load_app_config()
     sync_days = cfg.get("sync_window_days", POLL_SINCE_DAYS)
@@ -117,7 +135,12 @@ async def _run_poll_cycle(rag: RAGEngine, cache: EmailCache) -> tuple[int, list[
             _evict_provider(stale_id)
         for acc in all_accounts:
             try:
-                providers_to_check.append((acc.id, _get_provider(acc.id, acc)))
+                p = _get_provider(acc.id, acc)
+                # Reset connection at start of each poll cycle — Yahoo (and others)
+                # terminate idle IMAP sessions, causing NONAUTH on reuse.
+                if hasattr(p, '_mail'):
+                    p._mail = None
+                providers_to_check.append((acc.id, p))
             except Exception:
                 pass
     else:
@@ -125,7 +148,10 @@ async def _run_poll_cycle(rag: RAGEngine, cache: EmailCache) -> tuple[int, list[
         if legacy:
             if 0 not in _provider_cache:
                 _provider_cache[0] = build_provider(legacy)
-            providers_to_check = [(0, _provider_cache[0])]
+            p = _provider_cache[0]
+            if hasattr(p, '_mail'):
+                p._mail = None
+            providers_to_check = [(0, p)]
 
     known_ids = rag._known_ids()
     loop = asyncio.get_event_loop()
@@ -202,10 +228,18 @@ async def _run_poll_cycle(rag: RAGEngine, cache: EmailCache) -> tuple[int, list[
                 full_sweep = (account_id in never_ingested_ids) or (account_id == 0 and legacy_needs_full_sweep)
                 if full_sweep and attempt == 0:
                     print(f"[poll] account {account_id} has never been fully ingested — running full sweep")
-                for folder in _get_ingest_folders(account_id, provider):
-                    new_total += await loop.run_in_executor(
-                        None, check_folder, account_id, provider, folder, full_sweep
-                    )
+                # Run folder-list in executor so blocking IMAP LIST doesn't stall the event loop
+                folders = await loop.run_in_executor(
+                    None, _get_ingest_folders, account_id, provider, full_sweep
+                )
+                for folder in folders:
+                    try:
+                        new_total += await asyncio.wait_for(
+                            loop.run_in_executor(None, check_folder, account_id, provider, folder, full_sweep),
+                            timeout=60,
+                        )
+                    except asyncio.TimeoutError:
+                        print(f"[poll] check_folder timed out account={account_id} folder={folder} — skipping")
                 if full_sweep:
                     if account_id != 0:
                         cache.mark_ingested(account_id)

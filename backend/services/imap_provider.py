@@ -419,7 +419,7 @@ class IMAPProvider:
         return None
 
     def get_ingest_folders(self) -> List[str]:
-        """All folders on the server except Junk/Trash/Drafts."""
+        """All folders on the server except Junk/Trash/Drafts (used for initial full ingest)."""
         _SKIP = {
             "junk", "junk mail", "junk e-mail", "spam", "bulk", "bulk mail",
             "trash", "deleted", "deleted items", "deleted messages",
@@ -438,6 +438,24 @@ class IMAPProvider:
         if not kept:
             kept = ["INBOX"]
         return kept
+
+    def get_poll_folders(self) -> List[str]:
+        """Folders to check on each poll cycle — only standard inbox-type folders.
+
+        Accounts with many custom folders (filing cabinets) would otherwise take
+        hours to poll. New email arrives in INBOX and Sent; skip user-created
+        filing folders entirely.
+        """
+        _POLL_NAMES = {
+            "inbox", "sent", "sent items", "sent mail", "all mail",
+            "archive", "bulk mail", "starred", "important",
+        }
+        try:
+            all_folders = self.list_folders()
+            matched = [f for f in all_folders if f.lower().strip('"') in _POLL_NAMES]
+            return matched if matched else ["INBOX"]
+        except Exception:
+            return ["INBOX"]
 
     def search_by_subject(self, subject: str, folder: str = "INBOX", limit: int = 10):
         """Search IMAP folder for emails matching subject. Yields (EmailMessage, total)."""

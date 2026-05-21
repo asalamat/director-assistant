@@ -237,7 +237,7 @@ export default function App() {
 
       let waited = 0
       const tick = 2000
-      const maxWait = 45000
+      const maxWait = 90000
       await new Promise<void>((resolve) => {
         const id = setInterval(async () => {
           waited += tick
