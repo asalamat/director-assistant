@@ -26,6 +26,7 @@ export function AIPanel({ rec, loading, error, email }: Props) {
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
   const [draftIdx, setDraftIdx] = useState<number | null>(null)
   const [draftText, setDraftText] = useState('')
+  const [savedDraftIdx, setSavedDraftIdx] = useState<number | null>(null)
   const [showFollowUp, setShowFollowUp] = useState(false)
   const [dueDate, setDueDate] = useState('')
   const [followUpNote, setFollowUpNote] = useState('')
@@ -100,6 +101,17 @@ export function AIPanel({ rec, loading, error, email }: Props) {
     setShowFollowUp(false)
     setDueDate('')
     setFollowUpNote('')
+  }
+
+  const saveDraft = async (body: string, idx: number) => {
+    if (!email) return
+    const to = email.sender.match(/<([^>]+)>/)?.[1] || email.sender
+    const subject = email.subject.startsWith('Re:') ? email.subject : `Re: ${email.subject}`
+    try {
+      await api.saveDraft({ to, subject, body })
+      setSavedDraftIdx(idx)
+      setTimeout(() => setSavedDraftIdx(null), 2000)
+    } catch { /* ignore — provider may not support it */ }
   }
 
   const loadSenderStats = async () => {
@@ -264,6 +276,13 @@ export function AIPanel({ rec, loading, error, email }: Props) {
                       title="Open in mail client"
                     >
                       Reply
+                    </button>
+                    <button
+                      onClick={() => saveDraft(draftIdx === i ? draftText : reply, i)}
+                      className="text-xs text-purple-500 hover:text-purple-700"
+                      title="Save as draft in your mailbox"
+                    >
+                      {savedDraftIdx === i ? '✓ Saved' : 'Draft'}
                     </button>
                   </div>
                 </div>

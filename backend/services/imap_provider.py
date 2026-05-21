@@ -283,6 +283,42 @@ class IMAPProvider:
         self.disconnect()
         return True
 
+    def save_draft(self, to: str, subject: str, body: str) -> bool:
+        """Append an RFC-2822 message to the Drafts folder. Returns True on success."""
+        import email.utils as _eu
+        from email.mime.text import MIMEText
+        draft_folders = ["[Gmail]/Drafts", "Drafts", "INBOX.Drafts", "Draft"]
+        try:
+            self._imap_op(lambda: None)  # ensure connected
+            # Discover actual Drafts folder name
+            status, folders = self._mail.list()
+            drafts = None
+            if status == "OK":
+                for f in folders:
+                    decoded = f.decode() if isinstance(f, bytes) else f
+                    lower = decoded.lower()
+                    if "draft" in lower:
+                        # extract folder name after the last space or quote
+                        m = re.search(r'"([^"]+)"\s*$|(\S+)\s*$', decoded)
+                        if m:
+                            drafts = (m.group(1) or m.group(2)).strip('"')
+                            break
+            if not drafts:
+                drafts = draft_folders[0]
+
+            msg = MIMEText(body, "plain", "utf-8")
+            msg["From"] = self.username
+            msg["To"] = to
+            msg["Subject"] = subject
+            msg["Date"] = _eu.formatdate()
+            msg["Message-ID"] = _eu.make_msgid()
+
+            self._mail.append(drafts, r"\Draft", None, msg.as_bytes())
+            return True
+        except Exception as e:
+            print(f"[draft] save failed: {e}")
+            return False
+
     @staticmethod
     def _seen_from_header(header: str) -> bool:
         """Return True if the IMAP FLAGS response contains \\Seen."""

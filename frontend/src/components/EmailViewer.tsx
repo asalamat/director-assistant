@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { EmailMessage } from '../types'
+import { ContactCard } from './ContactCard'
 
 interface Props {
   email: EmailMessage | null
@@ -9,6 +10,7 @@ interface Props {
   onDelete: (id: string) => void
   onSnooze?: (emailId: string, wakeDate: string) => void
   onAsk?: () => void
+  onSearch?: (q: string) => void
 }
 
 function formatDateFull(dateStr: string | null): string {
@@ -19,10 +21,11 @@ function formatDateFull(dateStr: string | null): string {
   })
 }
 
-export function EmailViewer({ email, loading, onAnalyze, analyzing, onDelete, onSnooze, onAsk }: Props) {
+export function EmailViewer({ email, loading, onAnalyze, analyzing, onDelete, onSnooze, onAsk, onSearch }: Props) {
   const [deleting, setDeleting] = useState(false)
   const [showSnooze, setShowSnooze] = useState(false)
   const [snoozeDate, setSnoozeDate] = useState('')
+  const [showContact, setShowContact] = useState(false)
 
   const tomorrow = new Date()
   tomorrow.setDate(tomorrow.getDate() + 1)
@@ -148,7 +151,21 @@ export function EmailViewer({ email, loading, onAnalyze, analyzing, onDelete, on
         <div className="mt-2 space-y-1">
           <div className="flex gap-2 text-sm">
             <span className="text-gray-400 w-12 flex-shrink-0">From</span>
-            <span className="text-gray-800">{email.sender}</span>
+            <div className="relative">
+              <button
+                onClick={() => setShowContact(s => !s)}
+                className="text-gray-800 hover:text-accent hover:underline text-left"
+              >
+                {email.sender}
+              </button>
+              {showContact && (
+                <ContactCard
+                  sender={email.sender}
+                  onClose={() => setShowContact(false)}
+                  onSearch={onSearch}
+                />
+              )}
+            </div>
           </div>
           {email.recipients.length > 0 && (
             <div className="flex gap-2 text-sm">

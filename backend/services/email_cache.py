@@ -176,6 +176,15 @@ class EmailCache(EmailExtrasMixin):
                     created_at TEXT DEFAULT (datetime('now'))
                 )
             """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS saved_searches (
+                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name       TEXT NOT NULL,
+                    query      TEXT NOT NULL,
+                    folder     TEXT DEFAULT 'INBOX',
+                    created_at TEXT DEFAULT (datetime('now'))
+                )
+            """)
             for col_def in ["account_id INTEGER DEFAULT 0", "server_id TEXT"]:
                 try:
                     conn.execute(f"ALTER TABLE emails ADD COLUMN {col_def}")

@@ -60,15 +60,28 @@ export function Analytics() {
     <div className="flex-1 overflow-y-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-gray-900">Analytics</h2>
-        <select
-          value={days}
-          onChange={(e) => setDays(Number(e.target.value))}
-          className="text-xs border border-gray-300 rounded px-2 py-1"
-        >
-          <option value={7}>Last 7 days</option>
-          <option value={30}>Last 30 days</option>
-          <option value={90}>Last 90 days</option>
-        </select>
+        <div className="flex items-center gap-2">
+          <select
+            value={days}
+            onChange={(e) => setDays(Number(e.target.value))}
+            className="text-xs border border-gray-300 rounded px-2 py-1"
+          >
+            <option value={7}>Last 7 days</option>
+            <option value={30}>Last 30 days</option>
+            <option value={90}>Last 90 days</option>
+          </select>
+          <a
+            href={`/api/analytics/export.csv?days=${days}`}
+            download={`analytics_${days}d.csv`}
+            className="text-xs text-gray-400 hover:text-accent transition-colors flex items-center gap-1 border border-gray-200 rounded px-2 py-1 hover:border-accent"
+            title="Export as CSV"
+          >
+            <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+            CSV
+          </a>
+        </div>
       </div>
 
       {loading && (

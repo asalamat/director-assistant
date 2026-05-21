@@ -28,6 +28,8 @@ from routers import ask as ask_router
 from routers import documents as documents_router
 from routers import intelligence as intelligence_router
 from routers import snooze as snooze_router
+from routers import saved_searches as saved_searches_router
+from routers import drafts as drafts_router
 from services.intelligence_service import IntelligenceService
 from routers.config import get_effective_api_key, load_app_config
 from services.ai_client import AIClient
@@ -319,6 +321,8 @@ app.include_router(ask_router.router)
 app.include_router(documents_router.router)
 app.include_router(intelligence_router.router)
 app.include_router(snooze_router.router)
+app.include_router(saved_searches_router.router)
+app.include_router(drafts_router.router)
 
 
 @app.get("/health")
@@ -380,6 +384,19 @@ async def shutdown():
     """Gracefully terminate the application process."""
     threading.Timer(0.3, lambda: os.kill(os.getpid(), signal.SIGTERM)).start()
     return {"status": "shutting_down"}
+
+
+@app.post("/api/badge/{count}")
+async def set_dock_badge(count: int):
+    """Set the macOS dock badge to the given unread count."""
+    try:
+        from AppKit import NSApplication  # type: ignore
+        ns_app = NSApplication.sharedApplication()
+        label = str(count) if count > 0 else ""
+        ns_app.dockTile().setBadgeLabel_(label)
+    except Exception:
+        pass
+    return {"ok": True}
 
 
 # Serve built frontend from backend/static/ (production mode)

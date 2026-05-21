@@ -69,10 +69,23 @@ export function ActionBoard() {
               : `Follow-ups${overdueFollowUps.length ? ` ⚠ ${overdueFollowUps.length}` : pendingFollowUps.length ? ` (${pendingFollowUps.length})` : ''}`}
           </button>
         ))}
-        <label className="ml-auto flex items-center gap-1 text-xs text-gray-500 pb-2 cursor-pointer">
-          <input type="checkbox" checked={showDone} onChange={(e) => setShowDone(e.target.checked)} />
-          Show done
-        </label>
+        <div className="ml-auto flex items-center gap-3 pb-2">
+          <a
+            href="/api/actions/export.csv"
+            download="action_items.csv"
+            className="text-xs text-gray-400 hover:text-accent transition-colors flex items-center gap-1"
+            title="Export as CSV"
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+            CSV
+          </a>
+          <label className="flex items-center gap-1 text-xs text-gray-500 cursor-pointer">
+            <input type="checkbox" checked={showDone} onChange={(e) => setShowDone(e.target.checked)} />
+            Show done
+          </label>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-2">

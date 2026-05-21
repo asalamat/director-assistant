@@ -232,6 +232,27 @@ export const api = {
     return request('/documents/reindex-emails/status')
   },
 
+  // Saved searches
+  getSavedSearches(): Promise<{ id: number; name: string; query: string; folder: string }[]> {
+    return request('/saved-searches')
+  },
+  createSavedSearch(name: string, query: string, folder: string): Promise<{ id: number }> {
+    return request('/saved-searches', { method: 'POST', body: JSON.stringify({ name, query, folder }) })
+  },
+  deleteSavedSearch(id: number): Promise<void> {
+    return request(`/saved-searches/${id}`, { method: 'DELETE' })
+  },
+
+  // Save draft to IMAP
+  saveDraft(data: { to: string; subject: string; body: string; account_id?: number }): Promise<{ status: string }> {
+    return request('/drafts/save', { method: 'POST', body: JSON.stringify(data) })
+  },
+
+  // Dock badge
+  setDockBadge(count: number): Promise<void> {
+    return request(`/badge/${count}`, { method: 'POST' })
+  },
+
   // App config
   getConfig(): Promise<AppConfig> {
     return request('/config')

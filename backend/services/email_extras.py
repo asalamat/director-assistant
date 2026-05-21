@@ -415,6 +415,30 @@ class EmailExtrasMixin:
         )
         return self.add_account(cfg)
 
+    # ── Saved Searches ────────────────────────────────────────────────────────
+
+    def list_saved_searches(self) -> list[dict]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM saved_searches ORDER BY created_at DESC"
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def add_saved_search(self, name: str, query: str, folder: str = "INBOX") -> int:
+        with self._conn() as conn:
+            cur = conn.execute(
+                "INSERT INTO saved_searches (name, query, folder) VALUES (?,?,?)",
+                (name, query, folder),
+            )
+            return cur.lastrowid
+
+    def delete_saved_search(self, sid: int) -> bool:
+        with self._conn() as conn:
+            cur = conn.execute("DELETE FROM saved_searches WHERE id = ?", (sid,))
+        return cur.rowcount > 0
+
+    # ── Email account lookup ──────────────────────────────────────────────────
+
     def get_email_account(self, email_id: str) -> dict | None:
         with self._conn() as conn:
             row = conn.execute(

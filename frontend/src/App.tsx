@@ -131,6 +131,11 @@ export default function App() {
     return () => clearInterval(id)
   }, [])
 
+  // Feature 5: dock badge
+  useEffect(() => {
+    api.setDockBadge(unreadCount).catch(() => {})
+  }, [unreadCount])
+
   // Feature 7: poll overdue follow-ups for badge
   useEffect(() => {
     const check = () =>
@@ -446,6 +451,7 @@ export default function App() {
               onDelete={handleDelete}
               onSnooze={handleSnooze}
               onAsk={handleAskAboutEmail}
+              onSearch={(q) => refresh({ q })}
             />
 
             <AIPanel rec={rec} loading={recLoading} error={recError} email={email} />

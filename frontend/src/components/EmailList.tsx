@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import type { EmailSummary } from '../types'
 import type { SortBy, SortOrder } from '../hooks/useEmails'
+import { api } from '../api/client'
 
 interface Props {
   emails: EmailSummary[]
@@ -69,7 +70,31 @@ function replyDepth(subject: string): number {
 
 export function EmailList({ emails, selectedId, loading, hasMore, total, folders, currentFolder, onSelect, onLoadMore, onSearch, onSort, onFolderChange, sortBy, sortOrder }: Props) {
   const [query, setQuery] = useState('')
+  const [savedSearches, setSavedSearches] = useState<{ id: number; name: string; query: string; folder: string }[]>([])
   const sentinelRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    api.getSavedSearches().then(setSavedSearches).catch(() => {})
+  }, [])
+
+  const pinSearch = async () => {
+    if (!query.trim()) return
+    const name = prompt('Name this search:', query.trim())
+    if (!name) return
+    await api.createSavedSearch(name, query.trim(), currentFolder)
+    setSavedSearches(await api.getSavedSearches())
+  }
+
+  const deletePin = async (id: number) => {
+    await api.deleteSavedSearch(id)
+    setSavedSearches(prev => prev.filter(s => s.id !== id))
+  }
+
+  const runSaved = (s: { query: string; folder: string }) => {
+    setQuery(s.query)
+    onFolderChange(s.folder)
+    onSearch(s.query)
+  }
 
   useEffect(() => {
     const el = sentinelRef.current
@@ -139,7 +164,7 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
 
       {/* Search */}
       <div className="px-3 pt-3 pb-2 border-b border-gray-100 space-y-2">
-        <form onSubmit={handleSearch}>
+        <form onSubmit={handleSearch} className="flex gap-1">
           <input
             type="search"
             value={query}
@@ -148,9 +173,41 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
               if (!e.target.value) onSearch('')
             }}
             placeholder="Search emails…"
-            className="w-full bg-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+            className="flex-1 bg-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
           />
+          {query.trim() && (
+            <button
+              type="button"
+              onClick={pinSearch}
+              title="Pin this search"
+              className="text-gray-400 hover:text-accent px-2 rounded-lg hover:bg-gray-100"
+            >
+              📌
+            </button>
+          )}
         </form>
+        {/* Saved searches */}
+        {savedSearches.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {savedSearches.map(s => (
+              <div key={s.id} className="flex items-center gap-0.5 bg-blue-50 border border-blue-200 rounded-full pl-2 pr-1 py-0.5">
+                <button
+                  onClick={() => runSaved(s)}
+                  className="text-[10px] text-blue-700 font-medium max-w-[80px] truncate"
+                  title={s.query}
+                >
+                  {s.name}
+                </button>
+                <button
+                  onClick={() => deletePin(s.id)}
+                  className="text-blue-300 hover:text-red-400 text-[10px] px-0.5"
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
         {/* Sort controls */}
         <div className="flex items-center justify-between">
           <span className="text-xs text-gray-400">{total.toLocaleString()} emails</span>

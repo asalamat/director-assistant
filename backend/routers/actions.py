@@ -1,4 +1,7 @@
+import csv
+import io
 from fastapi import APIRouter, Request, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional, List
 
@@ -36,3 +39,19 @@ async def update_action(item_id: int, patch: ActionPatch, request: Request):
     if not cache.set_action_done(item_id, patch.done):
         raise HTTPException(404, "Action item not found")
     return {"ok": True}
+
+
+@router.get("/export.csv")
+async def export_actions_csv(request: Request):
+    items = request.app.state.cache.list_action_items()
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["id", "text", "email_subject", "done", "created_at"])
+    for a in items:
+        w.writerow([a.id, a.text, a.email_subject, "yes" if a.done else "no", a.created_at])
+    buf.seek(0)
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=action_items.csv"},
+    )
