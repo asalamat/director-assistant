@@ -12,6 +12,7 @@ import { HealthPanel } from './components/HealthPanel'
 import { AskPanel } from './components/AskPanel'
 import { HelpModal } from './components/HelpModal'
 import { IntelligencePanel } from './components/IntelligencePanel'
+import { ToastContainer, addToast } from './components/Toast'
 import { useEmails, useEmailDetail, useRecommendation } from './hooks/useEmails'
 import { api } from './api/client'
 import type { EmailSummary } from './types'
@@ -246,7 +247,9 @@ export default function App() {
             if (s?.poll?.last_checked !== prevChecked) {
               clearInterval(id)
               await mergeRefresh()
-              setRefreshMsg(newFound > 0 ? `+${newFound} new email${newFound !== 1 ? 's' : ''}` : 'Up to date')
+              const msg = newFound > 0 ? `+${newFound} new email${newFound !== 1 ? 's' : ''}` : 'Up to date'
+              setRefreshMsg(msg)
+              if (newFound > 0) addToast(msg, 'success')
               setTimeout(() => setRefreshMsg(''), 3000)
               resolve()
             }
@@ -355,6 +358,14 @@ export default function App() {
             <span>{exiting ? 'Quitting…' : 'Quit'}</span>
           </button>
         </div>
+      </div>
+
+      {/* Stats ribbon */}
+      <div className="h-6 flex items-center gap-3 px-4 bg-gray-50 border-b border-gray-100 text-[10px] text-gray-400 flex-shrink-0">
+        <span className="font-medium text-gray-500">{total.toLocaleString()} emails</span>
+        {unreadCount > 0 && <span className="text-accent font-semibold">{unreadCount} unread</span>}
+        {overdueCount > 0 && <span className="text-red-500 font-semibold">{overdueCount} overdue</span>}
+        <span className="ml-auto">{refreshMsg ? refreshMsg : ''}</span>
       </div>
 
       {/* Tab navigation */}
@@ -503,6 +514,7 @@ export default function App() {
 
       {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
       <StatusBar />
+      <ToastContainer />
     </div>
   )
 }

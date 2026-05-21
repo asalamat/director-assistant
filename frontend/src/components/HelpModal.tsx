@@ -112,8 +112,9 @@ function Features() {
 
       <H3>Analytics</H3>
       <P>
-        Charts and statistics: volume over time, top senders, folder breakdown. The overdue badge on the Actions
-        tab counts follow-ups past their due date. Use <strong>CSV</strong> to download the data.
+        Charts and statistics: <strong>activity heatmap</strong> (GitHub-style calendar), volume trend line,
+        top senders, and folder breakdown. The overdue badge on the Actions tab counts follow-ups past their
+        due date. Use <strong>CSV</strong> to download the data.
       </P>
 
       <H3>Templates</H3>
@@ -199,7 +200,8 @@ function KnowledgeBase() {
       <H3>People Graph</H3>
       <P>
         Shows all contacts extracted from your email corpus with interaction stats: emails received from,
-        sent to, last contact date, and recent subjects. Sort by relevance, volume, or recency.
+        sent to, last contact date, and recent subjects. Toggle between <strong>list</strong> and
+        <strong>network graph</strong> views (☰/◎ buttons). Sort by relevance, volume, or recency.
         Use this to identify who to reach out to first when joining a new team.
       </P>
 
@@ -262,8 +264,9 @@ function Tips() {
       <H3>Keep emails fresh</H3>
       <ul className="text-sm text-gray-600 space-y-2 mb-3 pl-4 list-disc">
         <li>The app polls for new emails every 60 seconds automatically.</li>
-        <li>Click <strong>Refresh</strong> in the toolbar for an immediate check.</li>
+        <li>Click <strong>Refresh</strong> in the toolbar for an immediate check. A green toast appears when new emails arrive.</li>
         <li>Use <strong>Import by subject</strong> to pull in a specific thread you know exists.</li>
+        <li>The <strong>stats ribbon</strong> below the toolbar shows email count, unread, and overdue at a glance.</li>
       </ul>
 
       <H3>Configure the sync window</H3>
@@ -393,7 +396,7 @@ export function HelpModal({ onClose }: Props) {
         {/* Footer */}
         <div className="px-6 py-3 border-t border-gray-100 bg-gray-50 flex items-center justify-between flex-shrink-0">
           <div>
-            <span className="text-xs text-gray-400">Director Assistant v2.6.0</span>
+            <span className="text-xs text-gray-400">Director Assistant v2.7.0</span>
             <span className="text-xs text-gray-300 mx-2">·</span>
             <a href="mailto:ali.salamat@cortexhq.ai" className="text-xs text-gray-400 hover:text-accent transition-colors">
               Ali Salamat

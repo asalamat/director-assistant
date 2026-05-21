@@ -15,6 +15,77 @@ function Bar({ value, max, label }: { value: number; max: number; label: string 
   )
 }
 
+function Heatmap({ data }: { data: { date: string; count: number }[] }) {
+  if (data.length === 0) return null
+  const map = new Map(data.map(d => [d.date, d.count]))
+  const max = Math.max(...data.map(d => d.count), 1)
+
+  // Build 15-week grid ending today
+  const today = new Date()
+  const weeks: Date[][] = []
+  const start = new Date(today)
+  // go back to the most recent Saturday (end of week)
+  start.setDate(start.getDate() + (6 - start.getDay()))
+  for (let w = 14; w >= 0; w--) {
+    const week: Date[] = []
+    for (let d = 6; d >= 0; d--) {
+      const day = new Date(start)
+      day.setDate(start.getDate() - w * 7 - d)
+      week.push(day)
+    }
+    weeks.push(week)
+  }
+
+  const cellColor = (count: number) => {
+    if (!count) return '#f3f4f6'
+    const t = count / max
+    if (t < 0.25) return '#dbeafe'
+    if (t < 0.5)  return '#93c5fd'
+    if (t < 0.75) return '#3b82f6'
+    return '#1d4ed8'
+  }
+
+  const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
+
+  return (
+    <div>
+      <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Email Heatmap</h3>
+      <div className="border border-gray-200 rounded-xl p-4">
+        <div className="flex gap-1">
+          <div className="flex flex-col gap-1 mr-1">
+            {DAY_LABELS.map((l, i) => (
+              <div key={i} className="w-3 h-3 flex items-center justify-center text-[8px] text-gray-400">{l}</div>
+            ))}
+          </div>
+          {weeks.map((week, wi) => (
+            <div key={wi} className="flex flex-col gap-1">
+              {week.map((day, di) => {
+                const ds = day.toISOString().slice(0, 10)
+                const count = map.get(ds) ?? 0
+                return (
+                  <div
+                    key={di}
+                    title={`${ds}: ${count} email${count !== 1 ? 's' : ''}`}
+                    className="w-3 h-3 rounded-sm cursor-default transition-opacity hover:opacity-70"
+                    style={{ backgroundColor: cellColor(count) }}
+                  />
+                )
+              })}
+            </div>
+          ))}
+        </div>
+        <div className="flex items-center gap-1.5 mt-2 text-[10px] text-gray-400">
+          <span>Less</span>
+          {['#f3f4f6', '#dbeafe', '#93c5fd', '#3b82f6', '#1d4ed8'].map(c => (
+            <div key={c} className="w-3 h-3 rounded-sm" style={{ backgroundColor: c }} />
+          ))}
+          <span>More</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function Sparkline({ data }: { data: { date: string; count: number }[] }) {
   if (data.length < 2) return <p className="text-xs text-gray-400">Not enough data</p>
   const max = Math.max(...data.map((d) => d.count), 1)
@@ -119,11 +190,14 @@ export function Analytics() {
             </div>
           </div>
 
+          {/* Heatmap */}
+          {data.daily_volume.length > 0 && <Heatmap data={data.daily_volume} />}
+
           {/* Volume sparkline */}
           {data.daily_volume.length > 0 && (
             <div>
               <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                Email Volume
+                Volume Trend
               </h3>
               <div className="border border-gray-200 rounded-xl p-3">
                 <Sparkline data={data.daily_volume} />

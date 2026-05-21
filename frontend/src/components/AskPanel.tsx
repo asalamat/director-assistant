@@ -158,7 +158,7 @@ export function AskPanel({ initialQuery, onClear }: { initialQuery?: string; onC
               }`}>
                 {msg.text}
                 {msg.streaming && (
-                  <span className="inline-block w-1.5 h-3.5 bg-gray-400 ml-0.5 animate-pulse rounded-sm align-middle" />
+                  <span className="inline-block text-gray-400 ml-0.5 align-middle animate-blink">▌</span>
                 )}
               </div>
               {msg.sources && msg.sources.length > 0 && (

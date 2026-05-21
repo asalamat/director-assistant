@@ -200,8 +200,8 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    console=False,       # no terminal window on Windows/macOS
-    icon=None,           # set to 'packaging/icon.icns' or 'icon.ico' if you add one
+    console=False,
+    icon=str(ROOT / "packaging" / "icon.icns"),
 )
 
 coll = COLLECT(
@@ -220,12 +220,12 @@ if sys.platform == "darwin":
     app = BUNDLE(
         coll,
         name="Director Assistant.app",
-        icon=None,          # set to 'packaging/icon.icns' if available
+        icon=str(ROOT / "packaging" / "icon.icns"),
         bundle_identifier="com.director-assistant.app",
         info_plist={
             "NSHighResolutionCapable": True,
-            "CFBundleShortVersionString": "2.6.0",
-            "CFBundleVersion": "2.6.0",
+            "CFBundleShortVersionString": "2.7.0",
+            "CFBundleVersion": "2.7.0",
             "LSMinimumSystemVersion": "12.0",
             "NSAppTransportSecurity": {"NSAllowsArbitraryLoads": True},
         },

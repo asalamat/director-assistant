@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- Background rounded rect -->
+  <rect width="1024" height="1024" rx="224" ry="224" fill="#1e40af"/>
+  <!-- Envelope body -->
+  <rect x="152" y="320" width="720" height="480" rx="48" ry="48" fill="white" opacity="0.95"/>
+  <!-- Envelope flap lines -->
+  <polyline points="152,320 512,580 872,320" fill="none" stroke="#dbeafe" stroke-width="32" stroke-linejoin="round"/>
+  <!-- AI sparkle star -->
+  <g transform="translate(680, 260)">
+    <polygon points="0,-64 14,-14 64,0 14,14 0,64 -14,14 -64,0 -14,-14" fill="#60a5fa"/>
+    <polygon points="0,-32 7,-7 32,0 7,7 0,32 -7,7 -32,0 -7,-7" fill="white"/>
+  </g>
+</svg>

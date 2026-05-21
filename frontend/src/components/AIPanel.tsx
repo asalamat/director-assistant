@@ -165,10 +165,10 @@ export function AIPanel({ rec, loading, error, email }: Props) {
     <div className="w-80 flex-shrink-0 bg-gray-50 border-l border-gray-200 flex flex-col overflow-y-auto">
       {/* Urgency + tone + follow-up button */}
       <div className="px-4 pt-4 flex gap-2 flex-wrap items-center">
-        <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${URGENCY_STYLES[rec.urgency] ?? 'bg-gray-100 text-gray-600'}`}>
+        <span className={`text-xs font-medium px-2.5 py-1 rounded-full animate-pop ${URGENCY_STYLES[rec.urgency] ?? 'bg-gray-100 text-gray-600'}`}>
           {rec.urgency.charAt(0).toUpperCase() + rec.urgency.slice(1)} urgency
         </span>
-        <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-600">
+        <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 animate-pop" style={{ animationDelay: '60ms' }}>
           {TONE_ICON[rec.tone] ?? '📄'} {rec.tone}
         </span>
         <button

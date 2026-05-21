@@ -58,9 +58,31 @@ export function EmailViewer({ email, loading, onAnalyze, analyzing, onDelete, on
 
   if (!email) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center bg-white gap-2">
-        <div className="text-4xl">✉️</div>
-        <p className="text-gray-400 text-sm">Select an email to read it</p>
+      <div className="flex-1 flex flex-col items-center justify-center bg-white gap-4">
+        <div className="relative">
+          <div className="w-20 h-20 rounded-2xl bg-accent/10 flex items-center justify-center animate-float">
+            <svg className="w-10 h-10 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+          </div>
+          <div className="absolute -top-1 -right-1 w-5 h-5 bg-accent rounded-full flex items-center justify-center animate-pulse">
+            <span className="text-white text-[9px] font-bold">✦</span>
+          </div>
+        </div>
+        <div className="text-center space-y-1">
+          <p className="text-sm font-medium text-gray-700">Select an email</p>
+          <p className="text-xs text-gray-400">AI analysis, replies, and insights await</p>
+        </div>
+        <div className="flex gap-3 text-xs text-gray-400 mt-1">
+          <span className="flex items-center gap-1">
+            <kbd className="px-1.5 py-0.5 bg-gray-100 rounded text-[10px] font-mono">j/k</kbd>
+            navigate
+          </span>
+          <span className="flex items-center gap-1">
+            <kbd className="px-1.5 py-0.5 bg-gray-100 rounded text-[10px] font-mono">a</kbd>
+            analyze
+          </span>
+        </div>
       </div>
     )
   }
