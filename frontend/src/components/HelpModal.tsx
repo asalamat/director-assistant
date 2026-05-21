@@ -220,6 +220,31 @@ function KnowledgeBase() {
 function Tips() {
   return (
     <div>
+      <H3>Keyboard shortcuts</H3>
+      <ul className="text-sm text-gray-600 space-y-1 mb-3 pl-4 list-disc">
+        <li><strong>j / k</strong> — navigate to the next / previous email</li>
+        <li><strong>a</strong> — run AI Analysis on the selected email</li>
+        <li><strong>Esc</strong> — deselect / close the current email</li>
+      </ul>
+
+      <H3>Snooze an email</H3>
+      <P>
+        Click the <strong>Snooze</strong> (clock) button in the email viewer to hide an email until a chosen date.
+        It will reappear automatically when you refresh on or after that date.
+      </P>
+
+      <H3>Ask about a specific email</H3>
+      <P>
+        While reading an email, click the <strong>Ask</strong> (chat) button to jump to the Ask tab with a
+        pre-filled question about that email. Great for quickly getting context or drafting a reply strategy.
+      </P>
+
+      <H3>Priority labels in the inbox</H3>
+      <P>
+        Emails are automatically tagged <strong>urgent</strong>, <strong>action</strong>, or <strong>finance</strong>
+        based on keywords in the subject and preview — no configuration needed.
+      </P>
+
       <H3>Keep emails fresh</H3>
       <ul className="text-sm text-gray-600 space-y-2 mb-3 pl-4 list-disc">
         <li>The app polls for new emails every 60 seconds automatically.</li>
@@ -328,7 +353,13 @@ export function HelpModal({ onClose }: Props) {
 
         {/* Footer */}
         <div className="px-6 py-3 border-t border-gray-100 bg-gray-50 flex items-center justify-between flex-shrink-0">
-          <span className="text-xs text-gray-400">Director Assistant v2.1</span>
+          <div>
+            <span className="text-xs text-gray-400">Director Assistant v2.5.1</span>
+            <span className="text-xs text-gray-300 mx-2">·</span>
+            <a href="mailto:ali.salamat@cortexhq.ai" className="text-xs text-gray-400 hover:text-accent transition-colors">
+              Ali Salamat
+            </a>
+          </div>
           <button
             onClick={onClose}
             className="text-xs bg-accent text-white px-4 py-1.5 rounded-lg hover:bg-blue-700 transition-colors"
