@@ -68,7 +68,9 @@ export function StatusBar() {
           ))}
           <span className="text-xs text-gray-400 ml-auto whitespace-nowrap flex-shrink-0 flex items-center gap-2">
             {poll.last_error ? (
-              <span className="text-red-500" title={poll.last_error}>⚠ Poll error</span>
+              <span className="text-red-500 max-w-xs truncate" title={poll.last_error}>
+                ⚠ {poll.last_error.length > 60 ? poll.last_error.slice(0, 60) + '…' : poll.last_error}
+              </span>
             ) : poll.last_checked ? (
               <span>Checked {timeAgo(poll.last_checked)}</span>
             ) : (

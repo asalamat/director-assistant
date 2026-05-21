@@ -195,33 +195,47 @@ async def _run_poll_cycle(rag: RAGEngine, cache: EmailCache) -> tuple[int, list[
     new_total = 0
     errors: list[str] = []
     for account_id, provider in providers_to_check:
-        try:
-            full_sweep = (account_id in never_ingested_ids) or (account_id == 0 and legacy_needs_full_sweep)
-            if full_sweep:
-                print(f"[poll] account {account_id} has never been fully ingested — running full sweep")
-            for folder in _get_ingest_folders(account_id, provider):
-                new_total += await loop.run_in_executor(
-                    None, check_folder, account_id, provider, folder, full_sweep
-                )
-            if full_sweep:
-                if account_id != 0:
-                    cache.mark_ingested(account_id)
-                else:
-                    _LEGACY_INGESTED_FLAG.touch(exist_ok=True)
-                print(f"[poll] account {account_id} full sweep complete — marked as ingested")
-        except Exception as e:
-            if _is_connection_error(e):
-                _evict_provider(account_id)   # next cycle will reconnect
-                # For OAuth accounts, try refreshing the token so the next
-                # reconnect uses a valid credential.
-                acc_obj = next((a for a in all_accounts if a.id == account_id), None)
-                if acc_obj and acc_obj.access_token:
-                    new_token = cache.refresh_oauth_token(account_id)
-                    if new_token:
-                        print(f"[poll] refreshed oauth token for account {account_id}", flush=True)
-            msg = f"account {account_id}: {type(e).__name__}: {e}"
-            print(f"[poll] {msg}")
-            errors.append(msg)
+        acc_obj = next((a for a in all_accounts if a.id == account_id), None)
+        # Up to 2 attempts: if stale connection (NONAUTH/EOF/etc) reconnect and retry once.
+        for attempt in range(2):
+            try:
+                full_sweep = (account_id in never_ingested_ids) or (account_id == 0 and legacy_needs_full_sweep)
+                if full_sweep and attempt == 0:
+                    print(f"[poll] account {account_id} has never been fully ingested — running full sweep")
+                for folder in _get_ingest_folders(account_id, provider):
+                    new_total += await loop.run_in_executor(
+                        None, check_folder, account_id, provider, folder, full_sweep
+                    )
+                if full_sweep:
+                    if account_id != 0:
+                        cache.mark_ingested(account_id)
+                    else:
+                        _LEGACY_INGESTED_FLAG.touch(exist_ok=True)
+                    print(f"[poll] account {account_id} full sweep complete — marked as ingested")
+                break  # success — exit retry loop
+            except Exception as e:
+                if attempt == 0 and _is_connection_error(e):
+                    print(f"[poll] stale connection for account {account_id} ({e}) — reconnecting")
+                    _evict_provider(account_id)
+                    # For OAuth accounts refresh the token before reconnecting
+                    if acc_obj and acc_obj.access_token:
+                        new_token = cache.refresh_oauth_token(account_id)
+                        if new_token:
+                            print(f"[poll] refreshed oauth token for account {account_id}", flush=True)
+                    # Build fresh provider for retry
+                    try:
+                        provider = _get_provider(account_id, acc_obj) if acc_obj else None
+                        if provider is None:
+                            raise RuntimeError("no provider")
+                        _folder_cache.pop(account_id, None)  # clear folder cache too
+                        continue  # retry with fresh connection
+                    except Exception as conn_e:
+                        errors.append(f"account {account_id}: reconnect failed: {conn_e}")
+                        break
+                msg = f"account {account_id}: {type(e).__name__}: {e}"
+                print(f"[poll] {msg}")
+                errors.append(msg)
+                break
 
     if new_total > 0:
         rag.flush_bm25()
