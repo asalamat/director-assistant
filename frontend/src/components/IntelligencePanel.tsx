@@ -481,8 +481,8 @@ export function IntelligencePanel() {
       </div>
 
       {/* Tab content */}
-      <div className="flex-1 overflow-hidden">
-        {activeTab === 'briefing'  && <div className="h-full overflow-y-auto"><BriefingTab /></div>}
+      <div className="flex-1 overflow-hidden min-h-0">
+        {activeTab === 'briefing'  && <div className="h-full overflow-y-auto min-h-0"><BriefingTab /></div>}
         {activeTab === 'people'    && <PeopleTab />}
         {activeTab === 'loops'     && <LoopsTab />}
         {activeTab === 'projects'  && <ProjectsTab onSelectCluster={handleSelectCluster} />}

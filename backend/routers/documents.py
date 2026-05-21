@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 from pathlib import Path
 from typing import List
@@ -7,6 +8,8 @@ from pydantic import BaseModel
 
 from routers.config import load_app_config, save_app_config
 from services.document_ingestor import ingest_folder, get_progress
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/documents", tags=["documents"])
 
@@ -146,6 +149,40 @@ async def reingest_force(background_tasks: BackgroundTasks, request: Request):
 
     background_tasks.add_task(_run)
     return {"status": "started", "folders": folders, "force": True}
+
+
+_reindex_email_status: dict = {"status": "idle", "indexed": 0}
+
+
+@router.post("/reindex-emails")
+async def reindex_emails(background_tasks: BackgroundTasks, request: Request):
+    """Wipe the in-memory email index and re-embed all emails from SQLite cache.
+    Use after rebuilding the ChromaDB directory to restore full vector coverage.
+    """
+    global _reindex_email_status
+    if _reindex_email_status["status"] == "running":
+        raise HTTPException(409, "Email reindex already running")
+
+    rag = request.app.state.rag
+
+    def _run():
+        global _reindex_email_status
+        _reindex_email_status = {"status": "running", "indexed": 0}
+        try:
+            total = rag.reindex_all_emails()
+            _reindex_email_status = {"status": "done", "indexed": total}
+            logger.info(f"[reindex] email reindex complete — {total} emails re-embedded")
+        except Exception as e:
+            _reindex_email_status = {"status": "error", "error": str(e), "indexed": 0}
+            logger.error(f"[reindex] email reindex failed: {e}")
+
+    background_tasks.add_task(_run)
+    return {"status": "started"}
+
+
+@router.get("/reindex-emails/status")
+async def reindex_emails_status():
+    return _reindex_email_status
 
 
 @router.get("")

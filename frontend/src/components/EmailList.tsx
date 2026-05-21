@@ -154,8 +154,12 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
           <button
             key={email.id}
             onClick={() => onSelect(email)}
-            className={`w-full text-left px-3 py-3 flex gap-3 hover:bg-gray-50 transition-colors border-b border-gray-50 ${
-              selectedId === email.id ? 'bg-blue-50 border-l-2 border-l-accent' : ''
+            className={`w-full text-left px-3 py-3 flex gap-3 transition-colors border-b border-gray-50 ${
+              selectedId === email.id
+                ? 'bg-blue-50 border-l-2 border-l-accent'
+                : !email.is_read
+                ? 'bg-amber-50 border-l-2 border-l-amber-400 hover:bg-amber-100'
+                : 'hover:bg-gray-50'
             }`}
           >
             {/* Avatar */}
@@ -168,12 +172,12 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
             {/* Content */}
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between gap-1">
-                <span className={`text-sm truncate ${!email.is_read ? 'font-semibold text-gray-900' : 'text-gray-700'}`}>
+                <span className={`text-sm truncate ${!email.is_read ? 'font-bold text-gray-900' : 'text-gray-700'}`}>
                   {email.sender.replace(/<[^>]+>/, '').trim() || email.sender}
                 </span>
                 <span className="text-xs text-gray-400 flex-shrink-0">{formatDate(email.date)}</span>
               </div>
-              <div className={`text-xs truncate mt-0.5 ${!email.is_read ? 'font-medium text-gray-800' : 'text-gray-600'}`}>
+              <div className={`text-xs truncate mt-0.5 ${!email.is_read ? 'font-semibold text-gray-800' : 'text-gray-600'}`}>
                 {email.subject || '(no subject)'}
               </div>
               <div className="text-xs text-gray-400 truncate mt-0.5">{email.preview}</div>

@@ -10,6 +10,7 @@ export function TemplatesPanel({ onInsert }: Props) {
   const [templates, setTemplates] = useState<Template[]>([])
   const [editing, setEditing] = useState<Template | null>(null)
   const [draft, setDraft] = useState<Template>({ name: '', body: '' })
+  const [formOpen, setFormOpen] = useState(false)
 
   const reload = async () => setTemplates(await api.getTemplates())
 
@@ -24,12 +25,14 @@ export function TemplatesPanel({ onInsert }: Props) {
     }
     setEditing(null)
     setDraft({ name: '', body: '' })
+    setFormOpen(false)
     reload()
   }
 
   const startEdit = (t: Template) => {
     setEditing(t)
     setDraft({ name: t.name, body: t.body })
+    setFormOpen(true)
   }
 
   const del = async (id: number) => {
@@ -42,7 +45,7 @@ export function TemplatesPanel({ onInsert }: Props) {
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
         <h2 className="text-sm font-semibold text-gray-800">Reply Templates</h2>
         <button
-          onClick={() => { setEditing(null); setDraft({ name: '', body: '' }) }}
+          onClick={() => { setEditing(null); setDraft({ name: '', body: '' }); setFormOpen(true) }}
           className="text-xs bg-accent text-white px-2.5 py-1 rounded hover:bg-blue-700"
         >
           + New
@@ -51,7 +54,7 @@ export function TemplatesPanel({ onInsert }: Props) {
 
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {/* Editor */}
-        {(editing !== null || draft.name !== '' || draft.body !== '') && (
+        {formOpen && (
           <div className="border border-accent rounded-xl p-3 space-y-2 bg-blue-50">
             <input
               value={draft.name}
@@ -74,7 +77,7 @@ export function TemplatesPanel({ onInsert }: Props) {
                 {editing?.id ? 'Update' : 'Save'}
               </button>
               <button
-                onClick={() => { setEditing(null); setDraft({ name: '', body: '' }) }}
+                onClick={() => { setEditing(null); setDraft({ name: '', body: '' }); setFormOpen(false) }}
                 className="text-xs border border-gray-300 text-gray-600 px-3 py-1.5 rounded hover:bg-gray-50"
               >
                 Cancel
@@ -84,7 +87,7 @@ export function TemplatesPanel({ onInsert }: Props) {
         )}
 
         {/* Template list */}
-        {templates.length === 0 && !draft.name && !draft.body && (
+        {templates.length === 0 && !formOpen && (
           <p className="text-sm text-gray-400 text-center py-12">
             No templates yet. Create one to save reusable replies.
           </p>

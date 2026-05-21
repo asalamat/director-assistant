@@ -64,6 +64,8 @@ export function Settings({ onConnected, initialTab = 'accounts' }: Props) {
   const [docMsg, setDocMsg] = useState('')
   const [docCount, setDocCount] = useState<number | null>(null)
   const [showFolderPicker, setShowFolderPicker] = useState(false)
+  const [emailReindexing, setEmailReindexing] = useState(false)
+  const [emailReindexMsg, setEmailReindexMsg] = useState('')
 
   // Microsoft OAuth2 device flow state
   const [hotmailMode, setHotmailMode] = useState<'password' | 'oauth'>('password')
@@ -406,6 +408,36 @@ export function Settings({ onConnected, initialTab = 'accounts' }: Props) {
             </button>
             {docMsg && (
               <p className={`text-xs ${docMsg.toLowerCase().includes('fail') || docMsg.toLowerCase().includes('error') ? 'text-red-500' : 'text-green-600'}`}>{docMsg}</p>
+            )}
+
+            <button
+              onClick={async () => {
+                setEmailReindexing(true); setEmailReindexMsg('')
+                try {
+                  await api.reindexEmails()
+                  let waited = 0
+                  const id = setInterval(async () => {
+                    waited += 2000
+                    const s = await api.getReindexEmailsStatus().catch(() => null)
+                    if (!s || s.status !== 'running') {
+                      clearInterval(id)
+                      setEmailReindexMsg(s?.status === 'done' ? `Done — ${s.indexed} emails re-indexed` : s?.error || 'Done')
+                      setEmailReindexing(false)
+                    }
+                    if (waited > 300000) { clearInterval(id); setEmailReindexing(false) }
+                  }, 2000)
+                } catch (e: unknown) {
+                  setEmailReindexMsg(e instanceof Error ? e.message : 'Failed')
+                  setEmailReindexing(false)
+                }
+              }}
+              disabled={emailReindexing}
+              className="w-full border border-gray-300 text-gray-600 text-sm font-medium py-2 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+            >
+              {emailReindexing ? 'Rebuilding email index…' : 'Rebuild Email Index'}
+            </button>
+            {emailReindexMsg && (
+              <p className={`text-xs ${emailReindexMsg.toLowerCase().includes('fail') || emailReindexMsg.toLowerCase().includes('error') ? 'text-red-500' : 'text-green-600'}`}>{emailReindexMsg}</p>
             )}
           </div>
         )}

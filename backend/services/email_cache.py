@@ -390,6 +390,21 @@ class EmailCache(EmailExtrasMixin):
             ).fetchall()
         return {r["server_id"]: r["id"] for r in rows if r["server_id"]}
 
+    def iter_all_emails(self, batch_size: int = 200):
+        """Yield batches of all emails from SQLite for bulk reindexing."""
+        offset = 0
+        while True:
+            with self._conn() as conn:
+                rows = conn.execute(
+                    "SELECT id, subject, sender, recipients, date, body, body_html,"
+                    " thread_id, folder, is_read FROM emails ORDER BY rowid LIMIT ? OFFSET ?",
+                    (batch_size, offset),
+                ).fetchall()
+            if not rows:
+                break
+            yield [self._to_message(dict(r)) for r in rows]
+            offset += batch_size
+
     def delete_email(self, email_id: str) -> bool:
         """Remove email and its FTS entry. Returns True if it existed."""
         with self._conn() as conn:

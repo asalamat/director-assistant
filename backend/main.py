@@ -166,12 +166,19 @@ async def _run_poll_cycle(rag: RAGEngine, cache: EmailCache) -> tuple[int, list[
             fetch_fn = lambda: provider.fetch_all(folder=folder, batch_size=POLL_RECENT_N, from_date=since_dt)
 
         buffer = []
-        for email, _ in fetch_fn():
-            if account_id:
-                email.server_id = email.id
-                email.id = f"a{account_id}_{email.id}"
-            if email.id not in known_ids:
-                buffer.append(email)
+        try:
+            for email, _ in fetch_fn():
+                if account_id:
+                    email.server_id = email.id
+                    email.id = f"a{account_id}_{email.id}"
+                if email.id not in known_ids:
+                    buffer.append(email)
+        except Exception as e:
+            import imaplib as _imap
+            if isinstance(e, (_imap.IMAP4.abort, _imap.IMAP4.error)):
+                raise  # let outer handler reconnect on next cycle
+            print(f"[poll] fetch interrupted account={account_id} folder={folder}: {e} "
+                  f"— saving {len(buffer)} emails fetched so far")
 
         count = 0
         if buffer:
@@ -329,6 +336,7 @@ async def stats(request: Request):
 
     from routers.connection import _progress
     accounts = cache.list_accounts()
+    cfg = load_app_config()
     return {
         "rag": {
             "total_chunks": rag_stats["total_chunks"],
@@ -343,7 +351,7 @@ async def stats(request: Request):
             "message": _progress.message,
         },
         "poll": {
-            "interval_seconds": NEW_EMAIL_POLL_SECONDS,
+            "interval_seconds": cfg.get("poll_interval_seconds", NEW_EMAIL_POLL_SECONDS),
             "last_checked": _last_poll_time,
             "last_new": _last_poll_new,
             "last_error": _last_poll_error,

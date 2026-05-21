@@ -217,6 +217,12 @@ export const api = {
   listDocuments(): Promise<{ documents: { doc_id: string; filename: string; file_type: string; file_path: string; modified_at: string; chunk_total: number }[]; total: number }> {
     return request('/documents')
   },
+  reindexEmails(): Promise<{ status: string }> {
+    return request('/documents/reindex-emails', { method: 'POST' })
+  },
+  getReindexEmailsStatus(): Promise<{ status: string; indexed: number; error?: string }> {
+    return request('/documents/reindex-emails/status')
+  },
 
   // App config
   getConfig(): Promise<AppConfig> {

@@ -1,6 +1,7 @@
 """
 Role-transition intelligence: briefing, people graph, open loops, project clusters.
 """
+import asyncio
 import json
 import re
 import time
@@ -117,9 +118,8 @@ class IntelligenceService:
             return []
 
         batches = [rows[i:i+25] for i in range(0, min(len(rows), 150), 25)]
-        all_loops: list[dict] = []
 
-        for batch in batches:
+        async def process_batch(batch) -> list[dict]:
             text_blocks = []
             for row in batch:
                 snip = (row["body"] or "")[:300].replace("\n", " ")
@@ -140,7 +140,6 @@ class IntelligenceService:
                 "- urgency: 'high' | 'medium' | 'low'\n\n"
                 "Emails:\n" + "\n---\n".join(text_blocks)
             )
-
             try:
                 resp = await self.ai.messages.create(
                     model="claude-haiku-4-5-20251001",
@@ -152,9 +151,13 @@ class IntelligenceService:
                 if m:
                     items = json.loads(m.group())
                     if isinstance(items, list):
-                        all_loops.extend(items)
+                        return items
             except Exception as e:
                 logger.warning(f"[intelligence] open_loops batch failed: {e}")
+            return []
+
+        results = await asyncio.gather(*[process_batch(b) for b in batches])
+        all_loops = [item for batch_result in results for item in batch_result]
 
         _store("open_loops", all_loops)
         return all_loops
@@ -264,13 +267,14 @@ class IntelligenceService:
             ]
             yield evt("people", lines)
 
-        yield evt("status", "Identifying active projects…")
-        clusters = await self.get_clusters()
+        yield evt("status", "Identifying projects and scanning commitments…")
+        clusters, loops = await asyncio.gather(
+            self.get_clusters(),
+            self.get_open_loops(max_emails=150),
+        )
         if clusters:
             yield evt("projects", clusters)
 
-        yield evt("status", "Scanning for open commitments…")
-        loops = await self.get_open_loops(max_emails=150)
         if loops:
             high = [l for l in loops if l.get("urgency") == "high"]
             others = [l for l in loops if l.get("urgency") != "high"]

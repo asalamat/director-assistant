@@ -264,6 +264,9 @@ class IMAPProvider:
                     self._mail.authenticate(
                         "PLAIN", lambda _: creds
                     )
+        except Exception:
+            self._mail = None  # never leave a stale unauthenticated connection
+            raise
         finally:
             _socket.setdefaulttimeout(old)
 
@@ -280,19 +283,27 @@ class IMAPProvider:
         self.disconnect()
         return True
 
+    @staticmethod
+    def _seen_from_header(header: str) -> bool:
+        """Return True if the IMAP FLAGS response contains \\Seen."""
+        m = re.search(r'FLAGS\s*\(([^)]*)\)', header, re.IGNORECASE)
+        if not m:
+            return True  # unknown — assume read
+        return r'\Seen' in m.group(1) or '\\seen' in m.group(1).lower()
+
     def _imap_op(self, fn):
         """Run fn() with one automatic reconnect if the server dropped the connection."""
         if self._mail is None:
             self.connect()
         try:
             return fn()
-        except (imaplib.IMAP4.abort, SystemError):
-            # SystemError covers Python 3.13 PyMemoryView_FromBuffer bug on bad IMAP responses
+        except (imaplib.IMAP4.abort, imaplib.IMAP4.error, SystemError):
+            # imaplib.IMAP4.error covers NONAUTH/stale-state errors; SystemError covers Python 3.13 bug
             self._mail = None
             self.connect()
             return fn()
 
-    def _parse_message(self, raw: bytes, uid: str, folder: str) -> EmailMessage:
+    def _parse_message(self, raw: bytes, uid: str, folder: str, is_read: bool = True) -> EmailMessage:
         msg = email_lib.message_from_bytes(raw)
         subject = _decode_mime_header(msg.get("Subject", ""))
         from_raw = msg.get("From", "")
@@ -326,7 +337,7 @@ class IMAPProvider:
             body_html=html_body,
             thread_id=thread_id,
             folder=folder,
-            is_read=True,
+            is_read=is_read,
         )
 
     def list_folders(self) -> List[str]:
@@ -408,14 +419,14 @@ class IMAPProvider:
         if not recent:
             return
         uid_str = b",".join(recent).decode()
-        _, fetch_data = self._mail.uid("FETCH", uid_str, "(RFC822)")
+        _, fetch_data = self._mail.uid("FETCH", uid_str, "(FLAGS RFC822)")
         for item in fetch_data:
             if isinstance(item, tuple):
                 header = item[0].decode()
                 uid_match = re.search(r"UID (\d+)", header)
                 uid = uid_match.group(1) if uid_match else header.split()[0]
                 try:
-                    yield self._parse_message(item[1], uid, folder), total
+                    yield self._parse_message(item[1], uid, folder, self._seen_from_header(header)), total
                 except Exception as e:
                     print(f"[provider] parse error uid={uid}: {e}")
 
@@ -452,31 +463,41 @@ class IMAPProvider:
             batch = uids[i: i + batch_size]
             uid_str = b",".join(batch).decode()
             try:
-                _, fetch_data = self._mail.uid("FETCH", uid_str, "(RFC822)")
-            except (imaplib.IMAP4.abort, SystemError):
+                _, fetch_data = self._mail.uid("FETCH", uid_str, "(FLAGS RFC822)")
+            except imaplib.IMAP4.abort:
                 self._mail = None
                 self.connect()
                 self._mail.select(f'"{folder}"')
+                _, fetch_data = self._mail.uid("FETCH", uid_str, "(FLAGS RFC822)")
+            except (SystemError, ValueError):
+                # Python 3.13 memoryview bug in batch response — fall back to one-at-a-time
                 fetch_data = []
                 for single_uid in batch:
+                    if self._mail is None:
+                        break
                     try:
-                        _, d = self._mail.uid("FETCH", single_uid.decode(), "(RFC822)")
+                        _, d = self._mail.uid("FETCH", single_uid.decode(), "(FLAGS RFC822)")
                         fetch_data.extend(d)
-                    except (imaplib.IMAP4.abort, SystemError):
-                        self._mail = None
-                        self.connect()
-                        self._mail.select(f'"{folder}"')
+                    except imaplib.IMAP4.abort:
+                        try:
+                            self._mail = None
+                            self.connect()
+                            self._mail.select(f'"{folder}"')
+                        except Exception:
+                            break
+                    except (SystemError, ValueError):
+                        pass  # skip this one email, continue with the rest
                     except Exception:
                         pass
             for item in fetch_data:
                 if isinstance(item, tuple):
-                    header = item[0].decode()
-                    uid_match = re.search(r"UID (\d+)", header)
-                    uid = uid_match.group(1) if uid_match else header.split()[0]
                     try:
-                        yield self._parse_message(item[1], uid, folder), total
+                        header = item[0].decode()
+                        uid_match = re.search(r"UID (\d+)", header)
+                        uid = uid_match.group(1) if uid_match else header.split()[0]
+                        yield self._parse_message(item[1], uid, folder, self._seen_from_header(header)), total
                     except Exception as e:
-                        print(f"[fetch_all] parse error uid={uid} folder={folder}: {e}")
+                        print(f"[fetch_all] parse/decode error folder={folder}: {e}")
 
     def fetch_recent_n(self, folder: str = "INBOX", n: int = 50, from_date=None):
         """Fetch the N most recent emails using stable UIDs."""
@@ -495,40 +516,50 @@ class IMAPProvider:
 
         uid_str = b",".join(recent).decode()
         try:
-            _, fetch_data = self._mail.uid("FETCH", uid_str, "(RFC822)")
-        except (imaplib.IMAP4.abort, SystemError):
-            # Batch fetch failed — reconnect and fall back to one-at-a-time
+            _, fetch_data = self._mail.uid("FETCH", uid_str, "(FLAGS RFC822)")
+        except imaplib.IMAP4.abort:
             self._mail = None
             self.connect()
             self._mail.select(f'"{folder}"')
+            _, fetch_data = self._mail.uid("FETCH", uid_str, "(FLAGS RFC822)")
+        except (SystemError, ValueError):
+            # Python 3.13 memoryview bug in batch response — fall back to one-at-a-time
+            # on the SAME connection (the connection itself is fine)
             fetch_data = []
             for single_uid in recent:
+                if self._mail is None:
+                    break
                 try:
-                    _, d = self._mail.uid("FETCH", single_uid.decode(), "(RFC822)")
+                    _, d = self._mail.uid("FETCH", single_uid.decode(), "(FLAGS RFC822)")
                     fetch_data.extend(d)
-                except (imaplib.IMAP4.abort, SystemError):
-                    self._mail = None
-                    self.connect()
-                    self._mail.select(f'"{folder}"')
+                except imaplib.IMAP4.abort:
+                    try:
+                        self._mail = None
+                        self.connect()
+                        self._mail.select(f'"{folder}"')
+                    except Exception:
+                        break
+                except (SystemError, ValueError):
+                    pass  # skip this one email, continue with the rest
                 except Exception:
                     pass
         for item in fetch_data:
             if isinstance(item, tuple):
-                # UID FETCH response format: "N (UID uid FLAGS ...)"
-                header = item[0].decode()
-                uid_match = re.search(r"UID (\d+)", header)
-                uid = uid_match.group(1) if uid_match else header.split()[0]
                 try:
-                    yield self._parse_message(item[1], uid, folder), total
+                    header = item[0].decode()
+                    uid_match = re.search(r"UID (\d+)", header)
+                    uid = uid_match.group(1) if uid_match else header.split()[0]
+                    yield self._parse_message(item[1], uid, folder, self._seen_from_header(header)), total
                 except Exception as e:
-                    print(f"[fetch_recent_n] parse error uid={uid} folder={folder}: {e}")
+                    print(f"[fetch_recent_n] parse/decode error folder={folder}: {e}")
 
     def fetch_one(self, uid: str, folder: str = "INBOX") -> Optional[EmailMessage]:
         def _op():
             self._mail.select(f'"{folder}"')
-            _, data = self._mail.uid("FETCH", uid, "(RFC822)")
+            _, data = self._mail.uid("FETCH", uid, "(FLAGS RFC822)")
             for item in data:
                 if isinstance(item, tuple):
-                    return self._parse_message(item[1], uid, folder)
+                    header = item[0].decode()
+                    return self._parse_message(item[1], uid, folder, self._seen_from_header(header))
             return None
         return self._imap_op(_op)

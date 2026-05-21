@@ -420,6 +420,14 @@ class RAGEngine:
 
         return new_count
 
+    def reindex_all_emails(self) -> int:
+        """Clear in-memory email ID set and re-embed every email from SQLite cache."""
+        self._indexed_email_ids.clear()
+        total = 0
+        for batch in self._cache.iter_all_emails(batch_size=200):
+            total += self.ingest_batch(batch)
+        return total
+
     def is_document_current(self, doc_id: str, mtime: str) -> bool:
         """True if this exact doc version is already indexed."""
         return self._indexed_doc_ids.get(doc_id) == mtime
