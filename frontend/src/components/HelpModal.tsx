@@ -80,34 +80,48 @@ function Features() {
       <P>Browse all your ingested emails. Click any email to read it in the right panel.</P>
       <ul className="text-sm text-gray-600 space-y-1 mb-3 pl-4 list-disc">
         <li><strong>Search:</strong> type in the search box — uses AI semantic search + full-text</li>
-        <li><strong>Sort:</strong> click the sort icon to sort by date, sender, or subject</li>
+        <li><strong>Pin search (📌):</strong> save any search query as a reusable smart folder</li>
+        <li><strong>Priority labels:</strong> emails tagged <em>urgent</em>, <em>action</em>, or <em>finance</em> automatically</li>
+        <li><strong>Thread indicator (↩):</strong> shows reply depth on threaded emails</li>
+        <li><strong>Sort:</strong> sort by date, sender, or subject</li>
         <li><strong>Refresh:</strong> pulls new emails from the server without a full re-ingest</li>
         <li><strong>Import:</strong> find a specific email by pasting its subject line</li>
-        <li><strong>Delete:</strong> removes an email from the local cache only (not from your mail server)</li>
+        <li><strong>Delete / Snooze:</strong> delete removes from local cache; snooze hides until a chosen date</li>
+      </ul>
+
+      <H3>Email Viewer</H3>
+      <ul className="text-sm text-gray-600 space-y-1 mb-3 pl-4 list-disc">
+        <li><strong>AI Analysis:</strong> get reply suggestions, action items, key points, and urgency</li>
+        <li><strong>Ask:</strong> jump to Ask tab with context pre-filled about this email</li>
+        <li><strong>Snooze:</strong> hide until a date you choose; reappears on next refresh</li>
+        <li><strong>Sender name:</strong> click to open a contact card with history and stats</li>
+        <li><strong>Reply suggestions → Draft:</strong> save a reply directly to your IMAP Drafts folder</li>
       </ul>
 
       <H3>Brief <Badge color="green">AI digest</Badge></H3>
       <P>
-        Generates an AI summary of your most important recent emails. Click <strong>Generate Brief</strong> and the
-        app reads your recent inbox and produces a concise executive summary with key points and action items.
+        Generates an AI summary of your most important recent emails. Auto-runs once per day on first visit.
+        Click <strong>Generate Brief</strong> to refresh. Results are cached for 10 minutes.
       </P>
 
       <H3>Actions</H3>
       <P>
-        Tracks to-do items extracted from your emails. When AI analyzes an email it may suggest action items —
-        these appear here. Mark them done as you complete them.
+        Tracks to-do items extracted from your emails. Action items are saved automatically when AI analyzes
+        an email. Mark done as you complete them. Use the <strong>CSV</strong> button to export to a spreadsheet.
       </P>
 
       <H3>Analytics</H3>
       <P>
-        Charts and statistics about your email patterns: volume over time, top senders, response times, and
-        category breakdown. Useful for understanding where your email time goes.
+        Charts and statistics: volume over time, top senders, folder breakdown. The overdue badge on the Actions
+        tab counts follow-ups past their due date. Use <strong>CSV</strong> to download the data.
       </P>
 
       <H3>Templates</H3>
       <P>
-        Save frequently-used reply templates. Create a template once, then paste it into any reply to save time
-        on repetitive responses.
+        Save frequently-used reply templates. Use variables: <code className="bg-gray-100 px-1 rounded text-xs">{'{subject}'}</code>,{' '}
+        <code className="bg-gray-100 px-1 rounded text-xs">{'{sender}'}</code>,{' '}
+        <code className="bg-gray-100 px-1 rounded text-xs">{'{name}'}</code>,{' '}
+        <code className="bg-gray-100 px-1 rounded text-xs">{'{date}'}</code> to auto-fill content.
       </P>
 
       <H3>Health <Badge color="purple">Status</Badge></H3>
@@ -277,6 +291,31 @@ function Tips() {
         Manager), not in the app database.
       </P>
 
+      <H3>Contact card</H3>
+      <P>
+        Click any sender name in the email viewer to open a contact card — total emails, first and last contact
+        date, and recent subjects. Use the "Search all emails from this sender" link to filter the inbox instantly.
+      </P>
+
+      <H3>Save draft to mailbox</H3>
+      <P>
+        After AI Analysis, use the <strong>Draft</strong> button on any reply suggestion to save it directly to
+        your IMAP Drafts folder. It appears in your mail client ready to review and send.
+        Requires Gmail, Yahoo, or Office 365 — generic IMAP servers may not support APPEND.
+      </P>
+
+      <H3>Export data</H3>
+      <P>
+        Use the <strong>CSV</strong> button in Actions and Analytics to download your data as a spreadsheet.
+        Import into Excel, Google Sheets, or any BI tool.
+      </P>
+
+      <H3>macOS dock badge</H3>
+      <P>
+        The app automatically updates the dock icon badge with your unread email count so you can monitor
+        inbox activity without switching windows.
+      </P>
+
       <H3>Running as a Docker container</H3>
       <P>
         For server or team deployments, use the included <code className="bg-gray-100 px-1 rounded text-xs">docker-compose.yml</code>:
@@ -354,7 +393,7 @@ export function HelpModal({ onClose }: Props) {
         {/* Footer */}
         <div className="px-6 py-3 border-t border-gray-100 bg-gray-50 flex items-center justify-between flex-shrink-0">
           <div>
-            <span className="text-xs text-gray-400">Director Assistant v2.5.1</span>
+            <span className="text-xs text-gray-400">Director Assistant v2.6.0</span>
             <span className="text-xs text-gray-300 mx-2">·</span>
             <a href="mailto:ali.salamat@cortexhq.ai" className="text-xs text-gray-400 hover:text-accent transition-colors">
               Ali Salamat
