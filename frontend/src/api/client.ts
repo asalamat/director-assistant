@@ -248,6 +248,11 @@ export const api = {
     return request('/drafts/save', { method: 'POST', body: JSON.stringify(data) })
   },
 
+  // Send email via SMTP
+  sendEmail(data: { to: string; subject: string; body: string; account_id?: number }): Promise<{ status: string }> {
+    return request('/email/send', { method: 'POST', body: JSON.stringify(data) })
+  },
+
   // Dock badge
   setDockBadge(count: number): Promise<void> {
     return request(`/badge/${count}`, { method: 'POST' })

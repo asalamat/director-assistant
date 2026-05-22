@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { EmailMessage } from '../types'
 import { ContactCard } from './ContactCard'
+import { api } from '../api/client'
 
 interface Props {
   email: EmailMessage | null
@@ -26,6 +27,40 @@ export function EmailViewer({ email, loading, onAnalyze, analyzing, onDelete, on
   const [showSnooze, setShowSnooze] = useState(false)
   const [snoozeDate, setSnoozeDate] = useState('')
   const [showContact, setShowContact] = useState(false)
+  const [showCompose, setShowCompose] = useState(false)
+  const [replyTo, setReplyTo] = useState('')
+  const [replySubject, setReplySubject] = useState('')
+  const [replyBody, setReplyBody] = useState('')
+  const [sending, setSending] = useState(false)
+  const [sendMsg, setSendMsg] = useState('')
+
+  useEffect(() => {
+    setShowCompose(false)
+    setSendMsg('')
+  }, [email?.id])
+
+  const handleReplyClick = () => {
+    const senderEmail = email?.sender.match(/<([^>]+)>/)?.[1] || email?.sender || ''
+    setReplyTo(senderEmail)
+    setReplySubject(`Re: ${email?.subject || ''}`)
+    setReplyBody('')
+    setShowCompose(true)
+  }
+
+  const handleSend = async () => {
+    if (!replyTo.trim()) return
+    setSending(true)
+    setSendMsg('')
+    try {
+      await api.sendEmail({ to: replyTo, subject: replySubject, body: replyBody })
+      setSendMsg('Sent!')
+      setTimeout(() => { setShowCompose(false); setSendMsg('') }, 1500)
+    } catch (e: any) {
+      setSendMsg(e.message || 'Send failed')
+    } finally {
+      setSending(false)
+    }
+  }
 
   const tomorrow = new Date()
   tomorrow.setDate(tomorrow.getDate() + 1)
@@ -94,6 +129,15 @@ export function EmailViewer({ email, loading, onAnalyze, analyzing, onDelete, on
         <div className="flex items-start justify-between gap-4">
           <h2 className="text-lg font-semibold text-gray-900 flex-1">{email.subject || '(no subject)'}</h2>
           <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+            <button
+              onClick={handleReplyClick}
+              className="flex items-center gap-1.5 bg-gray-100 text-gray-700 text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M7.707 3.293a1 1 0 010 1.414L5.414 7H11a7 7 0 017 7v2a1 1 0 11-2 0v-2a5 5 0 00-5-5H5.414l2.293 2.293a1 1 0 11-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd"/>
+              </svg>
+              <span>Reply</span>
+            </button>
             <button
               onClick={onAnalyze}
               disabled={analyzing}
@@ -215,6 +259,47 @@ export function EmailViewer({ email, loading, onAnalyze, analyzing, onDelete, on
           </pre>
         )}
       </div>
+
+      {/* Reply composer */}
+      {showCompose && (
+        <div className="border-t border-gray-200 bg-gray-50 px-6 py-4 flex-shrink-0">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-medium text-gray-700">Reply</h3>
+            <button onClick={() => setShowCompose(false)} className="text-gray-400 hover:text-gray-600 text-xs">Cancel</button>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-400 w-12 flex-shrink-0">To</span>
+              <input value={replyTo} onChange={e => setReplyTo(e.target.value)}
+                className="flex-1 text-sm border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent bg-white" />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-400 w-12 flex-shrink-0">Subject</span>
+              <input value={replySubject} onChange={e => setReplySubject(e.target.value)}
+                className="flex-1 text-sm border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent bg-white" />
+            </div>
+            <textarea
+              value={replyBody}
+              onChange={e => setReplyBody(e.target.value)}
+              placeholder="Write your reply…"
+              rows={4}
+              className="w-full text-sm border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent resize-none bg-white"
+            />
+            <div className="flex items-center gap-2 justify-end">
+              {sendMsg && (
+                <span className={`text-xs ${sendMsg === 'Sent!' ? 'text-green-600' : 'text-red-500'}`}>{sendMsg}</span>
+              )}
+              <button
+                onClick={handleSend}
+                disabled={sending || !replyTo.trim()}
+                className="flex items-center gap-1.5 bg-accent text-white text-xs px-3 py-1.5 rounded-lg hover:bg-blue-700 disabled:opacity-60 transition-colors"
+              >
+                {sending ? <><span className="animate-spin inline-block">⟳</span> Sending…</> : 'Send'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

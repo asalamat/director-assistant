@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Settings } from './components/Settings'
 import { EmailList } from './components/EmailList'
 import { EmailViewer } from './components/EmailViewer'
@@ -97,6 +97,7 @@ export default function App() {
   const [exiting, setExiting] = useState(false)
   const [overdueCount, setOverdueCount] = useState(0)
   const [askContext, setAskContext] = useState('')
+  const prevOverdueRef = useRef(0)
 
   const { emails, total, loading: listLoading, hasMore, refresh, mergeRefresh, loadMore, setSort, currentParams, removeEmail } = useEmails()
   const { email, loading: emailLoading, fetch: fetchEmail } = useEmailDetail()
@@ -137,12 +138,24 @@ export default function App() {
     api.setDockBadge(unreadCount).catch(() => {})
   }, [unreadCount])
 
-  // Feature 7: poll overdue follow-ups for badge
+  // Browser notification permission
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission()
+    }
+  }, [])
+
+  // Feature 7: poll overdue follow-ups for badge + notification
   useEffect(() => {
     const check = () =>
       api.getFollowUps(false).then(list => {
         const today = new Date().toISOString().slice(0, 10)
-        setOverdueCount(list.filter(f => f.due_date < today).length)
+        const count = list.filter(f => f.due_date < today).length
+        if (count > 0 && prevOverdueRef.current === 0 && 'Notification' in window && Notification.permission === 'granted') {
+          new Notification('Director Assistant', { body: `${count} follow-up${count !== 1 ? 's' : ''} overdue` })
+        }
+        prevOverdueRef.current = count
+        setOverdueCount(count)
       }).catch(() => {})
     check()
     const id = setInterval(check, 60000)
@@ -221,6 +234,18 @@ export default function App() {
     } catch { /* ignore */ }
   }
 
+  const handleBulkDelete = async (ids: string[]) => {
+    await Promise.all(ids.map(id => api.deleteEmail(id).catch(() => {})))
+    ids.forEach(id => removeEmail(id))
+    if (selectedEmail && ids.includes(selectedEmail.id)) setSelectedEmail(null)
+  }
+
+  const handleBulkSnooze = async (ids: string[], date: string) => {
+    await Promise.all(ids.map(id => api.snoozeEmail(id, date).catch(() => {})))
+    ids.forEach(id => removeEmail(id))
+    if (selectedEmail && ids.includes(selectedEmail.id)) setSelectedEmail(null)
+  }
+
   const handleAskAboutEmail = () => {
     if (!email) return
     setAskContext(`Tell me about this email. Subject: "${email.subject}". From: ${email.sender}.`)
@@ -249,7 +274,12 @@ export default function App() {
               await mergeRefresh()
               const msg = newFound > 0 ? `+${newFound} new email${newFound !== 1 ? 's' : ''}` : 'Up to date'
               setRefreshMsg(msg)
-              if (newFound > 0) addToast(msg, 'success')
+              if (newFound > 0) {
+                addToast(msg, 'success')
+                if ('Notification' in window && Notification.permission === 'granted') {
+                  new Notification('Director Assistant', { body: msg })
+                }
+              }
               setTimeout(() => setRefreshMsg(''), 3000)
               resolve()
             }
@@ -449,6 +479,8 @@ export default function App() {
                   setCurrentFolder(f)
                   refresh({ folder: f, q: undefined })
                 }}
+                onBulkDelete={handleBulkDelete}
+                onBulkSnooze={handleBulkSnooze}
                 sortBy={currentParams.sort_by ?? 'date'}
                 sortOrder={currentParams.sort_order ?? 'desc'}
               />

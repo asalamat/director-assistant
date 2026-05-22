@@ -3,6 +3,19 @@ import type { EmailSummary } from '../types'
 import type { SortBy, SortOrder } from '../hooks/useEmails'
 import { api } from '../api/client'
 
+const SEARCH_HISTORY_KEY = 'email_search_history'
+const MAX_HISTORY = 10
+
+function loadHistory(): string[] {
+  try { return JSON.parse(localStorage.getItem(SEARCH_HISTORY_KEY) || '[]') }
+  catch { return [] }
+}
+
+function addToHistory(q: string) {
+  const prev = loadHistory().filter(h => h !== q)
+  localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify([q, ...prev].slice(0, MAX_HISTORY)))
+}
+
 interface Props {
   emails: EmailSummary[]
   selectedId: string | null
@@ -13,6 +26,8 @@ interface Props {
   onSearch: (q: string) => void
   onSort: (by: SortBy, order: SortOrder) => void
   onFolderChange: (folder: string) => void
+  onBulkDelete?: (ids: string[]) => void
+  onBulkSnooze?: (ids: string[], date: string) => void
   sortBy: SortBy
   sortOrder: SortOrder
   total: number
@@ -68,10 +83,16 @@ function replyDepth(subject: string): number {
   return depth
 }
 
-export function EmailList({ emails, selectedId, loading, hasMore, total, folders, currentFolder, onSelect, onLoadMore, onSearch, onSort, onFolderChange, sortBy, sortOrder }: Props) {
+export function EmailList({ emails, selectedId, loading, hasMore, total, folders, currentFolder, onSelect, onLoadMore, onSearch, onSort, onFolderChange, onBulkDelete, onBulkSnooze, sortBy, sortOrder }: Props) {
   const [query, setQuery] = useState('')
   const [savedSearches, setSavedSearches] = useState<{ id: number; name: string; query: string; folder: string }[]>([])
+  const [history, setHistory] = useState<string[]>(loadHistory)
+  const [showHistory, setShowHistory] = useState(false)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [showBulkSnooze, setShowBulkSnooze] = useState(false)
+  const [bulkSnoozeDate, setBulkSnoozeDate] = useState('')
   const sentinelRef = useRef<HTMLDivElement>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     api.getSavedSearches().then(setSavedSearches).catch(() => {})
@@ -106,9 +127,56 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
     return () => obs.disconnect()
   }, [hasMore, loading, onLoadMore])
 
+  const toggleSelect = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setSelected(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  const handleBulkDelete = async () => {
+    const ids = Array.from(selected)
+    setSelected(new Set())
+    onBulkDelete?.(ids)
+  }
+
+  const handleBulkSnooze = async () => {
+    if (!bulkSnoozeDate) return
+    const ids = Array.from(selected)
+    setSelected(new Set())
+    setShowBulkSnooze(false)
+    setBulkSnoozeDate('')
+    onBulkSnooze?.(ids, bulkSnoozeDate)
+  }
+
+  const tomorrow = new Date()
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  const tomorrowStr = tomorrow.toISOString().slice(0, 10)
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
+    if (query.trim()) {
+      addToHistory(query.trim())
+      setHistory(loadHistory())
+    }
+    setShowHistory(false)
     onSearch(query)
+  }
+
+  const runHistoryItem = (q: string) => {
+    setQuery(q)
+    setShowHistory(false)
+    addToHistory(q)
+    setHistory(loadHistory())
+    onSearch(q)
+  }
+
+  const clearHistory = () => {
+    localStorage.removeItem(SEARCH_HISTORY_KEY)
+    setHistory([])
+    setShowHistory(false)
   }
 
   const toggleSort = (field: SortBy) => {
@@ -164,14 +232,17 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
 
       {/* Search */}
       <div className="px-3 pt-3 pb-2 border-b border-gray-100 space-y-2">
-        <form onSubmit={handleSearch} className="flex gap-1">
+        <form onSubmit={handleSearch} className="flex gap-1 relative">
           <input
+            ref={searchRef}
             type="search"
             value={query}
             onChange={(e) => {
               setQuery(e.target.value)
               if (!e.target.value) onSearch('')
             }}
+            onFocus={() => setShowHistory(history.length > 0)}
+            onBlur={() => setTimeout(() => setShowHistory(false), 150)}
             placeholder="Search emails…"
             className="flex-1 bg-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
           />
@@ -184,6 +255,26 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
             >
               📌
             </button>
+          )}
+          {showHistory && history.length > 0 && (
+            <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1">
+              {history.map((h, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onMouseDown={() => runHistoryItem(h)}
+                  className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                >
+                  <svg className="w-3 h-3 text-gray-400 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd"/>
+                  </svg>
+                  <span className="truncate">{h}</span>
+                </button>
+              ))}
+              <div className="border-t border-gray-100 mt-1 pt-1 px-3">
+                <button type="button" onMouseDown={clearHistory} className="text-[10px] text-gray-400 hover:text-red-400">Clear history</button>
+              </div>
+            </div>
           )}
         </form>
         {/* Saved searches */}
@@ -208,15 +299,38 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
             ))}
           </div>
         )}
-        {/* Sort controls */}
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-gray-400">{total.toLocaleString()} emails</span>
-          <div className="flex gap-1">
-            <SortBtn field="date" label="Date" />
-            <SortBtn field="sender" label="From" />
-            <SortBtn field="subject" label="Subject" />
+        {/* Sort controls / bulk toolbar */}
+        {selected.size > 0 ? (
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-medium text-gray-700">{selected.size} selected</span>
+            {onBulkDelete && (
+              <button onClick={handleBulkDelete} className="text-xs text-red-500 hover:text-red-700 px-2 py-0.5 rounded hover:bg-red-50 transition-colors">Delete</button>
+            )}
+            {onBulkSnooze && (
+              <div className="flex items-center gap-1">
+                <button onClick={() => setShowBulkSnooze(v => !v)} className="text-xs text-amber-600 hover:text-amber-800 px-2 py-0.5 rounded hover:bg-amber-50 transition-colors">Snooze</button>
+                {showBulkSnooze && (
+                  <>
+                    <input type="date" value={bulkSnoozeDate} min={tomorrowStr} onChange={e => setBulkSnoozeDate(e.target.value)}
+                      className="text-[10px] border border-gray-200 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-accent" />
+                    <button onClick={handleBulkSnooze} disabled={!bulkSnoozeDate}
+                      className="text-[10px] bg-amber-500 text-white px-1.5 py-0.5 rounded disabled:opacity-50">OK</button>
+                  </>
+                )}
+              </div>
+            )}
+            <button onClick={() => setSelected(new Set())} className="text-xs text-gray-400 hover:text-gray-600 ml-auto">Clear</button>
           </div>
-        </div>
+        ) : (
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-gray-400">{total.toLocaleString()} emails</span>
+            <div className="flex gap-1">
+              <SortBtn field="date" label="Date" />
+              <SortBtn field="sender" label="From" />
+              <SortBtn field="subject" label="Subject" />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* List */}
@@ -228,47 +342,60 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
         {emails.map((email) => {
           const label = priorityLabel(email.subject || '', email.preview || '')
           const depth = replyDepth(email.subject || '')
+          const isSelected = selected.has(email.id)
           return (
-            <button
-              key={email.id}
-              onClick={() => onSelect(email)}
-              className={`w-full text-left px-3 py-3 flex gap-3 transition-colors border-b border-gray-50 ${
-                selectedId === email.id
-                  ? 'bg-blue-50 border-l-2 border-l-accent'
-                  : !email.is_read
-                  ? 'bg-amber-50 border-l-2 border-l-amber-400 hover:bg-amber-100'
-                  : 'hover:bg-gray-50'
-              }`}
-            >
-              {/* Avatar */}
+            <div key={email.id} className="relative group border-b border-gray-50">
+              {/* Checkbox over avatar */}
               <div
-                className={`flex-shrink-0 w-8 h-8 rounded-full ${avatarColor(email.sender)} text-white text-xs font-semibold flex items-center justify-center mt-0.5`}
+                className={`absolute left-3 top-3 z-10 cursor-pointer transition-opacity ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                onClick={(e) => toggleSelect(email.id, e)}
               >
-                {initials(email.sender) || '?'}
+                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${isSelected ? 'bg-accent border-accent' : 'bg-white/90 border-gray-300'}`}>
+                  {isSelected && (
+                    <svg className="w-3 h-3 text-white" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                    </svg>
+                  )}
+                </div>
               </div>
 
-              {/* Content */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-1">
-                  <span className={`text-sm truncate ${!email.is_read ? 'font-bold text-gray-900' : 'text-gray-700'}`}>
-                    {email.sender.replace(/<[^>]+>/, '').trim() || email.sender}
-                  </span>
-                  <span className="text-xs text-gray-400 flex-shrink-0">{formatDate(email.date)}</span>
+              <button
+                onClick={() => onSelect(email)}
+                className={`w-full text-left px-3 py-3 flex gap-3 transition-colors ${
+                  isSelected ? 'bg-blue-50/60' :
+                  selectedId === email.id ? 'bg-blue-50 border-l-2 border-l-accent' :
+                  !email.is_read ? 'bg-amber-50 border-l-2 border-l-amber-400 hover:bg-amber-100' :
+                  'hover:bg-gray-50'
+                }`}
+              >
+                {/* Avatar */}
+                <div className={`flex-shrink-0 w-8 h-8 rounded-full ${avatarColor(email.sender)} text-white text-xs font-semibold flex items-center justify-center mt-0.5 transition-opacity ${isSelected ? 'opacity-20' : 'group-hover:opacity-20'}`}>
+                  {initials(email.sender) || '?'}
                 </div>
-                <div className={`flex items-center gap-1 mt-0.5 ${!email.is_read ? 'font-semibold text-gray-800' : 'text-gray-600'}`}>
-                  {depth > 0 && (
-                    <span className="text-[10px] text-gray-400 border border-gray-200 rounded px-1 flex-shrink-0">
-                      ↩{depth > 1 ? depth : ''}
+
+                {/* Content */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-1">
+                    <span className={`text-sm truncate ${!email.is_read ? 'font-bold text-gray-900' : 'text-gray-700'}`}>
+                      {email.sender.replace(/<[^>]+>/, '').trim() || email.sender}
                     </span>
-                  )}
-                  <span className="text-xs truncate">{email.subject || '(no subject)'}</span>
-                  {label && (
-                    <span className={`text-[10px] px-1.5 rounded-full font-medium flex-shrink-0 ${label.cls}`}>{label.text}</span>
-                  )}
+                    <span className="text-xs text-gray-400 flex-shrink-0">{formatDate(email.date)}</span>
+                  </div>
+                  <div className={`flex items-center gap-1 mt-0.5 ${!email.is_read ? 'font-semibold text-gray-800' : 'text-gray-600'}`}>
+                    {depth > 0 && (
+                      <span className="text-[10px] text-gray-400 border border-gray-200 rounded px-1 flex-shrink-0">
+                        ↩{depth > 1 ? depth : ''}
+                      </span>
+                    )}
+                    <span className="text-xs truncate">{email.subject || '(no subject)'}</span>
+                    {label && (
+                      <span className={`text-[10px] px-1.5 rounded-full font-medium flex-shrink-0 ${label.cls}`}>{label.text}</span>
+                    )}
+                  </div>
+                  <div className="text-xs text-gray-400 truncate mt-0.5">{email.preview}</div>
                 </div>
-                <div className="text-xs text-gray-400 truncate mt-0.5">{email.preview}</div>
-              </div>
-            </button>
+              </button>
+            </div>
           )
         })}
 

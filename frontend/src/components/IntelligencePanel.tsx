@@ -226,6 +226,17 @@ function PeopleTab() {
       return b.score - a.score
     })
 
+  const exportCSV = () => {
+    const rows = [
+      ['name', 'email', 'received', 'sent', 'score', 'last_contact'],
+      ...filtered.map(p => [`"${p.name.replace(/"/g, '""')}"`, p.email, p.received_count, p.sent_count, p.score, p.last_contact || ''])
+    ]
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(new Blob([rows.map(r => r.join(',')).join('\n')], { type: 'text/csv' }))
+    a.download = 'contacts.csv'
+    a.click()
+  }
+
   if (loading) return <div className="flex justify-center py-16"><div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" /></div>
 
   return (
@@ -246,6 +257,10 @@ function PeopleTab() {
               <option value="sent">Most sent</option>
               <option value="recent">Most recent</option>
             </select>
+            {filtered.length > 0 && (
+              <button onClick={exportCSV} title="Export contacts to CSV"
+                className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-gray-500 hover:bg-gray-50 flex-shrink-0">CSV</button>
+            )}
           </>
         )}
         {viewMode === 'graph' && <p className="flex-1 text-xs text-gray-400 py-1.5">Top 18 contacts by email volume</p>}
@@ -343,6 +358,13 @@ function LoopsTab() {
       .finally(() => setLoading(false))
   }
 
+  // Auto-refresh every 30 min after initial load
+  useEffect(() => {
+    if (!loaded) return
+    const id = setInterval(load, 30 * 60 * 1000)
+    return () => clearInterval(id)
+  }, [loaded])
+
   const dismiss = (loop: OpenLoop) => {
     const next = new Set(dismissed)
     next.add(loopFingerprint(loop))
@@ -365,6 +387,17 @@ function LoopsTab() {
 
   const active = loops.filter(l => !dismissed.has(loopFingerprint(l)))
   const dismissedLoops = loops.filter(l => dismissed.has(loopFingerprint(l)))
+
+  const exportCSV = () => {
+    const rows = [
+      ['type', 'urgency', 'text', 'sender', 'date'],
+      ...active.map(l => [l.type, l.urgency, `"${(l.text || '').replace(/"/g, '""')}"`, `"${(l.sender || '').replace(/"/g, '""')}"`, l.date || ''])
+    ]
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(new Blob([rows.map(r => r.join(',')).join('\n')], { type: 'text/csv' }))
+    a.download = 'open_loops.csv'
+    a.click()
+  }
 
   const filtered = filter === 'all' ? active : active.filter(l => l.type === filter)
   const high = filtered.filter(l => l.urgency === 'high')
@@ -411,12 +444,16 @@ function LoopsTab() {
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
           {dismissedLoops.length > 0 && (
             <button onClick={() => setShowDismissed(v => !v)}
               className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1 rounded hover:bg-gray-100">
               {showDismissed ? 'Hide' : `Dismissed (${dismissedLoops.length})`}
             </button>
+          )}
+          {active.length > 0 && (
+            <button onClick={exportCSV} title="Export to CSV"
+              className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1 rounded hover:bg-gray-100">CSV</button>
           )}
           <button onClick={load} className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1 rounded hover:bg-gray-100">Refresh</button>
         </div>
