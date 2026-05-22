@@ -218,6 +218,26 @@ class _RAGQueryProxy:
             logger.warning(f"[RAG proxy] delete_where error: {e}")
         return False
 
+    def get(self, where: Optional[dict] = None, include: Optional[list] = None) -> Optional[dict]:
+        """Fetch metadata/documents from the collection via the worker."""
+        self._ensure_alive()
+        if not self._available:
+            return None
+        req: dict = {"cmd": "get"}
+        if where:
+            req["where"] = where
+        if include is not None:
+            req["include"] = include
+        self._req_q.put(req)
+        try:
+            resp = self._resp_q.get(timeout=30)
+            if resp.get("ok"):
+                return resp["result"]
+            logger.warning(f"[RAG proxy] get error: {resp.get('error')}")
+        except Exception as e:
+            logger.warning(f"[RAG proxy] get timeout/error: {e}")
+        return None
+
     def reset_collection(self) -> bool:
         """Drop and recreate the ChromaDB collection — frees all HNSW space."""
         if not self._wait_available(self._STARTUP_TIMEOUT):
@@ -431,6 +451,7 @@ class RAGEngine:
                     "date": str(email.date) if email.date else "",
                     "folder": email.folder or "INBOX",
                     "thread_id": email.thread_id or "",
+                    "source_type": "email",
                     **chunk_meta,
                 })
 
@@ -455,21 +476,9 @@ class RAGEngine:
         Document vectors are also cleared — user must re-index documents afterward.
         """
         count = len(self._indexed_email_ids)
-        ok = self._proxy.reset_collection()
-        if ok:
-            # Refresh main-process collection handle to the newly created collection
-            self._col = self._chroma.get_or_create_collection(
-                name="emails",
-                embedding_function=self._col._embedding_function,
-                metadata={
-                    "hnsw:space": "cosine",
-                    "hnsw:M": 48,
-                    "hnsw:construction_ef": 256,
-                    "hnsw:search_ef": 128,
-                    "hnsw:batch_size": 2000,
-                    "hnsw:sync_threshold": 5000,
-                },
-            )
+        self._proxy.reset_collection()
+        # Do NOT refresh self._col here — all post-startup reads go through the proxy,
+        # so a stale main-process handle cannot cause the collection to appear unchanged.
         self._indexed_email_ids.clear()
         self._indexed_doc_ids.clear()
         return count
@@ -564,7 +573,7 @@ class RAGEngine:
 
     def hybrid_search(self, query: str, n_results: int = 20) -> List[dict]:
         """Dense (ChromaDB) + Sparse (SQLite FTS5), fused with RRF."""
-        count = self._col.count()
+        count = self._proxy.count()
         if count == 0:
             return []
 
@@ -796,7 +805,7 @@ class RAGEngine:
         """Delete all chunks for an email from ChromaDB and the ID set."""
         if email_id not in self._indexed_email_ids:
             return False
-        existing = self._col.get(where={"email_id": email_id})
+        existing = self._proxy.get(where={"email_id": email_id}, include=["metadatas"])
         if existing and existing.get("ids"):
             self._proxy.delete(ids=existing["ids"])
         self._indexed_email_ids.discard(email_id)
@@ -810,12 +819,14 @@ class RAGEngine:
 
     def list_indexed_docs(self) -> list[dict]:
         """Return metadata for all indexed documents."""
-        result = self._col.get(
+        result = self._proxy.get(
             where={"source_type": "document"},
             include=["metadatas"],
         )
+        if result is None:
+            return []
         seen: dict[str, dict] = {}
-        for m in (result["metadatas"] or []):
+        for m in (result.get("metadatas") or []):
             doc_id = m.get("doc_id", "")
             if doc_id and doc_id not in seen:
                 seen[doc_id] = {
@@ -830,7 +841,7 @@ class RAGEngine:
 
     def stats(self) -> dict:
         return {
-            "total_chunks": self._col.count(),
+            "total_chunks": self._proxy.count(),
             "unique_emails_indexed": len(self._indexed_email_ids),
             "unique_docs_indexed": len(self._indexed_doc_ids),
         }
