@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-# Director Assistant — macOS Installer  v2.8.0
+# Director Assistant — macOS Installer  v2.9.1
 # ============================================================
 # Requirements: macOS 12+, Internet connection
 # Run with:  bash install-mac.sh
@@ -9,7 +9,7 @@
 set -e
 
 APP_NAME="Director Assistant"
-APP_VERSION="2.8.0"
+APP_VERSION="2.9.1"
 INSTALL_DIR="$HOME/Applications/DirectorAssistant"
 PYTHON_MIN="3.11"
 NODE_MIN="18"
