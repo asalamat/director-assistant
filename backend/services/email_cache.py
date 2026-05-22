@@ -28,6 +28,10 @@ class EmailCache(EmailExtrasMixin):
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA synchronous=NORMAL")
+        conn.execute("PRAGMA cache_size=-32000")       # 32 MB page cache
+        conn.execute("PRAGMA mmap_size=268435456")     # 256 MB memory-mapped I/O
+        conn.execute("PRAGMA temp_store=MEMORY")       # temp tables in RAM
+        conn.execute("PRAGMA optimize")                # lightweight planner stats refresh
         try:
             yield conn
             conn.commit()
@@ -89,7 +93,14 @@ class EmailCache(EmailExtrasMixin):
                 conn.execute("SELECT COUNT(*) FROM emails_fts WHERE emails_fts MATCH 'test'").fetchone()
             except Exception:
                 conn.execute("INSERT INTO emails_fts(emails_fts) VALUES('rebuild')")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_folder_date ON emails(folder, date DESC)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_folder_date         ON emails(folder, date DESC)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_account_date         ON emails(account_id, date DESC)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_account_folder_date  ON emails(account_id, folder, date DESC)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_date                 ON emails(date DESC)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_sender               ON emails(sender)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_is_read              ON emails(is_read, date DESC) WHERE is_read = 0")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_followups_done_due   ON follow_ups(done, due_date)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_action_items_email   ON action_items(email_id)")
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS documents_fts_store (
                     doc_id      TEXT PRIMARY KEY,
@@ -291,7 +302,7 @@ class EmailCache(EmailExtrasMixin):
             params: list = [account_id]
         else:
             normalized = self._normalize_folder(folder)
-            where = "UPPER(folder) = UPPER(?)"
+            where = "folder = ?"   # data is normalized on insert — direct compare uses index
             params = [normalized]
 
         if from_date:
@@ -401,11 +412,12 @@ class EmailCache(EmailExtrasMixin):
 
     def get_cached_server_ids(self, account_id: int, folder: str, since_str: str) -> dict:
         """Return {server_id: cache_id} for emails in this account/folder since a date."""
+        normalized = self._normalize_folder(folder)
         with self._conn() as conn:
             rows = conn.execute(
                 """SELECT id, server_id FROM emails
-                   WHERE account_id = ? AND UPPER(folder) = UPPER(?) AND date >= ?""",
-                (account_id, folder, since_str),
+                   WHERE account_id = ? AND folder = ? AND date >= ?""",
+                (account_id, normalized, since_str),
             ).fetchall()
         return {r["server_id"]: r["id"] for r in rows if r["server_id"]}
 
