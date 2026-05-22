@@ -218,6 +218,19 @@ class _RAGQueryProxy:
             logger.warning(f"[RAG proxy] delete_where error: {e}")
         return False
 
+    def reset_collection(self) -> bool:
+        """Drop and recreate the ChromaDB collection — frees all HNSW space."""
+        if not self._wait_available(self._STARTUP_TIMEOUT):
+            logger.warning("[RAG proxy] reset_collection: worker not available — skipping")
+            return False
+        self._req_q.put({"cmd": "reset_collection"})
+        try:
+            resp = self._resp_q.get(timeout=120)
+            return bool(resp.get("ok"))
+        except Exception as e:
+            logger.warning(f"[RAG proxy] reset_collection error: {e}")
+        return False
+
     def shutdown(self):
         if self._req_q:
             try:
@@ -435,26 +448,31 @@ class RAGEngine:
         return new_count
 
     def clear_email_vectors(self) -> int:
-        """Delete all email chunk vectors from ChromaDB. Returns chunk count deleted.
+        """Drop and recreate the ChromaDB collection to fully clear all email vectors.
 
-        Email chunks were ingested without a source_type field, so we cannot use
-        a where-filter. Instead, fetch all IDs, keep document chunks, delete the rest.
+        Simple delete leaves soft-deleted HNSW entries that never free disk space.
+        Recreating the collection is the only reliable way to reclaim space.
+        Document vectors are also cleared — user must re-index documents afterward.
         """
-        if not self._proxy._wait_available(self._proxy._STARTUP_TIMEOUT):
-            logger.warning("[RAG] clear_email_vectors: proxy not available — skipping")
-            self._indexed_email_ids.clear()
-            return 0
-        result = self._col.get(include=["metadatas"])
-        all_ids = result.get("ids", [])
-        metas = result.get("metadatas", []) or []
-        email_ids = [
-            id_ for id_, meta in zip(all_ids, metas)
-            if (meta or {}).get("source_type") != "document"
-        ]
-        for i in range(0, len(email_ids), 1000):
-            self._proxy.delete(email_ids[i:i + 1000])
+        count = len(self._indexed_email_ids)
+        ok = self._proxy.reset_collection()
+        if ok:
+            # Refresh main-process collection handle to the newly created collection
+            self._col = self._chroma.get_or_create_collection(
+                name="emails",
+                embedding_function=self._col._embedding_function,
+                metadata={
+                    "hnsw:space": "cosine",
+                    "hnsw:M": 48,
+                    "hnsw:construction_ef": 256,
+                    "hnsw:search_ef": 128,
+                    "hnsw:batch_size": 2000,
+                    "hnsw:sync_threshold": 5000,
+                },
+            )
         self._indexed_email_ids.clear()
-        return len(email_ids)
+        self._indexed_doc_ids.clear()
+        return count
 
     def reindex_all_emails(self) -> int:
         """Clear in-memory email ID set and re-embed every email from SQLite cache."""
@@ -681,9 +699,10 @@ class RAGEngine:
                 break
 
         # Append document FTS5 results not already in results (HNSW fallback).
-        # This ensures documents are always reachable even when the vector proxy
-        # is unavailable or returns no document hits.
-        if len(results) < n_results:
+        # Only when the query isn't a common single word (avoids spurious doc matches).
+        query_words = query.strip().split()
+        include_doc_fallback = len(query_words) >= 2 or len(query_words[0]) > 5 if query_words else False
+        if len(results) < n_results and include_doc_fallback:
             doc_slots = max(3, (n_results - len(results)) // 2)
             doc_fts = self._cache.fts_search_documents(query, limit=doc_slots)
             for d in doc_fts:

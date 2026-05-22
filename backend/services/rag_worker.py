@@ -104,6 +104,23 @@ def worker_main(db_path_str: str, req_queue, resp_queue):
                 col.delete(where=req["where"])
                 resp_queue.put({"ok": True})
 
+            elif cmd == "reset_collection":
+                # Drop and recreate — the only reliable way to free HNSW space
+                chroma.delete_collection("emails")
+                col = chroma.create_collection(
+                    name="emails",
+                    embedding_function=ef,
+                    metadata={
+                        "hnsw:space": "cosine",
+                        "hnsw:M": 48,
+                        "hnsw:construction_ef": 256,
+                        "hnsw:search_ef": 128,
+                        "hnsw:batch_size": 2000,
+                        "hnsw:sync_threshold": 5000,
+                    },
+                )
+                resp_queue.put({"ok": True})
+
             else:
                 resp_queue.put({"ok": False, "error": f"unknown cmd: {cmd}"})
 
