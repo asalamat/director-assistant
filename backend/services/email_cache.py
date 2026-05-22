@@ -447,6 +447,9 @@ class EmailCache(EmailExtrasMixin):
             conn.execute("DELETE FROM emails")
             conn.execute("INSERT INTO emails_fts(emails_fts) VALUES('rebuild')")
             conn.execute("UPDATE accounts SET last_ingested = NULL")
+        # Reclaim disk space freed by the bulk delete
+        with self._conn() as conn:
+            conn.execute("VACUUM")
         return count
 
     def delete_email(self, email_id: str) -> bool:

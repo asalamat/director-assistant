@@ -100,6 +100,10 @@ def worker_main(db_path_str: str, req_queue, resp_queue):
                 col.delete(ids=req["ids"])
                 resp_queue.put({"ok": True})
 
+            elif cmd == "delete_where":
+                col.delete(where=req["where"])
+                resp_queue.put({"ok": True})
+
             else:
                 resp_queue.put({"ok": False, "error": f"unknown cmd: {cmd}"})
 

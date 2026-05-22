@@ -193,9 +193,9 @@ class _RAGQueryProxy:
         return False
 
     def delete(self, ids: list) -> bool:
-        """Send a delete command to the worker."""
-        self._ensure_alive()
-        if not self._available:
+        """Send a delete command to the worker. Waits for worker to be ready."""
+        if not self._wait_available(self._STARTUP_TIMEOUT):
+            logger.warning("[RAG proxy] delete: worker not available — skipping")
             return False
         self._req_q.put({"cmd": "delete", "ids": ids})
         try:
@@ -203,6 +203,19 @@ class _RAGQueryProxy:
             return bool(resp.get("ok"))
         except Exception as e:
             logger.warning(f"[RAG proxy] delete error: {e}")
+        return False
+
+    def delete_where(self, where: dict) -> bool:
+        """Delete all chunks matching a metadata filter. Waits for worker to be ready."""
+        if not self._wait_available(self._STARTUP_TIMEOUT):
+            logger.warning("[RAG proxy] delete_where: worker not available — skipping")
+            return False
+        self._req_q.put({"cmd": "delete_where", "where": where})
+        try:
+            resp = self._resp_q.get(timeout=60)
+            return bool(resp.get("ok"))
+        except Exception as e:
+            logger.warning(f"[RAG proxy] delete_where error: {e}")
         return False
 
     def shutdown(self):
@@ -374,6 +387,7 @@ class RAGEngine:
                 "date": str(email.date) if email.date else "",
                 "folder": email.folder or "INBOX",
                 "thread_id": email.thread_id or "",
+                "source_type": "email",
                 **chunk_meta,
             })
 
@@ -421,13 +435,26 @@ class RAGEngine:
         return new_count
 
     def clear_email_vectors(self) -> int:
-        """Delete all email chunk vectors from ChromaDB. Returns chunk count deleted."""
-        result = self._col.get(where={"source_type": "email"}, include=[])
-        ids = result.get("ids", [])
-        for i in range(0, len(ids), 1000):
-            self._proxy.delete(ids[i:i + 1000])
+        """Delete all email chunk vectors from ChromaDB. Returns chunk count deleted.
+
+        Email chunks were ingested without a source_type field, so we cannot use
+        a where-filter. Instead, fetch all IDs, keep document chunks, delete the rest.
+        """
+        if not self._proxy._wait_available(self._proxy._STARTUP_TIMEOUT):
+            logger.warning("[RAG] clear_email_vectors: proxy not available — skipping")
+            self._indexed_email_ids.clear()
+            return 0
+        result = self._col.get(include=["metadatas"])
+        all_ids = result.get("ids", [])
+        metas = result.get("metadatas", []) or []
+        email_ids = [
+            id_ for id_, meta in zip(all_ids, metas)
+            if (meta or {}).get("source_type") != "document"
+        ]
+        for i in range(0, len(email_ids), 1000):
+            self._proxy.delete(email_ids[i:i + 1000])
         self._indexed_email_ids.clear()
-        return len(ids)
+        return len(email_ids)
 
     def reindex_all_emails(self) -> int:
         """Clear in-memory email ID set and re-embed every email from SQLite cache."""

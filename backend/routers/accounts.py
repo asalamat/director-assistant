@@ -227,7 +227,6 @@ async def clear_and_reingest(background_tasks: BackgroundTasks, request: Request
     rag = request.app.state.rag
 
     cleared = cache.clear_emails()
-    rag.clear_email_vectors()
 
     accounts = cache.list_accounts()
     if not accounts:
@@ -235,11 +234,16 @@ async def clear_and_reingest(background_tasks: BackgroundTasks, request: Request
 
     _ingest_progress = IngestProgress(
         status="running",
-        message=f"Cleared {cleared} emails. Starting re-ingest…",
+        message=f"Cleared {cleared} emails. Clearing vectors…",
     )
 
     async def run():
         global _ingest_progress
+        # Wait for the worker to be ready before deleting vectors
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, rag.clear_email_vectors)
+        _ingest_progress.message = "Vectors cleared. Starting re-ingest…"
+
         total_new = 0
         total_skip = 0
         for acc in accounts:
