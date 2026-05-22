@@ -376,15 +376,20 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
                 {/* Content */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-1">
-                    <span className={`text-sm truncate ${!email.is_read ? 'font-bold text-gray-900' : 'text-gray-700'}`}>
-                      {email.sender.replace(/<[^>]+>/, '').trim() || email.sender}
-                    </span>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      {!email.is_read && (
+                        <span className="flex-shrink-0 w-2 h-2 rounded-full bg-accent" />
+                      )}
+                      <span className={`text-sm truncate ${!email.is_read ? 'font-bold text-gray-900' : 'text-gray-700'}`}>
+                        {email.sender.replace(/<[^>]+>/, '').trim() || email.sender}
+                      </span>
+                    </div>
                     <span className="text-xs text-gray-400 flex-shrink-0">{formatDate(email.date)}</span>
                   </div>
                   <div className={`flex items-center gap-1 mt-0.5 ${!email.is_read ? 'font-semibold text-gray-800' : 'text-gray-600'}`}>
                     {depth > 0 && (
-                      <span className="text-[10px] text-gray-400 border border-gray-200 rounded px-1 flex-shrink-0">
-                        ↩{depth > 1 ? depth : ''}
+                      <span className="text-[10px] bg-gray-100 text-gray-500 rounded-md px-1.5 py-0.5 flex-shrink-0 font-medium tabular-nums">
+                        {depth}↩
                       </span>
                     )}
                     <span className="text-xs truncate">{email.subject || '(no subject)'}</span>
@@ -392,7 +397,7 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
                       <span className={`text-[10px] px-1.5 rounded-full font-medium flex-shrink-0 ${label.cls}`}>{label.text}</span>
                     )}
                   </div>
-                  <div className="text-xs text-gray-400 truncate mt-0.5">{email.preview}</div>
+                  <div className="text-xs text-gray-400 mt-0.5 line-clamp-2 leading-relaxed">{email.preview}</div>
                 </div>
               </button>
             </div>

@@ -250,11 +250,11 @@ export function EmailViewer({ email, loading, onAnalyze, analyzing, onDelete, on
       <div className="flex-1 overflow-y-auto px-6 py-4">
         {email.body_html ? (
           <div
-            className="prose prose-sm max-w-none text-gray-800"
+            className="prose prose-base max-w-none text-gray-800 leading-relaxed"
             dangerouslySetInnerHTML={{ __html: email.body_html }}
           />
         ) : (
-          <pre className="whitespace-pre-wrap font-sans text-sm text-gray-800 leading-relaxed">
+          <pre className="whitespace-pre-wrap font-sans text-sm text-gray-800 leading-loose">
             {email.body || '(empty)'}
           </pre>
         )}
@@ -262,7 +262,7 @@ export function EmailViewer({ email, loading, onAnalyze, analyzing, onDelete, on
 
       {/* Reply composer */}
       {showCompose && (
-        <div className="border-t border-gray-200 bg-gray-50 px-6 py-4 flex-shrink-0">
+        <div className="border-t border-gray-200 bg-gray-50 px-6 py-4 flex-shrink-0 animate-slide-up-in">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-medium text-gray-700">Reply</h3>
             <button onClick={() => setShowCompose(false)} className="text-gray-400 hover:text-gray-600 text-xs">Cancel</button>

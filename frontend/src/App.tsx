@@ -331,7 +331,13 @@ export default function App() {
     <div className="h-screen flex flex-col bg-white overflow-hidden">
       {/* Toolbar */}
       <div className="h-11 flex items-center justify-between px-4 border-b border-gray-200 bg-white flex-shrink-0">
-        <span className="text-sm font-semibold text-gray-800">Director Assistant</span>
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-semibold text-gray-800">Director Assistant</span>
+          <span className="text-xs text-gray-400 hidden sm:inline">{total.toLocaleString()} emails</span>
+          {unreadCount > 0 && <span className="text-xs text-accent font-semibold">{unreadCount} unread</span>}
+          {overdueCount > 0 && <span className="text-xs text-red-500 font-semibold">{overdueCount} overdue</span>}
+          {refreshMsg && <span className="text-xs text-gray-400">{refreshMsg}</span>}
+        </div>
         <div className="flex gap-2">
           {activeTab === 'inbox' && (
             <>
@@ -390,55 +396,47 @@ export default function App() {
         </div>
       </div>
 
-      {/* Stats ribbon */}
-      <div className="h-6 flex items-center gap-3 px-4 bg-gray-50 border-b border-gray-100 text-[10px] text-gray-400 flex-shrink-0">
-        <span className="font-medium text-gray-500">{total.toLocaleString()} emails</span>
-        {unreadCount > 0 && <span className="text-accent font-semibold">{unreadCount} unread</span>}
-        {overdueCount > 0 && <span className="text-red-500 font-semibold">{overdueCount} overdue</span>}
-        <span className="ml-auto">{refreshMsg ? refreshMsg : ''}</span>
-      </div>
-
-      {/* Tab navigation */}
-      <div className="flex border-b border-gray-200 bg-white flex-shrink-0">
-        {TABS.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`px-4 py-2.5 text-xs font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
-              activeTab === tab.id
-                ? 'border-accent text-accent'
-                : 'border-transparent text-gray-500 hover:text-gray-800'
-            }`}
-          >
-            {tab.id === 'health' ? (
-              <span className={healthDotClass}>
-                {Icons.health}
-              </span>
-            ) : Icons[tab.id]}
-            <span>{tab.label}</span>
-            {tab.id === 'inbox' && unreadCount > 0 && (
-              <span className="ml-0.5 bg-accent text-white text-[10px] font-bold rounded-full min-w-[16px] h-4 flex items-center justify-center px-1 leading-none">
-                {unreadCount > 99 ? '99+' : unreadCount}
-              </span>
-            )}
-            {tab.id === 'actions' && overdueCount > 0 && (
-              <span className="ml-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[16px] h-4 flex items-center justify-center px-1 leading-none">
-                {overdueCount}
-              </span>
-            )}
-            {tab.id === 'health' && healthStatus && (
-              <span className={`ml-0.5 w-1.5 h-1.5 rounded-full inline-block ${
-                healthStatus === 'ok' ? 'bg-green-500' :
-                healthStatus === 'degraded' ? 'bg-orange-400' : 'bg-red-500'
-              }`} />
-            )}
-          </button>
-        ))}
-      </div>
-
-      {/* Content */}
+      {/* Content + Left sidebar */}
       <div className="flex-1 flex overflow-hidden">
-        {activeTab === 'inbox' && (
+        {/* Left sidebar tab navigation */}
+        <div className="w-14 bg-gray-50 border-r border-gray-200 flex flex-col items-center py-2 gap-0.5 flex-shrink-0">
+          {TABS.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              title={tab.label}
+              className={`relative w-10 h-10 rounded-xl flex flex-col items-center justify-center transition-all ${
+                activeTab === tab.id
+                  ? 'bg-accent text-white shadow-sm'
+                  : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              {tab.id === 'health'
+                ? <span className={activeTab === tab.id ? 'text-white' : healthDotClass}>{Icons.health}</span>
+                : Icons[tab.id]}
+              {tab.id === 'inbox' && unreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[8px] font-bold rounded-full min-w-[14px] h-3.5 flex items-center justify-center px-0.5 leading-none">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
+              {tab.id === 'actions' && overdueCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[8px] font-bold rounded-full min-w-[14px] h-3.5 flex items-center justify-center px-0.5 leading-none">
+                  {overdueCount}
+                </span>
+              )}
+              {tab.id === 'health' && healthStatus && (
+                <span className={`absolute bottom-1.5 right-1.5 w-1.5 h-1.5 rounded-full ${
+                  healthStatus === 'ok' ? 'bg-green-400' :
+                  healthStatus === 'degraded' ? 'bg-orange-400' : 'bg-red-400'
+                }`} />
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Main content area */}
+        <div className="flex-1 flex overflow-hidden">
+          {activeTab === 'inbox' && (
           <>
             <div className="w-64 flex-shrink-0 flex flex-col">
               {accounts.length > 1 && (
@@ -501,13 +499,14 @@ export default function App() {
           </>
         )}
 
-        {activeTab === 'ask' && <AskPanel initialQuery={askContext} onClear={() => setAskContext('')} />}
-        {activeTab === 'actions' && <ActionBoard />}
-        {activeTab === 'digest' && <DigestView />}
-        {activeTab === 'analytics' && <Analytics />}
-        {activeTab === 'templates' && <TemplatesPanel />}
-        {activeTab === 'health' && <HealthPanel />}
-        {activeTab === 'knowledge' && <IntelligencePanel />}
+          {activeTab === 'ask' && <AskPanel initialQuery={askContext} onClear={() => setAskContext('')} />}
+          {activeTab === 'actions' && <ActionBoard />}
+          {activeTab === 'digest' && <DigestView />}
+          {activeTab === 'analytics' && <Analytics />}
+          {activeTab === 'templates' && <TemplatesPanel />}
+          {activeTab === 'health' && <HealthPanel />}
+          {activeTab === 'knowledge' && <IntelligencePanel />}
+        </div>
       </div>
 
       {/* Import by subject modal */}
