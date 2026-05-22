@@ -218,6 +218,47 @@ async def ingest_all(background_tasks: BackgroundTasks, request: Request, opts: 
     return {"status": "started", "accounts": len(accounts)}
 
 
+@router.post("/clear-and-reingest")
+async def clear_and_reingest(background_tasks: BackgroundTasks, request: Request):
+    global _ingest_progress
+    if _ingest_progress.status == "running":
+        raise HTTPException(409, "Ingest already running")
+
+    cache = request.app.state.cache
+    rag = request.app.state.rag
+
+    cleared = cache.clear_emails()
+    rag.clear_email_vectors()
+
+    accounts = cache.list_accounts()
+    if not accounts:
+        return {"cleared": cleared, "status": "cleared", "accounts": 0}
+
+    _ingest_progress = IngestProgress(
+        status="running",
+        message=f"Cleared {cleared} emails. Starting re-ingest…",
+    )
+
+    async def run():
+        global _ingest_progress
+        total_new = 0
+        total_skip = 0
+        for acc in accounts:
+            new, skip = await _ingest_account(acc, rag, cache)
+            total_new += new
+            total_skip += skip
+        rag.flush_bm25()
+        _ingest_progress = IngestProgress(
+            status="completed",
+            processed=total_new + total_skip,
+            total=total_new + total_skip,
+            message=f"Done — {total_new} new emails imported",
+        )
+
+    background_tasks.add_task(run)
+    return {"cleared": cleared, "status": "started", "accounts": len(accounts)}
+
+
 @router.get("/ingest/progress")
 async def ingest_progress():
     async def stream():

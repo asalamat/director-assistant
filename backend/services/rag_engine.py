@@ -420,6 +420,15 @@ class RAGEngine:
 
         return new_count
 
+    def clear_email_vectors(self) -> int:
+        """Delete all email chunk vectors from ChromaDB. Returns chunk count deleted."""
+        result = self._col.get(where={"source_type": "email"}, include=[])
+        ids = result.get("ids", [])
+        for i in range(0, len(ids), 1000):
+            self._proxy.delete(ids[i:i + 1000])
+        self._indexed_email_ids.clear()
+        return len(ids)
+
     def reindex_all_emails(self) -> int:
         """Clear in-memory email ID set and re-embed every email from SQLite cache."""
         self._indexed_email_ids.clear()

@@ -436,6 +436,19 @@ class EmailCache(EmailExtrasMixin):
             yield [self._to_message(dict(r)) for r in rows]
             offset += batch_size
 
+    def clear_emails(self) -> int:
+        """Delete all cached emails and related data. Returns number of emails deleted."""
+        with self._conn() as conn:
+            count = conn.execute("SELECT COUNT(*) FROM emails").fetchone()[0]
+            conn.execute("DELETE FROM action_items")
+            conn.execute("DELETE FROM follow_ups")
+            conn.execute("DELETE FROM email_categories")
+            conn.execute("DELETE FROM email_snooze")
+            conn.execute("DELETE FROM emails")
+            conn.execute("INSERT INTO emails_fts(emails_fts) VALUES('rebuild')")
+            conn.execute("UPDATE accounts SET last_ingested = NULL")
+        return count
+
     def delete_email(self, email_id: str) -> bool:
         """Remove email and its FTS entry. Returns True if it existed."""
         with self._conn() as conn:

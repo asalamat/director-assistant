@@ -66,6 +66,9 @@ export function Settings({ onConnected, initialTab = 'accounts' }: Props) {
   const [showFolderPicker, setShowFolderPicker] = useState(false)
   const [emailReindexing, setEmailReindexing] = useState(false)
   const [emailReindexMsg, setEmailReindexMsg] = useState('')
+  const [clearConfirm, setClearConfirm] = useState(false)
+  const [clearing, setClearing] = useState(false)
+  const [clearMsg, setClearMsg] = useState('')
 
   // Microsoft OAuth2 device flow state
   const [hotmailMode, setHotmailMode] = useState<'password' | 'oauth'>('password')
@@ -439,6 +442,63 @@ export function Settings({ onConnected, initialTab = 'accounts' }: Props) {
             {emailReindexMsg && (
               <p className={`text-xs ${emailReindexMsg.toLowerCase().includes('fail') || emailReindexMsg.toLowerCase().includes('error') ? 'text-red-500' : 'text-green-600'}`}>{emailReindexMsg}</p>
             )}
+
+            {/* Danger zone */}
+            <div className="border-t border-red-100 pt-4 mt-2">
+              <p className="text-xs font-semibold text-red-400 uppercase tracking-wider mb-2">Danger Zone</p>
+              {!clearConfirm ? (
+                <button
+                  onClick={() => setClearConfirm(true)}
+                  disabled={clearing}
+                  className="w-full border border-red-200 text-red-500 text-sm font-medium py-2 rounded-lg hover:bg-red-50 disabled:opacity-50 transition-colors"
+                >
+                  Clear Database &amp; Re-ingest
+                </button>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                    This will delete <strong>all cached emails</strong> and re-import from scratch. This cannot be undone.
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={async () => {
+                        setClearing(true)
+                        setClearMsg('')
+                        setClearConfirm(false)
+                        try {
+                          const res = await api.clearAndReingest()
+                          setClearMsg(`Cleared ${res.cleared} emails. Re-importing from ${res.accounts} account${res.accounts !== 1 ? 's' : ''}…`)
+                          const es = api.subscribeAccountsIngestProgress((p) => {
+                            if (p.status === 'completed' || p.status === 'error') {
+                              es.close()
+                              setClearing(false)
+                              setClearMsg(p.message)
+                              onConnected()
+                            }
+                          })
+                        } catch (e: unknown) {
+                          setClearMsg(e instanceof Error ? e.message : 'Failed')
+                          setClearing(false)
+                        }
+                      }}
+                      disabled={clearing}
+                      className="flex-1 bg-red-500 text-white text-sm font-medium py-2 rounded-lg hover:bg-red-600 disabled:opacity-50"
+                    >
+                      {clearing ? 'Clearing…' : 'Yes, clear everything'}
+                    </button>
+                    <button
+                      onClick={() => setClearConfirm(false)}
+                      className="px-4 py-2 border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+              {clearMsg && (
+                <p className={`text-xs mt-2 ${clearMsg.toLowerCase().includes('fail') || clearMsg.toLowerCase().includes('error') ? 'text-red-500' : 'text-gray-600'}`}>{clearMsg}</p>
+              )}
+            </div>
           </div>
         )}
 
