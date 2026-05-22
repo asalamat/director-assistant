@@ -221,8 +221,7 @@ async def ingest_all(background_tasks: BackgroundTasks, request: Request, opts: 
 @router.post("/clear-and-reingest")
 async def clear_and_reingest(background_tasks: BackgroundTasks, request: Request):
     global _ingest_progress
-    if _ingest_progress.status == "running":
-        raise HTTPException(409, "Ingest already running")
+    # Always allowed — overrides any in-progress ingest
 
     cache = request.app.state.cache
     rag = request.app.state.rag
