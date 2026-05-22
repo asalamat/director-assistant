@@ -333,8 +333,8 @@ class IMAPProvider:
             self.connect()
         try:
             return fn()
-        except (imaplib.IMAP4.abort, imaplib.IMAP4.error, SystemError):
-            # imaplib.IMAP4.error covers NONAUTH/stale-state errors; SystemError covers Python 3.13 bug
+        except (imaplib.IMAP4.abort, imaplib.IMAP4.error, SystemError, OSError, TimeoutError):
+            # OSError/TimeoutError: socket timed out — dead socket must be replaced before retry
             self._mail = None
             self.connect()
             return fn()
@@ -518,7 +518,7 @@ class IMAPProvider:
             uid_str = b",".join(batch).decode()
             try:
                 _, fetch_data = self._mail.uid("FETCH", uid_str, "(FLAGS RFC822)")
-            except imaplib.IMAP4.abort:
+            except (imaplib.IMAP4.abort, OSError, TimeoutError):
                 self._mail = None
                 self.connect()
                 self._mail.select(f'"{folder}"')
@@ -532,7 +532,7 @@ class IMAPProvider:
                     try:
                         _, d = self._mail.uid("FETCH", single_uid.decode(), "(FLAGS RFC822)")
                         fetch_data.extend(d)
-                    except imaplib.IMAP4.abort:
+                    except (imaplib.IMAP4.abort, OSError, TimeoutError):
                         try:
                             self._mail = None
                             self.connect()
