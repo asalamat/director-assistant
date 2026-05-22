@@ -106,7 +106,9 @@ async def _ingest_account(account: Account, rag, cache, from_date: Optional[str]
 
     cfg = account.to_connection_config()
     provider = build_provider(cfg)
-    folders = provider.get_ingest_folders()
+    # When a date filter is active, new emails only exist in inbox-type folders.
+    # Scanning all 150+ custom folders causes IMAP timeouts and misses INBOX.
+    folders = provider.get_poll_folders() if from_date else provider.get_ingest_folders()
     BATCH = 500
     total_new = 0
     total_skip = 0
