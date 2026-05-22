@@ -1,6 +1,6 @@
 # Director Assistant
 
-An AI-powered email intelligence app that helps you understand your inbox, track commitments, and take action faster. Connects to any IMAP mailbox and uses Claude AI to surface what matters.
+An AI-powered email intelligence app that helps you understand your inbox, track commitments, and take action faster. Connects to any IMAP mailbox and uses Claude AI (or OpenAI) to surface what matters.
 
 ---
 
@@ -8,14 +8,24 @@ An AI-powered email intelligence app that helps you understand your inbox, track
 
 | Tab | What it does |
 |-----|-------------|
-| **Inbox** | Browse, search, and filter emails. AI-powered reply recommendations. |
-| **Ask** | Ask natural-language questions over your entire email history (RAG). |
-| **Actions** | AI-generated action board — things you need to do, reply to, or follow up on. |
-| **Brief** | Daily digest summarising your most important emails. |
-| **Analytics** | Volume trends, top senders, and response-time insights. |
-| **Templates** | Save and reuse reply templates with `{name}`, `{date}` variables. |
-| **Health** | Backend status, IMAP connection health, and AI availability. |
+| **Inbox** | Browse, search, and filter emails. Priority labels (urgent / action / finance), thread depth, smart sort, snooze, and pin-search smart folders. |
+| **Ask** | Ask natural-language questions over your entire email history using semantic (vector) + full-text search. |
+| **Actions** | AI-generated action board — commitments, follow-ups, and deadlines extracted automatically. CSV export. |
+| **Brief** | Daily AI digest summarising your most important emails. Configurable date range. |
+| **Analytics** | Activity heatmap, volume trend, top senders, folder breakdown. CSV export. |
+| **Templates** | Save and reuse reply templates with `{name}`, `{date}`, `{subject}`, `{sender}` variables. |
+| **Health** | Backend status, IMAP connection health, AI availability, and polling loop state. |
 | **Knowledge** | Role-transition intelligence — people graph, open commitments, active projects, topic timeline, and an AI-written executive briefing. |
+
+### Highlights
+
+- **Multiple accounts** — Gmail, Yahoo, Hotmail, Office 365, or any IMAP server
+- **Dual AI support** — Anthropic Claude or OpenAI (configured in App Settings)
+- **Save drafts** — write AI reply suggestions directly to your IMAP Drafts folder
+- **Contact cards** — click any sender to see full history and stats
+- **Dock badge** — macOS unread count badge updated automatically
+- **Budget mode** — use a cheaper model for routine tasks to reduce API costs
+- **Docker** — one-command server deployment via `docker compose up`
 
 ---
 
@@ -24,8 +34,8 @@ An AI-powered email intelligence app that helps you understand your inbox, track
 - **macOS 12+** (or Windows 10+)
 - **Python 3.11+**
 - **Node.js 18+**
-- An **Anthropic API key** — get one at [console.anthropic.com](https://console.anthropic.com)
-- An IMAP-enabled email account (Gmail, Outlook, iCloud, or any IMAP server)
+- An **Anthropic API key** (or OpenAI key) — get one at [console.anthropic.com](https://console.anthropic.com)
+- An IMAP-enabled email account (Gmail, Yahoo, Hotmail, Office 365, or any IMAP server)
 
 ---
 
@@ -36,13 +46,13 @@ An AI-powered email intelligence app that helps you understand your inbox, track
 Go to the [Releases page](https://github.com/asalamat/director-assistant/releases) and download:
 
 ```
-DirectorAssistant-mac-2.5.0.zip
+DirectorAssistant-mac-2.8.0.zip
 ```
 
 ### 2. Extract and run the installer
 
 ```bash
-unzip DirectorAssistant-mac-2.5.0.zip
+unzip DirectorAssistant-mac-2.8.0.zip
 cd DirectorAssistant
 bash scripts/install-mac.sh
 ```
@@ -65,7 +75,7 @@ Or double-click **Director Assistant.app** in `~/Applications`.
 ### 4. First-time setup
 
 1. Open `http://localhost:8000`
-2. Go to **Settings → App Settings** — enter your Anthropic API key
+2. Go to **Settings → App Settings** — enter your Anthropic (or OpenAI) API key
 3. Go to **Settings → Email Accounts → Add Account** — connect your mailbox
 
 ### Stop / Start manually
@@ -82,11 +92,22 @@ launchctl load ~/Library/LaunchAgents/com.director-assistant.app.plist
 
 ## Windows — Install from ZIP
 
-Download `DirectorAssistant-win-2.5.0.zip` from [Releases](https://github.com/asalamat/director-assistant/releases), extract it, then double-click:
+Download `DirectorAssistant-win-2.8.0.zip` from [Releases](https://github.com/asalamat/director-assistant/releases), extract it, then double-click:
 
 ```
 DirectorAssistant\scripts\install-windows.bat
 ```
+
+---
+
+## Docker
+
+```bash
+docker compose up -d
+# App runs at http://localhost:8000
+```
+
+Email data persists in the `director_data` Docker volume across restarts.
 
 ---
 
@@ -123,15 +144,15 @@ Open `http://localhost:8000`.
 bash scripts/package.sh
 ```
 
-Outputs `dist/DirectorAssistant-mac-2.5.0.zip` and `dist/DirectorAssistant-win-2.5.0.zip`.
+Outputs `dist/DirectorAssistant-mac-2.8.0.zip` and `dist/DirectorAssistant-win-2.8.0.zip`.
 
 ---
 
 ## Tech stack
 
-- **Backend** — FastAPI, Anthropic Claude API, SQLite (FTS5), sentence-transformers
+- **Backend** — FastAPI, Anthropic Claude API, OpenAI API, SQLite (FTS5), sentence-transformers
 - **Frontend** — React 18, TypeScript, Vite, Tailwind CSS
-- **AI** — Claude Haiku (fast analysis), Claude Sonnet (summaries and Q&A)
+- **AI** — Claude Haiku / Sonnet or OpenAI GPT (configurable)
 
 ---
 

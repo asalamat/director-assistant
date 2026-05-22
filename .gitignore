@@ -31,9 +31,40 @@ dist/*.exe
 *.db-wal
 *.sqlite
 
-# claude-flow sessions
+# claude-flow sessions and runtime state
 .claude-flow/sessions/
+.claude-flow/daemon-state.json
+.claude-flow/embeddings.json
+.claude-flow/metrics/
+.claude-flow/security/
+.claude-flow/swarm/
+.claude-flow/tasks/
 backend/.claude-flow/sessions/
+backend/.claude-flow/agents.json
+backend/.claude-flow/hive-mind/
+frontend/.claude-flow/daemon-state.json
+frontend/.claude-flow/logs/
+frontend/.claude-flow/metrics/
+
+# claude-flow config files (auto-generated)
+.claude-flow/.gitignore
+.claude-flow/CAPABILITIES.md
+.claude-flow/config.yaml
+frontend/claude-flow.config.json
+frontend/agentdb.rvf
+frontend/agentdb.rvf.lock
+frontend/data/
+
+# Claude local config
+.claude/
+.mcp.json
+.swarm/
+
+# Build outputs
+build/
+dist/Director\ Assistant.app/
+dist/DirectorAssistant/
+dist/DirectorAssistant*/
 
 # macOS
 .DS_Store
