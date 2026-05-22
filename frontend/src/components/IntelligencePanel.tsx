@@ -312,11 +312,28 @@ function PeopleTab() {
 
 // ── Open Loops ────────────────────────────────────────────────────────────────
 
+const DISMISSED_KEY = 'dismissed_loops'
+
+function loopFingerprint(l: OpenLoop): string {
+  return `${l.type}|${l.sender}|${(l.date || '').slice(0, 10)}|${(l.text || '').slice(0, 60)}`
+}
+
+function loadDismissed(): Set<string> {
+  try { return new Set(JSON.parse(localStorage.getItem(DISMISSED_KEY) || '[]')) }
+  catch { return new Set() }
+}
+
+function saveDismissed(s: Set<string>) {
+  localStorage.setItem(DISMISSED_KEY, JSON.stringify([...s]))
+}
+
 function LoopsTab() {
   const [loops, setLoops] = useState<OpenLoop[]>([])
   const [loading, setLoading] = useState(false)
   const [loaded, setLoaded] = useState(false)
   const [filter, setFilter] = useState<'all' | 'commitment' | 'awaiting' | 'deadline'>('all')
+  const [dismissed, setDismissed] = useState<Set<string>>(loadDismissed)
+  const [showDismissed, setShowDismissed] = useState(false)
 
   const load = () => {
     setLoading(true)
@@ -326,7 +343,30 @@ function LoopsTab() {
       .finally(() => setLoading(false))
   }
 
-  const filtered = filter === 'all' ? loops : loops.filter(l => l.type === filter)
+  const dismiss = (loop: OpenLoop) => {
+    const next = new Set(dismissed)
+    next.add(loopFingerprint(loop))
+    setDismissed(next)
+    saveDismissed(next)
+  }
+
+  const restore = (loop: OpenLoop) => {
+    const next = new Set(dismissed)
+    next.delete(loopFingerprint(loop))
+    setDismissed(next)
+    saveDismissed(next)
+  }
+
+  const clearAllDismissed = () => {
+    setDismissed(new Set())
+    saveDismissed(new Set())
+    setShowDismissed(false)
+  }
+
+  const active = loops.filter(l => !dismissed.has(loopFingerprint(l)))
+  const dismissedLoops = loops.filter(l => dismissed.has(loopFingerprint(l)))
+
+  const filtered = filter === 'all' ? active : active.filter(l => l.type === filter)
   const high = filtered.filter(l => l.urgency === 'high')
   const medium = filtered.filter(l => l.urgency === 'medium')
   const low = filtered.filter(l => l.urgency === 'low')
@@ -367,14 +407,25 @@ function LoopsTab() {
           {(['all', 'commitment', 'awaiting', 'deadline'] as const).map(f => (
             <button key={f} onClick={() => setFilter(f)}
               className={`text-xs px-2.5 py-1 rounded-lg transition-colors ${filter === f ? 'bg-accent text-white' : 'text-gray-500 hover:bg-gray-100'}`}>
-              {f === 'all' ? `All (${loops.length})` : f.charAt(0).toUpperCase() + f.slice(1)}
+              {f === 'all' ? `All (${active.length})` : f.charAt(0).toUpperCase() + f.slice(1)}
             </button>
           ))}
         </div>
-        <button onClick={load} className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1 rounded hover:bg-gray-100">Refresh</button>
+        <div className="flex items-center gap-2">
+          {dismissedLoops.length > 0 && (
+            <button onClick={() => setShowDismissed(v => !v)}
+              className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1 rounded hover:bg-gray-100">
+              {showDismissed ? 'Hide' : `Dismissed (${dismissedLoops.length})`}
+            </button>
+          )}
+          <button onClick={load} className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1 rounded hover:bg-gray-100">Refresh</button>
+        </div>
       </div>
+
       <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-2">
-        {filtered.length === 0 && <p className="text-sm text-gray-400 text-center py-8">No open items found</p>}
+        {filtered.length === 0 && !showDismissed && (
+          <p className="text-sm text-gray-400 text-center py-8">No open items found</p>
+        )}
         {[...high, ...medium, ...low].map((loop, i) => (
           <div key={i} className={`border rounded-xl p-3 ${urgencyStyle(loop.urgency)}`}>
             <div className="flex items-start gap-2">
@@ -388,9 +439,50 @@ function LoopsTab() {
                   <span className="text-[10px] text-gray-400">{loop.type}</span>
                 </div>
               </div>
+              <button
+                onClick={() => dismiss(loop)}
+                title="Mark as resolved"
+                className="flex-shrink-0 text-gray-300 hover:text-green-500 transition-colors p-1 rounded hover:bg-white/60"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                </svg>
+              </button>
             </div>
           </div>
         ))}
+
+        {showDismissed && dismissedLoops.length > 0 && (
+          <div className="mt-4">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Resolved / Dismissed</p>
+              <button onClick={clearAllDismissed} className="text-xs text-gray-400 hover:text-red-500 transition-colors">Clear all</button>
+            </div>
+            {dismissedLoops.map((loop, i) => (
+              <div key={i} className="border border-gray-100 rounded-xl p-3 bg-gray-50 opacity-60 mb-2">
+                <div className="flex items-start gap-2">
+                  <span className="text-base flex-shrink-0 mt-0.5 grayscale">{typeIcon(loop.type)}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-gray-500 line-through">{loop.text}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-xs text-gray-400 truncate">{loop.sender}</span>
+                      <span className="text-xs text-gray-300">{loop.date?.slice(0, 10)}</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => restore(loop)}
+                    title="Restore"
+                    className="flex-shrink-0 text-gray-300 hover:text-accent transition-colors p-1 rounded hover:bg-white"
+                  >
+                    <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1z" clipRule="evenodd"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )

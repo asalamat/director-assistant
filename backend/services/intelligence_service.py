@@ -110,14 +110,17 @@ class IntelligenceService:
         with self.cache._conn() as conn:
             rows = conn.execute(
                 """SELECT id, subject, sender, body, date FROM emails
-                   ORDER BY date DESC LIMIT ?""",
+                   ORDER BY date ASC LIMIT ?""",
                 (max_emails,)
             ).fetchall()
 
         if not rows:
             return []
 
-        batches = [rows[i:i+25] for i in range(0, min(len(rows), 150), 25)]
+        # Use last 150 emails (most recent) in chronological order so
+        # commitments and their replies land in the same batch
+        recent = rows[-150:] if len(rows) > 150 else rows
+        batches = [recent[i:i+25] for i in range(0, len(recent), 25)]
 
         async def process_batch(batch) -> list[dict]:
             text_blocks = []
@@ -128,17 +131,20 @@ class IntelligenceService:
                     f"Subject: {row['subject'] or '?'} | Snippet: {snip}"
                 )
             prompt = (
-                "Analyze these emails and identify ONLY open/unresolved items:\n"
+                "Analyze these emails in chronological order and identify ONLY open/unresolved items:\n"
                 "1. Commitments made (I will, I'll, we will, will send, will follow up, will get back)\n"
                 "2. Responses awaited (please let me know, waiting for, can you, need your response, please confirm)\n"
                 "3. Deadlines or time-sensitive items mentioned\n\n"
+                "IMPORTANT: If a later email in this list shows the commitment was fulfilled, "
+                "the response was received, or the matter was resolved — do NOT include it. "
+                "Only include items with no visible resolution in this email set.\n\n"
                 "Return ONLY a JSON array (empty [] if none). Each item has keys:\n"
                 "- type: 'commitment' | 'awaiting' | 'deadline'\n"
                 "- text: one-sentence description of the open item\n"
                 "- sender: who is involved\n"
                 "- date: date string from the email\n"
                 "- urgency: 'high' | 'medium' | 'low'\n\n"
-                "Emails:\n" + "\n---\n".join(text_blocks)
+                "Emails (oldest to newest):\n" + "\n---\n".join(text_blocks)
             )
             try:
                 resp = await self.ai.messages.create(
