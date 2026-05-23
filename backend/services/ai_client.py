@@ -34,6 +34,24 @@ _FALLBACK_STATUSES = {401, 429, 500, 503, 529}
 _BILLING_KEYWORDS = ("credit balance", "billing", "upgrade", "purchase credits")
 
 
+def _raise_openai_error(e: Exception) -> None:
+    """Convert an OpenAI exception into a user-friendly RuntimeError."""
+    msg = str(e)
+    try:
+        from openai import AuthenticationError, RateLimitError, APIStatusError
+        if isinstance(e, AuthenticationError):
+            raise RuntimeError(
+                "OpenAI API key is invalid. Update it in Settings → App Settings."
+            ) from e
+        if isinstance(e, RateLimitError):
+            raise RuntimeError("Both Claude and OpenAI are rate-limited. Try again shortly.") from e
+        if isinstance(e, APIStatusError):
+            raise RuntimeError(f"OpenAI error {e.status_code}: {e.message}") from e
+    except ImportError:
+        pass
+    raise RuntimeError(f"OpenAI fallback failed: {msg}") from e
+
+
 def _is_billing_error(e: "anthropic.APIStatusError") -> bool:
     """Return True for 400 errors caused by exhausted Anthropic credits."""
     if e.status_code != 400:
@@ -77,13 +95,16 @@ class _OpenAIStream:
         system = self._kwargs.get("system")
         if system:
             oai_messages = [{"role": "system", "content": system}] + oai_messages
-        self._response = await self._client.chat.completions.create(
-            model=self._model,
-            max_tokens=self._max_tokens,
-            messages=oai_messages,
-            stream=True,
-            **{k: v for k, v in self._kwargs.items() if k not in ("system",)},
-        )
+        try:
+            self._response = await self._client.chat.completions.create(
+                model=self._model,
+                max_tokens=self._max_tokens,
+                messages=oai_messages,
+                stream=True,
+                **{k: v for k, v in self._kwargs.items() if k not in ("system",)},
+            )
+        except Exception as e:
+            _raise_openai_error(e)
         return self
 
     async def __aexit__(self, *_):
@@ -244,12 +265,15 @@ class AIClient:
             if kwargs.get("system"):
                 oai_messages = [{"role": "system", "content": kwargs["system"]}] + oai_messages
             logger.info(f"[ai] Using OpenAI {oai_model} (mapped from {model})")
-            resp = await self._openai.chat.completions.create(
-                model=oai_model,
-                max_tokens=max_tokens,
-                messages=oai_messages,
-                **{k: v for k, v in kwargs.items() if k not in ("system",)},
-            )
+            try:
+                resp = await self._openai.chat.completions.create(
+                    model=oai_model,
+                    max_tokens=max_tokens,
+                    messages=oai_messages,
+                    **{k: v for k, v in kwargs.items() if k not in ("system",)},
+                )
+            except Exception as e:
+                _raise_openai_error(e)
             return _OpenAIResponse(resp)
 
         raise RuntimeError(
