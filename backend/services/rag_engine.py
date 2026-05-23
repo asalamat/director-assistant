@@ -574,10 +574,13 @@ class RAGEngine:
     def hybrid_search(self, query: str, n_results: int = 20) -> List[dict]:
         """Dense (ChromaDB) + Sparse (SQLite FTS5), fused with RRF."""
         count = self._proxy.count()
-        if count == 0:
+        # Fall back to FTS5-only when the worker is still loading (count=0) but
+        # there are emails in the in-memory ID set or SQLite cache.
+        has_data = count > 0 or len(self._indexed_email_ids) > 0
+        if not has_data:
             return []
 
-        n = min(n_results, count)
+        n = min(n_results, max(count, n_results))
 
         # 1. Dense semantic search — runs in isolated subprocess to prevent SIGSEGV
         dense = self._proxy.query(query, n, ["documents", "metadatas", "distances"])
