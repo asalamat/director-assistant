@@ -13,6 +13,7 @@ import { AskPanel } from './components/AskPanel'
 import { HelpModal } from './components/HelpModal'
 import { IntelligencePanel } from './components/IntelligencePanel'
 import { ToastContainer, addToast } from './components/Toast'
+import UpdatePopup from './components/UpdatePopup'
 import { useEmails, useEmailDetail, useRecommendation } from './hooks/useEmails'
 import { api } from './api/client'
 import type { EmailSummary } from './types'
@@ -546,6 +547,7 @@ export default function App() {
       {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
       <StatusBar />
       <ToastContainer />
+      <UpdatePopup />
     </div>
   )
 }

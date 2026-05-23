@@ -360,4 +360,12 @@ export const api = {
   invalidateIntelligence(): Promise<{ status: string }> {
     return request('/intelligence/invalidate', { method: 'POST' })
   },
+
+  checkUpdate(): Promise<{ current: string; latest: string | null; update_available: boolean; error?: string }> {
+    return request('/update/check')
+  },
+
+  applyUpdate(): Promise<{ status: string; message: string }> {
+    return request('/update/apply', { method: 'POST' })
+  },
 }
