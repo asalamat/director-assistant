@@ -215,9 +215,10 @@ async def _do_poll_cycle(rag: RAGEngine, cache: EmailCache) -> tuple[int, list[s
                     buffer.append(email)
         except Exception as e:
             import imaplib as _imap
-            if isinstance(e, (_imap.IMAP4.abort, _imap.IMAP4.error)):
-                raise  # let outer handler reconnect on next cycle
-            print(f"[poll] fetch interrupted account={account_id} folder={folder}: {e} "
+            if isinstance(e, _imap.IMAP4.abort):
+                raise  # connection dropped — outer handler should reconnect
+            # IMAP4.error (folder not found, wrong state, etc.) — skip this folder
+            print(f"[poll] fetch error account={account_id} folder={folder}: {e} "
                   f"— saving {len(buffer)} emails fetched so far")
 
         count = 0
