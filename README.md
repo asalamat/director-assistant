@@ -9,7 +9,9 @@ An AI-powered email intelligence app that helps you understand your inbox, track
 | Tab | What it does |
 |-----|-------------|
 | **Inbox** | Browse, search, and filter emails. Priority labels (urgent / action / finance), thread depth, smart sort, snooze, and pin-search smart folders. |
-| **Ask** | Ask natural-language questions over your entire email history using semantic (vector) + full-text search. |
+| **Thread View** | Read full email threads inline with collapsible messages and AI-suggested replies. |
+| **Compose** | Write new emails or reply with AI-generated draft suggestions saved directly to your IMAP Drafts folder. |
+| **Ask** | Ask natural-language questions over your entire email history using semantic (vector) + full-text search, with full ask history. |
 | **Actions** | AI-generated action board — commitments, follow-ups, and deadlines extracted automatically. CSV export. |
 | **Brief** | Daily AI digest summarising your most important emails. Configurable date range. |
 | **Analytics** | Activity heatmap, volume trend, top senders, folder breakdown. CSV export. |
@@ -20,8 +22,11 @@ An AI-powered email intelligence app that helps you understand your inbox, track
 ### Highlights
 
 - **Multiple accounts** — Gmail, Yahoo, Hotmail, Office 365, or any IMAP server
-- **Dual AI support** — Anthropic Claude or OpenAI (configured in App Settings)
-- **Save drafts** — write AI reply suggestions directly to your IMAP Drafts folder
+- **Dual AI with auto-fallback** — Anthropic Claude primary; automatically falls back to OpenAI on rate limits, quota exhaustion, or billing errors
+- **Auto-update** — checks GitHub for new versions and applies updates in-place with a one-click popup
+- **Follow-up reminders** — AI detects emails needing a reply and surfaces them as reminders
+- **Desktop notifications** — browser notifications for new email and refresh results
+- **Ask history** — all previous Ask queries saved and browsable
 - **Contact cards** — click any sender to see full history and stats
 - **Dock badge** — macOS unread count badge updated automatically
 - **Budget mode** — use a cheaper model for routine tasks to reduce API costs
@@ -46,13 +51,13 @@ An AI-powered email intelligence app that helps you understand your inbox, track
 Go to the [Releases page](https://github.com/asalamat/director-assistant/releases) and download:
 
 ```
-DirectorAssistant-mac-2.8.0.zip
+DirectorAssistant-mac-2.9.7.zip
 ```
 
 ### 2. Extract and run the installer
 
 ```bash
-unzip DirectorAssistant-mac-2.8.0.zip
+unzip DirectorAssistant-mac-2.9.7.zip
 cd DirectorAssistant
 bash scripts/install-mac.sh
 ```
@@ -82,17 +87,17 @@ Or double-click **Director Assistant.app** in `~/Applications`.
 
 ```bash
 # Stop
-launchctl unload ~/Library/LaunchAgents/com.director-assistant.app.plist
+launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.director-assistant.app.plist
 
 # Start
-launchctl load ~/Library/LaunchAgents/com.director-assistant.app.plist
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.director-assistant.app.plist
 ```
 
 ---
 
 ## Windows — Install from ZIP
 
-Download `DirectorAssistant-win-2.8.0.zip` from [Releases](https://github.com/asalamat/director-assistant/releases), extract it, then double-click:
+Download `DirectorAssistant-win-2.9.7.zip` from [Releases](https://github.com/asalamat/director-assistant/releases), extract it, then double-click:
 
 ```
 DirectorAssistant\scripts\install-windows.bat
@@ -144,7 +149,7 @@ Open `http://localhost:8000`.
 bash scripts/package.sh
 ```
 
-Outputs `dist/DirectorAssistant-mac-2.8.0.zip` and `dist/DirectorAssistant-win-2.8.0.zip`.
+Outputs `dist/DirectorAssistant-mac-2.9.7.zip` and `dist/DirectorAssistant-win-2.9.7.zip`.
 
 ---
 
@@ -152,7 +157,7 @@ Outputs `dist/DirectorAssistant-mac-2.8.0.zip` and `dist/DirectorAssistant-win-2
 
 - **Backend** — FastAPI, Anthropic Claude API, OpenAI API, SQLite (FTS5), sentence-transformers
 - **Frontend** — React 18, TypeScript, Vite, Tailwind CSS
-- **AI** — Claude Haiku / Sonnet or OpenAI GPT (configurable)
+- **AI** — Claude Haiku / Sonnet with automatic OpenAI fallback (configurable)
 
 ---
 
