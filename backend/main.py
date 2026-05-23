@@ -109,11 +109,11 @@ async def _run_poll_cycle(rag: RAGEngine, cache: EmailCache) -> tuple[int, list[
         return 0, []
     _poll_running = True
     try:
-        result = await asyncio.wait_for(_do_poll_cycle(rag, cache), timeout=120)
+        result = await asyncio.wait_for(_do_poll_cycle(rag, cache), timeout=200)
         return result
     except asyncio.TimeoutError:
-        _last_poll_error = "Poll timed out after 120s"
-        print("[poll] cycle timed out after 120s")
+        _last_poll_error = "Poll timed out after 200s"
+        print("[poll] cycle timed out after 200s")
         return 0, [_last_poll_error]
     except Exception as e:
         _last_poll_error = str(e)
@@ -178,24 +178,23 @@ async def _do_poll_cycle(rag: RAGEngine, cache: EmailCache) -> tuple[int, list[s
     legacy_needs_full_sweep = (len(all_accounts) == 0 and not _LEGACY_INGESTED_FLAG.exists())
 
     def check_folder(account_id: int, provider, folder: str, full_sweep: bool = False) -> int:
-        # Step 1: detect server-side deletions (cheap UID list, no body download)
-        try:
-            server_uids = provider.get_uid_list(folder=folder, from_date=since_dt)
-        except Exception as e:
-            print(f"[poll] uid_list failed account={account_id} folder={folder}: {e}")
-            server_uids = None
+        # Step 1: detect server-side deletions (full sweep only — skip on quick polls to avoid
+        # extra round-trips on slow providers like Yahoo IMAP)
+        if full_sweep:
+            try:
+                server_uids = provider.get_uid_list(folder=folder, from_date=since_dt)
+            except Exception as e:
+                print(f"[poll] uid_list failed account={account_id} folder={folder}: {e}")
+                server_uids = None
 
-        if server_uids is not None and len(server_uids) > 0:
-            # Only run deletion detection when server returned something.
-            # An empty set likely means a transient auth/connection issue — skip
-            # to avoid mass-deleting all cached emails.
-            cached = cache.get_cached_server_ids(account_id, folder, since_str)
-            for srv_id, cache_id in cached.items():
-                if srv_id not in server_uids:
-                    cache.delete_email(cache_id)
-                    rag.remove_email(cache_id)
-                    known_ids.discard(cache_id)
-                    print(f"[poll] removed deleted email cache_id={cache_id}")
+            if server_uids is not None and len(server_uids) > 0:
+                cached = cache.get_cached_server_ids(account_id, folder, since_str)
+                for srv_id, cache_id in cached.items():
+                    if srv_id not in server_uids:
+                        cache.delete_email(cache_id)
+                        rag.remove_email(cache_id)
+                        known_ids.discard(cache_id)
+                        print(f"[poll] removed deleted email cache_id={cache_id}")
 
         # Step 2: fetch new emails
         # First-time accounts get a full unlimited sweep so nothing is missed.
@@ -254,7 +253,7 @@ async def _do_poll_cycle(rag: RAGEngine, cache: EmailCache) -> tuple[int, list[s
                     try:
                         new_total += await asyncio.wait_for(
                             loop.run_in_executor(None, check_folder, account_id, provider, folder, full_sweep),
-                            timeout=20,
+                            timeout=45,
                         )
                     except asyncio.TimeoutError:
                         errors.append(f"account {account_id} folder {folder}: timeout")
