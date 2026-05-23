@@ -221,7 +221,7 @@ async def ingest_all(background_tasks: BackgroundTasks, request: Request, opts: 
 
 
 @router.post("/clear-and-reingest")
-async def clear_and_reingest(background_tasks: BackgroundTasks, request: Request):
+async def clear_and_reingest(background_tasks: BackgroundTasks, request: Request, opts: IngestOptions = IngestOptions()):
     global _ingest_progress
     # Always allowed — overrides any in-progress ingest
 
@@ -241,7 +241,6 @@ async def clear_and_reingest(background_tasks: BackgroundTasks, request: Request
 
     async def run():
         global _ingest_progress
-        # Wait for the worker to be ready before deleting vectors
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, rag.clear_email_vectors)
         _ingest_progress.message = "Vectors cleared. Starting re-ingest…"
@@ -249,7 +248,7 @@ async def clear_and_reingest(background_tasks: BackgroundTasks, request: Request
         total_new = 0
         total_skip = 0
         for acc in accounts:
-            new, skip = await _ingest_account(acc, rag, cache)
+            new, skip = await _ingest_account(acc, rag, cache, from_date=opts.from_date)
             total_new += new
             total_skip += skip
         rag.flush_bm25()

@@ -300,8 +300,11 @@ export const api = {
     return request(`/oauth/microsoft/poll?flow_id=${encodeURIComponent(flow_id)}`)
   },
 
-  clearAndReingest(): Promise<{ cleared: number; status: string; accounts: number }> {
-    return request('/accounts/clear-and-reingest', { method: 'POST' })
+  clearAndReingest(fromDate?: string): Promise<{ cleared: number; status: string; accounts: number }> {
+    return request('/accounts/clear-and-reingest', {
+      method: 'POST',
+      body: fromDate ? JSON.stringify({ from_date: fromDate }) : undefined,
+    })
   },
 
   subscribeAccountsIngestProgress(onProgress: (p: IngestProgress) => void): EventSource {

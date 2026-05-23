@@ -69,6 +69,7 @@ export function Settings({ onConnected, initialTab = 'accounts' }: Props) {
   const [clearConfirm, setClearConfirm] = useState(false)
   const [clearing, setClearing] = useState(false)
   const [clearMsg, setClearMsg] = useState('')
+  const [clearFromDate, setClearFromDate] = useState('')
 
   // Microsoft OAuth2 device flow state
   const [hotmailMode, setHotmailMode] = useState<'password' | 'oauth'>('password')
@@ -446,9 +447,33 @@ export function Settings({ onConnected, initialTab = 'accounts' }: Props) {
             {/* Danger zone */}
             <div className="border-t border-red-100 pt-4 mt-2">
               <p className="text-xs font-semibold text-red-400 uppercase tracking-wider mb-2">Danger Zone</p>
+
+              {/* Document ingest */}
+              <div className="mb-3">
+                <p className="text-xs text-gray-500 mb-1">Re-index documents only (leaves emails untouched)</p>
+                <button
+                  onClick={async () => {
+                    setDocIngesting(true)
+                    setDocMsg('')
+                    try {
+                      await api.ingestDocuments()
+                      setDocMsg('Document re-index started…')
+                    } catch (e: unknown) {
+                      setDocMsg(e instanceof Error ? e.message : 'Failed')
+                      setDocIngesting(false)
+                    }
+                  }}
+                  disabled={docIngesting}
+                  className="w-full border border-gray-200 text-gray-600 text-sm font-medium py-2 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                >
+                  {docIngesting ? 'Re-indexing documents…' : 'Re-index Documents'}
+                </button>
+                {docMsg && <p className="text-xs mt-1 text-gray-500">{docMsg}</p>}
+              </div>
+
               {!clearConfirm ? (
                 <button
-                  onClick={() => setClearConfirm(true)}
+                  onClick={() => { setClearConfirm(true); setClearFromDate('') }}
                   disabled={clearing}
                   className="w-full border border-red-200 text-red-500 text-sm font-medium py-2 rounded-lg hover:bg-red-50 disabled:opacity-50 transition-colors"
                 >
@@ -457,8 +482,17 @@ export function Settings({ onConnected, initialTab = 'accounts' }: Props) {
               ) : (
                 <div className="space-y-2">
                   <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-                    This will delete <strong>all cached emails</strong> and re-import from scratch. This cannot be undone.
+                    This will delete <strong>all cached emails and vectors</strong> then re-import. This cannot be undone.
                   </p>
+                  <div>
+                    <label className="text-xs text-gray-500 block mb-1">Import emails from date (leave blank for all)</label>
+                    <input
+                      type="date"
+                      value={clearFromDate}
+                      onChange={e => setClearFromDate(e.target.value)}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-accent/30"
+                    />
+                  </div>
                   <div className="flex gap-2">
                     <button
                       onClick={async () => {
@@ -466,8 +500,9 @@ export function Settings({ onConnected, initialTab = 'accounts' }: Props) {
                         setClearMsg('')
                         setClearConfirm(false)
                         try {
-                          const res = await api.clearAndReingest()
-                          setClearMsg(`Cleared ${res.cleared} emails. Re-importing from ${res.accounts} account${res.accounts !== 1 ? 's' : ''}…`)
+                          const res = await api.clearAndReingest(clearFromDate || undefined)
+                          const dateNote = clearFromDate ? ` from ${clearFromDate}` : ''
+                          setClearMsg(`Cleared ${res.cleared} emails. Re-importing${dateNote} from ${res.accounts} account${res.accounts !== 1 ? 's' : ''}…`)
                           const es = api.subscribeAccountsIngestProgress((p) => {
                             if (p.status === 'completed' || p.status === 'error') {
                               es.close()
