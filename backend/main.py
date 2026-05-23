@@ -100,7 +100,7 @@ async def _run_poll_cycle(rag: RAGEngine, cache: EmailCache) -> tuple[int, list[
     One complete poll cycle: detect deletions, fetch new emails for all accounts.
     Returns (new_count, error_list). Updates _last_poll_* globals on completion.
     """
-    global _poll_running
+    global _poll_running, _last_poll_time, _last_poll_error
     from routers.connection import _progress
 
     if _progress.status == "running":
@@ -109,9 +109,19 @@ async def _run_poll_cycle(rag: RAGEngine, cache: EmailCache) -> tuple[int, list[
         return 0, []
     _poll_running = True
     try:
-        return await _do_poll_cycle(rag, cache)
+        result = await asyncio.wait_for(_do_poll_cycle(rag, cache), timeout=120)
+        return result
+    except asyncio.TimeoutError:
+        _last_poll_error = "Poll timed out after 120s"
+        print("[poll] cycle timed out after 120s")
+        return 0, [_last_poll_error]
+    except Exception as e:
+        _last_poll_error = str(e)
+        return 0, [str(e)]
     finally:
         _poll_running = False
+        # Always stamp completion time so the frontend stops waiting
+        _last_poll_time = datetime.now(timezone.utc).isoformat(timespec="seconds") + "Z"
 
 
 async def _do_poll_cycle(rag: RAGEngine, cache: EmailCache) -> tuple[int, list[str]]:
@@ -229,25 +239,26 @@ async def _do_poll_cycle(rag: RAGEngine, cache: EmailCache) -> tuple[int, list[s
             try:
                 full_sweep = (account_id in never_ingested_ids) or (account_id == 0 and legacy_needs_full_sweep)
                 if full_sweep and attempt == 0:
-                    print(f"[poll] account {account_id} has never been fully ingested — running full sweep")
+                    print(f"[poll] account {account_id} first-time sweep — marking ingested now so future polls use fast path")
+                    # Mark ingested before the sweep so timeouts don't cause infinite full-sweep retries
+                    if account_id != 0:
+                        cache.mark_ingested(account_id)
+                    else:
+                        _LEGACY_INGESTED_FLAG.touch(exist_ok=True)
                 # Run folder-list in executor so blocking IMAP LIST doesn't stall the event loop
-                folders = await loop.run_in_executor(
-                    None, _get_ingest_folders, account_id, provider, full_sweep
+                folders = await asyncio.wait_for(
+                    loop.run_in_executor(None, _get_ingest_folders, account_id, provider, full_sweep),
+                    timeout=30,
                 )
                 for folder in folders:
                     try:
                         new_total += await asyncio.wait_for(
                             loop.run_in_executor(None, check_folder, account_id, provider, folder, full_sweep),
-                            timeout=60,
+                            timeout=20,
                         )
                     except asyncio.TimeoutError:
+                        errors.append(f"account {account_id} folder {folder}: timeout")
                         print(f"[poll] check_folder timed out account={account_id} folder={folder} — skipping")
-                if full_sweep:
-                    if account_id != 0:
-                        cache.mark_ingested(account_id)
-                    else:
-                        _LEGACY_INGESTED_FLAG.touch(exist_ok=True)
-                    print(f"[poll] account {account_id} full sweep complete — marked as ingested")
                 break  # success — exit retry loop
             except Exception as e:
                 if attempt == 0 and _is_connection_error(e):
