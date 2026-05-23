@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import type { EmailSummary } from '../types'
+import type { EmailSummary, EmailThread } from '../types'
 import type { SortBy, SortOrder } from '../hooks/useEmails'
 import { api } from '../api/client'
 
@@ -91,6 +91,9 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [showBulkSnooze, setShowBulkSnooze] = useState(false)
   const [bulkSnoozeDate, setBulkSnoozeDate] = useState('')
+  const [threadView, setThreadView] = useState(false)
+  const [threads, setThreads] = useState<EmailThread[]>([])
+  const [threadsLoading, setThreadsLoading] = useState(false)
   const sentinelRef = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
 
@@ -177,6 +180,21 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
     localStorage.removeItem(SEARCH_HISTORY_KEY)
     setHistory([])
     setShowHistory(false)
+  }
+
+  const loadThreads = async () => {
+    setThreadsLoading(true)
+    try {
+      const res = await api.getThreads({ folder: currentFolder })
+      setThreads(res.threads ?? [])
+    } catch { setThreads([]) }
+    setThreadsLoading(false)
+  }
+
+  const toggleThreadView = () => {
+    const next = !threadView
+    setThreadView(next)
+    if (next) loadThreads()
   }
 
   const toggleSort = (field: SortBy) => {
@@ -335,23 +353,65 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
           </div>
         ) : (
           <div className="flex items-center justify-between">
-            <span className="text-xs text-gray-400">{total.toLocaleString()} emails</span>
-            <div className="flex gap-1">
-              <SortBtn field="date" label="Date" />
-              <SortBtn field="sender" label="From" />
-              <SortBtn field="subject" label="Subject" />
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-400">{total.toLocaleString()} emails</span>
+              <button
+                onClick={toggleThreadView}
+                className={`text-xs px-2 py-0.5 rounded transition-colors ${threadView ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'}`}
+                title="Toggle thread view"
+              >
+                Threads
+              </button>
             </div>
+            {!threadView && (
+              <div className="flex gap-1">
+                <SortBtn field="date" label="Date" />
+                <SortBtn field="sender" label="From" />
+                <SortBtn field="subject" label="Subject" />
+              </div>
+            )}
           </div>
         )}
       </div>
 
       {/* List */}
       <div className="flex-1 overflow-y-auto">
-        {emails.length === 0 && !loading && (
+        {/* Thread view */}
+        {threadView && (
+          <>
+            {threadsLoading && <div className="text-xs text-gray-400 text-center mt-8">Loading threads…</div>}
+            {!threadsLoading && threads.length === 0 && <div className="text-xs text-gray-400 text-center mt-8">No threads</div>}
+            {threads.map(t => {
+              const hasUnread = t.messages?.some(m => !m.is_read)
+              const preview = t.messages?.[0]?.preview || ''
+              return (
+                <div key={t.thread_id} className="border-b border-gray-50 px-3 py-3 hover:bg-gray-50 cursor-pointer group"
+                  onClick={() => onSearch(t.subject || '')}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        {hasUnread && <span className="w-2 h-2 rounded-full bg-accent flex-shrink-0" />}
+                        <span className={`text-sm truncate ${hasUnread ? 'font-bold text-gray-900' : 'text-gray-700'}`}>{t.subject || '(no subject)'}</span>
+                      </div>
+                      <p className="text-xs text-gray-500 truncate">{t.participants?.slice(0, 2).join(', ')}</p>
+                      <p className="text-xs text-gray-400 mt-0.5 truncate">{preview}</p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                      <span className="text-xs text-gray-400">{formatDate(t.latest_date)}</span>
+                      <span className="text-[10px] bg-gray-100 text-gray-500 rounded-full px-1.5 py-0.5 font-medium">{t.message_count}</span>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </>
+        )}
+
+        {!threadView && emails.length === 0 && !loading && (
           <div className="text-center text-gray-400 text-sm mt-12">No emails</div>
         )}
 
-        {emails.map((email) => {
+        {!threadView && emails.map((email) => {
           const label = priorityLabel(email.subject || '', email.preview || '')
           const depth = replyDepth(email.subject || '')
           const isSelected = selected.has(email.id)

@@ -33,11 +33,33 @@ export function EmailViewer({ email, loading, onAnalyze, analyzing, onDelete, on
   const [replyBody, setReplyBody] = useState('')
   const [sending, setSending] = useState(false)
   const [sendMsg, setSendMsg] = useState('')
+  const [showRemind, setShowRemind] = useState(false)
+  const [remindDays, setRemindDays] = useState<number | null>(null)
+  const [remindMsg, setRemindMsg] = useState('')
 
   useEffect(() => {
     setShowCompose(false)
     setSendMsg('')
+    setShowRemind(false)
+    setRemindMsg('')
+    setRemindDays(null)
   }, [email?.id])
+
+  const handleRemindMe = async (days: number) => {
+    if (!email) return
+    setRemindDays(days)
+    const d = new Date()
+    d.setDate(d.getDate() + days)
+    const remindAt = d.toISOString().slice(0, 10)
+    try {
+      await api.setFollowupRemind(email.id, remindAt)
+      setRemindMsg(`Reminder set for ${d.toLocaleDateString([], { month: 'short', day: 'numeric' })}`)
+      setTimeout(() => { setShowRemind(false); setRemindMsg('') }, 2000)
+    } catch {
+      setRemindMsg('Failed to set reminder')
+    }
+    setRemindDays(null)
+  }
 
   const handleReplyClick = () => {
     const senderEmail = email?.sender.match(/<([^>]+)>/)?.[1] || email?.sender || ''
@@ -200,6 +222,42 @@ export function EmailViewer({ email, loading, onAnalyze, analyzing, onDelete, on
                 )}
               </>
             )}
+            {/* Remind me */}
+            <div className="relative">
+              <button
+                onClick={() => setShowRemind(s => !s)}
+                title="Set follow-up reminder"
+                className="flex items-center gap-1 text-xs text-gray-500 hover:text-indigo-600 px-2 py-1.5 rounded-lg hover:bg-indigo-50 transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
+                </svg>
+                <span>Remind</span>
+              </button>
+              {showRemind && (
+                <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg p-3 z-20 min-w-[160px]">
+                  {remindMsg ? (
+                    <p className="text-xs text-green-600 font-medium">{remindMsg}</p>
+                  ) : (
+                    <>
+                      <p className="text-xs text-gray-500 mb-2 font-medium">Remind me in:</p>
+                      {[1, 3, 7].map(d => (
+                        <button
+                          key={d}
+                          onClick={() => handleRemindMe(d)}
+                          disabled={remindDays !== null}
+                          className="block w-full text-left text-xs text-gray-700 hover:text-accent hover:bg-blue-50 px-2 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                        >
+                          {d === 1 ? 'Tomorrow' : `In ${d} days`}
+                        </button>
+                      ))}
+                      <button onClick={() => setShowRemind(false)} className="mt-1 text-xs text-gray-300 hover:text-gray-500 px-2 py-1">Cancel</button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+
             <button
               onClick={handleDelete}
               disabled={deleting}

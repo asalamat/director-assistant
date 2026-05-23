@@ -172,6 +172,42 @@ async def recommend(request: Request, email_id: str, folder: str = Query("INBOX"
     return rec
 
 
+@router.get("/followup-due")
+async def list_followup_due(
+    request: Request,
+    as_of: Optional[str] = Query(None, description="ISO datetime cutoff (defaults to now)"),
+):
+    """Return emails with followup_remind_at <= now (or as_of if provided)."""
+    cache: EmailCache = request.app.state.cache
+    emails = cache.list_followup_due(as_of=as_of)
+    return {"emails": emails, "total": len(emails)}
+
+
+@router.post("/{email_id}/followup-remind")
+async def set_followup_remind(request: Request, email_id: str, body: dict):
+    """Set or clear followup_remind_at for an email. Pass remind_at='' to clear."""
+    remind_at = (body.get("remind_at") or "").strip()
+    cache: EmailCache = request.app.state.cache
+    found = cache.set_followup_remind_at(email_id, remind_at)
+    if not found:
+        raise HTTPException(404, "Email not found")
+    return {"email_id": email_id, "followup_remind_at": remind_at or None}
+
+
+@router.get("/threads")
+async def list_threads(
+    request: Request,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+    folder: str = Query("INBOX"),
+    account_id: Optional[int] = Query(None),
+):
+    """Return emails grouped by thread_id (Message-ID / In-Reply-To chain)."""
+    cache: EmailCache = request.app.state.cache
+    threads = cache.list_threads(folder=folder, skip=skip, limit=limit, account_id=account_id)
+    return {"threads": threads, "total": len(threads)}
+
+
 @router.post("/import-by-subject")
 async def import_by_subject(request: Request, body: dict):
     """Search all IMAP folders for emails matching a subject string and ingest them."""

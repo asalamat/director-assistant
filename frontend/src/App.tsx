@@ -14,6 +14,7 @@ import { HelpModal } from './components/HelpModal'
 import { IntelligencePanel } from './components/IntelligencePanel'
 import { ToastContainer, addToast } from './components/Toast'
 import UpdatePopup from './components/UpdatePopup'
+import { ComposeModal } from './components/ComposeModal'
 import { useEmails, useEmailDetail, useRecommendation } from './hooks/useEmails'
 import { api } from './api/client'
 import type { EmailSummary } from './types'
@@ -98,6 +99,7 @@ export default function App() {
   const [exiting, setExiting] = useState(false)
   const [overdueCount, setOverdueCount] = useState(0)
   const [askContext, setAskContext] = useState('')
+  const [showCompose, setShowCompose] = useState(false)
   const prevOverdueRef = useRef(0)
 
   const { emails, total, loading: listLoading, hasMore, refresh, mergeRefresh, loadMore, setSort, currentParams, removeEmail } = useEmails()
@@ -168,6 +170,7 @@ export default function App() {
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
       if (activeTab !== 'inbox') return
+      if ((e.metaKey || e.ctrlKey) && e.key === 'n') { e.preventDefault(); setShowCompose(true); return }
       if (e.key === 'j' || e.key === 'k') {
         const idx = emails.findIndex(em => em.id === selectedEmail?.id)
         const next = e.key === 'j' ? Math.min(idx + 1, emails.length - 1) : Math.max(idx - 1, 0)
@@ -340,6 +343,16 @@ export default function App() {
           {refreshMsg && <span className="text-xs text-gray-400">{refreshMsg}</span>}
         </div>
         <div className="flex gap-2">
+          <button
+            onClick={() => setShowCompose(true)}
+            title="Compose new email (Cmd+N)"
+            className="text-xs text-white bg-accent hover:bg-blue-700 px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1"
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+            </svg>
+            <span>Compose</span>
+          </button>
           {activeTab === 'inbox' && (
             <>
               <button
@@ -545,6 +558,11 @@ export default function App() {
       )}
 
       {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
+      <ComposeModal
+        open={showCompose}
+        onClose={() => setShowCompose(false)}
+        accounts={accounts as any}
+      />
       <StatusBar />
       <ToastContainer />
       <UpdatePopup />

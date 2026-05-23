@@ -196,7 +196,17 @@ class EmailCache(EmailExtrasMixin):
                     created_at TEXT DEFAULT (datetime('now'))
                 )
             """)
-            for col_def in ["account_id INTEGER DEFAULT 0", "server_id TEXT"]:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS ask_history (
+                    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp    TEXT DEFAULT (datetime('now')),
+                    question     TEXT NOT NULL,
+                    answer       TEXT NOT NULL,
+                    results_json TEXT DEFAULT '[]'
+                )
+            """)
+            for col_def in ["account_id INTEGER DEFAULT 0", "server_id TEXT",
+                             "followup_remind_at TEXT"]:
                 try:
                     conn.execute(f"ALTER TABLE emails ADD COLUMN {col_def}")
                 except Exception:
@@ -323,6 +333,63 @@ class EmailCache(EmailExtrasMixin):
                 params + [limit, skip],
             ).fetchall()
         return [self._row_to_summary(dict(r)) for r in rows], total
+
+    def list_threads(
+        self,
+        folder: str = "INBOX",
+        skip: int = 0,
+        limit: int = 50,
+        account_id: Optional[int] = None,
+    ) -> list[dict]:
+        """Return emails grouped by thread_id, newest thread first."""
+        if account_id is not None:
+            where = "account_id = ?"
+            params: list = [account_id]
+        else:
+            normalized = self._normalize_folder(folder)
+            where = "folder = ?"
+            params = [normalized]
+
+        where += " AND id NOT IN (SELECT email_id FROM email_snooze WHERE wake_date > date('now'))"
+
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""SELECT id, subject, sender, date, body, is_read, thread_id
+                    FROM emails WHERE {where}
+                    ORDER BY date DESC""",
+                params,
+            ).fetchall()
+
+        # Group by thread_id; emails with NULL thread_id each form their own thread
+        threads: dict[str, list[dict]] = {}
+        order: list[str] = []
+        for row in rows:
+            d = dict(row)
+            tid = d.get("thread_id") or d["id"]
+            if tid not in threads:
+                threads[tid] = []
+                order.append(tid)
+            threads[tid].append({
+                "id": d["id"],
+                "subject": d.get("subject") or "(no subject)",
+                "sender": d.get("sender") or "",
+                "date": d.get("date"),
+                "preview": ((d.get("body") or "")[:160]).replace("\n", " "),
+                "is_read": bool(d.get("is_read", 1)),
+            })
+
+        result = []
+        for tid in order[skip: skip + limit]:
+            msgs = threads[tid]
+            result.append({
+                "thread_id": tid,
+                "subject": msgs[0]["subject"],
+                "participants": list({m["sender"] for m in msgs if m["sender"]}),
+                "message_count": len(msgs),
+                "latest_date": msgs[0]["date"],
+                "messages": msgs,
+            })
+        return result
 
     def fts_search(self, query: str, limit: int = 30) -> list[EmailSummary]:
         """Full-text search via FTS5. Strips operators to avoid parse errors."""

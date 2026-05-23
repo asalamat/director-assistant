@@ -9,7 +9,7 @@
 set -e
 
 APP_NAME="Director Assistant"
-APP_VERSION="2.9.3"
+APP_VERSION="2.9.4"
 INSTALL_DIR="$HOME/Applications/DirectorAssistant"
 PYTHON_MIN="3.11"
 NODE_MIN="18"

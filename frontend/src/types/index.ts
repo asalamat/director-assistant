@@ -157,3 +157,20 @@ export interface TimelineEvent {
   date: string
   snippet: string
 }
+
+export interface AskHistoryEntry {
+  id: number
+  timestamp: string
+  question: string
+  answer: string
+  results_json: string
+}
+
+export interface EmailThread {
+  thread_id: string
+  subject: string
+  participants: string[]
+  latest_date: string
+  message_count: number
+  messages: Array<{ id: string; subject: string; sender: string; date: string; preview: string; is_read: boolean }>
+}

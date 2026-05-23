@@ -12,6 +12,8 @@ import type {
   AnalyticsResponse,
   Account,
   AppConfig,
+  AskHistoryEntry,
+  EmailThread,
 } from '../types'
 
 const BASE = '/api'
@@ -367,5 +369,30 @@ export const api = {
 
   applyUpdate(): Promise<{ status: string; message: string }> {
     return request('/update/apply', { method: 'POST' })
+  },
+
+  // Ask history
+  getAskHistory(limit = 50, skip = 0): Promise<{ entries: AskHistoryEntry[]; total: number }> {
+    return request(`/ask/history?limit=${limit}&skip=${skip}`)
+  },
+
+  // Compose new email (not a reply)
+  sendNew(data: { to: string; cc?: string; subject: string; body: string; account_id?: number }): Promise<{ status: string }> {
+    return request('/email/send-new', { method: 'POST', body: JSON.stringify(data) })
+  },
+
+  // Email threads
+  getThreads(params: { folder?: string; account_id?: number; skip?: number; limit?: number } = {}): Promise<{ threads: EmailThread[]; total: number }> {
+    const qs = new URLSearchParams()
+    if (params.folder) qs.set('folder', params.folder)
+    if (params.account_id) qs.set('account_id', String(params.account_id))
+    if (params.skip) qs.set('skip', String(params.skip))
+    if (params.limit) qs.set('limit', String(params.limit))
+    return request(`/emails/threads${qs.toString() ? '?' + qs.toString() : ''}`)
+  },
+
+  // Follow-up reminders (set remind_at on an email, '' to clear)
+  setFollowupRemind(emailId: string, remindAt: string): Promise<{ email_id: string; followup_remind_at: string | null }> {
+    return request(`/emails/${emailId}/followup-remind`, { method: 'POST', body: JSON.stringify({ remind_at: remindAt }) })
   },
 }

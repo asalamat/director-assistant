@@ -1,9 +1,9 @@
 import asyncio
 import json
 import re
-from typing import List
+from typing import List, Optional
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, field_validator
 
@@ -93,6 +93,32 @@ class AskRequest(BaseModel):
     history: List[HistoryMessage] = []
 
 
+@router.get("/history")
+async def get_ask_history(
+    request: Request,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+):
+    """Return past Q&A history entries, newest first."""
+    cache = request.app.state.cache
+    entries = cache.list_ask_history(limit=limit, skip=skip)
+    return {"entries": entries, "total": len(entries)}
+
+
+class AskHistoryEntry(BaseModel):
+    question: str
+    answer: str
+    results_json: Optional[str] = "[]"
+
+
+@router.post("/history")
+async def add_ask_history(req: AskHistoryEntry, request: Request):
+    """Manually save a Q&A entry to history."""
+    cache = request.app.state.cache
+    entry_id = cache.save_ask_history(req.question, req.answer, req.results_json or "[]")
+    return {"id": entry_id, "status": "saved"}
+
+
 @router.post("")
 async def ask_db(req: AskRequest, request: Request):
     rag = request.app.state.rag
@@ -169,6 +195,7 @@ async def ask_db(req: AskRequest, request: Request):
             ),
         })
 
+        answer_tokens: list[str] = []
         try:
             async with ai.messages.stream(
                 model="claude-haiku-4-5-20251001",
@@ -180,6 +207,7 @@ async def ask_db(req: AskRequest, request: Request):
                 messages=messages,
             ) as stream:
                 async for text in stream.text_stream:
+                    answer_tokens.append(text)
                     yield f"data: {json.dumps({'type': 'token', 'text': text})}\n\n"
         except Exception as e:
             yield f"data: {json.dumps({'type': 'token', 'text': f'Error generating answer: {e}'})}\n\n"
@@ -199,6 +227,14 @@ async def ask_db(req: AskRequest, request: Request):
             sources.append(src)
         yield f"data: {json.dumps({'type': 'sources', 'sources': sources})}\n\n"
         yield 'data: {"type":"done"}\n\n'
+
+        # Auto-save Q&A to history after streaming completes
+        if answer_tokens:
+            full_answer = "".join(answer_tokens)
+            try:
+                cache.save_ask_history(question, full_answer, json.dumps(sources))
+            except Exception:
+                pass
 
     return StreamingResponse(
         generate(),

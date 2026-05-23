@@ -5,6 +5,7 @@ Depends on self._conn() and self._row_to_summary() from EmailCache core.
 """
 
 import json as _json
+from typing import Optional
 from models import ActionItem, FollowUp, Template, Account
 
 _KR_SERVICE = "director-assistant"
@@ -435,6 +436,76 @@ class EmailExtrasMixin:
     def delete_saved_search(self, sid: int) -> bool:
         with self._conn() as conn:
             cur = conn.execute("DELETE FROM saved_searches WHERE id = ?", (sid,))
+        return cur.rowcount > 0
+
+    # ── Follow-up Reminders ───────────────────────────────────────────────────
+
+    def set_followup_remind_at(self, email_id: str, remind_at: str) -> bool:
+        """Set or clear the followup_remind_at timestamp for an email.
+        Pass remind_at='' to clear the reminder."""
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE emails SET followup_remind_at = ? WHERE id = ?",
+                (remind_at or None, email_id),
+            )
+        return cur.rowcount > 0
+
+    def list_followup_due(self, as_of: Optional[str] = None) -> list[dict]:
+        """Return emails whose followup_remind_at is <= as_of (defaults to now)."""
+        cutoff = as_of or "datetime('now')"
+        with self._conn() as conn:
+            if as_of:
+                rows = conn.execute(
+                    """SELECT id, subject, sender, date, body, is_read, followup_remind_at
+                       FROM emails
+                       WHERE followup_remind_at IS NOT NULL
+                         AND followup_remind_at <= ?
+                       ORDER BY followup_remind_at ASC""",
+                    (as_of,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """SELECT id, subject, sender, date, body, is_read, followup_remind_at
+                       FROM emails
+                       WHERE followup_remind_at IS NOT NULL
+                         AND followup_remind_at <= datetime('now')
+                       ORDER BY followup_remind_at ASC"""
+                ).fetchall()
+        return [
+            {
+                "id": r["id"],
+                "subject": r["subject"] or "(no subject)",
+                "sender": r["sender"] or "",
+                "date": r["date"],
+                "preview": ((r["body"] or "")[:160]).replace("\n", " "),
+                "is_read": bool(r["is_read"]),
+                "followup_remind_at": r["followup_remind_at"],
+            }
+            for r in rows
+        ]
+
+    # ── Ask History ──────────────────────────────────────────────────────────
+
+    def save_ask_history(self, question: str, answer: str, results_json: str = "[]") -> int:
+        with self._conn() as conn:
+            cur = conn.execute(
+                "INSERT INTO ask_history (question, answer, results_json) VALUES (?,?,?)",
+                (question, answer, results_json),
+            )
+            return cur.lastrowid
+
+    def list_ask_history(self, limit: int = 50, skip: int = 0) -> list[dict]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT id, timestamp, question, answer, results_json FROM ask_history "
+                "ORDER BY id DESC LIMIT ? OFFSET ?",
+                (limit, skip),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def delete_ask_history(self, entry_id: int) -> bool:
+        with self._conn() as conn:
+            cur = conn.execute("DELETE FROM ask_history WHERE id = ?", (entry_id,))
         return cur.rowcount > 0
 
     # ── Email account lookup ──────────────────────────────────────────────────

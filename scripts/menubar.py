@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """macOS menu bar icon for Director Assistant."""
 
+import json
 import os
 import socket
 import subprocess
 import sys
+import urllib.request
 
 try:
     import rumps
@@ -59,6 +61,40 @@ class DirectorAssistantApp(rumps.App):
             self._backend = None
         if self._backend is None and not _port_open():
             self._start_backend()
+
+    @rumps.timer(60)
+    def _poll_notifications(self, _):
+        """Check for urgent/action emails and fire macOS notifications."""
+        if not _port_open():
+            return
+        try:
+            req = urllib.request.Request(
+                f"{_URL}/api/emails/?folder=INBOX&limit=20",
+                headers={"Accept": "application/json"},
+            )
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                data = json.loads(resp.read())
+            emails = data.get("emails", [])
+            for email in emails:
+                subject = email.get("subject", "")
+                sender = email.get("sender", "")
+                email_id = email.get("id", "")
+                if not email.get("is_read", True):
+                    lower_subject = subject.lower()
+                    if any(kw in lower_subject for kw in ("urgent", "action required", "action needed", "asap", "important")):
+                        notif_key = f"notif_{email_id}"
+                        if not getattr(self, "_notified_ids", None):
+                            self._notified_ids: set = set()
+                        if email_id not in self._notified_ids:
+                            self._notified_ids.add(email_id)
+                            rumps.notification(
+                                title="Director Assistant",
+                                subtitle=f"From: {sender}",
+                                message=subject,
+                                sound=True,
+                            )
+        except Exception:
+            pass
 
     @rumps.clicked("Open Director Assistant")
     def open_browser(self, _):
