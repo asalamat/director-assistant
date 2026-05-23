@@ -101,7 +101,10 @@ async def get_ask_history(
 ):
     """Return past Q&A history entries, newest first."""
     cache = request.app.state.cache
-    entries = cache.list_ask_history(limit=limit, skip=skip)
+    loop = asyncio.get_event_loop()
+    entries = await loop.run_in_executor(
+        None, lambda: cache.list_ask_history(limit=limit, skip=skip)
+    )
     return {"entries": entries, "total": len(entries)}
 
 
@@ -115,7 +118,10 @@ class AskHistoryEntry(BaseModel):
 async def add_ask_history(req: AskHistoryEntry, request: Request):
     """Manually save a Q&A entry to history."""
     cache = request.app.state.cache
-    entry_id = cache.save_ask_history(req.question, req.answer, req.results_json or "[]")
+    loop = asyncio.get_event_loop()
+    entry_id = await loop.run_in_executor(
+        None, lambda: cache.save_ask_history(req.question, req.answer, req.results_json or "[]")
+    )
     return {"id": entry_id, "status": "saved"}
 
 

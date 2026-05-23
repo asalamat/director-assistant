@@ -1,3 +1,4 @@
+import asyncio
 from time import monotonic
 from fastapi import APIRouter, HTTPException, Query, Request
 from typing import Optional
@@ -188,7 +189,8 @@ async def set_followup_remind(request: Request, email_id: str, body: dict):
     """Set or clear followup_remind_at for an email. Pass remind_at='' to clear."""
     remind_at = (body.get("remind_at") or "").strip()
     cache: EmailCache = request.app.state.cache
-    found = cache.set_followup_remind_at(email_id, remind_at)
+    loop = asyncio.get_event_loop()
+    found = await loop.run_in_executor(None, cache.set_followup_remind_at, email_id, remind_at)
     if not found:
         raise HTTPException(404, "Email not found")
     return {"email_id": email_id, "followup_remind_at": remind_at or None}
@@ -204,7 +206,10 @@ async def list_threads(
 ):
     """Return emails grouped by thread_id (Message-ID / In-Reply-To chain)."""
     cache: EmailCache = request.app.state.cache
-    threads = cache.list_threads(folder=folder, skip=skip, limit=limit, account_id=account_id)
+    loop = asyncio.get_event_loop()
+    threads = await loop.run_in_executor(
+        None, lambda: cache.list_threads(folder=folder, skip=skip, limit=limit, account_id=account_id)
+    )
     return {"threads": threads, "total": len(threads)}
 
 
