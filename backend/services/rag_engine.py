@@ -710,13 +710,12 @@ class RAGEngine:
             if len(results) >= n_results:
                 break
 
-        # Append document FTS5 results not already in results (HNSW fallback).
-        # Only when the query isn't a common single word (avoids spurious doc matches).
+        # Always append document FTS5 results so documents surface even when
+        # email results fill all n_results slots. Cap at 5 docs to avoid context bloat.
         query_words = query.strip().split()
         include_doc_fallback = len(query_words) >= 2 or len(query_words[0]) > 5 if query_words else False
-        if len(results) < n_results and include_doc_fallback:
-            doc_slots = max(3, (n_results - len(results)) // 2)
-            doc_fts = self._cache.fts_search_documents(query, limit=doc_slots)
+        if include_doc_fallback:
+            doc_fts = self._cache.fts_search_documents(query, limit=5)
             for d in doc_fts:
                 if d["doc_id"] in seen:
                     continue
@@ -734,8 +733,6 @@ class RAGEngine:
                     "file_path": d["file_path"],
                     "_distance": 0.5,
                 })
-                if len(results) >= n_results:
-                    break
 
         return results
 

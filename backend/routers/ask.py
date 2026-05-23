@@ -132,7 +132,7 @@ async def ask_db(req: AskRequest, request: Request):
                 return (
                     f"[{i+1}] DOCUMENT: {r.get('filename', 'unknown')}\n"
                     f"    Type: {r.get('file_type', '').upper()}\n"
-                    f"    Content: {r['text'][:400]}"
+                    f"    Content: {r['text'][:1500]}"
                 )
             return (
                 f"[{i+1}] EMAIL — Subject: {r['subject']}\n"
@@ -141,7 +141,11 @@ async def ask_db(req: AskRequest, request: Request):
                 f"    Preview: {r['text'][:400]}"
             )
 
-        context = "\n\n".join(_format_result(i, r) for i, r in enumerate(results[:10]))
+        # Show up to 5 documents + 8 emails in context (documents always included)
+        doc_results = [r for r in results if r.get("source_type") == "document"][:5]
+        email_results = [r for r in results if r.get("source_type") != "document"][:8]
+        ordered = doc_results + email_results if doc_results else email_results
+        context = "\n\n".join(_format_result(i, r) for i, r in enumerate(ordered))
 
         has_docs = any(r.get("source_type") == "document" for r in results[:10])
         has_emails = any(r.get("source_type") != "document" for r in results[:10])

@@ -405,7 +405,7 @@ class EmailCache(EmailExtrasMixin):
         def _run_query(conn):
             return conn.execute(
                 """SELECT s.doc_id, s.filename, s.file_type, s.file_path,
-                          s.modified_at, snippet(documents_fts, 2, '', '', '…', 32) AS snippet
+                          s.modified_at, s.body
                    FROM documents_fts_store s
                    JOIN documents_fts ON documents_fts.doc_id = s.doc_id
                    WHERE documents_fts MATCH ?
@@ -423,7 +423,7 @@ class EmailCache(EmailExtrasMixin):
                     rows = _run_query(conn)
             return [
                 {"doc_id": r[0], "filename": r[1], "file_type": r[2],
-                 "file_path": r[3], "modified_at": r[4], "snippet": r[5]}
+                 "file_path": r[3], "modified_at": r[4], "snippet": (r[5] or "")}
                 for r in rows
             ]
         except Exception:
