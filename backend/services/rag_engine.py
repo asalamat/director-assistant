@@ -679,6 +679,14 @@ class RAGEngine:
 
             if email_id in email_to_chunk:
                 text, meta = email_to_chunk[email_id]
+                is_doc = meta.get("source_type") == "document"
+                # For documents always use the full SQLite body — ChromaDB chunks
+                # may not contain the relevant section (e.g. principal name is at
+                # the top but the matching chunk came from a later section).
+                if is_doc:
+                    full_body = self._cache.get_document_body(email_id)
+                    if full_body:
+                        text = full_body
                 entry = {
                     "email_id": email_id,
                     "source_type": meta.get("source_type", "email"),
@@ -689,7 +697,7 @@ class RAGEngine:
                     "text": text,
                     "_distance": email_to_dist.get(email_id, 1.0),
                 }
-                if meta.get("source_type") == "document":
+                if is_doc:
                     entry["filename"] = meta.get("filename", "")
                     entry["file_type"] = meta.get("file_type", "")
                     entry["file_path"] = meta.get("file_path", "")

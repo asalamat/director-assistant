@@ -429,6 +429,17 @@ class EmailCache(EmailExtrasMixin):
         except Exception:
             return []
 
+    def get_document_body(self, doc_id: str) -> str:
+        """Return the full extracted body text for a document, or empty string if not found."""
+        try:
+            with self._conn() as conn:
+                row = conn.execute(
+                    "SELECT body FROM documents_fts_store WHERE doc_id = ?", (doc_id,)
+                ).fetchone()
+                return row[0] if row else ""
+        except Exception:
+            return ""
+
     def count(self) -> int:
         with self._conn() as conn:
             return conn.execute("SELECT COUNT(*) FROM emails").fetchone()[0]
