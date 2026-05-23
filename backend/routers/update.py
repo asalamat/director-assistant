@@ -31,6 +31,23 @@ def _source_repo() -> Path | None:
         return None
 
 
+def _venv_python() -> str | None:
+    """Return the venv Python path in the install dir, or None."""
+    for candidate in [
+        _INSTALL_DIR / "backend" / ".venv" / "bin" / "python3",
+        _INSTALL_DIR / "backend" / ".venv" / "bin" / "python",
+    ]:
+        if candidate.exists():
+            return str(candidate)
+    return None
+
+
+def _node_path() -> str:
+    """Return a PATH that includes common Node/npm locations."""
+    extra = "/opt/homebrew/bin:/usr/local/bin:/opt/homebrew/opt/node/bin"
+    return f"{extra}:{os.environ.get('PATH', '')}"
+
+
 @router.get("/check")
 async def check_update():
     """Compare installed version against latest on GitHub main branch."""
@@ -53,28 +70,55 @@ async def check_update():
 
 @router.post("/apply")
 async def apply_update():
-    """Pull latest code and reinstall. Responds immediately; restart happens in background."""
+    """Pull latest code and reinstall without relying on shell PATH for Python."""
     repo = _source_repo()
     if repo is None:
         return JSONResponse({"status": "error",
                              "message": "Source repo not found. Re-run install-mac.sh first."}, status_code=400)
 
-    install_script = repo / "scripts" / "install-mac.sh"
-    if not install_script.exists():
+    python = _venv_python()
+    if python is None:
         return JSONResponse({"status": "error",
-                             "message": f"Install script not found at {install_script}"}, status_code=400)
+                             "message": "Venv Python not found in install dir."}, status_code=400)
 
-    # Pull latest code into the source repo, then reinstall.
-    # Sleep 2s so the HTTP response is delivered before the backend restarts.
-    # Inject common Python/Homebrew/conda paths so the install script finds python3.
-    extra_paths = "/opt/homebrew/bin:/usr/local/bin:/opt/homebrew/opt/python@3.13/bin"
+    install_dir = str(_INSTALL_DIR)
+    log = "/tmp/director-assistant-update.log"
+    node_path = _node_path()
+
+    # Build the update steps:
+    # 1. git pull source repo
+    # 2. copy backend + scripts + version.json to install dir
+    # 3. pip install requirements using existing venv
+    # 4. build frontend (node/npm already installed)
+    # 5. copy dist → backend/static
+    # 6. copy version.json
+    # 7. restart uvicorn via launchctl
     update_cmd = (
-        f"export PATH=\"{extra_paths}:$PATH\" && "
-        f"cd '{repo}' && git pull origin main --ff-only "
-        f"&& bash '{install_script}' >> /tmp/director-assistant-update.log 2>&1"
+        f"exec >> {log} 2>&1 && "
+        f"echo '--- Update started at '$(date) && "
+        # Pull latest code into source repo
+        f"cd '{repo}' && git pull origin main --ff-only && "
+        # Copy updated backend routers/services/main into install dir
+        f"cp -r '{repo}/backend/' '{install_dir}/backend/' && "
+        # Reinstall Python deps with existing venv (no PATH dependency)
+        f"'{python}' -m pip install -q --upgrade -r '{install_dir}/backend/requirements.txt' && "
+        # Build frontend
+        f"export PATH='{node_path}' && "
+        f"cd '{repo}/frontend' && npm install --silent && npm run build && "
+        # Copy built assets to install dir static
+        f"rm -rf '{install_dir}/backend/static' && "
+        f"cp -r '{repo}/frontend/dist' '{install_dir}/backend/static' && "
+        # Copy version.json
+        f"cp '{repo}/version.json' '{install_dir}/version.json' && "
+        f"echo '--- Update complete. Restarting…' && "
+        # Restart via launchctl
+        f"launchctl unload ~/Library/LaunchAgents/com.director-assistant.app.plist 2>/dev/null; "
+        f"sleep 1 && "
+        f"launchctl load ~/Library/LaunchAgents/com.director-assistant.app.plist"
     )
+
     env = os.environ.copy()
-    env["PATH"] = f"{extra_paths}:{env.get('PATH', '')}"
+    env["PATH"] = node_path
     subprocess.Popen(
         ["bash", "-c", f"sleep 2 && {update_cmd}"],
         start_new_session=True,
@@ -83,4 +127,4 @@ async def apply_update():
         env=env,
     )
 
-    return {"status": "updating", "message": "Update started. The app will restart in a few moments."}
+    return {"status": "updating", "message": "Update started. The app will restart in ~30 seconds."}
