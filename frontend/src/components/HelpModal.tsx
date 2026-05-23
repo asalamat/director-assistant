@@ -427,7 +427,7 @@ export function HelpModal({ onClose }: Props) {
         {/* Footer */}
         <div className="px-6 py-3 border-t border-gray-100 bg-gray-50 flex items-center justify-between flex-shrink-0">
           <div>
-            <span className="text-xs text-gray-400">Director Assistant v2.9.3</span>
+            <span className="text-xs text-gray-400">Director Assistant v2.9.5</span>
             <span className="text-xs text-gray-300 mx-2">·</span>
             <a href="mailto:ali.salamat@cortexhq.ai" className="text-xs text-gray-400 hover:text-accent transition-colors">
               Ali Salamat
