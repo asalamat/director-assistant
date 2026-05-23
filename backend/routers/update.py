@@ -66,15 +66,21 @@ async def apply_update():
 
     # Pull latest code into the source repo, then reinstall.
     # Sleep 2s so the HTTP response is delivered before the backend restarts.
+    # Inject common Python/Homebrew/conda paths so the install script finds python3.
+    extra_paths = "/opt/homebrew/bin:/usr/local/bin:/opt/homebrew/opt/python@3.13/bin"
     update_cmd = (
+        f"export PATH=\"{extra_paths}:$PATH\" && "
         f"cd '{repo}' && git pull origin main --ff-only "
         f"&& bash '{install_script}' >> /tmp/director-assistant-update.log 2>&1"
     )
+    env = os.environ.copy()
+    env["PATH"] = f"{extra_paths}:{env.get('PATH', '')}"
     subprocess.Popen(
         ["bash", "-c", f"sleep 2 && {update_cmd}"],
         start_new_session=True,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
+        env=env,
     )
 
     return {"status": "updating", "message": "Update started. The app will restart in a few moments."}
