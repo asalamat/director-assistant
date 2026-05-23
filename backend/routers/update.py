@@ -85,21 +85,24 @@ async def apply_update():
     log = "/tmp/director-assistant-update.log"
     node_path = _node_path()
 
+    home = str(Path.home())
+    plist = f"{home}/Library/LaunchAgents/com.director-assistant.app.plist"
+
     # Build the update steps:
     # 1. git pull source repo
-    # 2. copy backend + scripts + version.json to install dir
+    # 2. rsync backend (exclude .venv to avoid permission errors on symlinks)
     # 3. pip install requirements using existing venv
     # 4. build frontend (node/npm already installed)
     # 5. copy dist → backend/static
     # 6. copy version.json
-    # 7. restart uvicorn via launchctl
+    # 7. restart uvicorn via launchctl bootstrap (works on macOS Ventura+)
     update_cmd = (
         f"exec >> {log} 2>&1 && "
         f"echo '--- Update started at '$(date) && "
         # Pull latest code into source repo
         f"cd '{repo}' && git pull origin main --ff-only && "
-        # Copy updated backend routers/services/main into install dir
-        f"cp -r '{repo}/backend/' '{install_dir}/backend/' && "
+        # Sync backend excluding .venv and __pycache__ to avoid permission errors
+        f"rsync -a --exclude='.venv' --exclude='__pycache__' '{repo}/backend/' '{install_dir}/backend/' && "
         # Reinstall Python deps with existing venv (no PATH dependency)
         f"'{python}' -m pip install -q --upgrade -r '{install_dir}/backend/requirements.txt' && "
         # Build frontend
@@ -111,10 +114,10 @@ async def apply_update():
         # Copy version.json
         f"cp '{repo}/version.json' '{install_dir}/version.json' && "
         f"echo '--- Update complete. Restarting…' && "
-        # Restart via launchctl
-        f"launchctl unload ~/Library/LaunchAgents/com.director-assistant.app.plist 2>/dev/null; "
+        # Restart via launchctl (bootstrap/bootout works on macOS Ventura+)
+        f"launchctl bootout gui/$(id -u) '{plist}' 2>/dev/null; "
         f"sleep 1 && "
-        f"launchctl load ~/Library/LaunchAgents/com.director-assistant.app.plist"
+        f"launchctl bootstrap gui/$(id -u) '{plist}'"
     )
 
     env = os.environ.copy()
