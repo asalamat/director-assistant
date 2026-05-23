@@ -31,6 +31,16 @@ _BUDGET_OPENAI    = "gpt-4o-mini"
 # 500/503 = server error — fall back rather than surfacing internal errors.
 _FALLBACK_STATUSES = {401, 429, 500, 503, 529}
 
+_BILLING_KEYWORDS = ("credit balance", "billing", "upgrade", "purchase credits")
+
+
+def _is_billing_error(e: "anthropic.APIStatusError") -> bool:
+    """Return True for 400 errors caused by exhausted Anthropic credits."""
+    if e.status_code != 400:
+        return False
+    msg = str(e).lower()
+    return any(kw in msg for kw in _BILLING_KEYWORDS)
+
 
 class _OpenAIContent:
     """Mimic anthropic.types.ContentBlock so callers can use .content[0].text."""
@@ -117,8 +127,8 @@ class _AnthropicStreamWithFallback:
                 anthropic.APIConnectionError, anthropic.APITimeoutError) as e:
             logger.warning(f"[ai] Claude stream error — falling back to OpenAI ({e})")
         except anthropic.APIStatusError as e:
-            if e.status_code in _FALLBACK_STATUSES:
-                logger.warning(f"[ai] Claude stream HTTP {e.status_code} — falling back to OpenAI")
+            if e.status_code in _FALLBACK_STATUSES or _is_billing_error(e):
+                logger.warning(f"[ai] Claude HTTP {e.status_code} — falling back to OpenAI")
             else:
                 raise
 
@@ -220,7 +230,7 @@ class AIClient:
                 logger.warning(f"[ai] Claude rate-limited — falling back to OpenAI ({e})")
             # anthropic.OverloadedError (529) is handled below via APIStatusError
             except anthropic.APIStatusError as e:
-                if e.status_code in _FALLBACK_STATUSES:
+                if e.status_code in _FALLBACK_STATUSES or _is_billing_error(e):
                     logger.warning(
                         f"[ai] Claude HTTP {e.status_code} — falling back to OpenAI"
                     )
