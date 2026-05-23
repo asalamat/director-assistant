@@ -203,30 +203,42 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
     </button>
   )
 
-  const folderNames = Object.keys(folders).sort()
+  // Inbox always first, then the rest sorted alphabetically
+  const folderNames = [
+    ...Object.keys(folders).filter(f => f.toUpperCase() === 'INBOX'),
+    ...Object.keys(folders).filter(f => f.toUpperCase() !== 'INBOX').sort(),
+  ]
 
   return (
     <div className="flex flex-col h-full border-r border-gray-200 bg-white">
       {/* Folder selector */}
-      {folderNames.length > 1 && (
+      {folderNames.length > 0 && (
         <div className="flex gap-1 px-3 py-2 border-b border-gray-100 overflow-x-auto flex-shrink-0">
-          {folderNames.map((f) => (
-            <button
-              key={f}
-              onClick={() => onFolderChange(f)}
-              title={`${folders[f].toLocaleString()} emails`}
-              className={`text-xs px-2.5 py-0.5 rounded-full whitespace-nowrap transition-colors ${
-                currentFolder === f
-                  ? 'bg-accent text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              {f}
-              <span className={`ml-1 ${currentFolder === f ? 'text-blue-200' : 'text-gray-400'}`}>
-                {folders[f] > 999 ? `${Math.floor(folders[f] / 1000)}k` : folders[f]}
-              </span>
-            </button>
-          ))}
+          {folderNames.map((f) => {
+            const isInbox = f.toUpperCase() === 'INBOX'
+            const isActive = currentFolder === f
+            return (
+              <button
+                key={f}
+                onClick={() => onFolderChange(f)}
+                title={`${folders[f].toLocaleString()} emails`}
+                className={`text-xs px-2.5 py-0.5 rounded-full whitespace-nowrap transition-colors ${
+                  isActive
+                    ? isInbox
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-accent text-white'
+                    : isInbox
+                      ? 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-medium'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                {f}
+                <span className={`ml-1 ${isActive ? 'text-blue-200' : isInbox ? 'text-indigo-400' : 'text-gray-400'}`}>
+                  {folders[f] > 999 ? `${Math.floor(folders[f] / 1000)}k` : folders[f]}
+                </span>
+              </button>
+            )
+          })}
         </div>
       )}
 

@@ -1,13 +1,13 @@
 @echo off
 setlocal enabledelayedexpansion
 REM ============================================================
-REM  Director Assistant — Windows Installer  v2.9.2
+REM  Director Assistant — Windows Installer  v2.9.3
 REM ============================================================
 REM  Requirements: Windows 10+, Internet connection
 REM  Run as Administrator if auto-install of Python/Node fails
 REM ============================================================
 
-set APP_VERSION=2.9.2
+set APP_VERSION=2.9.3
 set APP_NAME=Director Assistant
 set INSTALL_DIR=%USERPROFILE%\DirectorAssistant
 set PYTHON_MIN=3.11

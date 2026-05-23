@@ -70,6 +70,7 @@ export function Settings({ onConnected, initialTab = 'accounts' }: Props) {
   const [clearing, setClearing] = useState(false)
   const [clearMsg, setClearMsg] = useState('')
   const [clearFromDate, setClearFromDate] = useState('')
+  const [updateStatus, setUpdateStatus] = useState<{ checking?: boolean; msg?: string; available?: boolean; latest?: string } >({})
 
   // Microsoft OAuth2 device flow state
   const [hotmailMode, setHotmailMode] = useState<'password' | 'oauth'>('password')
@@ -443,6 +444,54 @@ export function Settings({ onConnected, initialTab = 'accounts' }: Props) {
             {emailReindexMsg && (
               <p className={`text-xs ${emailReindexMsg.toLowerCase().includes('fail') || emailReindexMsg.toLowerCase().includes('error') ? 'text-red-500' : 'text-green-600'}`}>{emailReindexMsg}</p>
             )}
+
+            {/* Updates */}
+            <div className="border-t border-gray-100 pt-4 mt-2 mb-4">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Updates</p>
+              <button
+                onClick={async () => {
+                  setUpdateStatus({ checking: true, msg: 'Checking…' })
+                  try {
+                    const res = await api.checkUpdate()
+                    if (res.error) {
+                      setUpdateStatus({ msg: `Check failed: ${res.error}` })
+                    } else if (res.update_available && res.latest) {
+                      setUpdateStatus({ available: true, latest: res.latest, msg: `Update available: v${res.latest}` })
+                    } else {
+                      setUpdateStatus({ msg: `Up to date (v${res.current})` })
+                    }
+                  } catch {
+                    setUpdateStatus({ msg: 'Check failed — no network?' })
+                  }
+                }}
+                disabled={updateStatus.checking}
+                className="w-full border border-gray-200 text-gray-600 text-sm font-medium py-2 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              >
+                {updateStatus.checking ? 'Checking…' : 'Check for Updates'}
+              </button>
+              {updateStatus.msg && (
+                <p className={`text-xs mt-1 ${updateStatus.available ? 'text-blue-600' : 'text-gray-500'}`}>
+                  {updateStatus.msg}
+                </p>
+              )}
+              {updateStatus.available && (
+                <button
+                  onClick={async () => {
+                    setUpdateStatus(s => ({ ...s, msg: 'Installing update…', checking: true }))
+                    try {
+                      const res = await api.applyUpdate()
+                      setUpdateStatus({ msg: res.message })
+                      setTimeout(() => window.location.reload(), 30_000)
+                    } catch {
+                      setUpdateStatus({ msg: 'Update failed. Check /tmp/director-assistant-update.log' })
+                    }
+                  }}
+                  className="w-full mt-2 bg-blue-600 text-white text-sm font-medium py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Install v{updateStatus.latest}
+                </button>
+              )}
+            </div>
 
             {/* Danger zone */}
             <div className="border-t border-red-100 pt-4 mt-2">

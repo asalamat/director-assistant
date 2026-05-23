@@ -79,56 +79,87 @@ function Features() {
       <H3>Inbox <Badge color="blue">Main view</Badge></H3>
       <P>Browse all your ingested emails. Click any email to read it in the right panel.</P>
       <ul className="text-sm text-gray-600 space-y-1 mb-3 pl-4 list-disc">
-        <li><strong>Search:</strong> type in the search box — uses AI semantic search + full-text</li>
+        <li><strong>Folder bar:</strong> all IMAP folders shown at top — Inbox highlighted in indigo, click any to switch</li>
+        <li><strong>Search:</strong> uses AI semantic search + full-text keyword search simultaneously</li>
         <li><strong>Pin search (📌):</strong> save any search query as a reusable smart folder</li>
-        <li><strong>Priority labels:</strong> emails tagged <em>urgent</em>, <em>action</em>, or <em>finance</em> automatically</li>
+        <li><strong>Priority labels:</strong> emails auto-tagged <em>urgent</em>, <em>action</em>, or <em>finance</em></li>
         <li><strong>Thread indicator (↩):</strong> shows reply depth on threaded emails</li>
-        <li><strong>Sort:</strong> sort by date, sender, or subject</li>
-        <li><strong>Refresh:</strong> pulls new emails from the server without a full re-ingest</li>
-        <li><strong>Import:</strong> find a specific email by pasting its subject line</li>
-        <li><strong>Delete / Snooze:</strong> delete removes from local cache; snooze hides until a chosen date</li>
+        <li><strong>Sort:</strong> by date, sender, or subject (asc/desc)</li>
+        <li><strong>Refresh:</strong> pulls new emails from server without a full re-ingest</li>
+        <li><strong>Import by subject:</strong> find a specific email by pasting its subject line</li>
+        <li><strong>Bulk delete / Snooze:</strong> select multiple emails; snooze hides until a chosen date</li>
+        <li><strong>Auto-poll:</strong> new emails checked every 60 seconds in the background</li>
       </ul>
 
       <H3>Email Viewer</H3>
       <ul className="text-sm text-gray-600 space-y-1 mb-3 pl-4 list-disc">
-        <li><strong>AI Analysis:</strong> get reply suggestions, action items, key points, and urgency</li>
-        <li><strong>Ask:</strong> jump to Ask tab with context pre-filled about this email</li>
-        <li><strong>Snooze:</strong> hide until a date you choose; reappears on next refresh</li>
-        <li><strong>Sender name:</strong> click to open a contact card with history and stats</li>
-        <li><strong>Reply suggestions → Draft:</strong> save a reply directly to your IMAP Drafts folder</li>
+        <li><strong>AI Analysis:</strong> reply suggestions, action items, key points, urgency score</li>
+        <li><strong>Send Reply:</strong> compose and send replies directly from the viewer</li>
+        <li><strong>Save Draft:</strong> save AI reply suggestions to your IMAP Drafts folder</li>
+        <li><strong>Ask:</strong> jump to Ask tab with this email pre-loaded as context</li>
+        <li><strong>Snooze:</strong> hide until a date you choose; reappears automatically</li>
+        <li><strong>Sender card:</strong> click any sender name to see their email history and stats</li>
+        <li><strong>Follow-up tracking:</strong> emails needing a reply are flagged automatically</li>
       </ul>
 
       <H3>Brief <Badge color="green">AI digest</Badge></H3>
       <P>
-        Generates an AI summary of your most important recent emails. Auto-runs once per day on first visit.
-        Click <strong>Generate Brief</strong> to refresh. Results are cached for 10 minutes.
+        AI summary of your most important recent emails — grouped by topic, with action items highlighted.
+        Auto-runs once per day. Click <strong>Generate Brief</strong> to refresh anytime. Cached 10 minutes.
+      </P>
+
+      <H3>Ask <Badge color="blue">RAG search</Badge></H3>
+      <P>
+        Ask natural language questions across all your emails and indexed documents. Uses hybrid search
+        (dense vector + full-text) so you can ask things like "what did John say about the contract?" or
+        "what is Hannah's OEN number?" — answers are grounded in your actual data.
       </P>
 
       <H3>Actions</H3>
       <P>
-        Tracks to-do items extracted from your emails. Action items are saved automatically when AI analyzes
-        an email. Mark done as you complete them. Use the <strong>CSV</strong> button to export to a spreadsheet.
+        To-do items extracted automatically from emails. Mark done as you complete them.
+        Overdue actions show a badge on the tab. Export to CSV for spreadsheet tracking.
       </P>
 
       <H3>Analytics</H3>
       <P>
-        Charts and statistics: <strong>activity heatmap</strong> (GitHub-style calendar), volume trend line,
-        top senders, and folder breakdown. The overdue badge on the Actions tab counts follow-ups past their
-        due date. Use <strong>CSV</strong> to download the data.
+        Charts and stats: <strong>activity heatmap</strong> (GitHub-style), volume trend, top senders,
+        folder breakdown, and follow-up rates. All exportable as CSV.
       </P>
 
       <H3>Templates</H3>
       <P>
-        Save frequently-used reply templates. Use variables: <code className="bg-gray-100 px-1 rounded text-xs">{'{subject}'}</code>,{' '}
+        Save reply templates with variables:{' '}
+        <code className="bg-gray-100 px-1 rounded text-xs">{'{subject}'}</code>,{' '}
         <code className="bg-gray-100 px-1 rounded text-xs">{'{sender}'}</code>,{' '}
         <code className="bg-gray-100 px-1 rounded text-xs">{'{name}'}</code>,{' '}
-        <code className="bg-gray-100 px-1 rounded text-xs">{'{date}'}</code> to auto-fill content.
+        <code className="bg-gray-100 px-1 rounded text-xs">{'{date}'}</code> auto-filled on use.
+      </P>
+
+      <H3>Knowledge Base <Badge color="purple">Intelligence</Badge></H3>
+      <P>
+        Automatically builds a contact graph from your emails: people, companies, topics, and relationships.
+        View who you email most, track key contacts, and surface connections across threads.
+      </P>
+
+      <H3>Documents</H3>
+      <P>
+        Index local folders of PDFs, Word docs, Excel files, and text files. Indexed documents are fully
+        searchable via Ask — great for contracts, reports, and reference files alongside your emails.
+        Re-index from Settings → Documents section.
       </P>
 
       <H3>Health <Badge color="purple">Status</Badge></H3>
       <P>
-        Shows the connection status of all components: IMAP server, AI provider, database, and the background
-        polling loop. The colored dot in the tab indicates overall system health.
+        Live status of all components: IMAP connection, AI provider, RAG database, and polling loop.
+        The colored dot in the tab shows overall system health at a glance.
+      </P>
+
+      <H3>Auto-Update <Badge color="green">New</Badge></H3>
+      <P>
+        The app checks GitHub for new versions every 60 minutes. A popup appears when an update is available.
+        You can also check manually via <strong>Settings → Updates → Check for Updates</strong>.
+        Updates apply automatically — the app restarts and reloads in about 30 seconds.
       </P>
     </div>
   )
@@ -396,7 +427,7 @@ export function HelpModal({ onClose }: Props) {
         {/* Footer */}
         <div className="px-6 py-3 border-t border-gray-100 bg-gray-50 flex items-center justify-between flex-shrink-0">
           <div>
-            <span className="text-xs text-gray-400">Director Assistant v2.9.2</span>
+            <span className="text-xs text-gray-400">Director Assistant v2.9.3</span>
             <span className="text-xs text-gray-300 mx-2">·</span>
             <a href="mailto:ali.salamat@cortexhq.ai" className="text-xs text-gray-400 hover:text-accent transition-colors">
               Ali Salamat
