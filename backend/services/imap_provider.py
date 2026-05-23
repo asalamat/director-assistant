@@ -440,22 +440,13 @@ class IMAPProvider:
         return kept
 
     def get_poll_folders(self) -> List[str]:
-        """Folders to check on each poll cycle — only standard inbox-type folders.
+        """Folders to check on each poll cycle — hardcoded standard names only.
 
-        Accounts with many custom folders (filing cabinets) would otherwise take
-        hours to poll. New email arrives in INBOX and Sent; skip user-created
-        filing folders entirely.
+        Skips IMAP LIST entirely; providers with 150+ folders (e.g. Yahoo) would
+        otherwise take 120+ seconds just to enumerate. Missing folders are
+        handled gracefully by the caller.
         """
-        _POLL_NAMES = {
-            "inbox", "sent", "sent items", "sent mail", "all mail",
-            "archive", "bulk mail", "starred", "important",
-        }
-        try:
-            all_folders = self.list_folders()
-            matched = [f for f in all_folders if f.lower().strip('"') in _POLL_NAMES]
-            return matched if matched else ["INBOX"]
-        except Exception:
-            return ["INBOX"]
+        return ["INBOX", "Sent", "Sent Items", "Sent Mail"]
 
     def search_by_subject(self, subject: str, folder: str = "INBOX", limit: int = 10):
         """Search IMAP folder for emails matching subject. Yields (EmailMessage, total)."""
