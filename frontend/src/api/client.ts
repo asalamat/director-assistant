@@ -197,8 +197,8 @@ export const api = {
     return request('/ask', { method: 'POST', body: JSON.stringify({ question, n_results }) })
   },
 
-  // Manual poll trigger
-  pollNow(): Promise<{ status: string }> {
+  // Manual poll trigger — waits for the poll to complete before resolving
+  pollNow(): Promise<{ status: string; new_count: number }> {
     return request('/poll/now', { method: 'POST' })
   },
 

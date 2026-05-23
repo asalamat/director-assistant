@@ -260,43 +260,19 @@ export default function App() {
     setRefreshing(true)
     setRefreshMsg('Checking mailboxes…')
     try {
-      const before = await api.getStats().catch(() => null)
-      const prevChecked = (before as any)?.poll?.last_checked ?? ''
-      await api.pollNow()
-
-      let waited = 0
-      const tick = 2000
-      const maxWait = 90000
-      await new Promise<void>((resolve) => {
-        const id = setInterval(async () => {
-          waited += tick
-          try {
-            const s = await api.getStats() as any
-            const newFound = s?.poll?.last_new ?? 0
-            if (s?.poll?.last_checked !== prevChecked) {
-              clearInterval(id)
-              await mergeRefresh()
-              const msg = newFound > 0 ? `+${newFound} new email${newFound !== 1 ? 's' : ''}` : 'Up to date'
-              setRefreshMsg(msg)
-              if (newFound > 0) {
-                addToast(msg, 'success')
-                if ('Notification' in window && Notification.permission === 'granted') {
-                  new Notification('Director Assistant', { body: msg })
-                }
-              }
-              setTimeout(() => setRefreshMsg(''), 3000)
-              resolve()
-            }
-          } catch { /* ignore */ }
-          if (waited >= maxWait) {
-            clearInterval(id)
-            await refresh()
-            setRefreshMsg('Done')
-            setTimeout(() => setRefreshMsg(''), 2000)
-            resolve()
-          }
-        }, tick)
-      })
+      const result = await api.pollNow()
+      const newCount = result?.new_count ?? 0
+      await refresh()
+      await loadFolderData()
+      const msg = newCount > 0 ? `+${newCount} new email${newCount !== 1 ? 's' : ''}` : 'Up to date'
+      setRefreshMsg(msg)
+      if (newCount > 0) {
+        addToast(msg, 'success')
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification('Director Assistant', { body: msg })
+        }
+      }
+      setTimeout(() => setRefreshMsg(''), 3000)
     } catch {
       setRefreshMsg('Check failed')
       setTimeout(() => setRefreshMsg(''), 2000)

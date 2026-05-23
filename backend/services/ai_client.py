@@ -113,7 +113,7 @@ class _AnthropicStreamWithFallback:
                 **self._kwargs,
             )
             return await self._ctx.__aenter__()
-        except (anthropic.RateLimitError, anthropic.OverloadedError,
+        except (anthropic.RateLimitError,
                 anthropic.APIConnectionError, anthropic.APITimeoutError) as e:
             logger.warning(f"[ai] Claude stream error — falling back to OpenAI ({e})")
         except anthropic.APIStatusError as e:
@@ -218,8 +218,7 @@ class AIClient:
                 return resp
             except anthropic.RateLimitError as e:
                 logger.warning(f"[ai] Claude rate-limited — falling back to OpenAI ({e})")
-            except anthropic.OverloadedError as e:
-                logger.warning(f"[ai] Claude overloaded — falling back to OpenAI ({e})")
+            # anthropic.OverloadedError (529) is handled below via APIStatusError
             except anthropic.APIStatusError as e:
                 if e.status_code in _FALLBACK_STATUSES:
                     logger.warning(

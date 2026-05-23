@@ -435,11 +435,20 @@ async def stats(request: Request):
 
 @app.post("/api/poll/now")
 async def poll_now(request: Request):
-    """Manually trigger one poll cycle immediately (used by Refresh button)."""
+    """Manually trigger a poll cycle (used by Refresh button).
+
+    Waits up to 15 s for any in-progress background poll to finish so the
+    fresh cycle can see emails that arrived after the background cycle started.
+    """
     rag: RAGEngine = request.app.state.rag
     cache = request.app.state.cache
-    asyncio.create_task(_run_poll_cycle(rag, cache))
-    return {"status": "polling"}
+    # Wait for any running poll to finish (up to 15 s) before starting a fresh one.
+    for _ in range(30):
+        if not _poll_running:
+            break
+        await asyncio.sleep(0.5)
+    new_count, _ = await _run_poll_cycle(rag, cache)
+    return {"status": "done", "new_count": new_count}
 
 
 @app.post("/api/shutdown")
