@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { api } from '../api/client'
+import pkgJson from '../../package.json'
 
 interface Stats {
   rag: { total_chunks: number; unique_emails_indexed: number; cached_emails: number; db_size_mb: number }
@@ -135,6 +136,8 @@ export function StatusBar() {
         <span title={`Auto-checks every ${poll.interval_seconds}s`} className="text-gray-400">
           Poll: {poll.interval_seconds}s
         </span>
+
+        <span className="ml-auto text-gray-300">v{pkgJson.version}</span>
       </div>
     </div>
   )
