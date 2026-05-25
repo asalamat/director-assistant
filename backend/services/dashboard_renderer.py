@@ -380,31 +380,10 @@ def render_dashboard(d: dict) -> str:
     {_section("Long-Term Action Items", _action_list(actions))}
   </div>
 
-  <!-- Row: Training + OOF Radar -->
+  <!-- Row: Training + Top Senders -->
   <div class="grid2" style="margin-top:16px">
     {_section("Training & Learning", _training_list(training))}
-    <div class="card">
-      <h2>OOF Radar</h2>
-      <p style="color:#6e7681;font-size:13px">
-        Connect Microsoft 365 in Settings to see teammate out-of-office status.
-      </p>
-    </div>
-  </div>
-
-  <!-- Row: Teams + OneDrive -->
-  <div class="grid2" style="margin-top:16px">
-    <div class="card">
-      <h2>Unread Teams Chats</h2>
-      <p style="color:#6e7681;font-size:13px">
-        Teams integration requires Microsoft Graph — connect in Settings.
-      </p>
-    </div>
-    <div class="card">
-      <h2>Recent Files in Flight</h2>
-      <p style="color:#6e7681;font-size:13px">
-        OneDrive file access requires Microsoft Graph — connect in Settings.
-      </p>
-    </div>
+    {_section("Top Senders This Week", _bar_chart([{{"date": s["sender"][:22], "count": s["count"]}} for s in senders[:7]], "date", "count"))}
   </div>
 
   <!-- Email Volume (full width) -->

@@ -422,6 +422,20 @@ export default function App() {
               )}
             </button>
           ))}
+          {/* Dashboard link — opens the executive brief in a new tab */}
+          <div className="mt-auto pb-1">
+            <a
+              href="/api/dashboard"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Dashboard"
+              className="w-10 h-10 rounded-xl flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M2 4a1 1 0 011-1h5a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1V4zm0 9a1 1 0 011-1h5a1 1 0 011 1v2a1 1 0 01-1 1H3a1 1 0 01-1-1v-2zm9-9a1 1 0 011-1h4a1 1 0 011 1v2a1 1 0 01-1 1h-4a1 1 0 01-1-1V4zm0 6a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1h-4a1 1 0 01-1-1v-5z" />
+              </svg>
+            </a>
+          </div>
         </div>
 
         {/* Main content area */}
