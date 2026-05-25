@@ -95,7 +95,7 @@ async def apply_update():
     # 4. build frontend (node/npm already installed)
     # 5. copy dist → backend/static
     # 6. copy version.json
-    # 7. restart uvicorn via launchctl bootstrap (works on macOS Ventura+)
+    # 7. kill just the uvicorn process — menubar.py watchdog restarts it automatically
     update_cmd = (
         f"exec >> {log} 2>&1 && "
         f"echo '--- Update started at '$(date) && "
@@ -114,9 +114,10 @@ async def apply_update():
         # Copy version.json
         f"cp '{repo}/version.json' '{install_dir}/version.json' && "
         f"echo '--- Update complete. Restarting…' && "
-        # kickstart -k kills the running instance and starts a fresh one atomically,
-        # avoiding the port-in-use race that bootout+sleep+bootstrap causes.
-        f"launchctl kickstart -k gui/$(id -u)/com.director-assistant.app"
+        # Kill only the uvicorn process. This subprocess has start_new_session=True
+        # so pkill won't touch it. menubar.py's 10-second watchdog sees uvicorn
+        # died and relaunches it with the freshly-copied code.
+        f"pkill -f 'uvicorn main:app' || true && echo '--- uvicorn killed — watchdog will restart'"
     )
 
     env = os.environ.copy()

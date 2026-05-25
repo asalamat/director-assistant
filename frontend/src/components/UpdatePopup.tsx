@@ -33,10 +33,23 @@ export default function UpdatePopup() {
     setApplying(true)
     setMessage('Pulling latest code and rebuilding…')
     try {
-      const res = await api.applyUpdate()
-      setMessage(res.message)
-      // Reload after 30 seconds to pick up new backend
-      setTimeout(() => window.location.reload(), 30_000)
+      await api.applyUpdate()
+      setMessage('Rebuilding… reloading when ready')
+      // Wait for backend to come back up instead of a fixed timer
+      await new Promise<void>(resolve => {
+        const start = Date.now()
+        const poll = setInterval(async () => {
+          // Give the build at least 15 s before we start probing
+          if (Date.now() - start < 15_000) return
+          try {
+            const r = await fetch('/health', { cache: 'no-store' })
+            if (r.ok) { clearInterval(poll); resolve() }
+          } catch { /* still down — keep waiting */ }
+          // Hard cap at 3 minutes
+          if (Date.now() - start > 180_000) { clearInterval(poll); resolve() }
+        }, 3_000)
+      })
+      window.location.reload()
     } catch {
       setMessage('Update failed. Check /tmp/director-assistant-update.log for details.')
       setApplying(false)
@@ -83,7 +96,7 @@ export default function UpdatePopup() {
           <div className="w-full bg-blue-100 rounded-full h-1.5">
             <div className="bg-blue-500 h-1.5 rounded-full animate-pulse w-3/4" />
           </div>
-          <p className="text-xs text-gray-400 mt-1 text-center">App will reload automatically…</p>
+          <p className="text-xs text-gray-400 mt-1 text-center">{message || 'Reloading when server is ready…'}</p>
         </div>
       )}
     </div>
