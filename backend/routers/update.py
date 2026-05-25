@@ -60,7 +60,12 @@ async def check_update():
     except Exception as e:
         return JSONResponse({"current": current, "latest": None, "update_available": False,
                              "error": str(e)})
-    update_available = latest != "unknown" and latest != current
+    def _semver(v: str) -> tuple:
+        try:
+            return tuple(int(x) for x in v.split("."))
+        except Exception:
+            return (0,)
+    update_available = latest != "unknown" and _semver(latest) > _semver(current)
     return {
         "current": current,
         "latest": latest,
