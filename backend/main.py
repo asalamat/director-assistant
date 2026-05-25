@@ -32,6 +32,7 @@ from routers import saved_searches as saved_searches_router
 from routers import drafts as drafts_router
 from routers import email_send as email_send_router
 from routers import update as update_router
+from routers import dashboard as dashboard_router
 from services.intelligence_service import IntelligenceService
 from routers.config import get_effective_api_key, load_app_config
 from services.ai_client import AIClient
@@ -386,6 +387,7 @@ app.include_router(saved_searches_router.router)
 app.include_router(drafts_router.router)
 app.include_router(email_send_router.router)
 app.include_router(update_router.router)
+app.include_router(dashboard_router.router)
 
 
 @app.get("/health")

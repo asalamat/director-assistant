@@ -1,0 +1,203 @@
+"""
+Dashboard generator: pulls real data from existing services and writes
+output/dashboard.html — a self-contained, zero-dependency executive brief.
+"""
+
+from __future__ import annotations
+
+import sqlite3
+from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
+from typing import Any
+
+from fastapi import APIRouter
+from fastapi.requests import Request
+from fastapi.responses import HTMLResponse
+
+from services.dashboard_renderer import render_dashboard
+
+router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
+
+_OUTPUT = Path(__file__).resolve().parents[2] / "output" / "dashboard.html"
+
+
+# ── Data helpers ──────────────────────────────────────────────────────────────
+
+def _db_conn(cache) -> sqlite3.Connection:
+    conn = sqlite3.connect(cache.db_path, timeout=5)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    return conn
+
+
+def _unread_emails(cache, limit: int = 10) -> list[dict]:
+    with _db_conn(cache) as conn:
+        rows = conn.execute(
+            """SELECT id, subject, sender, date, body
+               FROM emails WHERE is_read = 0
+               ORDER BY date DESC LIMIT ?""",
+            (limit,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def _unread_count(cache) -> int:
+    with _db_conn(cache) as conn:
+        return conn.execute("SELECT COUNT(*) FROM emails WHERE is_read = 0").fetchone()[0]
+
+
+def _action_items(cache) -> list[dict]:
+    with _db_conn(cache) as conn:
+        rows = conn.execute(
+            "SELECT * FROM action_items WHERE done = 0 ORDER BY created_at DESC"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def _follow_ups(cache) -> list[dict]:
+    with _db_conn(cache) as conn:
+        rows = conn.execute(
+            "SELECT * FROM follow_ups WHERE done = 0 ORDER BY due_date ASC"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def _top_senders(cache, limit: int = 10) -> list[dict]:
+    with _db_conn(cache) as conn:
+        rows = conn.execute(
+            """SELECT sender, COUNT(*) AS cnt
+               FROM emails WHERE sender != ''
+               GROUP BY sender ORDER BY cnt DESC LIMIT ?""",
+            (limit,),
+        ).fetchall()
+    return [{"sender": r["sender"], "count": r["cnt"]} for r in rows]
+
+
+def _emails_by_day(cache, days: int = 7) -> list[dict]:
+    with _db_conn(cache) as conn:
+        rows = conn.execute(
+            """SELECT substr(date,1,10) AS day, COUNT(*) AS cnt
+               FROM emails
+               WHERE date >= date('now', ? || ' days')
+               GROUP BY day ORDER BY day""",
+            (f"-{days}",),
+        ).fetchall()
+    return [{"date": r["day"], "count": r["cnt"]} for r in rows]
+
+
+def _training_emails(cache, limit: int = 8) -> list[dict]:
+    keywords = ["training", "course", "learning", "certification", "workshop",
+                "webinar", "skill", "academy", "e-learning", "onboarding"]
+    like_clauses = " OR ".join(["LOWER(subject) LIKE ?" for _ in keywords])
+    params = [f"%{k}%" for k in keywords] + [limit]
+    with _db_conn(cache) as conn:
+        rows = conn.execute(
+            f"""SELECT id, subject, sender, date FROM emails
+                WHERE ({like_clauses}) ORDER BY date DESC LIMIT ?""",
+            params,
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def _calendar_events(cache) -> list[dict]:
+    """Try to fetch tomorrow's calendar events via Microsoft Graph API."""
+    try:
+        accounts = cache.list_accounts()
+        o365_acc = next(
+            (a for a in accounts if getattr(a, "access_token", None) or
+             getattr(a, "provider", "") == "office365"), None
+        )
+        if not o365_acc:
+            return []
+
+        import httpx
+        token = getattr(o365_acc, "access_token", None)
+        if not token:
+            return []
+
+        tomorrow = (date.today() + timedelta(days=1))
+        start = f"{tomorrow.isoformat()}T00:00:00Z"
+        end   = f"{tomorrow.isoformat()}T23:59:59Z"
+        url = (
+            "https://graph.microsoft.com/v1.0/me/calendarView"
+            f"?startDateTime={start}&endDateTime={end}"
+            "&$select=subject,start,end,organizer,responseStatus,isOnlineMeeting,attendees"
+            "&$orderby=start/dateTime&$top=20"
+        )
+        resp = httpx.get(url, headers={"Authorization": f"Bearer {token}"}, timeout=6)
+        if resp.status_code != 200:
+            return []
+        return resp.json().get("value", [])
+    except Exception:
+        return []
+
+
+def _week_calendar(cache) -> list[dict]:
+    """Try to fetch this week's calendar for load chart."""
+    try:
+        accounts = cache.list_accounts()
+        o365_acc = next(
+            (a for a in accounts if getattr(a, "access_token", None)), None
+        )
+        if not o365_acc:
+            return []
+        import httpx
+        token = getattr(o365_acc, "access_token", None)
+        if not token:
+            return []
+        today = date.today()
+        start = f"{today.isoformat()}T00:00:00Z"
+        end   = f"{(today + timedelta(days=7)).isoformat()}T23:59:59Z"
+        url = (
+            "https://graph.microsoft.com/v1.0/me/calendarView"
+            f"?startDateTime={start}&endDateTime={end}"
+            "&$select=subject,start,end,categories&$top=50"
+        )
+        resp = httpx.get(url, headers={"Authorization": f"Bearer {token}"}, timeout=6)
+        if resp.status_code != 200:
+            return []
+        return resp.json().get("value", [])
+    except Exception:
+        return []
+
+
+def _projects_from_intelligence(intelligence) -> list[dict]:
+    try:
+        people = intelligence.get_people(limit=30)
+        subjects: dict[str, int] = {}
+        for p in people:
+            for s in (p.get("subjects") or [])[:5]:
+                key = s.strip()
+                if len(key) > 8:
+                    subjects[key] = subjects.get(key, 0) + 1
+        top = sorted(subjects.items(), key=lambda x: -x[1])[:8]
+        return [{"name": k, "count": v, "next": "Review status"} for k, v in top]
+    except Exception:
+        return []
+
+
+# ── Endpoint ──────────────────────────────────────────────────────────────────
+
+@router.get("", response_class=HTMLResponse)
+async def get_dashboard(request: Request):
+    cache = request.app.state.cache
+    intelligence = request.app.state.intelligence
+
+    data: dict[str, Any] = {
+        "generated_at":   datetime.now().strftime("%A, %d %B %Y  %H:%M"),
+        "unread_count":   _unread_count(cache),
+        "unread_emails":  _unread_emails(cache),
+        "actions":        _action_items(cache),
+        "follow_ups":     _follow_ups(cache),
+        "top_senders":    _top_senders(cache),
+        "email_volume":   _emails_by_day(cache),
+        "training":       _training_emails(cache),
+        "calendar_today": _calendar_events(cache),
+        "week_calendar":  _week_calendar(cache),
+        "projects":       _projects_from_intelligence(intelligence),
+    }
+
+    html = render_dashboard(data)
+    _OUTPUT.parent.mkdir(parents=True, exist_ok=True)
+    _OUTPUT.write_text(html, encoding="utf-8")
+    return HTMLResponse(html)
