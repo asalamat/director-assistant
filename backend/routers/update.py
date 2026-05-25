@@ -114,10 +114,9 @@ async def apply_update():
         # Copy version.json
         f"cp '{repo}/version.json' '{install_dir}/version.json' && "
         f"echo '--- Update complete. Restarting…' && "
-        # Restart via launchctl (bootstrap/bootout works on macOS Ventura+)
-        f"launchctl bootout gui/$(id -u) '{plist}' 2>/dev/null; "
-        f"sleep 1 && "
-        f"launchctl bootstrap gui/$(id -u) '{plist}'"
+        # kickstart -k kills the running instance and starts a fresh one atomically,
+        # avoiding the port-in-use race that bootout+sleep+bootstrap causes.
+        f"launchctl kickstart -k gui/$(id -u)/com.director-assistant.app"
     )
 
     env = os.environ.copy()
