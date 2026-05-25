@@ -115,11 +115,13 @@ export function Settings({ onConnected, initialTab = 'accounts' }: Props) {
           }
         } catch (e: unknown) {
           stopOauthPoll()
+          setOauthFlow(null)  // clear so Start Sign In button reappears
           setOauthStatus('error')
-          setOauthMsg(e instanceof Error ? e.message : 'Sign-in failed')
+          setOauthMsg((e instanceof Error ? e.message : 'Sign-in failed') + ' — click Start Sign In to get a new code.')
         }
       }, 3000)
     } catch (e: unknown) {
+      setOauthFlow(null)
       setOauthStatus('error')
       setOauthMsg(e instanceof Error ? e.message : 'Failed to start sign-in')
     }
