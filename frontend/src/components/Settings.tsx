@@ -586,6 +586,32 @@ export function Settings({ onConnected, initialTab = 'accounts' }: Props) {
           </div>
         )}
 
+        {/* Microsoft Services: OneDrive & Teams */}
+        {hasAccounts && !showAdd && (
+          <div className="mb-4 border-t border-gray-100 pt-5">
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Microsoft Services</p>
+              <span className="text-xs text-blue-500 font-medium">OneDrive · Teams</span>
+            </div>
+            <p className="text-xs text-gray-400 mb-3">
+              Connect a Microsoft account to enable OneDrive recent files and Teams chat previews in the dashboard.
+              Requires a free Azure app registration with <span className="font-mono bg-gray-100 px-1 rounded text-gray-600 text-[10px]">Files.Read</span> and <span className="font-mono bg-gray-100 px-1 rounded text-gray-600 text-[10px]">Chat.Read</span> permissions.
+            </p>
+            <button
+              onClick={() => { setShowAdd(true); setProvider('hotmail'); setHotmailMode('oauth') }}
+              className="w-full flex items-center justify-center gap-2 border border-dashed border-blue-300 text-blue-600 hover:bg-blue-50 rounded-lg py-2 text-sm transition-colors"
+            >
+              <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg">
+                <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
+                <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
+                <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
+                <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
+              </svg>
+              Connect Microsoft Account
+            </button>
+          </div>
+        )}
+
         {showFolderPicker && (
           <FolderPicker
             onSelect={async (path) => {
@@ -671,7 +697,7 @@ export function Settings({ onConnected, initialTab = 'accounts' }: Props) {
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent font-mono"
                   />
                   <p className="text-xs text-gray-400 mt-1">
-                    Register a free app at <strong>portal.azure.com</strong> → Azure AD → App registrations → New → Personal accounts only → Authentication → Enable "Allow public client flows". Add API permission: Office 365 Exchange Online → IMAP.AccessAsUser.All (delegated).
+                    Register a free app at <strong>portal.azure.com</strong> → Azure AD → App registrations → New → Personal accounts only → Authentication → Enable "Allow public client flows". Add delegated API permissions: <span className="font-mono text-[10px] bg-gray-100 px-1 rounded">IMAP.AccessAsUser.All</span> (Exchange Online) + <span className="font-mono text-[10px] bg-gray-100 px-1 rounded">Files.Read</span> + <span className="font-mono text-[10px] bg-gray-100 px-1 rounded">Chat.Read</span> (Microsoft Graph) — for email, OneDrive, and Teams.
                   </p>
                 </div>
 
