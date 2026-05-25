@@ -395,7 +395,7 @@ def render_dashboard(d: dict) -> str:
     </div>
     <div class="hdr-right">
       <div>Last refreshed: {_e(gen_at)}</div>
-      <div class="hint"><a href="/api/dashboard">Refresh now</a></div>
+      <div class="hint"><a href="/api/dashboard">Refresh now</a> · <a href="/">← Back to App</a></div>
     </div>
   </div>
 
