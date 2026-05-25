@@ -76,14 +76,19 @@ export function Settings({ onConnected, initialTab = 'accounts' }: Props) {
   const [hotmailMode, setHotmailMode] = useState<'password' | 'oauth'>('password')
   const [oauthClientId, setOauthClientId] = useState('')
   const [oauthFlow, setOauthFlow] = useState<{
-    flow_id: string; user_code: string; verification_uri: string
+    flow_id: string; user_code: string; verification_uri: string; expires_in: number
   } | null>(null)
   const [oauthStatus, setOauthStatus] = useState<'idle' | 'waiting' | 'done' | 'error'>('idle')
   const [oauthMsg, setOauthMsg] = useState('')
+  const [oauthSecondsLeft, setOauthSecondsLeft] = useState(0)
   const oauthPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const oauthTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const stopOauthPoll = () => {
     if (oauthPollRef.current) { clearInterval(oauthPollRef.current); oauthPollRef.current = null }
+  }
+  const stopOauthTimer = () => {
+    if (oauthTimerRef.current) { clearInterval(oauthTimerRef.current); oauthTimerRef.current = null }
   }
 
   const handleStartOAuth = async () => {
@@ -93,12 +98,29 @@ export function Settings({ onConnected, initialTab = 'accounts' }: Props) {
       const res = await api.startMicrosoftOAuth(oauthClientId.trim(), username.trim())
       setOauthFlow(res)
       setOauthStatus('waiting')
+      // Start expiry countdown
+      const expSecs = res.expires_in || 900
+      setOauthSecondsLeft(expSecs)
+      stopOauthTimer()
+      oauthTimerRef.current = setInterval(() => {
+        setOauthSecondsLeft(s => {
+          if (s <= 1) {
+            stopOauthTimer()
+            stopOauthPoll()
+            setOauthFlow(null)
+            setOauthStatus('error')
+            setOauthMsg('Code expired — click "Start Sign In" to get a new code.')
+            return 0
+          }
+          return s - 1
+        })
+      }, 1000)
       stopOauthPoll()
       oauthPollRef.current = setInterval(async () => {
         try {
           const poll = await api.pollMicrosoftOAuth(res.flow_id)
           if (poll.status === 'completed' && poll.access_token) {
-            stopOauthPoll()
+            stopOauthPoll(); stopOauthTimer()
             setOauthStatus('done')
             setOauthMsg('Signed in! Saving account…')
             // Add account with access_token (no password)
@@ -114,8 +136,8 @@ export function Settings({ onConnected, initialTab = 'accounts' }: Props) {
             setUsername(''); setOauthClientId('')
           }
         } catch (e: unknown) {
-          stopOauthPoll()
-          setOauthFlow(null)  // clear so Start Sign In button reappears
+          stopOauthPoll(); stopOauthTimer()
+          setOauthFlow(null)
           setOauthStatus('error')
           setOauthMsg((e instanceof Error ? e.message : 'Sign-in failed') + ' — click Start Sign In to get a new code.')
         }
@@ -720,10 +742,21 @@ export function Settings({ onConnected, initialTab = 'accounts' }: Props) {
                        className="text-sm text-blue-600 underline break-all">{oauthFlow.verification_uri}</a>
                     <p className="text-sm font-semibold text-blue-800 pt-1">Step 2 — Enter this code:</p>
                     <p className="text-2xl font-mono font-bold text-blue-900 tracking-widest">{oauthFlow.user_code}</p>
-                    <p className="text-xs text-blue-600 flex items-center gap-1">
-                      <span className="inline-block w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-                      Waiting for you to sign in…
-                    </p>
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-blue-600 flex items-center gap-1">
+                        <span className="inline-block w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                        Waiting for you to sign in…
+                      </p>
+                      <p className={`text-xs font-mono font-medium ${oauthSecondsLeft < 120 ? 'text-red-500' : 'text-blue-500'}`}>
+                        {Math.floor(oauthSecondsLeft / 60)}:{String(oauthSecondsLeft % 60).padStart(2, '0')}
+                      </p>
+                    </div>
+                    {oauthSecondsLeft < 120 && (
+                      <button onClick={handleStartOAuth}
+                        className="w-full text-xs bg-blue-600 text-white rounded-lg py-1.5 hover:bg-blue-700">
+                        Get New Code
+                      </button>
+                    )}
                   </div>
                 )}
 
