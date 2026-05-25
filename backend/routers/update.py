@@ -114,10 +114,11 @@ async def apply_update():
         # Copy version.json
         f"cp '{repo}/version.json' '{install_dir}/version.json' && "
         f"echo '--- Update complete. Restarting…' && "
-        # Kill only the uvicorn process. This subprocess has start_new_session=True
-        # so pkill won't touch it. menubar.py's 10-second watchdog sees uvicorn
-        # died and relaunches it with the freshly-copied code.
-        f"pkill -f 'uvicorn main:app' || true && echo '--- uvicorn killed — watchdog will restart'"
+        # Kill uvicorn; if menubar watchdog doesn't restart within 15s, use kickstart.
+        f"pkill -f 'uvicorn main:app' || true && sleep 15 && "
+        f"curl -sf http://localhost:8000/health > /dev/null 2>&1 || "
+        f"launchctl kickstart gui/$(id -u)/com.director-assistant.app && "
+        f"echo '--- restart done'"
     )
 
     env = os.environ.copy()
