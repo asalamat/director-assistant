@@ -18,13 +18,17 @@ An AI-powered email intelligence app that helps you understand your inbox, track
 | **Templates** | Save and reuse reply templates with `{name}`, `{date}`, `{subject}`, `{sender}` variables. |
 | **Health** | Backend status, IMAP connection health, AI availability, and polling loop state. |
 | **Knowledge** | Role-transition intelligence — people graph, open commitments, active projects, topic timeline, and an AI-written executive briefing. |
-| **Dashboard** | One-click executive brief — live KPIs, tomorrow's schedule, top projects, email volume charts, follow-ups, and training items. Opens in a new tab; auto-refreshes every 30 min. Accessible from the sidebar dashboard icon. |
+| **Dashboard** | One-click executive brief — live KPIs, tomorrow's schedule, top projects, OneDrive recent files, Teams chats, email volume charts, follow-ups, and training items. Click any item to open an AI panel (Resolve / Schedule Meeting / Draft Reply / Summarize). Draft Reply saves directly to your IMAP Drafts folder. Auto-refreshes every 30 min. |
 
 ### Highlights
 
 - **Multiple accounts** — Gmail, Yahoo, Hotmail, Office 365, or any IMAP server
 - **Dual AI with auto-fallback** — Anthropic Claude primary; automatically falls back to OpenAI on rate limits, quota exhaustion, or billing errors
 - **Auto-update** — checks GitHub for new versions and applies updates in-place with a one-click popup
+- **Dashboard AI panel** — click any email, action item, calendar event, or project in the dashboard to open an AI panel with quick actions: Resolve, Schedule Meeting, Draft Reply, Summarize — all streamed from Claude Haiku, grounded in your email RAG index
+- **Save to Drafts** — "Draft Reply" in the dashboard generates an AI email draft and saves it directly to your IMAP Drafts folder with one click
+- **OneDrive integration** — dashboard shows recently modified OneDrive files (requires Files.Read scope)
+- **Teams integration** — dashboard shows recent Teams chats and message previews (requires Chat.Read scope)
 - **Follow-up reminders** — AI detects emails needing a reply and surfaces them as reminders
 - **Desktop notifications** — browser notifications for new email and refresh results
 - **Ask history** — all previous Ask queries saved and browsable
@@ -52,13 +56,13 @@ An AI-powered email intelligence app that helps you understand your inbox, track
 Go to the [Releases page](https://github.com/asalamat/director-assistant/releases) and download:
 
 ```
-DirectorAssistant-mac-3.0.4.zip
+DirectorAssistant-mac-3.0.12.zip
 ```
 
 ### 2. Extract and run the installer
 
 ```bash
-unzip DirectorAssistant-mac-3.0.4.zip
+unzip DirectorAssistant-mac-3.0.12.zip
 cd DirectorAssistant
 bash scripts/install-mac.sh
 ```
@@ -98,7 +102,7 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.director-assistant.a
 
 ## Windows — Install from ZIP
 
-Download `DirectorAssistant-win-3.0.4.zip` from [Releases](https://github.com/asalamat/director-assistant/releases), extract it, then double-click:
+Download `DirectorAssistant-win-3.0.12.zip` from [Releases](https://github.com/asalamat/director-assistant/releases), extract it, then double-click:
 
 ```
 DirectorAssistant\scripts\install-windows.bat
@@ -150,7 +154,7 @@ Open `http://localhost:8000`.
 bash scripts/package.sh
 ```
 
-Outputs `dist/DirectorAssistant-mac-3.0.4.zip` and `dist/DirectorAssistant-win-3.0.4.zip`.
+Outputs `dist/DirectorAssistant-mac-3.0.12.zip` and `dist/DirectorAssistant-win-3.0.12.zip`.
 
 ---
 
