@@ -120,8 +120,10 @@ function showModal(title,rows){{
     '<div class="detail-body">'+val+'</div></div>').join('');
   currentCtx=title+'\\n'+rows.map(([l,v])=>l+': '+v).join('\\n');
   const o=document.getElementById('ai-out'),i=document.getElementById('ai-input');
+  const sd=document.getElementById('save-draft-btn');
   if(o){{o.textContent='';o.classList.remove('active');}}
   if(i)i.value='';
+  if(sd){{sd.style.display='none';sd.disabled=false;sd.textContent='Save to Drafts';}}
   bg.classList.add('open');
 }}
 function closeModal(){{bg.classList.remove('open');}}

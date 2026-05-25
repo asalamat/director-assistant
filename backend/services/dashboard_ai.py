@@ -20,6 +20,9 @@ AI_CSS = """
 .ai-btn{background:#1f6feb;border:none;border-radius:6px;color:#fff;
         padding:5px 12px;cursor:pointer;font-size:12px}
 .ai-btn:hover{background:#388bfd}
+.ai-btn-save{background:#238636;margin-top:8px}
+.ai-btn-save:hover{background:#2ea043}
+.ai-btn-save:disabled{background:#21262d;color:#6e7681;cursor:default}
 """
 
 AI_MODAL_HTML = """<div class="ai-panel">
@@ -30,6 +33,7 @@ AI_MODAL_HTML = """<div class="ai-panel">
     <button class="ai-chip" onclick="askAI('Summarize the key points of this item.')">Summarize</button>
   </div>
   <div class="ai-out" id="ai-out"></div>
+  <button class="ai-btn ai-btn-save" id="save-draft-btn" onclick="saveDraft()" style="display:none">Save to Drafts</button>
   <div class="ai-input-row">
     <input class="ai-input" id="ai-input" placeholder="Ask AI about this item…"
            onkeydown="if(event.key==='Enter'&&this.value.trim())askAI(this.value)">
@@ -38,10 +42,33 @@ AI_MODAL_HTML = """<div class="ai-panel">
 </div>"""
 
 AI_JS = """
+function parseCtx(ctx){
+  const lines=ctx.split('\\n'),title=lines[0]||'',obj={};
+  lines.slice(1).forEach(l=>{const i=l.indexOf(': ');if(i>0)obj[l.slice(0,i).toLowerCase()]=l.slice(i+2);});
+  return{title,...obj};
+}
+async function saveDraft(){
+  const p=parseCtx(currentCtx);
+  const subject=p.subject||p.title||'(no subject)';
+  const toEmail=(p.from||p.sender||'').replace(/.*<(.+)>.*$/,'$1').trim();
+  const body=document.getElementById('ai-out').textContent;
+  const btn=document.getElementById('save-draft-btn');
+  btn.textContent='Saving…';btn.disabled=true;
+  try{
+    const r=await fetch('/api/dashboard/save-draft',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({subject:'Re: '+subject,to_email:toEmail,body})
+    });
+    const data=await r.json();
+    btn.textContent=r.ok?'✓ Saved to Drafts':'Save failed: '+(data.detail||'unknown error');
+    if(!r.ok)btn.disabled=false;
+  }catch(e){btn.textContent='Save failed';btn.disabled=false;}
+}
 async function askAI(query){
   if(!query||!query.trim())return;
-  const out=document.getElementById('ai-out');
+  const out=document.getElementById('ai-out'),btn=document.getElementById('save-draft-btn');
   if(!out)return;
+  if(btn){btn.style.display='none';btn.disabled=false;btn.textContent='Save to Drafts';}
   out.textContent='⋯';out.classList.add('active');
   try{
     const resp=await fetch('/api/dashboard/ask',{
@@ -58,6 +85,7 @@ async function askAI(query){
         catch(e){}
       });
     }
+    if(btn&&/draft|reply/i.test(query)){btn.style.display='block';}
   }catch(e){out.textContent='Error: '+e.message;}
 }
 """

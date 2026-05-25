@@ -14,7 +14,7 @@ from typing import Any
 
 from fastapi import APIRouter
 from fastapi.requests import Request
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
 from services.dashboard_renderer import render_dashboard
@@ -248,6 +248,41 @@ async def get_dashboard(request: Request):
     _OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     _OUTPUT.write_text(html, encoding="utf-8")
     return HTMLResponse(html)
+
+
+class SaveDraftRequest(BaseModel):
+    subject: str
+    to_email: str = ""
+    body: str
+
+
+@router.post("/save-draft")
+async def save_draft(req: SaveDraftRequest, request: Request):
+    """Create a draft email in the user's Microsoft account via Graph API."""
+    cache = request.app.state.cache
+    try:
+        accounts = cache.list_accounts()
+        acc = next((a for a in accounts if getattr(a, "access_token", None)), None)
+        if not acc:
+            return JSONResponse({"detail": "No Microsoft account connected."}, status_code=400)
+        import httpx
+        token = getattr(acc, "access_token", None)
+        payload: dict = {
+            "subject": req.subject[:998],
+            "body": {"contentType": "Text", "content": req.body},
+        }
+        if req.to_email and "@" in req.to_email:
+            payload["toRecipients"] = [{"emailAddress": {"address": req.to_email}}]
+        resp = httpx.post(
+            "https://graph.microsoft.com/v1.0/me/messages",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json=payload, timeout=8,
+        )
+        if resp.status_code in (200, 201):
+            return {"status": "saved", "id": resp.json().get("id")}
+        return JSONResponse({"detail": resp.text[:200]}, status_code=resp.status_code)
+    except Exception as e:
+        return JSONResponse({"detail": str(e)}, status_code=500)
 
 
 class DashboardAskRequest(BaseModel):
