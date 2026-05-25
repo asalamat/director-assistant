@@ -5,6 +5,8 @@ output/dashboard.html — a self-contained, zero-dependency executive brief.
 
 from __future__ import annotations
 
+import asyncio
+import json
 import sqlite3
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -12,7 +14,8 @@ from typing import Any
 
 from fastapi import APIRouter
 from fastapi.requests import Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
+from pydantic import BaseModel
 
 from services.dashboard_renderer import render_dashboard
 
@@ -161,6 +164,48 @@ def _week_calendar(cache) -> list[dict]:
         return []
 
 
+def _onedrive_recent(cache) -> list[dict]:
+    """Fetch recently modified OneDrive files via Graph API (requires Files.Read scope)."""
+    try:
+        accounts = cache.list_accounts()
+        acc = next((a for a in accounts if getattr(a, "access_token", None)), None)
+        if not acc:
+            return []
+        import httpx
+        token = getattr(acc, "access_token", None)
+        if not token:
+            return []
+        resp = httpx.get(
+            "https://graph.microsoft.com/v1.0/me/drive/recent"
+            "?$select=name,webUrl,lastModifiedDateTime,size&$top=10",
+            headers={"Authorization": f"Bearer {token}"}, timeout=6,
+        )
+        return resp.json().get("value", []) if resp.status_code == 200 else []
+    except Exception:
+        return []
+
+
+def _teams_chats(cache) -> list[dict]:
+    """Fetch recent Teams chats via Graph API (requires Chat.Read scope)."""
+    try:
+        accounts = cache.list_accounts()
+        acc = next((a for a in accounts if getattr(a, "access_token", None)), None)
+        if not acc:
+            return []
+        import httpx
+        token = getattr(acc, "access_token", None)
+        if not token:
+            return []
+        resp = httpx.get(
+            "https://graph.microsoft.com/v1.0/me/chats"
+            "?$expand=lastMessagePreview&$select=id,topic,chatType,lastMessagePreview&$top=10",
+            headers={"Authorization": f"Bearer {token}"}, timeout=6,
+        )
+        return resp.json().get("value", []) if resp.status_code == 200 else []
+    except Exception:
+        return []
+
+
 def _projects_from_intelligence(intelligence) -> list[dict]:
     try:
         people = intelligence.get_people(limit=30)
@@ -195,9 +240,68 @@ async def get_dashboard(request: Request):
         "calendar_today": _calendar_events(cache),
         "week_calendar":  _week_calendar(cache),
         "projects":       _projects_from_intelligence(intelligence),
+        "onedrive":       _onedrive_recent(cache),
+        "teams":          _teams_chats(cache),
     }
 
     html = render_dashboard(data)
     _OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     _OUTPUT.write_text(html, encoding="utf-8")
     return HTMLResponse(html)
+
+
+class DashboardAskRequest(BaseModel):
+    query: str
+    context: str = ""
+
+
+@router.post("/ask")
+async def dashboard_ask(req: DashboardAskRequest, request: Request):
+    """Stream an AI answer grounded in RAG results and the clicked item context."""
+    rag = request.app.state.rag
+    ai = request.app.state.advisor.ai
+    query = req.query.strip()
+    ctx = req.context.strip()
+
+    async def generate():
+        if not query:
+            yield 'data: {"type":"token","text":"Please enter a question."}\n\n'
+            yield 'data: {"type":"done"}\n\n'
+            return
+
+        loop = asyncio.get_event_loop()
+        results = await loop.run_in_executor(None, rag.hybrid_search, query, 5)
+
+        ctx_block = f"ITEM CONTEXT:\n{ctx}\n\n" if ctx else ""
+        email_block = ""
+        if results:
+            email_block = "RELATED EMAILS:\n" + "\n".join(
+                f"- {r.get('subject', '')} from {r.get('sender', '')} "
+                f"({(r.get('date') or '')[:10]})"
+                for r in results[:5]
+            ) + "\n\n"
+
+        try:
+            async with ai.messages.stream(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=600,
+                system=(
+                    "You are an executive assistant. Give concise, actionable advice "
+                    "based on the provided item context and related emails. "
+                    "If asked to schedule a meeting, include a brief agenda. "
+                    "If asked to draft a reply, write the email body directly."
+                ),
+                messages=[{"role": "user", "content": ctx_block + email_block + "QUESTION: " + query}],
+            ) as stream:
+                async for text in stream.text_stream:
+                    yield f"data: {json.dumps({'type': 'token', 'text': text})}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'token', 'text': f'Error: {e}'})}\n\n"
+
+        yield 'data: {"type":"done"}\n\n'
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )

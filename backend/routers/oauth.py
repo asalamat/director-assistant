@@ -11,7 +11,11 @@ router = APIRouter(prefix="/api/oauth", tags=["oauth"])
 _flows: dict[str, dict] = {}
 
 _MS_AUTHORITY = "https://login.microsoftonline.com/common/oauth2/v2.0"
-_SCOPES = "https://outlook.office.com/IMAP.AccessAsUser.All offline_access"
+_SCOPES = (
+    "https://outlook.office.com/IMAP.AccessAsUser.All offline_access "
+    "https://graph.microsoft.com/Files.Read "
+    "https://graph.microsoft.com/Chat.Read"
+)
 
 
 @router.post("/microsoft/start")

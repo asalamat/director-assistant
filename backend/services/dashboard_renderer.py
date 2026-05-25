@@ -8,6 +8,11 @@ from __future__ import annotations
 import html as _html
 from datetime import date, timedelta
 
+from services.dashboard_ai import (  # noqa: E402
+    AI_CSS, AI_JS, AI_MODAL_HTML,
+    _onedrive_html, _teams_html,
+)
+
 _REFRESH_MS = 30 * 60 * 1000  # 30 minutes
 
 _CSS = """
@@ -101,41 +106,38 @@ h2{font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;
 .modal-close:hover{color:#f0f6fc}
 """
 
-_JS = f"""
-// ── Modal ──────────────────────────────────────────────────────────────
-const bg = document.getElementById('modal-bg');
-const mTitle = document.getElementById('modal-title');
-const mBody  = document.getElementById('modal-body');
+_CSS += AI_CSS
 
-function showModal(title, rows) {{
-  mTitle.textContent = title;
-  mBody.innerHTML = rows.map(([lbl,val]) =>
-    '<div class="detail-row">' +
-    '<div class="detail-label">'+ lbl +'</div>' +
-    '<div class="detail-body">'+ val +'</div></div>'
-  ).join('');
+_JS = f"""
+let currentCtx='';
+const bg=document.getElementById('modal-bg');
+const mTitle=document.getElementById('modal-title');
+const mBody=document.getElementById('modal-body');
+function showModal(title,rows){{
+  mTitle.textContent=title;
+  mBody.innerHTML=rows.map(([lbl,val])=>
+    '<div class="detail-row"><div class="detail-label">'+lbl+'</div>'+
+    '<div class="detail-body">'+val+'</div></div>').join('');
+  currentCtx=title+'\\n'+rows.map(([l,v])=>l+': '+v).join('\\n');
+  const o=document.getElementById('ai-out'),i=document.getElementById('ai-input');
+  if(o){{o.textContent='';o.classList.remove('active');}}
+  if(i)i.value='';
   bg.classList.add('open');
 }}
-function closeModal() {{ bg.classList.remove('open'); }}
-bg.addEventListener('click', e => {{ if(e.target===bg) closeModal(); }});
-document.addEventListener('keydown', e => {{ if(e.key==='Escape') closeModal(); }});
-
-document.querySelectorAll('[data-modal]').forEach(el => {{
-  el.addEventListener('click', () => {{
-    const d = JSON.parse(el.dataset.modal);
-    showModal(d.title, d.rows);
-  }});
+function closeModal(){{bg.classList.remove('open');}}
+bg.addEventListener('click',e=>{{if(e.target===bg)closeModal();}});
+document.addEventListener('keydown',e=>{{if(e.key==='Escape')closeModal();}});
+document.querySelectorAll('[data-modal]').forEach(el=>{{
+  el.addEventListener('click',()=>{{const d=JSON.parse(el.dataset.modal);showModal(d.title,d.rows);}});
 }});
-
-// ── Auto-refresh ───────────────────────────────────────────────────────
-const countdown = document.getElementById('countdown');
-let remaining = {_REFRESH_MS} / 1000;
-setInterval(() => {{
-  remaining--;
-  if (remaining <= 0) {{ window.location.reload(); return; }}
-  const m = Math.floor(remaining / 60), s = remaining % 60;
-  if (countdown) countdown.textContent = m+'m '+s+'s';
-}}, 1000);
+const countdown=document.getElementById('countdown');
+let remaining={_REFRESH_MS}/1000;
+setInterval(()=>{{
+  remaining--;if(remaining<=0){{window.location.reload();return;}}
+  const m=Math.floor(remaining/60),s=remaining%60;
+  if(countdown)countdown.textContent=m+'m '+s+'s';
+}},1000);
+{AI_JS}
 """
 
 
@@ -349,6 +351,8 @@ def render_dashboard(d: dict) -> str:
     senders    = d.get("top_senders", [])
     vol        = d.get("email_volume", [])
     gen_at     = d.get("generated_at", "")
+    onedrive   = d.get("onedrive", [])
+    teams      = d.get("teams", [])
 
     overdue_count = len(actions)
     mtgs_tomorrow = len(cal_today)
@@ -432,6 +436,11 @@ def render_dashboard(d: dict) -> str:
     {_section("Top Senders This Week", sender_bars)}
   </div>
 
+  <div class="grid2" style="margin-top:16px">
+    {_section("OneDrive — Recent Files", _onedrive_html(onedrive))}
+    {_section("Teams — Recent Chats", _teams_html(teams))}
+  </div>
+
   {_section("Email Volume — Last 7 Days", _bar_chart(vol[-7:] if vol else [], "date", "count"))}
 
   <div class="footer">
@@ -454,6 +463,7 @@ def render_dashboard(d: dict) -> str:
     <button class="modal-close" onclick="closeModal()">×</button>
     <h3 id="modal-title"></h3>
     <div id="modal-body"></div>
+    {AI_MODAL_HTML}
   </div>
 </div>
 """

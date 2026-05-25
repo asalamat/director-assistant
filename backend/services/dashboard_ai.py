@@ -1,0 +1,91 @@
+"""AI panel helpers for the executive dashboard renderer."""
+
+from __future__ import annotations
+
+import html as _html
+
+AI_CSS = """
+.ai-panel{margin-top:14px;border-top:1px solid #21262d;padding-top:12px}
+.ai-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.ai-chip{background:#161b22;border:1px solid #21262d;border-radius:999px;padding:3px 11px;
+         font-size:11px;cursor:pointer;color:#8b949e;transition:border-color .15s,color .15s}
+.ai-chip:hover{border-color:#58a6ff;color:#e6edf3}
+.ai-out{font-size:12px;line-height:1.7;color:#e6edf3;background:#0d1117;border-radius:6px;
+        padding:8px;margin-top:6px;white-space:pre-wrap;display:none;max-height:200px;overflow-y:auto}
+.ai-out.active{display:block}
+.ai-input-row{display:flex;gap:6px;margin-top:8px}
+.ai-input{flex:1;background:#0d1117;border:1px solid #30363d;border-radius:6px;
+          padding:5px 8px;color:#e6edf3;font-size:12px;outline:none}
+.ai-input:focus{border-color:#58a6ff}
+.ai-btn{background:#1f6feb;border:none;border-radius:6px;color:#fff;
+        padding:5px 12px;cursor:pointer;font-size:12px}
+.ai-btn:hover{background:#388bfd}
+"""
+
+AI_MODAL_HTML = """<div class="ai-panel">
+  <div class="ai-chips">
+    <button class="ai-chip" onclick="askAI('What is the best way to resolve this?')">Resolve</button>
+    <button class="ai-chip" onclick="askAI('Draft a meeting agenda to address this.')">Schedule Meeting</button>
+    <button class="ai-chip" onclick="askAI('Draft a professional email reply for this.')">Draft Reply</button>
+    <button class="ai-chip" onclick="askAI('Summarize the key points of this item.')">Summarize</button>
+  </div>
+  <div class="ai-out" id="ai-out"></div>
+  <div class="ai-input-row">
+    <input class="ai-input" id="ai-input" placeholder="Ask AI about this item…"
+           onkeydown="if(event.key==='Enter'&&this.value.trim())askAI(this.value)">
+    <button class="ai-btn" onclick="askAI(document.getElementById('ai-input').value)">Ask</button>
+  </div>
+</div>"""
+
+AI_JS = """
+async function askAI(query){
+  if(!query||!query.trim())return;
+  const out=document.getElementById('ai-out');
+  if(!out)return;
+  out.textContent='⋯';out.classList.add('active');
+  try{
+    const resp=await fetch('/api/dashboard/ask',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({query,context:currentCtx})
+    });
+    const reader=resp.body.getReader(),dec=new TextDecoder();
+    out.textContent='';
+    while(true){
+      const{done,value}=await reader.read();if(done)break;
+      dec.decode(value).split('\\n').forEach(line=>{
+        if(!line.startsWith('data:'))return;
+        try{const d=JSON.parse(line.slice(5));if(d.type==='token')out.textContent+=d.text;}
+        catch(e){}
+      });
+    }
+  }catch(e){out.textContent='Error: '+e.message;}
+}
+"""
+
+
+def _onedrive_html(files: list[dict]) -> str:
+    if not files:
+        return ("<p style='color:#6e7681;font-size:13px'>No recent files — "
+                "re-authenticate to grant Files.Read scope.</p>")
+    items = []
+    for f in files[:8]:
+        name = (f.get("name") or "Untitled")[:60]
+        url  = _html.escape(f.get("webUrl", "#"), quote=True)
+        mod  = (f.get("lastModifiedDateTime") or "")[:10]
+        items.append(
+            f'<li><a href="{url}" target="_blank" rel="noopener">{_html.escape(name)}</a>'
+            f'<div class="meta">{mod}</div></li>'
+        )
+    return f'<ul class="item-list">{"".join(items)}</ul>'
+
+
+def _teams_html(chats: list[dict]) -> str:
+    if not chats:
+        return ("<p style='color:#6e7681;font-size:13px'>No Teams chats — "
+                "re-authenticate to grant Chat.Read scope.</p>")
+    items = []
+    for c in chats[:8]:
+        topic   = _html.escape((c.get("topic") or c.get("chatType") or "Chat")[:60])
+        preview = ((c.get("lastMessagePreview") or {}).get("body") or {}).get("content", "")
+        items.append(f'<li>{topic}<div class="meta">{_html.escape(preview[:80])}</div></li>')
+    return f'<ul class="item-list">{"".join(items)}</ul>'
