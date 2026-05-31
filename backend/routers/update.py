@@ -15,11 +15,16 @@ _INSTALL_DIR = Path.home() / "Applications" / "DirectorAssistant"
 
 
 def _current_version() -> str:
-    try:
-        vf = _INSTALL_DIR / "version.json"
-        return json.loads(vf.read_text())["version"]
-    except Exception:
-        return "unknown"
+    # Prefer version.json adjacent to the repo root (works in both dev and installed layouts)
+    for vf in [
+        Path(__file__).parents[2] / "version.json",  # repo root / install root
+        _INSTALL_DIR / "version.json",                 # legacy fallback
+    ]:
+        try:
+            return json.loads(vf.read_text())["version"]
+        except Exception:
+            continue
+    return "unknown"
 
 
 def _source_repo() -> Path | None:
@@ -54,7 +59,9 @@ async def check_update():
     import urllib.request
     current = _current_version()
     try:
-        with urllib.request.urlopen(GITHUB_RAW, timeout=8) as r:
+        import time as _time
+        url = f"{GITHUB_RAW}?nocache={int(_time.time())}"
+        with urllib.request.urlopen(url, timeout=8) as r:
             latest_data = json.loads(r.read())
         latest = latest_data.get("version", "unknown")
     except Exception as e:
