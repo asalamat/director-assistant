@@ -36,6 +36,8 @@ class AppConfigUpdate(BaseModel):
     anthropic_api_key: Optional[str] = None
     openai_api_key: Optional[str] = None
     ms_client_id: Optional[str] = None
+    google_client_id: Optional[str] = None
+    google_client_secret: Optional[str] = None
     poll_interval_seconds: Optional[int] = None
     budget_mode: Optional[bool] = None
     sync_window_days: Optional[int] = None
@@ -47,6 +49,7 @@ async def get_config():
     ant_key = cfg.get("anthropic_api_key", "")
     oai_key = cfg.get("openai_api_key", "")
     ms_id = cfg.get("ms_client_id", "")
+    g_id = cfg.get("google_client_id", "")
     return {
         "has_api_key": bool(ant_key),
         "api_key_preview": f"{ant_key[:8]}…" if ant_key else "",
@@ -54,6 +57,8 @@ async def get_config():
         "openai_key_preview": f"{oai_key[:8]}…" if oai_key else "",
         "ms_client_id": ms_id,
         "has_ms_client_id": bool(ms_id),
+        "google_client_id": g_id,
+        "has_google_client_id": bool(g_id),
         "poll_interval_seconds": cfg.get("poll_interval_seconds", 60),
         "budget_mode": cfg.get("budget_mode", False),
         "sync_window_days": cfg.get("sync_window_days", 0),
@@ -72,6 +77,12 @@ async def update_config(update: AppConfigUpdate, request: Request):
 
     if update.ms_client_id is not None:
         cfg["ms_client_id"] = update.ms_client_id.strip()
+
+    if update.google_client_id is not None:
+        cfg["google_client_id"] = update.google_client_id.strip()
+
+    if update.google_client_secret is not None:
+        cfg["google_client_secret"] = update.google_client_secret.strip()
 
     if update.poll_interval_seconds is not None:
         cfg["poll_interval_seconds"] = update.poll_interval_seconds

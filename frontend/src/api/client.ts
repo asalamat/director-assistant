@@ -264,7 +264,7 @@ export const api = {
   getConfig(): Promise<AppConfig> {
     return request('/config')
   },
-  saveConfig(data: { anthropic_api_key?: string; openai_api_key?: string; ms_client_id?: string; poll_interval_seconds?: number; budget_mode?: boolean; sync_window_days?: number }): Promise<{ status: string; has_api_key: boolean; has_openai_key: boolean }> {
+  saveConfig(data: { anthropic_api_key?: string; openai_api_key?: string; ms_client_id?: string; google_client_id?: string; google_client_secret?: string; poll_interval_seconds?: number; budget_mode?: boolean; sync_window_days?: number }): Promise<{ status: string; has_api_key: boolean; has_openai_key: boolean }> {
     return request('/config', { method: 'POST', body: JSON.stringify(data) })
   },
   testApiKey(key: string): Promise<{ valid: boolean; model?: string; error?: string }> {
@@ -290,6 +290,12 @@ export const api = {
   ingestAll(fromDate?: string): Promise<void> {
     return request('/accounts/ingest-all', { method: 'POST', body: JSON.stringify({ from_date: fromDate || null }) })
   },
+  // Google OAuth2
+  getGoogleAuthUrl(username?: string): Promise<{ url: string }> {
+    const q = username ? `?username=${encodeURIComponent(username)}` : ''
+    return request(`/oauth/google/auth-url${q}`)
+  },
+
   // Microsoft OAuth2 device flow
   autoSetupMicrosoft(): Promise<{ status: string; message?: string; fix?: string; client_id?: string }> {
     return request('/oauth/microsoft/auto-setup', { method: 'POST' })
@@ -368,6 +374,11 @@ export const api = {
   },
   invalidateIntelligence(): Promise<{ status: string }> {
     return request('/intelligence/invalidate', { method: 'POST' })
+  },
+
+  // Triage
+  getTriageTop(limit?: number): Promise<{ emails: import('../types').TriageEmail[] }> {
+    return request(`/triage/top${limit ? `?limit=${limit}` : ''}`)
   },
 
   checkUpdate(): Promise<{ current: string; latest: string | null; update_available: boolean; error?: string }> {

@@ -121,9 +121,11 @@ function showModal(title,rows){{
   currentCtx=title+'\\n'+rows.map(([l,v])=>l+': '+v).join('\\n');
   const o=document.getElementById('ai-out'),i=document.getElementById('ai-input');
   const sd=document.getElementById('save-draft-btn');
+  const mp=document.getElementById('meeting-prep-chip');
   if(o){{o.textContent='';o.classList.remove('active');}}
   if(i)i.value='';
   if(sd){{sd.style.display='none';sd.disabled=false;sd.textContent='Save to Drafts';}}
+  if(mp)mp.style.display=/^Attendees: [^—]/m.test(currentCtx)?'inline-block':'none';
   bg.classList.add('open');
 }}
 function closeModal(){{bg.classList.remove('open');}}
@@ -202,8 +204,17 @@ def _schedule_section(events: list[dict]) -> str:
         if resp == "declined":   badge = '<span class="badge bdg-red">Declined</span>'
         elif resp == "tentativelyaccepted": badge = '<span class="badge bdg-yellow">Tentative</span>'
         elif resp == "accepted":  badge = '<span class="badge bdg-green">Accepted</span>'
-        modal = _modal_attr(subj, [("Time", t), ("Organizer", org), ("Response", resp or "—"),
-                                    ("Online", "Yes" if e.get("isOnlineMeeting") else "No")])
+        attendee_list = e.get("attendees") or []
+        attendees_str = ", ".join(
+            a.get("emailAddress", {}).get("address", "")
+            for a in attendee_list
+            if a.get("emailAddress", {}).get("address")
+        )[:500]
+        modal = _modal_attr(subj, [
+            ("Time", t), ("Organizer", org), ("Response", resp or "—"),
+            ("Online", "Yes" if e.get("isOnlineMeeting") else "No"),
+            ("Attendees", attendees_str or "—"),
+        ])
         rows.append(
             f'<div class="evt"{modal}><span class="evt-time">{t}</span>'
             f'<span class="evt-title">{_e(subj)}</span>{badge}'

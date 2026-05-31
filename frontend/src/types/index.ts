@@ -119,9 +119,21 @@ export interface AppConfig {
   openai_key_preview: string
   ms_client_id: string
   has_ms_client_id: boolean
+  google_client_id: string
+  has_google_client_id: boolean
   poll_interval_seconds: number
   budget_mode: boolean
   sync_window_days: number
+}
+
+export interface TriageEmail {
+  id: string
+  subject: string
+  sender: string
+  date: string
+  preview: string
+  score: number
+  reasons: string[]
 }
 
 export interface Person {

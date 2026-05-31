@@ -31,6 +31,7 @@ AI_MODAL_HTML = """<div class="ai-panel">
     <button class="ai-chip" onclick="askAI('Draft a meeting agenda to address this.')">Schedule Meeting</button>
     <button class="ai-chip" onclick="askAI('Draft a professional email reply for this.')">Draft Reply</button>
     <button class="ai-chip" onclick="askAI('Summarize the key points of this item.')">Summarize</button>
+    <button class="ai-chip" id="meeting-prep-chip" onclick="meetingPrep()" style="display:none;background:#0d2a1a;border-color:#238636;color:#3fb950">Meeting Prep</button>
   </div>
   <div class="ai-out" id="ai-out"></div>
   <button class="ai-btn ai-btn-save" id="save-draft-btn" onclick="saveDraft()" style="display:none">Save to Drafts</button>
@@ -63,6 +64,34 @@ async function saveDraft(){
     btn.textContent=r.ok?'✓ Saved to Drafts':'Save failed: '+(data.detail||'unknown error');
     if(!r.ok)btn.disabled=false;
   }catch(e){btn.textContent='Save failed';btn.disabled=false;}
+}
+async function meetingPrep(){
+  const out=document.getElementById('ai-out'),btn=document.getElementById('save-draft-btn');
+  if(!out)return;
+  if(btn){btn.style.display='none';btn.disabled=false;btn.textContent='Save to Drafts';}
+  out.textContent='⋯';out.classList.add('active');
+  const lines=currentCtx.split('\\n');
+  const subject=lines[0]||'';
+  const atLine=lines.find(l=>l.startsWith('Attendees: '))||'';
+  const attendees=atLine?atLine.replace('Attendees: ','').split(',').map(e=>e.trim()).filter(e=>e&&e!=='—'):[];
+  const timeLine=lines.find(l=>l.startsWith('Time: '))||'';
+  const startTime=timeLine.replace('Time: ','').trim();
+  if(!attendees.length){askAI('Generate a meeting prep brief with agenda and talking points.');return;}
+  try{
+    const resp=await fetch('/api/dashboard/meeting-prep',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({subject,start_time:startTime,attendee_emails:attendees})
+    });
+    const reader=resp.body.getReader(),dec=new TextDecoder();
+    out.textContent='';
+    while(true){
+      const{done,value}=await reader.read();if(done)break;
+      dec.decode(value).split('\\n').forEach(line=>{
+        if(!line.startsWith('data:'))return;
+        try{const d=JSON.parse(line.slice(5));if(d.type==='token')out.textContent+=d.text;}catch(e){}
+      });
+    }
+  }catch(e){out.textContent='Error: '+e.message;}
 }
 async function askAI(query){
   if(!query||!query.trim())return;

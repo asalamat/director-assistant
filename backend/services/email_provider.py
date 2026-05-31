@@ -6,13 +6,17 @@ Routes accounts to the correct provider based on credentials present.
 from services.imap_provider import IMAPProvider  # noqa: F401
 from services.o365_provider import Office365Provider  # noqa: F401
 from services.graph_provider import GraphMailProvider  # noqa: F401
+from services.gmail_provider import GmailProvider  # noqa: F401
 from models import ConnectionConfig, EmailProviderType
 
 
 def build_provider(config: ConnectionConfig):
     if config.provider == EmailProviderType.OFFICE365:
         return Office365Provider(config)
-    # Microsoft OAuth accounts: access_token present but no IMAP password/host
+    # Gmail OAuth: access_token present, provider == gmail, no IMAP password
+    if config.provider == EmailProviderType.GMAIL and config.access_token and not config.password:
+        return GmailProvider(config)
+    # Microsoft OAuth: access_token present but no IMAP password/host
     if config.access_token and not config.password and not config.imap_host:
         return GraphMailProvider(config)
     return IMAPProvider(config)

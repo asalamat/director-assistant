@@ -282,6 +282,79 @@ async def save_draft(req: SaveDraftRequest, request: Request):
     return JSONResponse({"detail": last_error}, status_code=500)
 
 
+class MeetingPrepRequest(BaseModel):
+    subject: str
+    start_time: str = ""
+    attendee_emails: list[str] = []
+
+
+@router.post("/meeting-prep")
+async def meeting_prep(req: MeetingPrepRequest, request: Request):
+    """Stream an AI meeting prep brief grounded in attendee email history."""
+    rag = request.app.state.rag
+    ai = request.app.state.advisor.ai
+
+    async def generate():
+        if not req.subject:
+            yield 'data: {"type":"token","text":"No meeting subject provided."}\n\n'
+            yield 'data: {"type":"done"}\n\n'
+            return
+
+        loop = asyncio.get_event_loop()
+        subj_results = await loop.run_in_executor(None, rag.hybrid_search, req.subject, 5)
+        attendee_results = []
+        for addr in req.attendee_emails[:4]:
+            r = await loop.run_in_executor(None, rag.hybrid_search, addr, 3)
+            attendee_results.extend(r)
+
+        seen: set = set()
+        all_results = []
+        for r in subj_results + attendee_results:
+            rid = r.get("email_id") or r.get("id", "")
+            if rid and rid not in seen:
+                seen.add(rid)
+                all_results.append(r)
+
+        ctx = (
+            f"MEETING: {req.subject}\n"
+            f"Time: {req.start_time}\n"
+            f"Attendees: {', '.join(req.attendee_emails)}\n\n"
+        )
+        if all_results:
+            ctx += "RELEVANT EMAIL CONTEXT:\n" + "\n".join(
+                f"- {r.get('subject', '')} | From: {r.get('sender', '')} | {(r.get('date', ''))[:10]}"
+                for r in all_results[:8]
+            ) + "\n\n"
+
+        try:
+            async with ai.messages.stream(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=800,
+                system=(
+                    "You are an executive assistant. Generate a concise meeting prep brief. "
+                    "Format with bold section headers. Be specific and actionable."
+                ),
+                messages=[{"role": "user", "content": ctx +
+                    "Generate a meeting prep brief with:\n"
+                    "**Suggested Agenda** (3-5 items)\n"
+                    "**Key Talking Points**\n"
+                    "**Open Items / Questions** (from email context)\n"
+                    "**Background** (relevant prior communication)"}],
+            ) as stream:
+                async for text in stream.text_stream:
+                    yield f"data: {json.dumps({'type': 'token', 'text': text})}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'token', 'text': f'Error: {e}'})}\n\n"
+
+        yield 'data: {"type":"done"}\n\n'
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
 class DashboardAskRequest(BaseModel):
     query: str
     context: str = ""

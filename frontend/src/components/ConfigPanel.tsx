@@ -153,6 +153,8 @@ export function ConfigPanel({ onSaved }: Props) {
   const [anthropicKey, setAnthropicKey] = useState('')
   const [openaiKey, setOpenaiKey] = useState('')
   const [msClientId, setMsClientId] = useState('')
+  const [googleClientId, setGoogleClientId] = useState('')
+  const [googleClientSecret, setGoogleClientSecret] = useState('')
   const [pollInterval, setPollInterval] = useState(60)
   const [syncWindowDays, setSyncWindowDays] = useState(0)
   const [budgetMode, setBudgetMode] = useState(false)
@@ -229,6 +231,7 @@ export function ConfigPanel({ onSaved }: Props) {
       setSyncWindowDays(cfg.sync_window_days ?? 7)
       setBudgetMode(cfg.budget_mode ?? false)
       setMsClientId(cfg.ms_client_id ?? '')
+      setGoogleClientId(cfg.google_client_id ?? '')
     }).catch(() => {})
   }, [])
 
@@ -259,7 +262,7 @@ export function ConfigPanel({ onSaved }: Props) {
   const handleSave = async () => {
     setSaving(true); setSaveMsg('')
     try {
-      const payload: { anthropic_api_key?: string; openai_api_key?: string; ms_client_id?: string; poll_interval_seconds?: number; budget_mode?: boolean; sync_window_days?: number } = {
+      const payload: { anthropic_api_key?: string; openai_api_key?: string; ms_client_id?: string; google_client_id?: string; google_client_secret?: string; poll_interval_seconds?: number; budget_mode?: boolean; sync_window_days?: number } = {
         poll_interval_seconds: pollInterval,
         sync_window_days: syncWindowDays,
         budget_mode: budgetMode,
@@ -267,6 +270,8 @@ export function ConfigPanel({ onSaved }: Props) {
       if (anthropicKey) payload.anthropic_api_key = anthropicKey
       if (openaiKey) payload.openai_api_key = openaiKey
       if (msClientId) payload.ms_client_id = msClientId
+      if (googleClientId) payload.google_client_id = googleClientId
+      if (googleClientSecret) payload.google_client_secret = googleClientSecret
       await api.saveConfig(payload)
       setSaveMsg('Saved')
       setAnthropicKey(''); setOpenaiKey('')
@@ -430,6 +435,63 @@ export function ConfigPanel({ onSaved }: Props) {
               onChange={e => setMsClientId(e.target.value)}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-accent"
             />
+          </div>
+        </details>
+      </div>
+
+      {/* Google / Gmail Integration */}
+      <div className="border border-red-200 rounded-xl p-4 space-y-3">
+        <div className="flex items-start gap-2">
+          <svg className="w-5 h-5 mt-0.5 flex-shrink-0" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+          </svg>
+          <div className="flex-1">
+            <h2 className="text-sm font-semibold text-gray-800">Google / Gmail Integration</h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              OAuth sign-in for Gmail — no App Password needed. Requires a Google Cloud OAuth client.
+            </p>
+          </div>
+          <span className="text-xs px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full whitespace-nowrap">Optional</span>
+        </div>
+
+        {config?.has_google_client_id && (
+          <div className="flex items-center gap-2 text-xs text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+            <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
+            Client configured: <span className="font-mono">{config.google_client_id.slice(0, 12)}…</span>
+          </div>
+        )}
+
+        <details className={config?.has_google_client_id ? 'text-xs' : 'text-xs open'} open={!config?.has_google_client_id}>
+          <summary className="text-gray-500 cursor-pointer hover:text-gray-700 select-none font-medium">
+            {config?.has_google_client_id ? 'Update credentials' : 'Enter Google Cloud OAuth credentials'}
+          </summary>
+          <div className="mt-3 space-y-2">
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">Client ID</label>
+              <input
+                type="text"
+                placeholder="xxxxxxxxxx-xxxx.apps.googleusercontent.com"
+                value={googleClientId}
+                onChange={e => setGoogleClientId(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-accent"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">Client Secret</label>
+              <input
+                type="password"
+                placeholder="GOCSPX-…"
+                value={googleClientSecret}
+                onChange={e => setGoogleClientSecret(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-accent"
+              />
+            </div>
+            <p className="text-xs text-gray-400">
+              Create at <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer" className="text-accent underline">Google Cloud Console</a> → OAuth 2.0 Client IDs → Web application. Add <code className="bg-gray-100 px-1 rounded">http://localhost:8000/api/oauth/google/callback</code> as an authorized redirect URI.
+            </p>
           </div>
         </details>
       </div>

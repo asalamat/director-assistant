@@ -1,7 +1,7 @@
 """
-Microsoft OAuth2 endpoints.
-- Redirect flow (popup): /microsoft/auth-url + /microsoft/callback  ← used by the UI
-- Device code flow: /microsoft/start + /microsoft/poll              ← kept as fallback
+OAuth2 endpoints.
+- Microsoft: /microsoft/auth-url + /microsoft/callback (popup), /microsoft/start + /microsoft/poll (device code)
+- Google:    /google/auth-url + /google/callback (popup)
 """
 
 from __future__ import annotations
@@ -18,6 +18,7 @@ router = APIRouter(prefix="/api/oauth", tags=["oauth"])
 
 _flows: dict[str, dict] = {}          # device-code flows
 _pending_states: dict[str, dict] = {} # redirect-flow state → {username, client_id}
+_google_states: dict[str, dict] = {}  # Google redirect-flow state → {username}
 
 _MS_AUTHORITY = "https://login.microsoftonline.com/consumers/oauth2/v2.0"
 _SCOPES = (
@@ -394,3 +395,161 @@ async def auto_setup_microsoft_app(request: Request):
     cfg["ms_client_id"] = client_id
     save_app_config(cfg)
     return {"status": "done", "client_id": client_id}
+
+
+# ── Google OAuth2 ─────────────────────────────────────────────────────────────
+
+_GOOGLE_AUTH = "https://accounts.google.com/o/oauth2/v2/auth"
+_GOOGLE_TOKEN = "https://oauth2.googleapis.com/token"
+_GOOGLE_SCOPES = (
+    "openid email "
+    "https://www.googleapis.com/auth/gmail.modify "
+    "https://www.googleapis.com/auth/calendar.readonly"
+)
+
+
+def _google_client_creds() -> tuple[str, str]:
+    from routers.config import load_app_config
+    cfg = load_app_config()
+    return (cfg.get("google_client_id") or "").strip(), (cfg.get("google_client_secret") or "").strip()
+
+
+def _google_redirect_uri(request: Request) -> str:
+    base = str(request.base_url).rstrip("/")
+    return f"{base}/api/oauth/google/callback"
+
+
+@router.get("/google/auth-url")
+async def get_google_auth_url(request: Request, username: str = ""):
+    client_id, _ = _google_client_creds()
+    if not client_id:
+        raise HTTPException(
+            400,
+            "Google Client ID not configured. "
+            "Go to App Settings → Google Client ID and enter your Google Cloud OAuth client ID."
+        )
+    state = secrets.token_urlsafe(20)
+    _google_states[state] = {"username": username}
+    if len(_google_states) > 100:
+        for k in list(_google_states.keys())[:50]:
+            _google_states.pop(k, None)
+
+    params = {
+        "client_id": client_id,
+        "response_type": "code",
+        "redirect_uri": _google_redirect_uri(request),
+        "scope": _GOOGLE_SCOPES,
+        "state": state,
+        "access_type": "offline",
+        "prompt": "select_account consent",
+    }
+    if username:
+        params["login_hint"] = username
+    url = _GOOGLE_AUTH + "?" + urllib.parse.urlencode(params)
+    return {"url": url}
+
+
+@router.get("/google/callback")
+async def google_oauth_callback(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    code: str = "",
+    state: str = "",
+    error: str = "",
+    error_description: str = "",
+):
+    if error:
+        return HTMLResponse(_callback_page(success=False, message=error_description or error))
+    if not code:
+        return HTMLResponse(_callback_page(success=False, message="No authorization code received"))
+    if state not in _google_states:
+        return HTMLResponse(_callback_page(success=False, message="Invalid or expired session — please try again"))
+
+    entry = _google_states.pop(state)
+    client_id, client_secret = _google_client_creds()
+    redirect_uri = _google_redirect_uri(request)
+
+    try:
+        async with httpx.AsyncClient(timeout=15) as c:
+            r = await c.post(_GOOGLE_TOKEN, data={
+                "grant_type": "authorization_code",
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "code": code,
+                "redirect_uri": redirect_uri,
+            })
+        data = r.json()
+    except Exception as e:
+        return HTMLResponse(_callback_page(success=False, message=f"Token exchange failed: {e}"))
+
+    if "access_token" not in data:
+        msg = data.get("error_description") or data.get("error", "Token exchange failed")
+        return HTMLResponse(_callback_page(success=False, message=msg))
+
+    access_token = data["access_token"]
+    refresh_token = data.get("refresh_token", "")
+
+    # Resolve email from Google userinfo
+    username = entry.get("username", "")
+    try:
+        async with httpx.AsyncClient(timeout=8) as c:
+            ui = await c.get(
+                "https://www.googleapis.com/oauth2/v3/userinfo",
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+        ui_data = ui.json()
+        username = ui_data.get("email") or username
+    except Exception:
+        pass
+
+    cache = request.app.state.cache
+    accounts = cache.list_accounts()
+
+    # Update token for existing account or add new one
+    matched = False
+    for acc in accounts:
+        if acc.username.lower() == username.lower():
+            cache.store_account_token(acc.id, access_token, refresh_token=refresh_token)
+            matched = True
+            break
+
+    if not matched and username:
+        import json as _j
+        from models import Account
+        new_acc = Account(
+            provider="gmail",
+            username=username,
+            client_id=client_id,
+            client_secret=client_secret,
+            access_token=access_token,
+        )
+        aid = cache.add_account(new_acc)
+        new_acc.id = aid
+        # Store token_provider so refresh uses Google endpoint
+        with cache._conn() as conn:
+            row = conn.execute("SELECT config_json FROM accounts WHERE id = ?", (aid,)).fetchone()
+            if row:
+                cfg = _j.loads(row[0] or "{}")
+                cfg["token_provider"] = "google"
+                cfg["refresh_token"] = refresh_token
+                cfg["client_secret"] = client_secret
+                conn.execute("UPDATE accounts SET config_json = ? WHERE id = ?", (_j.dumps(cfg), aid))
+
+        rag = request.app.state.rag
+
+        async def _bg():
+            from routers.accounts import _ingest_account, set_progress, IngestProgress
+            set_progress(IngestProgress(status="running", message="Importing Gmail emails…"))
+            try:
+                new, skip = await _ingest_account(new_acc, rag, cache)
+                rag.flush_bm25()
+                set_progress(IngestProgress(
+                    status="completed", processed=new + skip, total=new + skip,
+                    message=f"Done — {new} new emails imported",
+                ))
+            except Exception as e:
+                set_progress(IngestProgress(status="error", message=str(e)))
+
+        background_tasks.add_task(_bg)
+
+    return HTMLResponse(_callback_page(success=True, username=username))

@@ -12,6 +12,7 @@ import { HealthPanel } from './components/HealthPanel'
 import { AskPanel } from './components/AskPanel'
 import { HelpModal } from './components/HelpModal'
 import { IntelligencePanel } from './components/IntelligencePanel'
+import { TriagePanel } from './components/TriagePanel'
 import { ToastContainer, addToast } from './components/Toast'
 import UpdatePopup from './components/UpdatePopup'
 import { ComposeModal } from './components/ComposeModal'
@@ -19,7 +20,7 @@ import { useEmails, useEmailDetail, useRecommendation } from './hooks/useEmails'
 import { api } from './api/client'
 import type { EmailSummary } from './types'
 
-type Tab = 'inbox' | 'actions' | 'digest' | 'analytics' | 'templates' | 'health' | 'ask' | 'knowledge'
+type Tab = 'inbox' | 'actions' | 'digest' | 'analytics' | 'templates' | 'health' | 'ask' | 'knowledge' | 'triage'
 
 // Simple SVG icons
 const Icons: Record<Tab, JSX.Element> = {
@@ -64,10 +65,16 @@ const Icons: Record<Tab, JSX.Element> = {
       <path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.255 0 2.443.29 3.5.804V4.804zM14.5 4c-1.255 0-2.443.29-3.5.804V14.8a7.968 7.968 0 013.5-.8c1.255 0 2.443.29 3.5.804V4.804A7.969 7.969 0 0014.5 4z"/>
     </svg>
   ),
+  triage: (
+    <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+    </svg>
+  ),
 }
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'inbox', label: 'Inbox' },
+  { id: 'triage', label: 'Focus' },
   { id: 'ask', label: 'Ask' },
   { id: 'actions', label: 'Actions' },
   { id: 'digest', label: 'Brief' },
@@ -503,6 +510,7 @@ export default function App() {
           </>
         )}
 
+          {activeTab === 'triage' && <TriagePanel onSelectEmail={(id) => { const em = emails.find(e => e.id === id); if (em) { handleSelect(em); setActiveTab('inbox') } }} />}
           {activeTab === 'ask' && <AskPanel initialQuery={askContext} onClear={() => setAskContext('')} />}
           {activeTab === 'actions' && <ActionBoard />}
           {activeTab === 'digest' && <DigestView />}

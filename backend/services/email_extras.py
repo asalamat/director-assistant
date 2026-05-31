@@ -362,6 +362,11 @@ class EmailExtrasMixin:
         client_id = cfg.get("client_id", "")
         if not refresh_token or not client_id:
             return None
+
+        # Branch on token provider
+        if cfg.get("token_provider") == "google":
+            return self._refresh_google_token(account_id, cfg)
+
         try:
             import httpx
             r = httpx.post(
@@ -390,6 +395,36 @@ class EmailExtrasMixin:
                 return new_token
         except Exception as e:
             print(f"[oauth] token refresh failed for account {account_id}: {e}", flush=True)
+        return None
+
+    def _refresh_google_token(self, account_id: int, cfg: dict) -> str | None:
+        """Refresh a Google OAuth2 access token using the stored refresh token."""
+        refresh_token = cfg.get("refresh_token", "")
+        client_id = cfg.get("client_id", "")
+        client_secret = cfg.get("client_secret", "")
+        if not refresh_token or not client_id:
+            return None
+        try:
+            import httpx
+            r = httpx.post(
+                "https://oauth2.googleapis.com/token",
+                data={
+                    "grant_type": "refresh_token",
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "refresh_token": refresh_token,
+                },
+                timeout=15,
+            )
+            data = r.json()
+            new_token = data.get("access_token")
+            new_refresh = data.get("refresh_token", refresh_token)
+            if new_token:
+                self.store_account_token(account_id, new_token, refresh_token=new_refresh)
+                print(f"[oauth] refreshed Google token for account {account_id}", flush=True)
+                return new_token
+        except Exception as e:
+            print(f"[oauth] Google token refresh failed for account {account_id}: {e}", flush=True)
         return None
 
     def mark_ingested(self, account_id: int):
