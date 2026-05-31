@@ -23,6 +23,10 @@ router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
 _OUTPUT = Path(__file__).resolve().parents[2] / "output" / "dashboard.html"
 
+# Simple in-process cache for Graph API results (avoid re-fetching on every load)
+_graph_cache: dict[str, tuple[float, Any]] = {}
+_GRAPH_TTL = 120  # seconds
+
 
 # ── Data helpers ──────────────────────────────────────────────────────────────
 
@@ -102,108 +106,75 @@ def _training_emails(cache, limit: int = 8) -> list[dict]:
     return [dict(r) for r in rows]
 
 
-def _calendar_events(cache) -> list[dict]:
-    """Try to fetch tomorrow's calendar events via Microsoft Graph API."""
-    try:
-        accounts = cache.list_accounts()
-        o365_acc = next(
-            (a for a in accounts if getattr(a, "access_token", None) or
-             getattr(a, "provider", "") == "office365"), None
-        )
-        if not o365_acc:
-            return []
+async def _fetch_graph_data(cache) -> dict[str, list]:
+    """Fetch all Graph API data in parallel with a shared cache."""
+    import time, httpx
 
-        import httpx
-        token = getattr(o365_acc, "access_token", None)
-        if not token:
-            return []
+    now = time.monotonic()
+    cached = _graph_cache.get("graph")
+    if cached and (now - cached[0]) < _GRAPH_TTL:
+        return cached[1]
 
-        tomorrow = (date.today() + timedelta(days=1))
-        start = f"{tomorrow.isoformat()}T00:00:00Z"
-        end   = f"{tomorrow.isoformat()}T23:59:59Z"
-        url = (
-            "https://graph.microsoft.com/v1.0/me/calendarView"
-            f"?startDateTime={start}&endDateTime={end}"
-            "&$select=subject,start,end,organizer,responseStatus,isOnlineMeeting,attendees"
-            "&$orderby=start/dateTime&$top=20"
-        )
-        resp = httpx.get(url, headers={"Authorization": f"Bearer {token}"}, timeout=6)
-        if resp.status_code != 200:
-            return []
-        return resp.json().get("value", [])
-    except Exception:
-        return []
+    accounts = cache.list_accounts()
+    acc = next((a for a in accounts if getattr(a, "access_token", None) and not getattr(a, "password", None)), None)
+    empty = {"calendar_today": [], "week_calendar": [], "onedrive": []}
+    if not acc:
+        return empty
 
+    token = acc.access_token
 
-def _week_calendar(cache) -> list[dict]:
-    """Try to fetch this week's calendar for load chart."""
-    try:
-        accounts = cache.list_accounts()
-        o365_acc = next(
-            (a for a in accounts if getattr(a, "access_token", None)), None
-        )
-        if not o365_acc:
-            return []
-        import httpx
-        token = getattr(o365_acc, "access_token", None)
-        if not token:
-            return []
-        today = date.today()
-        start = f"{today.isoformat()}T00:00:00Z"
-        end   = f"{(today + timedelta(days=7)).isoformat()}T23:59:59Z"
-        url = (
-            "https://graph.microsoft.com/v1.0/me/calendarView"
-            f"?startDateTime={start}&endDateTime={end}"
-            "&$select=subject,start,end,categories&$top=50"
-        )
-        resp = httpx.get(url, headers={"Authorization": f"Bearer {token}"}, timeout=6)
-        if resp.status_code != 200:
-            return []
-        return resp.json().get("value", [])
-    except Exception:
-        return []
+    async def _get(url: str) -> dict:
+        try:
+            async with httpx.AsyncClient(timeout=8) as c:
+                r = await c.get(url, headers={"Authorization": f"Bearer {token}"})
+                if r.status_code == 401:
+                    # Try refresh once
+                    new_token = await asyncio.get_event_loop().run_in_executor(
+                        None, cache.refresh_oauth_token, acc.id
+                    )
+                    if new_token:
+                        async with httpx.AsyncClient(timeout=8) as c2:
+                            r = await c2.get(url, headers={"Authorization": f"Bearer {new_token}"})
+                return r.json() if r.status_code == 200 else {}
+        except Exception:
+            return {}
 
+    tomorrow = date.today() + timedelta(days=1)
+    today = date.today()
+    cal_url = (
+        "https://graph.microsoft.com/v1.0/me/calendarView"
+        f"?startDateTime={tomorrow.isoformat()}T00:00:00Z"
+        f"&endDateTime={tomorrow.isoformat()}T23:59:59Z"
+        "&$select=subject,start,end,organizer,responseStatus,isOnlineMeeting,attendees"
+        "&$orderby=start/dateTime&$top=20"
+    )
+    week_url = (
+        "https://graph.microsoft.com/v1.0/me/calendarView"
+        f"?startDateTime={today.isoformat()}T00:00:00Z"
+        f"&endDateTime={(today + timedelta(days=7)).isoformat()}T23:59:59Z"
+        "&$select=subject,start,end,categories&$top=50"
+    )
+    od_url = (
+        "https://graph.microsoft.com/v1.0/me/drive/recent"
+        "?$select=name,webUrl,lastModifiedDateTime,size&$top=10"
+    )
 
-def _onedrive_recent(cache) -> list[dict]:
-    """Fetch recently modified OneDrive files via Graph API (requires Files.Read scope)."""
-    try:
-        accounts = cache.list_accounts()
-        acc = next((a for a in accounts if getattr(a, "access_token", None)), None)
-        if not acc:
-            return []
-        import httpx
-        token = getattr(acc, "access_token", None)
-        if not token:
-            return []
-        resp = httpx.get(
-            "https://graph.microsoft.com/v1.0/me/drive/recent"
-            "?$select=name,webUrl,lastModifiedDateTime,size&$top=10",
-            headers={"Authorization": f"Bearer {token}"}, timeout=6,
-        )
-        return resp.json().get("value", []) if resp.status_code == 200 else []
-    except Exception:
-        return []
+    cal_data, week_data, od_data = await asyncio.gather(
+        _get(cal_url), _get(week_url), _get(od_url)
+    )
+
+    result = {
+        "calendar_today": cal_data.get("value", []),
+        "week_calendar":  week_data.get("value", []),
+        "onedrive":       od_data.get("value", []),
+    }
+    _graph_cache["graph"] = (now, result)
+    return result
 
 
-def _teams_chats(cache) -> list[dict]:
-    """Fetch recent Teams chats via Graph API (requires Chat.Read scope)."""
-    try:
-        accounts = cache.list_accounts()
-        acc = next((a for a in accounts if getattr(a, "access_token", None)), None)
-        if not acc:
-            return []
-        import httpx
-        token = getattr(acc, "access_token", None)
-        if not token:
-            return []
-        resp = httpx.get(
-            "https://graph.microsoft.com/v1.0/me/chats"
-            "?$expand=lastMessagePreview&$select=id,topic,chatType,lastMessagePreview&$top=10",
-            headers={"Authorization": f"Bearer {token}"}, timeout=6,
-        )
-        return resp.json().get("value", []) if resp.status_code == 200 else []
-    except Exception:
-        return []
+def _teams_chats(_cache) -> list[dict]:
+    """Teams Chat.Read is not available for personal Microsoft accounts."""
+    return []
 
 
 def _projects_from_intelligence(intelligence) -> list[dict]:
@@ -227,21 +198,38 @@ def _projects_from_intelligence(intelligence) -> list[dict]:
 async def get_dashboard(request: Request):
     cache = request.app.state.cache
     intelligence = request.app.state.intelligence
+    loop = asyncio.get_event_loop()
+
+    # Run DB-bound local helpers and Graph API calls in parallel
+    (
+        unread_count, unread_emails, actions, follow_ups,
+        top_senders, email_volume, training, projects, graph
+    ) = await asyncio.gather(
+        loop.run_in_executor(None, _unread_count, cache),
+        loop.run_in_executor(None, _unread_emails, cache),
+        loop.run_in_executor(None, _action_items, cache),
+        loop.run_in_executor(None, _follow_ups, cache),
+        loop.run_in_executor(None, _top_senders, cache),
+        loop.run_in_executor(None, _emails_by_day, cache),
+        loop.run_in_executor(None, _training_emails, cache),
+        loop.run_in_executor(None, _projects_from_intelligence, intelligence),
+        _fetch_graph_data(cache),
+    )
 
     data: dict[str, Any] = {
         "generated_at":   datetime.now().strftime("%A, %d %B %Y  %H:%M"),
-        "unread_count":   _unread_count(cache),
-        "unread_emails":  _unread_emails(cache),
-        "actions":        _action_items(cache),
-        "follow_ups":     _follow_ups(cache),
-        "top_senders":    _top_senders(cache),
-        "email_volume":   _emails_by_day(cache),
-        "training":       _training_emails(cache),
-        "calendar_today": _calendar_events(cache),
-        "week_calendar":  _week_calendar(cache),
-        "projects":       _projects_from_intelligence(intelligence),
-        "onedrive":       _onedrive_recent(cache),
-        "teams":          _teams_chats(cache),
+        "unread_count":   unread_count,
+        "unread_emails":  unread_emails,
+        "actions":        actions,
+        "follow_ups":     follow_ups,
+        "top_senders":    top_senders,
+        "email_volume":   email_volume,
+        "training":       training,
+        "calendar_today": graph["calendar_today"],
+        "week_calendar":  graph["week_calendar"],
+        "projects":       projects,
+        "onedrive":       graph["onedrive"],
+        "teams":          [],
     }
 
     html = render_dashboard(data)
@@ -270,47 +258,24 @@ async def save_draft(req: SaveDraftRequest, request: Request):
 
     for acc in active:
         try:
-            # Prefer IMAP append — works for Yahoo, Gmail, Hotmail, O365, generic
-            if acc.password or acc.imap_host:
-                from services.imap_provider import IMAPProvider
-                from models import ConnectionConfig
-                cfg = ConnectionConfig(
-                    provider=acc.provider,
-                    username=acc.username,
-                    password=acc.password,
-                    imap_host=acc.imap_host,
-                    imap_port=acc.imap_port or 993,
-                    access_token=acc.access_token,
-                )
-                provider = IMAPProvider(cfg)
-                ok = await loop.run_in_executor(
-                    None, provider.save_draft, req.to_email, req.subject, req.body
-                )
-                if ok:
-                    return {"status": "saved", "via": "imap", "account": acc.username}
-                last_error = "IMAP append failed — check server logs"
-                continue
-
-            # Fall back to Graph API for OAuth-only accounts (no IMAP password stored)
-            if acc.access_token:
-                import httpx
-                payload: dict = {
-                    "subject": req.subject[:998],
-                    "body": {"contentType": "Text", "content": req.body},
-                }
-                if req.to_email and "@" in req.to_email:
-                    payload["toRecipients"] = [{"emailAddress": {"address": req.to_email}}]
-                resp = httpx.post(
-                    "https://graph.microsoft.com/v1.0/me/messages",
-                    headers={"Authorization": f"Bearer {acc.access_token}",
-                             "Content-Type": "application/json"},
-                    json=payload, timeout=8,
-                )
-                if resp.status_code in (200, 201):
-                    return {"status": "saved", "via": "graph", "account": acc.username}
-                last_error = resp.text[:200]
-                continue
-
+            from services.email_provider import build_provider
+            from models import ConnectionConfig
+            cfg = ConnectionConfig(
+                provider=acc.provider,
+                username=acc.username,
+                password=acc.password,
+                imap_host=acc.imap_host,
+                imap_port=acc.imap_port or 993,
+                access_token=acc.access_token,
+            )
+            provider = build_provider(cfg)
+            ok = await loop.run_in_executor(
+                None, provider.save_draft, req.to_email, req.subject, req.body
+            )
+            if ok:
+                via = "graph" if (acc.access_token and not acc.password) else "imap"
+                return {"status": "saved", "via": via, "account": acc.username}
+            last_error = "Draft save failed — check server logs"
         except Exception as e:
             last_error = str(e)
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { api } from '../api/client'
 import type { AppConfig } from '../types'
 
@@ -152,6 +152,7 @@ export function ConfigPanel({ onSaved }: Props) {
 
   const [anthropicKey, setAnthropicKey] = useState('')
   const [openaiKey, setOpenaiKey] = useState('')
+  const [msClientId, setMsClientId] = useState('')
   const [pollInterval, setPollInterval] = useState(60)
   const [syncWindowDays, setSyncWindowDays] = useState(0)
   const [budgetMode, setBudgetMode] = useState(false)
@@ -165,12 +166,69 @@ export function ConfigPanel({ onSaved }: Props) {
   const [saveMsg, setSaveMsg] = useState('')
   const [helpSection, setHelpSection] = useState<HelpSection>(null)
 
+  // Microsoft auto-setup wizard
+  const [setupStatus, setSetupStatus] = useState<'idle' | 'running' | 'login_wait' | 'done' | 'error' | 'needs_cli'>('idle')
+  const [setupMsg, setSetupMsg] = useState('')
+  const [setupFix, setSetupFix] = useState('')
+  const setupPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const stopSetupPoll = () => { if (setupPollRef.current) { clearInterval(setupPollRef.current); setupPollRef.current = null } }
+
+  useEffect(() => () => stopSetupPoll(), [])
+
+  const runAutoSetup = async () => {
+    setSetupStatus('running'); setSetupMsg('Checking Azure CLI…'); setSetupFix('')
+    try {
+      const r = await api.autoSetupMicrosoft()
+      if (r.status === 'needs_cli') {
+        setSetupStatus('needs_cli')
+        setSetupMsg(r.message ?? 'Azure CLI not installed')
+        setSetupFix(r.fix ?? 'brew install azure-cli')
+      } else if (r.status === 'login_required') {
+        setSetupStatus('login_wait')
+        setSetupMsg(r.message ?? 'Sign in to Azure in the browser, then click Continue.')
+        // Poll every 4s for login to complete
+        stopSetupPoll()
+        setupPollRef.current = setInterval(async () => {
+          try {
+            const r2 = await api.autoSetupMicrosoft()
+            if (r2.status === 'done') {
+              stopSetupPoll()
+              setSetupStatus('done')
+              setSetupMsg(`Microsoft app registered! Client ID: ${(r2.client_id ?? '').slice(0, 8)}…`)
+              setMsClientId('')
+              const updated = await api.getConfig()
+              setConfig(updated)
+            } else if (r2.status === 'error') {
+              stopSetupPoll()
+              setSetupStatus('error')
+              setSetupMsg(r2.message ?? 'Setup failed')
+            }
+          } catch { /* still waiting */ }
+        }, 4000)
+      } else if (r.status === 'done') {
+        setSetupStatus('done')
+        setSetupMsg(`Microsoft app registered! Client ID: ${(r.client_id ?? '').slice(0, 8)}…`)
+        setMsClientId('')
+        const updated = await api.getConfig()
+        setConfig(updated)
+      } else {
+        setSetupStatus('error')
+        setSetupMsg(r.message ?? 'Setup failed')
+      }
+    } catch (e: unknown) {
+      setSetupStatus('error')
+      setSetupMsg(e instanceof Error ? e.message : 'Setup failed')
+    }
+  }
+
   useEffect(() => {
     api.getConfig().then((cfg) => {
       setConfig(cfg)
       setPollInterval(cfg.poll_interval_seconds)
       setSyncWindowDays(cfg.sync_window_days ?? 7)
       setBudgetMode(cfg.budget_mode ?? false)
+      setMsClientId(cfg.ms_client_id ?? '')
     }).catch(() => {})
   }, [])
 
@@ -201,13 +259,14 @@ export function ConfigPanel({ onSaved }: Props) {
   const handleSave = async () => {
     setSaving(true); setSaveMsg('')
     try {
-      const payload: { anthropic_api_key?: string; openai_api_key?: string; poll_interval_seconds?: number; budget_mode?: boolean; sync_window_days?: number } = {
+      const payload: { anthropic_api_key?: string; openai_api_key?: string; ms_client_id?: string; poll_interval_seconds?: number; budget_mode?: boolean; sync_window_days?: number } = {
         poll_interval_seconds: pollInterval,
         sync_window_days: syncWindowDays,
         budget_mode: budgetMode,
       }
       if (anthropicKey) payload.anthropic_api_key = anthropicKey
       if (openaiKey) payload.openai_api_key = openaiKey
+      if (msClientId) payload.ms_client_id = msClientId
       await api.saveConfig(payload)
       setSaveMsg('Saved')
       setAnthropicKey(''); setOpenaiKey('')
@@ -271,6 +330,108 @@ export function ConfigPanel({ onSaved }: Props) {
           linkText="Get a key"
           linkHref="https://platform.openai.com/api-keys"
         />
+      </div>
+
+      {/* Microsoft Integration — Auto-Setup */}
+      <div className="border border-blue-200 rounded-xl p-4 space-y-3">
+        <div className="flex items-start gap-2">
+          <svg className="w-5 h-5 mt-0.5 flex-shrink-0" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg">
+            <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
+            <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
+            <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
+            <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
+          </svg>
+          <div className="flex-1">
+            <h2 className="text-sm font-semibold text-gray-800">Microsoft Integration</h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              One-click setup — registers the Azure app automatically using the Azure CLI. No portal required.
+            </p>
+          </div>
+        </div>
+
+        {/* Already configured */}
+        {config?.has_ms_client_id && setupStatus === 'idle' && (
+          <div className="flex items-center gap-2 text-xs text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+            <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
+            App configured: <span className="font-mono">{config.ms_client_id.slice(0, 8)}…</span>
+            <button onClick={() => setSetupStatus('idle')} className="ml-auto text-gray-400 hover:text-red-500 text-xs">Re-run setup</button>
+          </div>
+        )}
+
+        {/* Setup button */}
+        {setupStatus === 'idle' && !config?.has_ms_client_id && (
+          <button
+            onClick={runAutoSetup}
+            className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white text-sm font-medium py-2.5 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Auto-Setup Microsoft App
+          </button>
+        )}
+
+        {/* Running */}
+        {setupStatus === 'running' && (
+          <div className="flex items-center gap-2 text-sm text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
+            <span className="inline-block w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+            {setupMsg}
+          </div>
+        )}
+
+        {/* Needs CLI */}
+        {setupStatus === 'needs_cli' && (
+          <div className="space-y-2">
+            <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">{setupMsg}</p>
+            <p className="text-xs text-gray-500">Run this in Terminal, then click Setup again:</p>
+            <div className="flex items-center gap-2 bg-gray-900 rounded-lg px-3 py-2">
+              <code className="text-green-400 text-xs flex-1 font-mono">{setupFix}</code>
+              <button onClick={() => navigator.clipboard.writeText(setupFix)} className="text-gray-400 hover:text-white text-xs flex-shrink-0">Copy</button>
+            </div>
+            <button onClick={runAutoSetup} className="w-full border border-blue-300 text-blue-700 text-sm py-2 rounded-lg hover:bg-blue-50">
+              Try Again
+            </button>
+          </div>
+        )}
+
+        {/* Waiting for browser login */}
+        {setupStatus === 'login_wait' && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-sm text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
+              <span className="inline-block w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+              Sign in to Azure in the browser window that opened, then the setup will continue automatically.
+            </div>
+            <button onClick={runAutoSetup} className="w-full border border-blue-300 text-blue-700 text-sm py-2 rounded-lg hover:bg-blue-50">
+              Continue Setup
+            </button>
+          </div>
+        )}
+
+        {/* Done */}
+        {setupStatus === 'done' && (
+          <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-4 py-3">{setupMsg}</p>
+        )}
+
+        {/* Error */}
+        {setupStatus === 'error' && (
+          <div className="space-y-2">
+            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3">{setupMsg}</p>
+            <button onClick={runAutoSetup} className="w-full border border-gray-300 text-gray-700 text-sm py-2 rounded-lg hover:bg-gray-50">
+              Try Again
+            </button>
+          </div>
+        )}
+
+        {/* Manual fallback */}
+        <details className="text-xs">
+          <summary className="text-gray-400 cursor-pointer hover:text-gray-600 select-none">Enter Client ID manually instead</summary>
+          <div className="mt-2 space-y-1.5">
+            <input
+              type="text"
+              placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+              value={msClientId}
+              onChange={e => setMsClientId(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-accent"
+            />
+          </div>
+        </details>
       </div>
 
       {/* Poll interval */}

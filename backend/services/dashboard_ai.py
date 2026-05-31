@@ -93,8 +93,7 @@ async function askAI(query){
 
 def _onedrive_html(files: list[dict]) -> str:
     if not files:
-        return ("<p style='color:#6e7681;font-size:13px'>No recent files — "
-                "re-authenticate to grant Files.Read scope.</p>")
+        return "<p style='color:#6e7681;font-size:13px'>No recent OneDrive files found.</p>"
     items = []
     for f in files[:8]:
         name = (f.get("name") or "Untitled")[:60]
@@ -109,8 +108,7 @@ def _onedrive_html(files: list[dict]) -> str:
 
 def _teams_html(chats: list[dict]) -> str:
     if not chats:
-        return ("<p style='color:#6e7681;font-size:13px'>No Teams chats — "
-                "re-authenticate to grant Chat.Read scope.</p>")
+        return "<p style='color:#6e7681;font-size:13px'>Teams chats are only available with a work or school Microsoft account.</p>"
     items = []
     for c in chats[:8]:
         topic   = _html.escape((c.get("topic") or c.get("chatType") or "Chat")[:60])

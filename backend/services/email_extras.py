@@ -365,12 +365,19 @@ class EmailExtrasMixin:
         try:
             import httpx
             r = httpx.post(
-                "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+                "https://login.microsoftonline.com/consumers/oauth2/v2.0/token",
                 data={
                     "grant_type": "refresh_token",
                     "client_id": client_id,
                     "refresh_token": refresh_token,
-                    "scope": "https://outlook.office.com/IMAP.AccessAsUser.All offline_access",
+                    "scope": (
+                        "offline_access "
+                        "https://graph.microsoft.com/User.Read "
+                        "https://graph.microsoft.com/Mail.Read "
+                        "https://graph.microsoft.com/Mail.ReadWrite "
+                        "https://graph.microsoft.com/Files.Read "
+                        "https://graph.microsoft.com/Calendars.Read"
+                    ),
                 },
                 timeout=15,
             )

@@ -72,82 +72,53 @@ export function Settings({ onConnected, initialTab = 'accounts' }: Props) {
   const [clearFromDate, setClearFromDate] = useState('')
   const [updateStatus, setUpdateStatus] = useState<{ checking?: boolean; msg?: string; available?: boolean; latest?: string } >({})
 
-  // Microsoft OAuth2 device flow state
+  // Microsoft OAuth2 state
   const [hotmailMode, setHotmailMode] = useState<'password' | 'oauth'>('password')
-  const [oauthClientId, setOauthClientId] = useState('')
-  const [oauthFlow, setOauthFlow] = useState<{
-    flow_id: string; user_code: string; verification_uri: string; expires_in: number
-  } | null>(null)
   const [oauthStatus, setOauthStatus] = useState<'idle' | 'waiting' | 'done' | 'error'>('idle')
   const [oauthMsg, setOauthMsg] = useState('')
-  const [oauthSecondsLeft, setOauthSecondsLeft] = useState(0)
-  const oauthPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const oauthTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const oauthPopupRef = useRef<Window | null>(null)
 
-  const stopOauthPoll = () => {
-    if (oauthPollRef.current) { clearInterval(oauthPollRef.current); oauthPollRef.current = null }
-  }
-  const stopOauthTimer = () => {
-    if (oauthTimerRef.current) { clearInterval(oauthTimerRef.current); oauthTimerRef.current = null }
-  }
-
-  const handleStartOAuth = async () => {
-    if (!oauthClientId.trim() || !username.trim()) return
-    setOauthStatus('idle'); setOauthMsg(''); setOauthFlow(null); setError('')
+  const handleMicrosoftSignIn = async () => {
+    setOauthStatus('waiting'); setOauthMsg(''); setError('')
     try {
-      const res = await api.startMicrosoftOAuth(oauthClientId.trim(), username.trim())
-      setOauthFlow(res)
-      setOauthStatus('waiting')
-      // Start expiry countdown
-      const expSecs = res.expires_in || 900
-      setOauthSecondsLeft(expSecs)
-      stopOauthTimer()
-      oauthTimerRef.current = setInterval(() => {
-        setOauthSecondsLeft(s => {
-          if (s <= 1) {
-            stopOauthTimer()
-            stopOauthPoll()
-            setOauthFlow(null)
-            setOauthStatus('error')
-            setOauthMsg('Code expired — click "Start Sign In" to get a new code.')
-            return 0
-          }
-          return s - 1
-        })
-      }, 1000)
-      stopOauthPoll()
-      oauthPollRef.current = setInterval(async () => {
-        try {
-          const poll = await api.pollMicrosoftOAuth(res.flow_id)
-          if (poll.status === 'completed' && poll.access_token) {
-            stopOauthPoll(); stopOauthTimer()
-            setOauthStatus('done')
-            setOauthMsg('Signed in! Saving account…')
-            // Add account with access_token (no password)
-            await api.addAccount({
-              provider: 'hotmail',
-              username: username.trim(),
-              client_id: oauthClientId.trim(),
-              access_token: poll.access_token,
-            })
-            await loadAccounts()
-            setShowAdd(false)
-            setOauthFlow(null); setOauthStatus('idle'); setOauthMsg('')
-            setUsername(''); setOauthClientId('')
-          }
-        } catch (e: unknown) {
-          stopOauthPoll(); stopOauthTimer()
-          setOauthFlow(null)
+      const { url } = await api.getMicrosoftAuthUrl(username.trim() || undefined)
+      const popup = window.open(url, 'msauth', 'width=520,height=680,left=200,top=80')
+      oauthPopupRef.current = popup
+
+      if (!popup) {
+        setOauthStatus('error')
+        setOauthMsg('Popup was blocked — please allow popups for this page and try again.')
+        return
+      }
+
+      const onMsg = async (e: MessageEvent) => {
+        if (e.data?.type === 'oauth-complete') {
+          window.removeEventListener('message', onMsg)
+          setOauthStatus('done')
+          setOauthMsg(`Signed in as ${e.data.username || 'Microsoft account'} — importing emails…`)
+          await loadAccounts()
+          setTimeout(() => { setShowAdd(false); setOauthStatus('idle'); setOauthMsg(''); setUsername('') }, 2500)
+        } else if (e.data?.type === 'oauth-error') {
+          window.removeEventListener('message', onMsg)
           setOauthStatus('error')
-          setOauthMsg((e instanceof Error ? e.message : 'Sign-in failed') + ' — click Start Sign In to get a new code.')
+          setOauthMsg(e.data.message || 'Sign-in failed — please try again.')
         }
-      }, 3000)
+      }
+      window.addEventListener('message', onMsg)
+
+      const checkClosed = setInterval(() => {
+        if (oauthPopupRef.current?.closed) {
+          clearInterval(checkClosed)
+          window.removeEventListener('message', onMsg)
+          setOauthStatus(s => s === 'waiting' ? 'idle' : s)
+        }
+      }, 800)
     } catch (e: unknown) {
-      setOauthFlow(null)
       setOauthStatus('error')
       setOauthMsg(e instanceof Error ? e.message : 'Failed to start sign-in')
     }
   }
+
 
   const loadAccounts = async () => {
     try {
@@ -712,59 +683,54 @@ export function Settings({ onConnected, initialTab = 'accounts' }: Props) {
 
             {provider === 'hotmail' && hotmailMode === 'oauth' && (
               <div className="space-y-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Azure App Client ID</label>
-                  <input
-                    value={oauthClientId}
-                    onChange={e => setOauthClientId(e.target.value)}
-                    placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent font-mono"
-                  />
-                  <p className="text-xs text-gray-400 mt-1">
-                    Register a free app at <strong>portal.azure.com</strong> → Azure AD → App registrations → New → Personal accounts only → Authentication → Enable "Allow public client flows". Add delegated API permissions: <span className="font-mono text-[10px] bg-gray-100 px-1 rounded">IMAP.AccessAsUser.All</span> (Exchange Online) + <span className="font-mono text-[10px] bg-gray-100 px-1 rounded">Files.Read</span> + <span className="font-mono text-[10px] bg-gray-100 px-1 rounded">Chat.Read</span> (Microsoft Graph) — for email, OneDrive, and Teams.
-                  </p>
-                </div>
-
-                {!oauthFlow && (
+                {oauthStatus === 'idle' && (
                   <button
-                    onClick={handleStartOAuth}
-                    disabled={!oauthClientId.trim() || !username.trim()}
-                    className="w-full bg-blue-600 text-white rounded-lg px-4 py-2.5 text-sm font-medium disabled:opacity-50 hover:bg-blue-700"
+                    onClick={handleMicrosoftSignIn}
+                    className="w-full flex items-center justify-center gap-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg px-4 py-2.5 text-sm font-medium hover:bg-gray-50 transition-colors shadow-sm"
                   >
-                    Start Sign In
+                    <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg">
+                      <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
+                      <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
+                      <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
+                      <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
+                    </svg>
+                    Sign in with Microsoft
                   </button>
                 )}
-
-                {oauthFlow && oauthStatus === 'waiting' && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-2">
-                    <p className="text-sm font-semibold text-blue-800">Step 1 — Open in your browser:</p>
-                    <a href={oauthFlow.verification_uri} target="_blank" rel="noreferrer"
-                       className="text-sm text-blue-600 underline break-all">{oauthFlow.verification_uri}</a>
-                    <p className="text-sm font-semibold text-blue-800 pt-1">Step 2 — Enter this code:</p>
-                    <p className="text-2xl font-mono font-bold text-blue-900 tracking-widest">{oauthFlow.user_code}</p>
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs text-blue-600 flex items-center gap-1">
-                        <span className="inline-block w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-                        Waiting for you to sign in…
-                      </p>
-                      <p className={`text-xs font-mono font-medium ${oauthSecondsLeft < 120 ? 'text-red-500' : 'text-blue-500'}`}>
-                        {Math.floor(oauthSecondsLeft / 60)}:{String(oauthSecondsLeft % 60).padStart(2, '0')}
-                      </p>
+                {oauthStatus === 'waiting' && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
+                    <div className="flex items-center gap-2 text-sm text-blue-700 font-medium">
+                      <span className="inline-block w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                      Sign in with your Microsoft account in the popup
                     </div>
-                    {oauthSecondsLeft < 120 && (
-                      <button onClick={handleStartOAuth}
-                        className="w-full text-xs bg-blue-600 text-white rounded-lg py-1.5 hover:bg-blue-700">
-                        Get New Code
-                      </button>
-                    )}
+                    <p className="text-xs text-blue-600">Enter your email, password, and complete MFA if prompted. Then approve the requested permissions.</p>
+                    <button
+                      onClick={() => handleMicrosoftSignIn()}
+                      className="w-full text-xs border border-blue-300 text-blue-700 bg-white rounded-lg py-1.5 hover:bg-blue-50"
+                    >
+                      Reopen Sign-in Window
+                    </button>
                   </div>
                 )}
-
                 {oauthStatus === 'done' && (
-                  <p className="text-sm text-green-600 font-medium">{oauthMsg}</p>
+                  <p className="text-sm text-green-600 font-medium bg-green-50 border border-green-200 rounded-lg px-4 py-3">{oauthMsg}</p>
                 )}
                 {oauthStatus === 'error' && (
-                  <p className="text-sm text-red-600">{oauthMsg}</p>
+                  <div className="space-y-2">
+                    <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3">{oauthMsg}</p>
+                    <button
+                      onClick={handleMicrosoftSignIn}
+                      className="w-full flex items-center justify-center gap-2.5 bg-blue-600 text-white rounded-lg px-4 py-2.5 text-sm font-medium hover:bg-blue-700 transition-colors"
+                    >
+                      <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
+                        <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
+                        <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
+                        <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
+                      </svg>
+                      Try Again
+                    </button>
+                  </div>
                 )}
               </div>
             )}

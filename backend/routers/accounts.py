@@ -51,7 +51,8 @@ async def add_account(account: Account, background_tasks: BackgroundTasks, reque
 
     cfg = account.to_connection_config()
     try:
-        build_provider(cfg).test_connection()
+        provider = build_provider(cfg)
+        provider.test_connection()
     except Exception as e:
         msg = str(e).strip("b'\"")
         raise HTTPException(400, f"Connection failed: {msg}")

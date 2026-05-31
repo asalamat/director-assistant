@@ -264,7 +264,7 @@ export const api = {
   getConfig(): Promise<AppConfig> {
     return request('/config')
   },
-  saveConfig(data: { anthropic_api_key?: string; openai_api_key?: string; poll_interval_seconds?: number; budget_mode?: boolean; sync_window_days?: number }): Promise<{ status: string; has_api_key: boolean; has_openai_key: boolean }> {
+  saveConfig(data: { anthropic_api_key?: string; openai_api_key?: string; ms_client_id?: string; poll_interval_seconds?: number; budget_mode?: boolean; sync_window_days?: number }): Promise<{ status: string; has_api_key: boolean; has_openai_key: boolean }> {
     return request('/config', { method: 'POST', body: JSON.stringify(data) })
   },
   testApiKey(key: string): Promise<{ valid: boolean; model?: string; error?: string }> {
@@ -291,10 +291,17 @@ export const api = {
     return request('/accounts/ingest-all', { method: 'POST', body: JSON.stringify({ from_date: fromDate || null }) })
   },
   // Microsoft OAuth2 device flow
-  startMicrosoftOAuth(client_id: string, username: string): Promise<{
-    flow_id: string; user_code: string; verification_uri: string; expires_in: number
+  autoSetupMicrosoft(): Promise<{ status: string; message?: string; fix?: string; client_id?: string }> {
+    return request('/oauth/microsoft/auto-setup', { method: 'POST' })
+  },
+  getMicrosoftAuthUrl(username?: string): Promise<{ url: string }> {
+    const q = username ? `?username=${encodeURIComponent(username)}` : ''
+    return request(`/oauth/microsoft/auth-url${q}`)
+  },
+  startMicrosoftOAuth(username: string): Promise<{
+    flow_id: string; user_code: string; verification_uri: string; verification_uri_complete: string; expires_in: number
   }> {
-    return request('/oauth/microsoft/start', { method: 'POST', body: JSON.stringify({ client_id, username }) })
+    return request('/oauth/microsoft/start', { method: 'POST', body: JSON.stringify({ username }) })
   },
   pollMicrosoftOAuth(flow_id: string): Promise<{
     status: 'pending' | 'completed'; access_token?: string; username?: string

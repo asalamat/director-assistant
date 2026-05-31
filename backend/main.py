@@ -93,6 +93,13 @@ def _is_connection_error(exc: Exception) -> bool:
         return True
     if isinstance(exc, imaplib.IMAP4.error):
         return any(kw in str(exc).upper() for kw in ("EOF", "BYE", "CLOSED", "NONAUTH"))
+    # Graph API: 401 = expired token, treat as a connection error so we refresh + retry
+    try:
+        import httpx
+        if isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code == 401:
+            return True
+    except ImportError:
+        pass
     return False
 
 

@@ -117,6 +117,8 @@ export interface AppConfig {
   api_key_preview: string
   has_openai_key: boolean
   openai_key_preview: string
+  ms_client_id: string
+  has_ms_client_id: boolean
   poll_interval_seconds: number
   budget_mode: boolean
   sync_window_days: number
