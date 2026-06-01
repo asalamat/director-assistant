@@ -342,18 +342,23 @@ async def quick_replies(email_id: str, request: Request):
         'Reply as the recipient. Return ONLY valid JSON (no markdown):\n'
         '{"short":"2-3 sentence reply","detailed":"full paragraph reply","formal":"formal professional reply"}'
     )
-    resp = await ai.messages.create(
+    raw = ""
+    async with ai.messages.stream(
         model="claude-haiku-4-5-20251001",
         max_tokens=500,
         system="Output ONLY valid JSON. No markdown, no explanation.",
         messages=[{"role": "user", "content": prompt}],
-    )
-    raw = resp.content[0].text.strip()
+    ) as stream:
+        async for chunk in stream.text_stream:
+            raw += chunk
+    raw = raw.strip()
     try:
         start, end = raw.find("{"), raw.rfind("}") + 1
-        return _json.loads(raw[start:end])
+        if start >= 0 and end > start:
+            return _json.loads(raw[start:end])
     except Exception:
-        return {"short": raw[:200], "detailed": raw, "formal": raw[:300]}
+        pass
+    return {"short": raw[:200] or "No reply generated", "detailed": raw, "formal": raw[:300]}
 
 
 @router.get("/{email_id}/unsubscribe-url")
