@@ -264,7 +264,7 @@ export const api = {
   getConfig(): Promise<AppConfig> {
     return request('/config')
   },
-  saveConfig(data: { anthropic_api_key?: string; openai_api_key?: string; ms_client_id?: string; google_client_id?: string; google_client_secret?: string; poll_interval_seconds?: number; budget_mode?: boolean; sync_window_days?: number }): Promise<{ status: string; has_api_key: boolean; has_openai_key: boolean }> {
+  saveConfig(data: { anthropic_api_key?: string; openai_api_key?: string; ms_client_id?: string; google_client_id?: string; google_client_secret?: string; poll_interval_seconds?: number; budget_mode?: boolean; sync_window_days?: number; digest_schedule_enabled?: boolean; digest_schedule_time?: string; digest_schedule_email?: string }): Promise<{ status: string; has_api_key: boolean; has_openai_key: boolean }> {
     return request('/config', { method: 'POST', body: JSON.stringify(data) })
   },
   testApiKey(key: string): Promise<{ valid: boolean; model?: string; error?: string }> {
@@ -379,6 +379,26 @@ export const api = {
   // Triage
   getTriageTop(limit?: number): Promise<{ emails: import('../types').TriageEmail[] }> {
     return request(`/triage/top${limit ? `?limit=${limit}` : ''}`)
+  },
+
+  // Quick replies
+  getQuickReplies(emailId: string): Promise<import('../types').QuickReplies> {
+    return request(`/emails/${encodeURIComponent(emailId)}/quick-replies`, { method: 'POST' })
+  },
+
+  // Unsubscribe URL detection
+  getUnsubscribeUrl(emailId: string): Promise<{ url: string | null }> {
+    return request(`/emails/${encodeURIComponent(emailId)}/unsubscribe-url`)
+  },
+
+  // Calendar event creation
+  createCalendarEvent(emailId: string, data: { title: string; start_datetime: string; end_datetime: string; attendees: string[]; description: string }): Promise<{ status: string; event_id: string; web_link: string }> {
+    return request(`/emails/${encodeURIComponent(emailId)}/create-event`, { method: 'POST', body: JSON.stringify(data) })
+  },
+
+  // Waiting for reply
+  getWaitingReplies(days?: number): Promise<{ emails: import('../types').WaitingEmail[]; threshold_days: number }> {
+    return request(`/followups/waiting${days ? `?days=${days}` : ''}`)
   },
 
   checkUpdate(): Promise<{ current: string; latest: string | null; update_available: boolean; error?: string }> {

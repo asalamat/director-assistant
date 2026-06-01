@@ -303,6 +303,74 @@ async def _do_poll_cycle(rag: RAGEngine, cache: EmailCache) -> tuple[int, list[s
     return new_total, errors
 
 
+async def _send_scheduled_digest(app: FastAPI):
+    """Generate and send the daily digest email via SMTP."""
+    from email.mime.multipart import MIMEMultipart
+    from email.mime.text import MIMEText
+    from datetime import date as _date
+    from routers.config import load_app_config
+    from routers.email_send import _smtp_send
+
+    cfg = load_app_config()
+    to_email = cfg.get("digest_schedule_email", "")
+    if not to_email:
+        return
+
+    digest_svc = app.state.digest
+    cache = app.state.cache
+    try:
+        digest = await digest_svc.generate(cache, hours=24)
+    except Exception as e:
+        print(f"[digest-scheduler] generate failed: {e}")
+        return
+
+    accounts = cache.list_accounts()
+    smtp_acc = next((a for a in accounts if getattr(a, "password", None)), None)
+    if not smtp_acc:
+        print("[digest-scheduler] no SMTP account — skipping send")
+        return
+
+    subject = f"Director Assistant Digest — {_date.today().strftime('%A, %B %d')}"
+    lines = [digest.get("summary", ""), ""]
+    if digest.get("top_action_items"):
+        lines += ["Action Items:"] + [f"• {a}" for a in digest["top_action_items"][:5]] + [""]
+    if digest.get("highlights"):
+        lines += ["Highlights:"] + [f"• {h}" for h in digest["highlights"][:5]]
+    body = "\n".join(lines)
+
+    msg = MIMEMultipart()
+    msg["From"] = smtp_acc.username
+    msg["To"] = to_email
+    msg["Subject"] = subject
+    msg.attach(MIMEText(body, "plain", "utf-8"))
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(None, _smtp_send, smtp_acc, msg)
+    print(f"[digest-scheduler] digest sent to {to_email}")
+
+
+async def _digest_scheduler(app: FastAPI):
+    """Background loop: send digest at configured time once per day."""
+    from routers.config import load_app_config, save_app_config
+    from datetime import datetime as _dt
+    await asyncio.sleep(30)
+    while True:
+        await asyncio.sleep(60)
+        try:
+            cfg = load_app_config()
+            if not cfg.get("digest_schedule_enabled"):
+                continue
+            schedule_time = cfg.get("digest_schedule_time", "08:00")
+            now = _dt.now()
+            current_time = now.strftime("%H:%M")
+            today_str = now.strftime("%Y-%m-%d")
+            if current_time == schedule_time and cfg.get("digest_last_sent") != today_str:
+                await _send_scheduled_digest(app)
+                cfg["digest_last_sent"] = today_str
+                save_app_config(cfg)
+        except Exception as e:
+            print(f"[digest-scheduler] error: {e}")
+
+
 async def _poll_new_emails(rag: RAGEngine, cache: EmailCache):
     """Background loop: poll on a configurable interval, read from config each cycle."""
     global _last_poll_error
@@ -356,13 +424,17 @@ async def lifespan(app: FastAPI):
     app.state.poll_task = asyncio.create_task(
         _poll_new_emails(app.state.rag, app.state.cache)
     )
+    app.state.digest_task = asyncio.create_task(_digest_scheduler(app))
     app.state.restart_poll = lambda: asyncio.create_task(_restart_poll(app))
     yield
-    app.state.poll_task.cancel()
-    try:
-        await app.state.poll_task
-    except asyncio.CancelledError:
-        pass
+    for task_name in ("digest_task", "poll_task"):
+        task = getattr(app.state, task_name, None)
+        if task:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
 
 
 app = FastAPI(title="Director Assistant API", lifespan=lifespan)

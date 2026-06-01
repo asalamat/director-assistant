@@ -41,6 +41,9 @@ class AppConfigUpdate(BaseModel):
     poll_interval_seconds: Optional[int] = None
     budget_mode: Optional[bool] = None
     sync_window_days: Optional[int] = None
+    digest_schedule_enabled: Optional[bool] = None
+    digest_schedule_time: Optional[str] = None   # "HH:MM"
+    digest_schedule_email: Optional[str] = None
 
 
 @router.get("")
@@ -62,6 +65,9 @@ async def get_config():
         "poll_interval_seconds": cfg.get("poll_interval_seconds", 60),
         "budget_mode": cfg.get("budget_mode", False),
         "sync_window_days": cfg.get("sync_window_days", 0),
+        "digest_schedule_enabled": cfg.get("digest_schedule_enabled", False),
+        "digest_schedule_time": cfg.get("digest_schedule_time", "08:00"),
+        "digest_schedule_email": cfg.get("digest_schedule_email", ""),
     }
 
 
@@ -83,6 +89,13 @@ async def update_config(update: AppConfigUpdate, request: Request):
 
     if update.google_client_secret is not None:
         cfg["google_client_secret"] = update.google_client_secret.strip()
+
+    if update.digest_schedule_enabled is not None:
+        cfg["digest_schedule_enabled"] = update.digest_schedule_enabled
+    if update.digest_schedule_time is not None:
+        cfg["digest_schedule_time"] = update.digest_schedule_time.strip()
+    if update.digest_schedule_email is not None:
+        cfg["digest_schedule_email"] = update.digest_schedule_email.strip()
 
     if update.poll_interval_seconds is not None:
         cfg["poll_interval_seconds"] = update.poll_interval_seconds

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { api } from '../api/client'
-import type { ActionItem, FollowUp } from '../types'
+import type { ActionItem, FollowUp, WaitingEmail } from '../types'
 
 function formatDate(s: string) {
   return new Date(s).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
@@ -10,9 +10,20 @@ export function ActionBoard() {
   const [actions, setActions] = useState<ActionItem[]>([])
   const [followUps, setFollowUps] = useState<FollowUp[]>([])
   const [showDone, setShowDone] = useState(false)
-  const [tab, setTab] = useState<'actions' | 'followups'>('actions')
+  const [tab, setTab] = useState<'actions' | 'followups' | 'waiting'>('actions')
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
+  const [waiting, setWaiting] = useState<WaitingEmail[]>([])
+  const [loadingWaiting, setLoadingWaiting] = useState(false)
+
+  const loadWaiting = async () => {
+    setLoadingWaiting(true)
+    try { const r = await api.getWaitingReplies(); setWaiting(r.emails) }
+    catch { /* ignore */ }
+    finally { setLoadingWaiting(false) }
+  }
+
+  useEffect(() => { if (tab === 'waiting') loadWaiting() }, [tab])
 
   const reload = async () => {
     setLoading(true)
@@ -56,7 +67,7 @@ export function ActionBoard() {
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Tab bar */}
       <div className="flex border-b border-gray-200 px-4 pt-4 gap-4">
-        {(['actions', 'followups'] as const).map((t) => (
+        {(['actions', 'followups', 'waiting'] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -66,7 +77,9 @@ export function ActionBoard() {
           >
             {t === 'actions'
               ? `Action Items${pendingActions.length ? ` (${pendingActions.length})` : ''}`
-              : `Follow-ups${overdueFollowUps.length ? ` ⚠ ${overdueFollowUps.length}` : pendingFollowUps.length ? ` (${pendingFollowUps.length})` : ''}`}
+              : t === 'followups'
+              ? `Follow-ups${overdueFollowUps.length ? ` ⚠ ${overdueFollowUps.length}` : pendingFollowUps.length ? ` (${pendingFollowUps.length})` : ''}`
+              : `Waiting${waiting.length ? ` (${waiting.length})` : ''}`}
           </button>
         ))}
         <div className="ml-auto flex items-center gap-3 pb-2">
@@ -179,6 +192,36 @@ export function ActionBoard() {
             })}
           </>
         )}
+      {/* Waiting for reply */}
+      {tab === 'waiting' && (
+        <div className="flex-1 overflow-y-auto px-4 pb-4 pt-2 space-y-2">
+          <p className="text-xs text-gray-400 mb-3">Sent emails with no reply in 3+ days</p>
+          {loadingWaiting && <p className="text-xs text-gray-400 animate-pulse">Checking sent mail…</p>}
+          {!loadingWaiting && waiting.length === 0 && (
+            <div className="text-center py-12">
+              <p className="text-sm text-gray-600 font-medium">All caught up!</p>
+              <p className="text-xs text-gray-400 mt-1">No sent emails are waiting for a reply.</p>
+            </div>
+          )}
+          {waiting.map((em) => (
+            <div key={em.id} className="border border-gray-200 rounded-xl px-4 py-3 bg-white hover:border-accent transition-colors">
+              <p className="text-sm font-medium text-gray-800 truncate">{em.subject}</p>
+              <p className="text-xs text-gray-400 mt-0.5">To: {em.recipient || 'unknown'}</p>
+              <p className="text-xs text-gray-400">{em.date}</p>
+              <span className={`mt-1 inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                em.days_waiting >= 7 ? 'bg-red-100 text-red-700' :
+                em.days_waiting >= 5 ? 'bg-orange-100 text-orange-700' :
+                'bg-yellow-100 text-yellow-700'
+              }`}>
+                Waiting {em.days_waiting} day{em.days_waiting !== 1 ? 's' : ''}
+              </span>
+            </div>
+          ))}
+          {!loadingWaiting && (
+            <button onClick={loadWaiting} className="w-full text-xs text-gray-400 hover:text-accent py-2">Refresh</button>
+          )}
+        </div>
+      )}
       </div>
     </div>
   )

@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import type { EmailMessage } from '../types'
+import { useState, useEffect, useCallback } from 'react'
+import type { EmailMessage, QuickReplies } from '../types'
 import { ContactCard } from './ContactCard'
 import { api } from '../api/client'
 
@@ -36,6 +36,20 @@ export function EmailViewer({ email, loading, onAnalyze, analyzing, onDelete, on
   const [showRemind, setShowRemind] = useState(false)
   const [remindDays, setRemindDays] = useState<number | null>(null)
   const [remindMsg, setRemindMsg] = useState('')
+  // Quick replies
+  const [quickReplies, setQuickReplies] = useState<QuickReplies | null>(null)
+  const [loadingReplies, setLoadingReplies] = useState(false)
+  // Unsubscribe
+  const [unsubUrl, setUnsubUrl] = useState<string | null | undefined>(undefined)
+  // Create event
+  const [showEventModal, setShowEventModal] = useState(false)
+  const [eventTitle, setEventTitle] = useState('')
+  const [eventDate, setEventDate] = useState('')
+  const [eventTime, setEventTime] = useState('10:00')
+  const [eventDuration, setEventDuration] = useState(1)
+  const [eventAttendees, setEventAttendees] = useState('')
+  const [creatingEvent, setCreatingEvent] = useState(false)
+  const [eventMsg, setEventMsg] = useState('')
 
   useEffect(() => {
     setShowCompose(false)
@@ -43,6 +57,19 @@ export function EmailViewer({ email, loading, onAnalyze, analyzing, onDelete, on
     setShowRemind(false)
     setRemindMsg('')
     setRemindDays(null)
+    setQuickReplies(null)
+    setUnsubUrl(undefined)
+    setShowEventModal(false)
+    setEventMsg('')
+    if (email) {
+      // Pre-fill event modal defaults
+      const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1)
+      setEventTitle(email.subject || '')
+      setEventDate(tomorrow.toISOString().slice(0, 10))
+      setEventAttendees(email.recipients.join(', '))
+      // Lazy-detect unsubscribe link
+      api.getUnsubscribeUrl(email.id).then(r => setUnsubUrl(r.url)).catch(() => setUnsubUrl(null))
+    }
   }, [email?.id])
 
   const handleRemindMe = async (days: number) => {
@@ -59,6 +86,30 @@ export function EmailViewer({ email, loading, onAnalyze, analyzing, onDelete, on
       setRemindMsg('Failed to set reminder')
     }
     setRemindDays(null)
+  }
+
+  const handleLoadReplies = async () => {
+    if (!email || loadingReplies) return
+    setLoadingReplies(true)
+    try {
+      const r = await api.getQuickReplies(email.id)
+      setQuickReplies(r)
+    } catch { setQuickReplies({ short: 'Failed to generate', detailed: '', formal: '' }) }
+    finally { setLoadingReplies(false) }
+  }
+
+  const handleCreateEvent = async () => {
+    if (!email) return
+    setCreatingEvent(true); setEventMsg('')
+    try {
+      const start = `${eventDate}T${eventTime}:00`
+      const endHour = (parseInt(eventTime.split(':')[0]) + eventDuration).toString().padStart(2, '0')
+      const end = `${eventDate}T${endHour}:${eventTime.split(':')[1]}:00`
+      const attendees = eventAttendees.split(',').map(a => a.trim()).filter(a => a.includes('@'))
+      await api.createCalendarEvent(email.id, { title: eventTitle, start_datetime: start, end_datetime: end, attendees, description: `From email: ${email.subject}` })
+      setEventMsg('Event created!'); setTimeout(() => setShowEventModal(false), 1500)
+    } catch (e: any) { setEventMsg(e.message || 'Failed') }
+    finally { setCreatingEvent(false) }
   }
 
   const handleReplyClick = () => {
@@ -258,6 +309,30 @@ export function EmailViewer({ email, loading, onAnalyze, analyzing, onDelete, on
               )}
             </div>
 
+            {/* Create Calendar Event */}
+            <button
+              onClick={() => setShowEventModal(s => !s)}
+              title="Create calendar event"
+              className="flex items-center gap-1 text-xs text-gray-500 hover:text-green-600 px-2 py-1.5 rounded-lg hover:bg-green-50 transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+              </svg>
+              <span>Event</span>
+            </button>
+            {/* Unsubscribe */}
+            {unsubUrl && (
+              <a
+                href={unsubUrl} target="_blank" rel="noreferrer noopener"
+                title="Unsubscribe from this sender"
+                className="flex items-center gap-1 text-xs text-gray-500 hover:text-orange-600 px-2 py-1.5 rounded-lg hover:bg-orange-50 transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M13.477 14.89A6 6 0 015.11 6.524l8.367 8.368zm1.414-1.414L6.524 5.11a6 6 0 018.367 8.367zM18 10a8 8 0 11-16 0 8 8 0 0116 0z" clipRule="evenodd" />
+                </svg>
+                <span>Unsub</span>
+              </a>
+            )}
             <button
               onClick={handleDelete}
               disabled={deleting}
@@ -317,6 +392,68 @@ export function EmailViewer({ email, loading, onAnalyze, analyzing, onDelete, on
           </pre>
         )}
       </div>
+
+      {/* Quick Replies */}
+      <div className="px-6 pb-3 flex-shrink-0 border-t border-gray-100">
+        {!quickReplies && (
+          <button
+            onClick={handleLoadReplies}
+            disabled={loadingReplies}
+            className="mt-3 text-xs text-accent hover:underline flex items-center gap-1 disabled:opacity-50"
+          >
+            {loadingReplies ? <><span className="animate-spin inline-block">⟳</span> Generating replies…</> : '✦ Generate quick replies'}
+          </button>
+        )}
+        {quickReplies && (
+          <div className="mt-3 space-y-1">
+            <p className="text-xs text-gray-400 mb-1.5">Quick replies — click to use:</p>
+            {([['Short', quickReplies.short], ['Detailed', quickReplies.detailed], ['Formal', quickReplies.formal]] as [string, string][]).map(([label, text]) => text ? (
+              <button
+                key={label}
+                onClick={() => { setReplyBody(text); handleReplyClick() }}
+                className="block w-full text-left text-xs bg-gray-50 hover:bg-blue-50 border border-gray-200 hover:border-accent rounded-lg px-3 py-2 transition-colors"
+              >
+                <span className="font-medium text-accent mr-1.5">{label}</span>
+                <span className="text-gray-600 line-clamp-2">{text}</span>
+              </button>
+            ) : null)}
+            <button onClick={() => setQuickReplies(null)} className="text-xs text-gray-300 hover:text-gray-500 mt-1">Clear</button>
+          </div>
+        )}
+      </div>
+
+      {/* Create Event Modal */}
+      {showEventModal && (
+        <div className="border-t border-gray-200 bg-gray-50 px-6 py-4 flex-shrink-0 animate-slide-up-in">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-medium text-gray-700">Create Calendar Event</h3>
+            <button onClick={() => setShowEventModal(false)} className="text-gray-400 hover:text-gray-600 text-xs">Cancel</button>
+          </div>
+          <div className="space-y-2">
+            <input value={eventTitle} onChange={e => setEventTitle(e.target.value)} placeholder="Event title"
+              className="w-full text-sm border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent bg-white" />
+            <div className="flex gap-2">
+              <input type="date" value={eventDate} onChange={e => setEventDate(e.target.value)}
+                className="flex-1 text-sm border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent bg-white" />
+              <input type="time" value={eventTime} onChange={e => setEventTime(e.target.value)}
+                className="w-28 text-sm border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent bg-white" />
+              <select value={eventDuration} onChange={e => setEventDuration(Number(e.target.value))}
+                className="w-24 text-sm border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent bg-white">
+                {[0.5,1,1.5,2,3].map(h => <option key={h} value={h}>{h}h</option>)}
+              </select>
+            </div>
+            <input value={eventAttendees} onChange={e => setEventAttendees(e.target.value)} placeholder="Attendees (comma-separated emails)"
+              className="w-full text-sm border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent bg-white" />
+            <div className="flex items-center gap-2 justify-end">
+              {eventMsg && <span className={`text-xs ${eventMsg.includes('!') ? 'text-green-600' : 'text-red-500'}`}>{eventMsg}</span>}
+              <button onClick={handleCreateEvent} disabled={creatingEvent || !eventTitle || !eventDate}
+                className="flex items-center gap-1.5 bg-green-600 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-green-700 disabled:opacity-60 transition-colors">
+                {creatingEvent ? '⟳ Creating…' : 'Create in Calendar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Reply composer */}
       {showCompose && (

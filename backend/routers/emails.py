@@ -1,6 +1,7 @@
 import asyncio
 from time import monotonic
 from fastapi import APIRouter, HTTPException, Query, Request
+from pydantic import BaseModel
 from typing import Optional
 from models import EmailListResponse, EmailSummary, AIRecommendation, SearchRequest
 from services.email_provider import build_provider
@@ -323,4 +324,102 @@ async def delete_email(request: Request, email_id: str):
     rag.remove_email(email_id)
     if not found:
         raise HTTPException(404, "Email not found")
+
+
+@router.post("/{email_id}/quick-replies")
+async def quick_replies(email_id: str, request: Request):
+    """Generate 3 AI reply options (short, detailed, formal) for an email."""
+    import json as _json
+    cache: EmailCache = request.app.state.cache
+    ai = request.app.state.advisor.ai
+    email = cache.get(email_id)
+    if not email:
+        raise HTTPException(404, "Email not found")
+
+    prompt = (
+        f"Email from: {email.sender}\nSubject: {email.subject}\n\n"
+        f"{(email.body or '')[:800]}\n\n"
+        'Reply as the recipient. Return ONLY valid JSON (no markdown):\n'
+        '{"short":"2-3 sentence reply","detailed":"full paragraph reply","formal":"formal professional reply"}'
+    )
+    resp = await ai.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=500,
+        system="Output ONLY valid JSON. No markdown, no explanation.",
+        messages=[{"role": "user", "content": prompt}],
+    )
+    raw = resp.content[0].text.strip()
+    try:
+        start, end = raw.find("{"), raw.rfind("}") + 1
+        return _json.loads(raw[start:end])
+    except Exception:
+        return {"short": raw[:200], "detailed": raw, "formal": raw[:300]}
+
+
+@router.get("/{email_id}/unsubscribe-url")
+async def get_unsubscribe_url(email_id: str, request: Request):
+    """Return the unsubscribe URL found in the email, or null."""
+    cache: EmailCache = request.app.state.cache
+    email = cache.get(email_id)
+    if not email:
+        raise HTTPException(404, "Email not found")
+    from services.unsubscribe import extract_unsubscribe_url
+    url = extract_unsubscribe_url(email)
+    return {"url": url}
+
+
+class CreateEventRequest(BaseModel):
+    title: str
+    start_datetime: str   # ISO: "2026-06-02T10:00:00"
+    end_datetime: str
+    attendees: list[str] = []
+    description: str = ""
+
+
+@router.post("/{email_id}/create-event")
+async def create_calendar_event(email_id: str, req: CreateEventRequest, request: Request):
+    """Create a calendar event via Microsoft Graph API."""
+    import httpx
+    cache: EmailCache = request.app.state.cache
+    email = cache.get(email_id)
+    if not email:
+        raise HTTPException(404, "Email not found")
+
+    # Find a Microsoft OAuth account
+    accounts = cache.list_accounts()
+    ms_acc = next(
+        (a for a in accounts if getattr(a, "access_token", None)
+         and not getattr(a, "password", None)
+         and a.provider not in ("gmail",)),
+        None,
+    )
+    if not ms_acc:
+        raise HTTPException(400, "No Microsoft OAuth account connected — sign in with Microsoft first")
+
+    token = ms_acc.access_token
+    payload: dict = {
+        "subject": req.title[:255],
+        "body": {"contentType": "Text", "content": req.description or f"Created from email: {email.subject}"},
+        "start": {"dateTime": req.start_datetime, "timeZone": "UTC"},
+        "end":   {"dateTime": req.end_datetime,   "timeZone": "UTC"},
+        "attendees": [
+            {"emailAddress": {"address": addr.strip()}, "type": "required"}
+            for addr in req.attendees if "@" in addr
+        ],
+    }
+    try:
+        async with httpx.AsyncClient(timeout=15) as c:
+            r = await c.post(
+                "https://graph.microsoft.com/v1.0/me/calendar/events",
+                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                json=payload,
+            )
+        if r.status_code == 201:
+            data = r.json()
+            return {"status": "created", "event_id": data.get("id", ""), "web_link": data.get("webLink", "")}
+        raise HTTPException(r.status_code, r.json().get("error", {}).get("message", "Graph API error"))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, str(e))
     return {"deleted": email_id}

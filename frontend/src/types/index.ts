@@ -112,6 +112,21 @@ export interface AnalyticsResponse {
   total_emails: number
 }
 
+export interface WaitingEmail {
+  id: string
+  subject: string
+  sender: string
+  recipient: string
+  date: string
+  days_waiting: number
+}
+
+export interface QuickReplies {
+  short: string
+  detailed: string
+  formal: string
+}
+
 export interface AppConfig {
   has_api_key: boolean
   api_key_preview: string
@@ -124,6 +139,9 @@ export interface AppConfig {
   poll_interval_seconds: number
   budget_mode: boolean
   sync_window_days: number
+  digest_schedule_enabled: boolean
+  digest_schedule_time: string
+  digest_schedule_email: string
 }
 
 export interface TriageEmail {

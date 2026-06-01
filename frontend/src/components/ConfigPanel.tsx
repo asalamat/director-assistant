@@ -155,6 +155,9 @@ export function ConfigPanel({ onSaved }: Props) {
   const [msClientId, setMsClientId] = useState('')
   const [googleClientId, setGoogleClientId] = useState('')
   const [googleClientSecret, setGoogleClientSecret] = useState('')
+  const [digestEnabled, setDigestEnabled] = useState(false)
+  const [digestTime, setDigestTime] = useState('08:00')
+  const [digestEmail, setDigestEmail] = useState('')
   const [pollInterval, setPollInterval] = useState(60)
   const [syncWindowDays, setSyncWindowDays] = useState(0)
   const [budgetMode, setBudgetMode] = useState(false)
@@ -232,6 +235,9 @@ export function ConfigPanel({ onSaved }: Props) {
       setBudgetMode(cfg.budget_mode ?? false)
       setMsClientId(cfg.ms_client_id ?? '')
       setGoogleClientId(cfg.google_client_id ?? '')
+      setDigestEnabled(cfg.digest_schedule_enabled ?? false)
+      setDigestTime(cfg.digest_schedule_time ?? '08:00')
+      setDigestEmail(cfg.digest_schedule_email ?? '')
     }).catch(() => {})
   }, [])
 
@@ -262,7 +268,7 @@ export function ConfigPanel({ onSaved }: Props) {
   const handleSave = async () => {
     setSaving(true); setSaveMsg('')
     try {
-      const payload: { anthropic_api_key?: string; openai_api_key?: string; ms_client_id?: string; google_client_id?: string; google_client_secret?: string; poll_interval_seconds?: number; budget_mode?: boolean; sync_window_days?: number } = {
+      const payload: { anthropic_api_key?: string; openai_api_key?: string; ms_client_id?: string; google_client_id?: string; google_client_secret?: string; poll_interval_seconds?: number; budget_mode?: boolean; sync_window_days?: number; digest_schedule_enabled?: boolean; digest_schedule_time?: string; digest_schedule_email?: string } = {
         poll_interval_seconds: pollInterval,
         sync_window_days: syncWindowDays,
         budget_mode: budgetMode,
@@ -272,6 +278,9 @@ export function ConfigPanel({ onSaved }: Props) {
       if (msClientId) payload.ms_client_id = msClientId
       if (googleClientId) payload.google_client_id = googleClientId
       if (googleClientSecret) payload.google_client_secret = googleClientSecret
+      payload.digest_schedule_enabled = digestEnabled
+      payload.digest_schedule_time = digestTime
+      payload.digest_schedule_email = digestEmail
       await api.saveConfig(payload)
       setSaveMsg('Saved')
       setAnthropicKey(''); setOpenaiKey('')
@@ -543,6 +552,35 @@ export function ConfigPanel({ onSaved }: Props) {
           <span>1 day</span>
           <span>Unlimited →</span>
         </div>
+      </div>
+
+      {/* Scheduled Email Digest */}
+      <div className="border border-gray-200 rounded-xl p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-800">Scheduled Digest</h2>
+            <p className="text-xs text-gray-500 mt-0.5">Email yourself a daily brief at a set time. Requires an IMAP account with App Password.</p>
+          </div>
+          <button onClick={() => setDigestEnabled(v => !v)}
+            className={`relative w-10 h-5 rounded-full flex-shrink-0 transition-colors ${digestEnabled ? 'bg-accent' : 'bg-gray-300'}`}>
+            <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${digestEnabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
+          </button>
+        </div>
+        {digestEnabled && (
+          <div className="space-y-2">
+            <div className="flex gap-2 items-center">
+              <label className="text-xs text-gray-500 w-12 flex-shrink-0">Time</label>
+              <input type="time" value={digestTime} onChange={e => setDigestTime(e.target.value)}
+                className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-accent" />
+            </div>
+            <div className="flex gap-2 items-center">
+              <label className="text-xs text-gray-500 w-12 flex-shrink-0">Send to</label>
+              <input type="email" value={digestEmail} onChange={e => setDigestEmail(e.target.value)}
+                placeholder="your@email.com"
+                className="flex-1 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-accent" />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Budget / Economy mode */}

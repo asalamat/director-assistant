@@ -38,3 +38,14 @@ async def delete_followup(fid: int, request: Request):
     if not cache.delete_follow_up(fid):
         raise HTTPException(404, "Follow-up not found")
     return {"ok": True}
+
+
+@router.get("/waiting")
+async def get_waiting_replies(request: Request, days: int = 3, limit: int = 20):
+    """Return sent emails older than `days` with no detected reply."""
+    import asyncio
+    from services.waiting_reply import get_waiting_replies as _get
+    cache = request.app.state.cache
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(None, _get, cache, days, min(limit, 50))
+    return {"emails": result, "threshold_days": days}
