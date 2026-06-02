@@ -8,7 +8,7 @@ class AIAdvisor:
         self.ai = client
 
     async def get_recommendation(
-        self, email: EmailMessage, similar: list[dict]
+        self, email: EmailMessage, similar: list[dict], related_docs: list[dict] | None = None
     ) -> AIRecommendation:
         context = "\n\n".join(
             f"--- Context Email {i+1} ---\n"
@@ -16,6 +16,11 @@ class AIAdvisor:
             f"Preview: {e['text'][:400]}"
             for i, e in enumerate(similar)
         ) or "No similar past emails found."
+
+        doc_context = "\n\n".join(
+            f"--- Document {i+1}: {d.get('subject', 'Untitled')} ---\n{d.get('text', '')[:600]}"
+            for i, d in enumerate(related_docs or [])
+        ) or "No related documents found."
 
         body_preview = (email.body or "")[:4000]
 
@@ -28,6 +33,9 @@ Date: {email.date}
 Subject: {email.subject}
 
 {body_preview}
+
+RELATED DOCUMENTS (contracts, reports, or files referenced by this email):
+{doc_context}
 
 SIMILAR PAST EMAILS FOR CONTEXT:
 {context}

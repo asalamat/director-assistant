@@ -164,7 +164,10 @@ async def recommend(request: Request, email_id: str, folder: str = Query("INBOX"
         rag.flush_bm25()
 
     similar = await rag.get_similar_emails(email, n=5)
-    rec = await advisor.get_recommendation(email, similar)
+    doc_query = f"{email.subject} {(email.body or '')[:300]}"
+    related_docs = [r for r in rag.semantic_search(doc_query, n=3)
+                    if r.get("source_type") == "document"]
+    rec = await advisor.get_recommendation(email, similar, related_docs)
     now2 = monotonic()
     _rec_cache[email_id] = (now2, rec)
     # Prune entries that have expired so the dict doesn't grow unbounded
