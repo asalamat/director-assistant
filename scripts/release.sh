@@ -39,11 +39,12 @@ git push
 echo "==> Syncing installed app at $INSTALL_DIR"
 if [[ -d "$INSTALL_DIR" ]]; then
     cp "$REPO_DIR/version.json" "$INSTALL_DIR/version.json"
-    rm -rf "$INSTALL_DIR/backend/static"
-    cp -r "$REPO_DIR/frontend/dist" "$INSTALL_DIR/backend/static"
-    # Sync backend code (excludes .venv and __pycache__)
+    # Sync backend code first (excludes .venv and __pycache__)
     rsync -a --exclude='.venv' --exclude='__pycache__' \
         "$REPO_DIR/backend/" "$INSTALL_DIR/backend/"
+    # Then overwrite static with the freshly-built dist (rsync may have an old version)
+    rm -rf "$INSTALL_DIR/backend/static"
+    cp -r "$REPO_DIR/frontend/dist" "$INSTALL_DIR/backend/static"
     echo "    Installed version.json, dist, and backend synced"
     # Restart uvicorn so new code takes effect; watchdog will revive it
     pkill -f "uvicorn main:app" 2>/dev/null || true
