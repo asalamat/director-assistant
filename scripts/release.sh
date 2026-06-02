@@ -33,8 +33,7 @@ cd "$REPO_DIR/frontend" && npm run build
 echo "==> Committing and pushing"
 cd "$REPO_DIR"
 git add version.json frontend/package.json frontend/dist
-git commit -m "chore: release v$VERSION"
-git push
+git diff --cached --quiet && echo "    Nothing to commit (version already at $VERSION)" || { git commit -m "chore: release v$VERSION" && git push; }
 
 echo "==> Syncing installed app at $INSTALL_DIR"
 if [[ -d "$INSTALL_DIR" ]]; then
