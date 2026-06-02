@@ -142,6 +142,69 @@ def _get_ingest_folders(account_id: int, provider, full_sweep: bool = False) -> 
     return _folder_cache[account_id]
 
 
+def _check_folder(
+    account_id: int, provider, folder: str,
+    cache, rag, known_ids: set, all_new_emails: list,
+    since_dt, since_str, full_sweep: bool = False,
+) -> int:
+    """Sync one folder: detect deletions (full sweep only), fetch and index new emails.
+
+    Module-level so it can be safely run in a thread-pool executor without
+    implicitly closing over mutable outer-scope state.
+    """
+    from services.email_provider import IMAPProvider
+
+    # Step 1: detect server-side deletions (full sweep only)
+    if full_sweep:
+        try:
+            server_uids = provider.get_uid_list(folder=folder, from_date=since_dt)
+        except Exception as e:
+            print(f"[poll] uid_list failed account={account_id} folder={folder}: {e}")
+            server_uids = None
+
+        if server_uids is not None and len(server_uids) > 0:
+            cached = cache.get_cached_server_ids(account_id, folder, since_str)
+            for srv_id, cache_id in cached.items():
+                if srv_id not in server_uids:
+                    cache.delete_email(cache_id)
+                    rag.remove_email(cache_id)
+                    known_ids.discard(cache_id)
+                    print(f"[poll] removed deleted email cache_id={cache_id}")
+
+    # Step 2: fetch new emails
+    if full_sweep:
+        fetch_fn = lambda: provider.fetch_all(folder=folder, batch_size=200)
+    elif isinstance(provider, IMAPProvider):
+        fetch_fn = lambda: provider.fetch_recent_n(folder=folder, n=POLL_RECENT_N, from_date=since_dt)
+    else:
+        fetch_fn = lambda: provider.fetch_all(folder=folder, batch_size=POLL_RECENT_N, from_date=since_dt)
+
+    buffer = []
+    try:
+        for email, _ in fetch_fn():
+            if account_id:
+                email.server_id = email.id
+                email.id = f"a{account_id}_{email.id}"
+            if email.id not in known_ids:
+                buffer.append(email)
+    except Exception as e:
+        import imaplib as _imap
+        if isinstance(e, _imap.IMAP4.abort):
+            raise
+        print(f"[poll] fetch error account={account_id} folder={folder}: {e} "
+              f"— saving {len(buffer)} emails fetched so far")
+
+    count = 0
+    if buffer:
+        cache.save_batch(buffer, account_id=account_id)
+        for em in buffer:
+            if rag.ingest_email(em):
+                known_ids.add(em.id)
+                all_new_emails.append(em)
+                count += 1
+    return count
+
+
 def _is_connection_error(exc: Exception) -> bool:
     import imaplib
     if isinstance(exc, (BrokenPipeError, ConnectionResetError, EOFError, TimeoutError, SystemError)):
@@ -241,59 +304,7 @@ async def _do_poll_cycle(rag: RAGEngine, cache: EmailCache, app=None) -> tuple[i
     _LEGACY_INGESTED_FLAG = Path.home() / ".director-assistant" / ".legacy_ingested"
     legacy_needs_full_sweep = (len(all_accounts) == 0 and not _LEGACY_INGESTED_FLAG.exists())
 
-    def check_folder(account_id: int, provider, folder: str, full_sweep: bool = False) -> int:
-        # Step 1: detect server-side deletions (full sweep only — skip on quick polls to avoid
-        # extra round-trips on slow providers like Yahoo IMAP)
-        if full_sweep:
-            try:
-                server_uids = provider.get_uid_list(folder=folder, from_date=since_dt)
-            except Exception as e:
-                print(f"[poll] uid_list failed account={account_id} folder={folder}: {e}")
-                server_uids = None
-
-            if server_uids is not None and len(server_uids) > 0:
-                cached = cache.get_cached_server_ids(account_id, folder, since_str)
-                for srv_id, cache_id in cached.items():
-                    if srv_id not in server_uids:
-                        cache.delete_email(cache_id)
-                        rag.remove_email(cache_id)
-                        known_ids.discard(cache_id)
-                        print(f"[poll] removed deleted email cache_id={cache_id}")
-
-        # Step 2: fetch new emails
-        # First-time accounts get a full unlimited sweep so nothing is missed.
-        if full_sweep:
-            fetch_fn = lambda: provider.fetch_all(folder=folder, batch_size=200)
-        elif isinstance(provider, IMAPProvider):
-            fetch_fn = lambda: provider.fetch_recent_n(folder=folder, n=POLL_RECENT_N, from_date=since_dt)
-        else:
-            fetch_fn = lambda: provider.fetch_all(folder=folder, batch_size=POLL_RECENT_N, from_date=since_dt)
-
-        buffer = []
-        try:
-            for email, _ in fetch_fn():
-                if account_id:
-                    email.server_id = email.id
-                    email.id = f"a{account_id}_{email.id}"
-                if email.id not in known_ids:
-                    buffer.append(email)
-        except Exception as e:
-            import imaplib as _imap
-            if isinstance(e, _imap.IMAP4.abort):
-                raise  # connection dropped — outer handler should reconnect
-            # IMAP4.error (folder not found, wrong state, etc.) — skip this folder
-            print(f"[poll] fetch error account={account_id} folder={folder}: {e} "
-                  f"— saving {len(buffer)} emails fetched so far")
-
-        count = 0
-        if buffer:
-            cache.save_batch(buffer, account_id=account_id)
-            for em in buffer:
-                if rag.ingest_email(em):
-                    known_ids.add(em.id)
-                    all_new_emails.append(em)
-                    count += 1
-        return count
+    # _check_folder is a module-level function — explicit params, no closure over outer state
 
     new_total = 0
     all_new_emails: list = []   # collected across all folders for auto-recommendation
@@ -319,7 +330,9 @@ async def _do_poll_cycle(rag: RAGEngine, cache: EmailCache, app=None) -> tuple[i
                 for folder in folders:
                     try:
                         new_total += await asyncio.wait_for(
-                            loop.run_in_executor(None, check_folder, account_id, provider, folder, full_sweep),
+                            loop.run_in_executor(None, _check_folder, account_id, provider, folder,
+                                                 cache, rag, known_ids, all_new_emails,
+                                                 since_dt, since_str, full_sweep),
                             timeout=45,
                         )
                     except asyncio.TimeoutError:
