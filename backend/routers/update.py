@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 router = APIRouter(prefix="/api/update", tags=["update"])
 
 GITHUB_RAW = "https://raw.githubusercontent.com/asalamat/director-assistant/main/version.json"
+GITHUB_API = "https://api.github.com/repos/asalamat/director-assistant/contents/version.json"
 _INSTALL_DIR = Path.home() / "Applications" / "DirectorAssistant"
 
 
@@ -56,17 +57,31 @@ def _node_path() -> str:
 @router.get("/check")
 async def check_update():
     """Compare installed version against latest on GitHub main branch."""
-    import urllib.request
+    import urllib.request, base64
     current = _current_version()
     try:
-        import time as _time
-        url = f"{GITHUB_RAW}?nocache={int(_time.time())}"
-        with urllib.request.urlopen(url, timeout=8) as r:
-            latest_data = json.loads(r.read())
-        latest = latest_data.get("version", "unknown")
-    except Exception as e:
-        return JSONResponse({"current": current, "latest": None, "update_available": False,
-                             "error": str(e)})
+        # Use the GitHub Contents API — bypasses CDN caching entirely.
+        # Falls back to raw CDN if the API call fails (rate limit, network, etc.)
+        req = urllib.request.Request(
+            GITHUB_API,
+            headers={"Accept": "application/vnd.github.v3+json",
+                     "User-Agent": "director-assistant-updater"},
+        )
+        with urllib.request.urlopen(req, timeout=8) as r:
+            api_data = json.loads(r.read())
+        raw_content = base64.b64decode(api_data["content"]).decode()
+        latest_data = json.loads(raw_content)
+    except Exception:
+        # Fallback to raw CDN
+        try:
+            import time as _time
+            url = f"{GITHUB_RAW}?nocache={int(_time.time())}"
+            with urllib.request.urlopen(url, timeout=8) as r:
+                latest_data = json.loads(r.read())
+        except Exception as e:
+            return JSONResponse({"current": current, "latest": None, "update_available": False,
+                                 "error": str(e)})
+    latest = latest_data.get("version", "unknown")
     def _semver(v: str) -> tuple:
         try:
             return tuple(int(x) for x in v.split("."))
