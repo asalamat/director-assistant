@@ -77,6 +77,59 @@ def _score(email: dict, vip_senders: set, has_action_ids: set) -> tuple[int, lis
     return score, reasons[:3]
 
 
+def _apply_user_rules(email: dict, rules: list[str]) -> tuple[int, list[str]]:
+    """Evaluate simple natural-language rules against an email.
+
+    Supported patterns (case-insensitive):
+      from: <text> → critical/urgent/high/low
+      subject contains: <text> → critical/urgent/high/low
+      sender is: <text> → critical/urgent/high/low
+      <keyword> in subject → boost/critical/urgent
+    Returns a score delta and matched reason labels.
+    """
+    bonus = 0
+    reasons = []
+    subject = (email.get("subject") or "").lower()
+    sender  = (email.get("sender")  or "").lower()
+    body    = (email.get("body")    or "")[:400].lower()
+
+    _LEVEL = {"critical": 5, "urgent": 4, "high": 3, "medium": 2, "low": -3, "skip": -10}
+
+    for rule in rules:
+        r = rule.strip().lower()
+        level_bonus = 3  # default bonus if rule matches without explicit level
+        level_label = "rule match"
+        for word, pts in _LEVEL.items():
+            if f"→ {word}" in r or f"-> {word}" in r:
+                level_bonus = pts
+                level_label = f"rule: {word}"
+                break
+
+        matched = False
+        if r.startswith("from:") or r.startswith("sender is:") or r.startswith("sender:"):
+            fragment = r.split(":", 1)[1].split("→")[0].split("->")[0].strip()
+            if fragment and fragment in sender:
+                matched = True
+        elif "subject contains:" in r or "subject has:" in r:
+            fragment = r.split(":", 1)[1].split("→")[0].split("->")[0].strip()
+            if fragment and fragment in subject:
+                matched = True
+        elif "in subject" in r or "subject contains" in r:
+            fragment = r.split("in subject")[0].split("subject contains")[0].strip().strip('"\'')
+            if fragment and fragment in subject:
+                matched = True
+        elif "in body" in r:
+            fragment = r.split("in body")[0].strip().strip('"\'')
+            if fragment and fragment in body:
+                matched = True
+
+        if matched:
+            bonus += level_bonus
+            reasons.append(level_label)
+
+    return bonus, reasons
+
+
 def get_top_emails(cache, limit: int = 7) -> list[dict]:
     """Return top N unread emails scored by urgency (last 14 days)."""
     with cache._conn() as conn:
@@ -92,7 +145,6 @@ def get_top_emails(cache, limit: int = 7) -> list[dict]:
         vip_rows = conn.execute(
             "SELECT LOWER(sender) FROM emails GROUP BY LOWER(sender) ORDER BY COUNT(*) DESC LIMIT 30"
         ).fetchall()
-        # Extract just the local part (before @) for fuzzy matching
         vip_senders = {r[0].split("@")[0] for r in vip_rows if r[0]}
 
         # Emails with open action items
@@ -101,9 +153,17 @@ def get_top_emails(cache, limit: int = 7) -> list[dict]:
         ).fetchall()
         has_action_ids = {r[0] for r in action_rows}
 
+        # User-defined triage rules
+        rule_rows = conn.execute("SELECT rule FROM triage_rules ORDER BY id").fetchall()
+        user_rules = [r[0] for r in rule_rows]
+
     scored = []
     for em in emails:
         sc, reasons = _score(em, vip_senders, has_action_ids)
+        if user_rules:
+            rule_bonus, rule_reasons = _apply_user_rules(em, user_rules)
+            sc += rule_bonus
+            reasons = (reasons + rule_reasons)[:3]
         if sc > 0:
             scored.append({
                 "id": em["id"],

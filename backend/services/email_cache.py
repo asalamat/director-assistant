@@ -201,6 +201,13 @@ class EmailCache(EmailExtrasMixin, DocumentCacheMixin):
                 )
             """)
             conn.execute("""
+                CREATE TABLE IF NOT EXISTS triage_rules (
+                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                    rule       TEXT NOT NULL,
+                    created_at TEXT DEFAULT (datetime('now'))
+                )
+            """)
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS ask_history (
                     id           INTEGER PRIMARY KEY AUTOINCREMENT,
                     timestamp    TEXT DEFAULT (datetime('now')),

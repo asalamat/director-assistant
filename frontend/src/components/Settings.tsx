@@ -275,6 +275,7 @@ export function Settings({ onConnected, initialTab = 'accounts' }: Props) {
         </div>
 
         {settingsTab === 'config' && <ConfigPanel />}
+        {settingsTab === 'config' && <TriageRulesPanel />}
 
         {settingsTab === 'accounts' && <>
 
@@ -895,6 +896,65 @@ export function Settings({ onConnected, initialTab = 'accounts' }: Props) {
         )}
         </>}
       </div>
+    </div>
+  )
+}
+
+function TriageRulesPanel() {
+  const [rules, setRules] = useState<{ id: number; rule: string }[]>([])
+  const [input, setInput] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    api.getTriageRules().then(setRules).catch(() => {})
+  }, [])
+
+  const add = async () => {
+    if (!input.trim() || saving) return
+    setSaving(true)
+    try {
+      const r = await api.addTriageRule(input.trim())
+      setRules(prev => [...prev, r])
+      setInput('')
+    } finally { setSaving(false) }
+  }
+
+  const remove = async (id: number) => {
+    await api.deleteTriageRule(id).catch(() => {})
+    setRules(prev => prev.filter(r => r.id !== id))
+  }
+
+  return (
+    <div className="mt-6 border border-gray-200 rounded-xl p-4">
+      <p className="text-sm font-semibold text-gray-700 mb-1">Smart Triage Rules</p>
+      <p className="text-xs text-gray-400 mb-3">
+        Define rules in plain English. Examples: "from: ceo@corp.com → critical" · "subject contains: invoice → urgent" · "invoice in subject → high"
+      </p>
+      <div className="flex gap-2 mb-3">
+        <input
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && add()}
+          placeholder="from: board@company.com → critical"
+          className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent"
+        />
+        <button
+          onClick={add}
+          disabled={saving || !input.trim()}
+          className="text-sm bg-accent text-white rounded-lg px-4 py-2 disabled:opacity-50"
+        >
+          Add
+        </button>
+      </div>
+      {rules.length === 0 && <p className="text-xs text-gray-300 italic">No rules yet — triage uses built-in signals only.</p>}
+      <ul className="space-y-1">
+        {rules.map(r => (
+          <li key={r.id} className="flex items-center justify-between text-xs bg-gray-50 rounded-lg px-3 py-2">
+            <span className="text-gray-700 font-mono">{r.rule}</span>
+            <button onClick={() => remove(r.id)} className="text-gray-300 hover:text-red-400 ml-3">✕</button>
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }

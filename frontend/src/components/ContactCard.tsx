@@ -8,16 +8,27 @@ interface Props {
   onSearch?: (sender: string) => void
 }
 
+interface Relationship {
+  total_received: number; total_sent_to: number;
+  last_received: string | null; last_sent_to: string | null;
+  unreplied_count: number; avg_response_hours: number | null;
+  ai_summary: string | null;
+}
+
 export function ContactCard({ sender, onClose, onSearch }: Props) {
   const [stats, setStats] = useState<SenderStats | null>(null)
+  const [rel, setRel] = useState<Relationship | null>(null)
   const [loading, setLoading] = useState(true)
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    api.getSenderStats(sender)
-      .then(setStats)
-      .catch(() => setStats(null))
-      .finally(() => setLoading(false))
+    Promise.all([
+      api.getSenderStats(sender).catch(() => null),
+      api.getContactRelationship(sender).catch(() => null),
+    ]).then(([s, r]) => {
+      setStats(s)
+      setRel(r)
+    }).finally(() => setLoading(false))
   }, [sender])
 
   useEffect(() => {
@@ -67,6 +78,32 @@ export function ContactCard({ sender, onClose, onSearch }: Props) {
               <p className="text-[10px] text-gray-400">last</p>
             </div>
           </div>
+
+          {/* Relationship intelligence */}
+          {rel && (
+            <div className="bg-blue-50 rounded-lg p-2.5 space-y-1.5">
+              {rel.ai_summary && (
+                <p className="text-xs text-gray-700 leading-relaxed">{rel.ai_summary}</p>
+              )}
+              <div className="flex flex-wrap gap-2 mt-1">
+                {rel.unreplied_count > 0 && (
+                  <span className="text-[10px] bg-amber-100 text-amber-700 rounded-full px-2 py-0.5 font-medium">
+                    {rel.unreplied_count} unreplied
+                  </span>
+                )}
+                {rel.avg_response_hours != null && (
+                  <span className="text-[10px] bg-gray-100 text-gray-600 rounded-full px-2 py-0.5">
+                    avg reply {rel.avg_response_hours}h
+                  </span>
+                )}
+                {rel.last_sent_to && (
+                  <span className="text-[10px] bg-gray-100 text-gray-600 rounded-full px-2 py-0.5">
+                    you sent {rel.last_sent_to}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
 
           {stats.recent_subjects.length > 0 && (
             <div>

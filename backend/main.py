@@ -34,6 +34,7 @@ from routers import email_send as email_send_router
 from routers import update as update_router
 from routers import dashboard as dashboard_router
 from routers import triage as triage_router
+from routers import triage_rules as triage_rules_router
 from services.intelligence_service import IntelligenceService
 from routers.config import get_effective_api_key, load_app_config
 from services.ai_client import AIClient
@@ -540,6 +541,7 @@ app.include_router(email_send_router.router)
 app.include_router(update_router.router)
 app.include_router(dashboard_router.router)
 app.include_router(triage_router.router)
+app.include_router(triage_rules_router.router)
 
 
 @app.get("/health")

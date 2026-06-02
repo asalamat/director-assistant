@@ -127,6 +127,25 @@ class EmailExtrasMixin:
             cur = conn.execute("DELETE FROM follow_ups WHERE id = ?", (fid,))
         return cur.rowcount > 0
 
+    # ── Triage Rules ──────────────────────────────────────────────────────────
+
+    def list_triage_rules(self) -> list[dict]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT id, rule, created_at FROM triage_rules ORDER BY id"
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def add_triage_rule(self, rule: str) -> int:
+        with self._conn() as conn:
+            cur = conn.execute("INSERT INTO triage_rules (rule) VALUES (?)", (rule.strip(),))
+        return cur.lastrowid
+
+    def delete_triage_rule(self, rule_id: int) -> bool:
+        with self._conn() as conn:
+            cur = conn.execute("DELETE FROM triage_rules WHERE id = ?", (rule_id,))
+        return cur.rowcount > 0
+
     # ── Snooze ────────────────────────────────────────────────────────────────
 
     def snooze_email(self, email_id: str, wake_date: str) -> None:
@@ -235,6 +254,71 @@ class EmailExtrasMixin:
             "first_contact": row["first_contact"],
             "last_contact": row["last_contact"],
             "recent_subjects": [r["subject"] for r in subjects],
+        }
+
+    def contact_relationship(self, sender: str) -> dict:
+        """Rich relationship stats: reply rate, avg response time, unreplied count."""
+        sender_lower = sender.lower()
+        with self._conn() as conn:
+            # Emails received from this sender
+            received = conn.execute(
+                """SELECT id, subject, sender, date, thread_id
+                   FROM emails WHERE LOWER(sender) = ?
+                   ORDER BY date DESC LIMIT 100""",
+                (sender_lower,),
+            ).fetchall()
+
+            # Emails you sent to this sender (their address in recipients)
+            sent_to = conn.execute(
+                """SELECT id, subject, date, recipients, thread_id
+                   FROM emails WHERE LOWER(folder) LIKE '%sent%'
+                   AND LOWER(recipients) LIKE ?
+                   ORDER BY date DESC LIMIT 100""",
+                (f"%{sender_lower}%",),
+            ).fetchall()
+
+            # Last email you sent them
+            last_sent_row = sent_to[0] if sent_to else None
+
+            # Unreplied: received emails whose thread has no outbound reply
+            sent_thread_ids = {r["thread_id"] for r in sent_to if r["thread_id"]}
+            unreplied = [
+                r for r in received
+                if r["thread_id"] and r["thread_id"] not in sent_thread_ids
+                or not r["thread_id"]
+            ]
+
+            # Average response time: for threads where you replied, measure gap
+            response_times = []
+            for recv in received[:30]:
+                if not recv["thread_id"]:
+                    continue
+                reply = conn.execute(
+                    """SELECT date FROM emails
+                       WHERE thread_id = ? AND LOWER(folder) LIKE '%sent%'
+                       AND date > ? LIMIT 1""",
+                    (recv["thread_id"], recv["date"]),
+                ).fetchone()
+                if reply and recv["date"] and reply["date"]:
+                    try:
+                        from datetime import datetime, timezone
+                        t1 = datetime.fromisoformat(recv["date"].replace("Z", "+00:00"))
+                        t2 = datetime.fromisoformat(reply["date"].replace("Z", "+00:00"))
+                        delta = (t2 - t1).total_seconds() / 3600  # hours
+                        if 0 < delta < 720:  # ignore > 30 days
+                            response_times.append(delta)
+                    except Exception:
+                        pass
+
+        avg_response_h = round(sum(response_times) / len(response_times), 1) if response_times else None
+        return {
+            "total_received": len(received),
+            "total_sent_to": len(sent_to),
+            "last_received": received[0]["date"][:10] if received else None,
+            "last_sent_to": last_sent_row["date"][:10] if last_sent_row else None,
+            "unreplied_count": len(unreplied),
+            "avg_response_hours": avg_response_h,
+            "recent_subjects": [r["subject"] for r in received[:5]],
         }
 
     def recent_emails_for_digest(self, hours: int = 24) -> list:

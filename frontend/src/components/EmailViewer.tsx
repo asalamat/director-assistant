@@ -39,6 +39,7 @@ export function EmailViewer({ email, loading, onAnalyze, analyzing, onDelete, on
   // Quick replies
   const [quickReplies, setQuickReplies] = useState<QuickReplies | null>(null)
   const [loadingReplies, setLoadingReplies] = useState(false)
+  const [loadingSmartDraft, setLoadingSmartDraft] = useState(false)
   // Unsubscribe
   const [unsubUrl, setUnsubUrl] = useState<string | null | undefined>(undefined)
   // Create event
@@ -96,6 +97,19 @@ export function EmailViewer({ email, loading, onAnalyze, analyzing, onDelete, on
       setQuickReplies(r)
     } catch { setQuickReplies({ short: 'Failed to generate', detailed: '', formal: '' }) }
     finally { setLoadingReplies(false) }
+  }
+
+  const handleSmartDraft = async () => {
+    if (!email || loadingSmartDraft) return
+    setLoadingSmartDraft(true)
+    try {
+      const r = await api.getSmartDraft(email.id)
+      setReplyTo(r.to)
+      setReplySubject(r.subject)
+      setReplyBody(r.draft)
+      setShowCompose(true)
+    } catch { /* silently fail */ }
+    finally { setLoadingSmartDraft(false) }
   }
 
   const handleCreateEvent = async () => {
@@ -393,17 +407,26 @@ export function EmailViewer({ email, loading, onAnalyze, analyzing, onDelete, on
         )}
       </div>
 
-      {/* Quick Replies */}
+      {/* Quick Replies + Smart Draft */}
       <div className="px-6 pb-3 flex-shrink-0 border-t border-gray-100">
-        {!quickReplies && (
+        <div className="flex gap-3 mt-3">
+          {!quickReplies && (
+            <button
+              onClick={handleLoadReplies}
+              disabled={loadingReplies}
+              className="text-xs text-accent hover:underline flex items-center gap-1 disabled:opacity-50"
+            >
+              {loadingReplies ? <><span className="animate-spin inline-block">⟳</span> Generating…</> : '✦ Quick replies'}
+            </button>
+          )}
           <button
-            onClick={handleLoadReplies}
-            disabled={loadingReplies}
-            className="mt-3 text-xs text-accent hover:underline flex items-center gap-1 disabled:opacity-50"
+            onClick={handleSmartDraft}
+            disabled={loadingSmartDraft}
+            className="text-xs text-purple-600 hover:underline flex items-center gap-1 disabled:opacity-50"
           >
-            {loadingReplies ? <><span className="animate-spin inline-block">⟳</span> Generating replies…</> : '✦ Generate quick replies'}
+            {loadingSmartDraft ? <><span className="animate-spin inline-block">⟳</span> Drafting…</> : '✎ Smart Draft'}
           </button>
-        )}
+        </div>
         {quickReplies && (
           <div className="mt-3 space-y-1">
             <p className="text-xs text-gray-400 mb-1.5">Quick replies — click to use:</p>

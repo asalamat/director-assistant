@@ -386,6 +386,32 @@ export const api = {
     return request(`/emails/${encodeURIComponent(emailId)}/quick-replies`, { method: 'POST' })
   },
 
+  // Smart draft composer
+  getSmartDraft(emailId: string): Promise<{ draft: string; subject: string; to: string }> {
+    return request(`/emails/${encodeURIComponent(emailId)}/smart-draft`, { method: 'POST' })
+  },
+
+  // Triage rules
+  getTriageRules(): Promise<{ id: number; rule: string; created_at: string }[]> {
+    return request('/triage-rules')
+  },
+  addTriageRule(rule: string): Promise<{ id: number; rule: string }> {
+    return request('/triage-rules', { method: 'POST', body: JSON.stringify({ rule }) })
+  },
+  deleteTriageRule(id: number): Promise<{ ok: boolean }> {
+    return request(`/triage-rules/${id}`, { method: 'DELETE' })
+  },
+
+  // Contact relationship
+  getContactRelationship(sender: string): Promise<{
+    total_received: number; total_sent_to: number;
+    last_received: string | null; last_sent_to: string | null;
+    unreplied_count: number; avg_response_hours: number | null;
+    recent_subjects: string[]; ai_summary: string | null;
+  }> {
+    return request(`/sender/${encodeURIComponent(sender)}/relationship`)
+  },
+
   // Unsubscribe URL detection
   getUnsubscribeUrl(emailId: string): Promise<{ url: string | null }> {
     return request(`/emails/${encodeURIComponent(emailId)}/unsubscribe-url`)

@@ -349,6 +349,100 @@ async def delete_email(request: Request, email_id: str):
         raise HTTPException(404, "Email not found")
 
 
+@router.post("/{email_id}/smart-draft")
+async def smart_draft(email_id: str, request: Request):
+    """Generate a complete, ready-to-send draft reply with full context awareness."""
+    cache: EmailCache = request.app.state.cache
+    rag: RAGEngine = request.app.state.rag
+    advisor = request.app.state.advisor
+
+    email = cache.get(email_id)
+    if not email:
+        raise HTTPException(404, "Email not found")
+
+    # Thread history for full conversation context
+    thread_history = []
+    if email.thread_id:
+        with cache._conn() as conn:
+            t_rows = conn.execute(
+                "SELECT subject, sender, date, body FROM emails "
+                "WHERE thread_id = ? AND id != ? ORDER BY date ASC LIMIT 5",
+                (email.thread_id, email_id),
+            ).fetchall()
+            thread_history = [
+                f"From: {r['sender']}  ({(r['date'] or '')[:10]})\n{(r['body'] or '')[:600]}"
+                for r in t_rows
+            ]
+
+    # Related documents for grounding
+    doc_query = f"{email.subject} {(email.body or '')[:300]}"
+    related_docs = [
+        f"[{d.get('source_type','doc')}] {d.get('subject','')}\n{d.get('text','')[:400]}"
+        for d in rag.semantic_search(doc_query, n=3)
+        if d.get("source_type") == "document"
+    ]
+
+    # User's recent sent emails for style matching
+    with cache._conn() as conn:
+        sent_rows = conn.execute(
+            """SELECT body FROM emails WHERE LOWER(folder) LIKE '%sent%'
+               ORDER BY date DESC LIMIT 5""",
+        ).fetchall()
+    style_examples = "\n---\n".join((r["body"] or "")[:300] for r in sent_rows if r["body"])
+
+    thread_ctx = "\n\n".join(thread_history) or "No prior messages."
+    doc_ctx    = "\n\n".join(related_docs) or "No related documents."
+    style_ctx  = style_examples or "No sent mail available for style matching."
+
+    prompt = f"""You are ghostwriting a complete email reply on behalf of the recipient.
+
+ORIGINAL EMAIL:
+From: {email.sender}
+Subject: {email.subject}
+Date: {email.date}
+
+{(email.body or '')[:3000]}
+
+THREAD HISTORY (earlier messages, oldest first):
+{thread_ctx}
+
+RELATED DOCUMENTS:
+{doc_ctx}
+
+STYLE REFERENCE (recent sent emails — match this tone and formality):
+{style_ctx}
+
+Write ONE complete, professional email reply. Include:
+- An appropriate greeting
+- A substantive body that addresses all points in the original email
+- A natural sign-off
+
+Match the language, tone, and formality of the conversation.
+Return ONLY the email body text — no subject line, no JSON, no markdown."""
+
+    ant = getattr(advisor.ai, "_anthropic", None)
+    model = "claude-haiku-4-5-20251001" if advisor.ai._budget_mode else "claude-sonnet-4-6"
+
+    if ant:
+        resp = await ant.messages.create(
+            model=model, max_tokens=1200,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        draft = resp.content[0].text.strip()
+    else:
+        resp = await advisor.ai.messages.create(
+            model=model, max_tokens=1200,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        draft = resp.content[0].text.strip()
+
+    subject = email.subject or ""
+    if not subject.lower().startswith("re:"):
+        subject = f"Re: {subject}"
+
+    return {"draft": draft, "subject": subject, "to": email.sender}
+
+
 @router.post("/{email_id}/quick-replies")
 async def quick_replies(email_id: str, request: Request):
     """Generate 3 AI reply options (short, detailed, formal) for an email."""
