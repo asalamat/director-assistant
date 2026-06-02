@@ -217,8 +217,8 @@ async def _do_poll_cycle(rag: RAGEngine, cache: EmailCache, app=None) -> tuple[i
                 if hasattr(p, '_mail'):
                     p._mail = None
                 providers_to_check.append((acc.id, p))
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[poll] skipping account {acc.id} ({acc.username}): failed to build provider: {e}")
     else:
         legacy = load_config()
         if legacy:

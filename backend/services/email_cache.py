@@ -5,11 +5,14 @@ Productivity tables, analytics, and account management live in email_extras.py.
 """
 
 import json
+import logging
 import re
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
 from typing import List, Optional
+
+logger = logging.getLogger(__name__)
 
 from models import EmailMessage, EmailSummary
 from services.email_extras import EmailExtrasMixin
@@ -425,7 +428,8 @@ class EmailCache(EmailExtrasMixin):
                     (safe, limit),
                 ).fetchall()
             return [self._row_to_summary(dict(r)) for r in rows]
-        except Exception:
+        except Exception as e:
+            logger.warning("[cache] fts_search failed: %s", e)
             return []
 
     def upsert_document_fts(self, doc_id: str, filename: str, file_type: str,
@@ -510,7 +514,8 @@ class EmailCache(EmailExtrasMixin):
                  "file_path": r[3], "modified_at": r[4], "snippet": (r[5] or "")}
                 for r in rows
             ]
-        except Exception:
+        except Exception as e:
+            logger.warning("[cache] search_documents failed: %s", e)
             return []
 
     def get_document_body(self, doc_id: str) -> str:
@@ -521,7 +526,8 @@ class EmailCache(EmailExtrasMixin):
                     "SELECT body FROM documents_fts_store WHERE doc_id = ?", (doc_id,)
                 ).fetchone()
                 return row[0] if row else ""
-        except Exception:
+        except Exception as e:
+            logger.warning("[cache] get_document_body failed: %s", e)
             return ""
 
     def count(self) -> int:

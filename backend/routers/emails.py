@@ -186,10 +186,14 @@ async def recommend(request: Request, email_id: str, folder: str = Query("INBOX"
     rec = await advisor.get_recommendation(email, similar, related_docs, thread_history)
     now2 = monotonic()
     _rec_cache[email_id] = (now2, rec)
-    # Prune entries that have expired so the dict doesn't grow unbounded
+    # Evict expired entries; also cap total size to prevent unbounded growth
     expired = [k for k, (ts, _) in _rec_cache.items() if now2 - ts >= _REC_COOLDOWN]
     for k in expired:
         _rec_cache.pop(k, None)
+    if len(_rec_cache) > 500:
+        oldest = sorted(_rec_cache, key=lambda k: _rec_cache[k][0])[:100]
+        for k in oldest:
+            _rec_cache.pop(k, None)
     return rec
 
 

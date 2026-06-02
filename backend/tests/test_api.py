@@ -378,3 +378,106 @@ def test_digest_schedule_time_validation(client, tmp_path, monkeypatch):
     # Valid HH:MM — should succeed
     r = client.post("/api/config", json={"digest_schedule_time": "08:00"})
     assert r.status_code == 200
+
+
+# ── waiting_reply unit tests ──────────────────────────────────────────────────
+
+def _make_cache_with_emails(emails_rows):
+    """Build a minimal in-memory EmailCache populated with the given rows."""
+    import sqlite3 as _sq
+    import tempfile
+    from contextlib import contextmanager
+    from services.email_cache import EmailCache
+
+    db_file = tempfile.mktemp(suffix=".db")
+
+    @contextmanager
+    def _conn():
+        conn = _sq.connect(db_file)
+        conn.row_factory = _sq.Row
+        try:
+            yield conn
+            conn.commit()
+        finally:
+            conn.close()
+
+    cache = EmailCache.__new__(EmailCache)
+    cache._conn = _conn
+
+    with _conn() as conn:
+        conn.execute("""CREATE TABLE IF NOT EXISTS emails (
+            id TEXT PRIMARY KEY, subject TEXT, sender TEXT, recipients TEXT,
+            date TEXT, body TEXT, thread_id TEXT, folder TEXT,
+            is_read INTEGER DEFAULT 0, account_id INTEGER DEFAULT 0, server_id TEXT
+        )""")
+        for row in emails_rows:
+            conn.execute(
+                "INSERT OR REPLACE INTO emails "
+                "(id, subject, sender, recipients, date, body, thread_id, folder) "
+                "VALUES (?,?,?,?,?,?,?,?)",
+                (row["id"], row.get("subject", ""), row.get("sender", ""),
+                 row.get("recipients", "[]"), row["date"], row.get("body", ""),
+                 row.get("thread_id"), row["folder"]),
+            )
+    return cache
+
+
+def test_waiting_reply_no_sent():
+    """No emails at all → empty result."""
+    from services.waiting_reply import get_waiting_replies
+    cache = _make_cache_with_emails([])
+    assert get_waiting_replies(cache, threshold_days=3) == []
+
+
+def test_waiting_reply_sent_with_thread_reply():
+    """Sent email with an inbox reply on the same thread_id → excluded."""
+    from services.waiting_reply import get_waiting_replies
+    from datetime import datetime, timedelta, timezone
+    old    = (datetime.now(timezone.utc) - timedelta(days=5)).strftime("%Y-%m-%dT%H:%M:%S")
+    newer  = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S")
+    cache = _make_cache_with_emails([
+        {"id": "s1", "subject": "Hello", "date": old,   "folder": "Sent",  "thread_id": "t1"},
+        {"id": "r1", "subject": "Re: Hello", "date": newer, "folder": "INBOX", "thread_id": "t1"},
+    ])
+    ids = [r["id"] for r in get_waiting_replies(cache, threshold_days=3)]
+    assert "s1" not in ids
+
+
+def test_waiting_reply_sent_no_reply():
+    """Sent email with no reply → appears in result with correct days_waiting."""
+    from services.waiting_reply import get_waiting_replies
+    from datetime import datetime, timedelta, timezone
+    old = (datetime.now(timezone.utc) - timedelta(days=5)).strftime("%Y-%m-%dT%H:%M:%S")
+    cache = _make_cache_with_emails([
+        {"id": "s2", "subject": "Budget proposal", "date": old, "folder": "Sent", "thread_id": None},
+    ])
+    result = get_waiting_replies(cache, threshold_days=3)
+    assert any(r["id"] == "s2" for r in result)
+    assert next(r for r in result if r["id"] == "s2")["days_waiting"] >= 4
+
+
+def test_waiting_reply_like_escaping():
+    """% and _ in subject are escaped so they don't act as LIKE wildcards."""
+    from services.waiting_reply import get_waiting_replies
+    from datetime import datetime, timedelta, timezone
+    old   = (datetime.now(timezone.utc) - timedelta(days=5)).strftime("%Y-%m-%dT%H:%M:%S")
+    newer = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S")
+    cache = _make_cache_with_emails([
+        {"id": "s3", "subject": "Q3 100% done", "date": old,   "folder": "Sent",  "thread_id": None},
+        # Different subject — "%" should not wildcard-match "X"
+        {"id": "i1", "subject": "Re: Q3 100X done", "date": newer, "folder": "INBOX", "thread_id": None},
+    ])
+    result = get_waiting_replies(cache, threshold_days=3)
+    assert any(r["id"] == "s3" for r in result)
+
+
+def test_waiting_reply_utc_cutoff():
+    """Recent sent emails (within threshold_days) are excluded."""
+    from services.waiting_reply import get_waiting_replies
+    from datetime import datetime, timedelta, timezone
+    recent = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S")
+    cache = _make_cache_with_emails([
+        {"id": "s4", "subject": "Recent", "date": recent, "folder": "Sent", "thread_id": None},
+    ])
+    result = get_waiting_replies(cache, threshold_days=3)
+    assert not any(r["id"] == "s4" for r in result)
