@@ -6,6 +6,7 @@ OAuth2 endpoints.
 
 from __future__ import annotations
 
+import html as _html
 import json
 import secrets
 import urllib.parse
@@ -45,13 +46,15 @@ def _redirect_uri(request: Request) -> str:
 
 def _callback_page(success: bool, username: str = "", message: str = "") -> str:
     """Self-closing HTML page that posts a message to the opener."""
+    safe_username = _html.escape(username)
+    safe_message = _html.escape(message)
     if success:
         data = json.dumps({"type": "oauth-complete", "username": username})
         body = f"""
 <div style="text-align:center;padding:60px;font-family:system-ui,sans-serif">
   <div style="font-size:48px">✓</div>
   <h2 style="color:#16a34a;margin:16px 0 8px">Signed in successfully</h2>
-  <p style="color:#6b7280">{username}</p>
+  <p style="color:#6b7280">{safe_username}</p>
   <p style="color:#9ca3af;font-size:13px;margin-top:24px">This window will close automatically…</p>
 </div>"""
     else:
@@ -60,7 +63,7 @@ def _callback_page(success: bool, username: str = "", message: str = "") -> str:
 <div style="text-align:center;padding:60px;font-family:system-ui,sans-serif">
   <div style="font-size:48px">✗</div>
   <h2 style="color:#dc2626;margin:16px 0 8px">Sign-in failed</h2>
-  <p style="color:#6b7280">{message}</p>
+  <p style="color:#6b7280">{safe_message}</p>
   <button onclick="window.close()" style="margin-top:24px;padding:8px 20px;border-radius:8px;
     border:1px solid #d1d5db;background:#f9fafb;cursor:pointer;font-size:14px">Close</button>
 </div>"""
@@ -70,7 +73,7 @@ def _callback_page(success: bool, username: str = "", message: str = "") -> str:
 <body style="margin:0;background:#f9fafb">{body}
 <script>
 var data = {data};
-try {{ window.opener && window.opener.postMessage(data, '*'); }} catch(e) {{}}
+try {{ window.opener && window.opener.postMessage(data, window.location.origin); }} catch(e) {{}}
 if (data.type === 'oauth-complete') {{ setTimeout(function(){{ window.close(); }}, 1200); }}
 </script></body></html>"""
 
@@ -292,7 +295,7 @@ async def poll_microsoft_oauth(flow_id: str, request: Request):
                 cache.store_account_token(acc.id, access_token, refresh_token=refresh_token)
                 break
 
-        return {"status": "completed", "access_token": access_token, "username": username}
+        return {"status": "completed", "username": username}
 
     error = data.get("error", "")
     if error in ("authorization_pending", "slow_down"):

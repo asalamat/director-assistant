@@ -30,7 +30,7 @@ def set_progress(p: IngestProgress):
 def _safe(account):
     """Return account dict without credentials."""
     d = account.model_dump()
-    for field in ("password", "client_secret"):
+    for field in ("password", "client_secret", "access_token", "refresh_token"):
         if d.get(field):
             d[field] = "••••••"
     return d

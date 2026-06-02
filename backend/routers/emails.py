@@ -430,4 +430,3 @@ async def create_calendar_event(email_id: str, req: CreateEventRequest, request:
         raise
     except Exception as e:
         raise HTTPException(500, str(e))
-    return {"deleted": email_id}

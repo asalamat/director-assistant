@@ -2,9 +2,10 @@
 
 import json
 import os
+import re
 from pathlib import Path
 from typing import Optional
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 APP_CONFIG_PATH = Path.home() / ".director-assistant" / "app-config.json"
@@ -24,6 +25,7 @@ def load_app_config() -> dict:
 def save_app_config(data: dict):
     APP_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
     APP_CONFIG_PATH.write_text(json.dumps(data, indent=2))
+    APP_CONFIG_PATH.chmod(0o600)
 
 
 def get_effective_api_key() -> str:
@@ -93,7 +95,10 @@ async def update_config(update: AppConfigUpdate, request: Request):
     if update.digest_schedule_enabled is not None:
         cfg["digest_schedule_enabled"] = update.digest_schedule_enabled
     if update.digest_schedule_time is not None:
-        cfg["digest_schedule_time"] = update.digest_schedule_time.strip()
+        t = update.digest_schedule_time.strip()
+        if not re.match(r"^\d{2}:\d{2}$", t):
+            raise HTTPException(400, "digest_schedule_time must be HH:MM (e.g. '08:00')")
+        cfg["digest_schedule_time"] = t
     if update.digest_schedule_email is not None:
         cfg["digest_schedule_email"] = update.digest_schedule_email.strip()
 

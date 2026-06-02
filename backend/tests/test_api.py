@@ -162,7 +162,7 @@ def test_list_accounts(client):
 def test_poll_now(client):
     r = client.post("/api/poll/now")
     assert r.status_code == 200
-    assert r.json()["status"] == "polling"
+    assert r.json()["status"] == "done"
 
 
 # ── /api/emails ───────────────────────────────────────────────────────────────

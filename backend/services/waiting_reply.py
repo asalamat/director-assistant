@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 
 def get_waiting_replies(cache, threshold_days: int = 3, limit: int = 20) -> list[dict]:
     """Return sent emails older than threshold_days with no detected reply."""
-    cutoff = (datetime.now() - timedelta(days=threshold_days)).isoformat()[:19]
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=threshold_days)).strftime("%Y-%m-%dT%H:%M:%S")
 
     with cache._conn() as conn:
         rows = conn.execute(
@@ -39,11 +39,13 @@ def get_waiting_replies(cache, threshold_days: int = 3, limit: int = 20) -> list
             # Fallback: check for "Re: <subject>" in inbox
             if not has_reply and em.get("subject"):
                 base = em["subject"].removeprefix("Re: ").removeprefix("RE: ").removeprefix("Fwd: ")[:70]
+                # Escape LIKE special chars so subject literals match exactly
+                escaped = base.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
                 reply = conn.execute(
                     """SELECT 1 FROM emails
-                       WHERE subject LIKE ? AND date > ?
+                       WHERE subject LIKE ? ESCAPE '\\' AND date > ?
                        AND LOWER(folder) NOT LIKE '%sent%' LIMIT 1""",
-                    (f"Re: {base}%", em["date"]),
+                    (f"Re: {escaped}%", em["date"]),
                 ).fetchone()
                 has_reply = reply is not None
 
