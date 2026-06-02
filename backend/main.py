@@ -49,6 +49,62 @@ _last_poll_new: int = 0
 _last_poll_error: str = ""
 _poll_lock: asyncio.Lock = asyncio.Lock()  # replaces _poll_running boolean; safe for asyncio concurrency
 
+_URGENT_KEYWORDS = frozenset({
+    "urgent", "asap", "deadline", "action required", "time-sensitive",
+    "immediately", "critical", "time sensitive", "respond by", "due today",
+    "overdue", "emergency", "important",
+})
+
+
+def _is_high_priority(email) -> bool:
+    return any(kw in (email.subject or "").lower() for kw in _URGENT_KEYWORDS)
+
+
+async def _auto_recommend(app, new_emails: list) -> None:
+    """Background: run the advisor on up to 3 high-priority new emails per poll cycle."""
+    from routers.config import get_effective_api_key
+    from routers.emails import _rec_cache, _REC_COOLDOWN
+    from time import monotonic
+
+    if not get_effective_api_key():
+        return
+
+    advisor = app.state.advisor
+    rag = app.state.rag
+    cache = app.state.cache
+
+    candidates = [e for e in new_emails if _is_high_priority(e)][:3]
+    for email in candidates:
+        if email.id in _rec_cache:
+            ts, _ = _rec_cache[email.id]
+            if monotonic() - ts < _REC_COOLDOWN:
+                continue
+        try:
+            similar = await rag.get_similar_emails(email, n=5)
+            doc_query = f"{email.subject} {(email.body or '')[:300]}"
+            related_docs = [r for r in rag.semantic_search(doc_query, n=3)
+                            if r.get("source_type") == "document"]
+            thread_history: list[dict] = []
+            if email.thread_id:
+                with cache._conn() as conn:
+                    t_rows = conn.execute(
+                        """SELECT subject, sender, date, body FROM emails
+                           WHERE thread_id = ? AND id != ?
+                           ORDER BY date ASC LIMIT 3""",
+                        (email.thread_id, email.id),
+                    ).fetchall()
+                    thread_history = [
+                        {"subject": r["subject"] or "", "sender": r["sender"] or "",
+                         "date": r["date"] or "", "text": (r["body"] or "")[:800]}
+                        for r in t_rows
+                    ]
+            rec = await advisor.get_recommendation(email, similar, related_docs, thread_history)
+            _rec_cache[email.id] = (monotonic(), rec)
+            print(f"[auto-rec] pre-cached recommendation: {email.subject!r}")
+        except Exception as e:
+            print(f"[auto-rec] skipped {email.id}: {e}")
+
+
 # Reuse provider instances across poll cycles so IMAP connections stay open.
 # Key 0 is reserved for the legacy single-account config.
 _provider_cache: dict[int, object] = {}
@@ -104,7 +160,7 @@ def _is_connection_error(exc: Exception) -> bool:
     return False
 
 
-async def _run_poll_cycle(rag: RAGEngine, cache: EmailCache) -> tuple[int, list[str]]:
+async def _run_poll_cycle(rag: RAGEngine, cache: EmailCache, app=None) -> tuple[int, list[str]]:
     """
     One complete poll cycle: detect deletions, fetch new emails for all accounts.
     Returns (new_count, error_list). Updates _last_poll_* globals on completion.
@@ -118,7 +174,7 @@ async def _run_poll_cycle(rag: RAGEngine, cache: EmailCache) -> tuple[int, list[
         return 0, []
     async with _poll_lock:
         try:
-            result = await asyncio.wait_for(_do_poll_cycle(rag, cache), timeout=200)
+            result = await asyncio.wait_for(_do_poll_cycle(rag, cache, app), timeout=200)
             return result
         except asyncio.TimeoutError:
             _last_poll_error = "Poll timed out after 200s"
@@ -132,7 +188,7 @@ async def _run_poll_cycle(rag: RAGEngine, cache: EmailCache) -> tuple[int, list[
             _last_poll_time = datetime.now(timezone.utc).isoformat(timespec="seconds") + "Z"
 
 
-async def _do_poll_cycle(rag: RAGEngine, cache: EmailCache) -> tuple[int, list[str]]:
+async def _do_poll_cycle(rag: RAGEngine, cache: EmailCache, app=None) -> tuple[int, list[str]]:
     global _last_poll_new, _last_poll_error
     from routers.connection import load_config
     from services.email_provider import build_provider, IMAPProvider
@@ -235,10 +291,12 @@ async def _do_poll_cycle(rag: RAGEngine, cache: EmailCache) -> tuple[int, list[s
             for em in buffer:
                 if rag.ingest_email(em):
                     known_ids.add(em.id)
+                    all_new_emails.append(em)
                     count += 1
         return count
 
     new_total = 0
+    all_new_emails: list = []   # collected across all folders for auto-recommendation
     errors: list[str] = []
     for account_id, provider in providers_to_check:
         acc_obj = next((a for a in all_accounts if a.id == account_id), None)
@@ -295,8 +353,9 @@ async def _do_poll_cycle(rag: RAGEngine, cache: EmailCache) -> tuple[int, list[s
     if new_total > 0:
         rag.flush_bm25()
         print(f"[poll] {new_total} new email(s) indexed")
+        if app is not None and all_new_emails:
+            asyncio.create_task(_auto_recommend(app, all_new_emails))
 
-    _last_poll_time = datetime.now(timezone.utc).isoformat(timespec="seconds") + "Z"
     _last_poll_new = new_total
     _last_poll_error = "; ".join(errors) if errors else ""
     return new_total, errors
@@ -370,14 +429,14 @@ async def _digest_scheduler(app: FastAPI):
             print(f"[digest-scheduler] error: {e}")
 
 
-async def _poll_new_emails(rag: RAGEngine, cache: EmailCache):
+async def _poll_new_emails(rag: RAGEngine, cache: EmailCache, app=None):
     """Background loop: poll on a configurable interval, read from config each cycle."""
     global _last_poll_error
     await asyncio.sleep(20)   # let startup settle
     while True:
         interval = load_app_config().get("poll_interval_seconds", NEW_EMAIL_POLL_SECONDS)
         try:
-            await _run_poll_cycle(rag, cache)
+            await _run_poll_cycle(rag, cache, app)
         except Exception as e:
             _last_poll_error = str(e)
             print(f"[poll error] {e}")
@@ -394,7 +453,7 @@ async def _restart_poll(app: FastAPI):
         except asyncio.CancelledError:
             pass
     app.state.poll_task = asyncio.create_task(
-        _poll_new_emails(app.state.rag, app.state.cache)
+        _poll_new_emails(app.state.rag, app.state.cache, app)
     )
 
 
@@ -415,13 +474,13 @@ async def lifespan(app: FastAPI):
                       budget_mode=budget_mode)
     app.state.cache = EmailCache()
     app.state.rag = RAGEngine(client, app.state.cache)
-    app.state.advisor = AIAdvisor(client)
+    app.state.advisor = AIAdvisor(client, rag=app.state.rag)
     app.state.digest = DigestService(client)
     app.state.classifier = ClassifierService(client)
     app.state.intelligence = IntelligenceService(client, app.state.cache, app.state.rag)
 
     app.state.poll_task = asyncio.create_task(
-        _poll_new_emails(app.state.rag, app.state.cache)
+        _poll_new_emails(app.state.rag, app.state.cache, app)
     )
     app.state.digest_task = asyncio.create_task(_digest_scheduler(app))
     app.state.restart_poll = lambda: asyncio.create_task(_restart_poll(app))
