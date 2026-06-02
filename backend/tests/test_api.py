@@ -21,8 +21,7 @@ def client():
     mock_chroma.get_or_create_collection.return_value.query.return_value = {
         "ids": [[]], "documents": [[]], "metadatas": [[]], "distances": [[]]
     }
-    with patch("chromadb.PersistentClient", return_value=mock_chroma), \
-         patch("services.rag_engine.SentenceTransformerEmbeddingFunction"):
+    with patch("chromadb.PersistentClient", return_value=mock_chroma):
         from main import app
         with TestClient(app) as c:
             yield c
@@ -115,9 +114,9 @@ def test_full_health_no_imap(client):
     assert d["backend"]["status"] == "ok"
     assert "rag" in d and "database" in d and "ai" in d
     assert "anthropic" in d["ai"] and "openai" in d["ai"]
-    # With no WiFi check, accounts should show not_tested
+    # With no WiFi check, accounts should not have been actively tested
     for acc in d["accounts"]:
-        assert acc["imap_status"] == "not_tested"
+        assert acc["imap_status"] in ("not_tested", "oauth")
 
 
 def test_full_health_imap_mocked(client):
@@ -126,7 +125,8 @@ def test_full_health_imap_mocked(client):
     assert r.status_code == 200
     d = r.json()
     for acc in d["accounts"]:
-        assert acc["imap_status"] == "ok"
+        # OAuth accounts don't go through _imap_ping; IMAP accounts get "ok"
+        assert acc["imap_status"] in ("ok", "oauth")
 
 
 def test_full_health_imap_offline(client):
@@ -151,8 +151,7 @@ def test_list_accounts(client):
     assert r.status_code == 200
     assert isinstance(r.json(), list)
     for acc in r.json():
-        # Passwords must always be masked
-        assert acc.get("password") != acc.get("raw_password")
+        # Password must be masked if present (OAuth accounts may have no password)
         if acc.get("password"):
             assert acc["password"] == "••••••"
 
@@ -330,3 +329,52 @@ def test_imap_ping_invalid_creds():
 
     assert result != "ok"
     assert "auth" in result.lower() or "failed" in result.lower()
+
+
+# ── OAuth callback tests ──────────────────────────────────────────────────────
+
+def test_microsoft_callback_invalid_state(client):
+    """Unknown state → HTML error page, not a 500."""
+    r = client.get(
+        "/api/oauth/microsoft/callback",
+        params={"code": "any-code", "state": "nonexistent-state-xyz"},
+    )
+    assert r.status_code == 200
+    assert "text/html" in r.headers.get("content-type", "")
+    assert "oauth-error" in r.text or "failed" in r.text.lower() or "expired" in r.text.lower()
+
+
+def test_microsoft_callback_missing_code(client):
+    """No code param → HTML error page."""
+    r = client.get(
+        "/api/oauth/microsoft/callback",
+        params={"state": "some-state"},
+    )
+    assert r.status_code == 200
+    assert "text/html" in r.headers.get("content-type", "")
+    assert "oauth-error" in r.text or "failed" in r.text.lower()
+
+
+def test_accounts_no_plaintext_tokens(client):
+    """GET /api/accounts must never expose access_token or refresh_token in plaintext."""
+    r = client.get("/api/accounts")
+    assert r.status_code == 200
+    for acc in r.json():
+        raw_at = acc.get("access_token") or ""
+        raw_rt = acc.get("refresh_token") or ""
+        if raw_at:
+            assert raw_at == "••••••", f"access_token not masked: {raw_at!r}"
+        if raw_rt:
+            assert raw_rt == "••••••", f"refresh_token not masked: {raw_rt!r}"
+
+
+def test_digest_schedule_time_validation(client, tmp_path, monkeypatch):
+    """digest_schedule_time must be HH:MM — malformed values return 400."""
+    cfg_file = tmp_path / "app-config.json"
+    monkeypatch.setattr("routers.config.APP_CONFIG_PATH", cfg_file)
+    # Single-digit hour — invalid
+    r = client.post("/api/config", json={"digest_schedule_time": "8:00"})
+    assert r.status_code == 400
+    # Valid HH:MM — should succeed
+    r = client.post("/api/config", json={"digest_schedule_time": "08:00"})
+    assert r.status_code == 200

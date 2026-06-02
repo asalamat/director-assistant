@@ -47,7 +47,7 @@ POLL_SINCE_DAYS = 7
 _last_poll_time: str = ""
 _last_poll_new: int = 0
 _last_poll_error: str = ""
-_poll_running: bool = False   # prevent concurrent poll cycles from racing on shared provider state
+_poll_lock: asyncio.Lock = asyncio.Lock()  # replaces _poll_running boolean; safe for asyncio concurrency
 
 # Reuse provider instances across poll cycles so IMAP connections stay open.
 # Key 0 is reserved for the legacy single-account config.
@@ -109,32 +109,31 @@ async def _run_poll_cycle(rag: RAGEngine, cache: EmailCache) -> tuple[int, list[
     One complete poll cycle: detect deletions, fetch new emails for all accounts.
     Returns (new_count, error_list). Updates _last_poll_* globals on completion.
     """
-    global _poll_running, _last_poll_time, _last_poll_error
+    global _last_poll_time, _last_poll_error
     from routers.connection import _progress
 
     if _progress.status == "running":
         return 0, []
-    if _poll_running:
+    if _poll_lock.locked():
         return 0, []
-    _poll_running = True
-    try:
-        result = await asyncio.wait_for(_do_poll_cycle(rag, cache), timeout=200)
-        return result
-    except asyncio.TimeoutError:
-        _last_poll_error = "Poll timed out after 200s"
-        print("[poll] cycle timed out after 200s")
-        return 0, [_last_poll_error]
-    except Exception as e:
-        _last_poll_error = str(e)
-        return 0, [str(e)]
-    finally:
-        _poll_running = False
-        # Always stamp completion time so the frontend stops waiting
-        _last_poll_time = datetime.now(timezone.utc).isoformat(timespec="seconds") + "Z"
+    async with _poll_lock:
+        try:
+            result = await asyncio.wait_for(_do_poll_cycle(rag, cache), timeout=200)
+            return result
+        except asyncio.TimeoutError:
+            _last_poll_error = "Poll timed out after 200s"
+            print("[poll] cycle timed out after 200s")
+            return 0, [_last_poll_error]
+        except Exception as e:
+            _last_poll_error = str(e)
+            return 0, [str(e)]
+        finally:
+            # Always stamp completion time so the frontend stops waiting
+            _last_poll_time = datetime.now(timezone.utc).isoformat(timespec="seconds") + "Z"
 
 
 async def _do_poll_cycle(rag: RAGEngine, cache: EmailCache) -> tuple[int, list[str]]:
-    global _last_poll_time, _last_poll_new, _last_poll_error
+    global _last_poll_new, _last_poll_error
     from routers.connection import load_config
     from services.email_provider import build_provider, IMAPProvider
 
@@ -527,7 +526,7 @@ async def poll_now(request: Request):
     cache = request.app.state.cache
     # Wait for any running poll to finish (up to 15 s) before starting a fresh one.
     for _ in range(30):
-        if not _poll_running:
+        if not _poll_lock.locked():
             break
         await asyncio.sleep(0.5)
     new_count, _ = await _run_poll_cycle(rag, cache)

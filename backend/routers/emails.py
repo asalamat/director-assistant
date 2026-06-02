@@ -163,11 +163,27 @@ async def recommend(request: Request, email_id: str, folder: str = Query("INBOX"
     if rag.ingest_email(email):
         rag.flush_bm25()
 
+    # Fetch prior thread messages for context (oldest-first, capped at 3 × 800 chars)
+    thread_history: list[dict] = []
+    if email.thread_id:
+        with cache._conn() as conn:
+            t_rows = conn.execute(
+                """SELECT subject, sender, date, body FROM emails
+                   WHERE thread_id = ? AND id != ?
+                   ORDER BY date ASC LIMIT 3""",
+                (email.thread_id, email_id),
+            ).fetchall()
+            thread_history = [
+                {"subject": r["subject"] or "", "sender": r["sender"] or "",
+                 "date": r["date"] or "", "text": (r["body"] or "")[:800]}
+                for r in t_rows
+            ]
+
     similar = await rag.get_similar_emails(email, n=5)
     doc_query = f"{email.subject} {(email.body or '')[:300]}"
     related_docs = [r for r in rag.semantic_search(doc_query, n=3)
                     if r.get("source_type") == "document"]
-    rec = await advisor.get_recommendation(email, similar, related_docs)
+    rec = await advisor.get_recommendation(email, similar, related_docs, thread_history)
     now2 = monotonic()
     _rec_cache[email_id] = (now2, rec)
     # Prune entries that have expired so the dict doesn't grow unbounded

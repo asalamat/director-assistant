@@ -353,34 +353,51 @@ class EmailCache(EmailExtrasMixin):
         where += " AND id NOT IN (SELECT email_id FROM email_snooze WHERE wake_date > date('now'))"
 
         with self._conn() as conn:
-            rows = conn.execute(
-                f"""SELECT id, subject, sender, date, body, is_read, thread_id
+            # Step 1: get the paginated list of distinct thread IDs at the SQL level
+            tid_rows = conn.execute(
+                f"""SELECT COALESCE(thread_id, id) AS tid, MAX(date) AS max_date
                     FROM emails WHERE {where}
-                    ORDER BY date DESC""",
-                params,
+                    GROUP BY tid ORDER BY max_date DESC
+                    LIMIT ? OFFSET ?""",
+                params + [limit, skip],
             ).fetchall()
 
-        # Group by thread_id; emails with NULL thread_id each form their own thread
-        threads: dict[str, list[dict]] = {}
-        order: list[str] = []
-        for row in rows:
+            if not tid_rows:
+                return []
+
+            tids = [r["tid"] for r in tid_rows]
+            placeholders = ",".join("?" * len(tids))
+
+            # Step 2: fetch all messages for those threads (small set)
+            msg_rows = conn.execute(
+                f"""SELECT id, subject, sender, date, body, is_read, thread_id
+                    FROM emails
+                    WHERE COALESCE(thread_id, id) IN ({placeholders})
+                    ORDER BY date DESC""",
+                tids,
+            ).fetchall()
+
+        # Group in Python (bounded by limit × avg thread size — not full table)
+        threads: dict[str, list[dict]] = {r["tid"]: [] for r in tid_rows}
+        for row in msg_rows:
             d = dict(row)
             tid = d.get("thread_id") or d["id"]
-            if tid not in threads:
-                threads[tid] = []
-                order.append(tid)
-            threads[tid].append({
-                "id": d["id"],
-                "subject": d.get("subject") or "(no subject)",
-                "sender": d.get("sender") or "",
-                "date": d.get("date"),
-                "preview": ((d.get("body") or "")[:160]).replace("\n", " "),
-                "is_read": bool(d.get("is_read", 1)),
-            })
+            if tid in threads:
+                threads[tid].append({
+                    "id": d["id"],
+                    "subject": d.get("subject") or "(no subject)",
+                    "sender": d.get("sender") or "",
+                    "date": d.get("date"),
+                    "preview": ((d.get("body") or "")[:160]).replace("\n", " "),
+                    "is_read": bool(d.get("is_read", 1)),
+                })
 
         result = []
-        for tid in order[skip: skip + limit]:
-            msgs = threads[tid]
+        for r in tid_rows:
+            tid = r["tid"]
+            msgs = threads.get(tid, [])
+            if not msgs:
+                continue
             result.append({
                 "thread_id": tid,
                 "subject": msgs[0]["subject"],

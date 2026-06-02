@@ -8,7 +8,9 @@ class AIAdvisor:
         self.ai = client
 
     async def get_recommendation(
-        self, email: EmailMessage, similar: list[dict], related_docs: list[dict] | None = None
+        self, email: EmailMessage, similar: list[dict],
+        related_docs: list[dict] | None = None,
+        thread_history: list[dict] | None = None,
     ) -> AIRecommendation:
         context = "\n\n".join(
             f"--- Context Email {i+1} ---\n"
@@ -22,6 +24,11 @@ class AIAdvisor:
             for i, d in enumerate(related_docs or [])
         ) or "No related documents found."
 
+        thread_ctx = "\n\n".join(
+            f"--- Prior Message {i+1} ---\nFrom: {t['sender']}  Date: {t['date']}\n{t['text'][:800]}"
+            for i, t in enumerate(thread_history or [])
+        ) or "No prior messages in thread."
+
         body_preview = (email.body or "")[:4000]
 
         prompt = f"""You are an executive email advisor. Analyze this email and provide recommendations.
@@ -33,6 +40,9 @@ Date: {email.date}
 Subject: {email.subject}
 
 {body_preview}
+
+THREAD HISTORY (earlier messages in this conversation, oldest first):
+{thread_ctx}
 
 RELATED DOCUMENTS (contracts, reports, or files referenced by this email):
 {doc_context}
