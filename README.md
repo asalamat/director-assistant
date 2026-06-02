@@ -2,7 +2,7 @@
 
 An AI-powered email intelligence app that helps you understand your inbox, track commitments, and take action faster. Connects to Gmail, Microsoft 365, Yahoo, or any IMAP mailbox and uses Claude AI (or OpenAI) to surface what matters.
 
-**Current version: 3.4.0**
+**Current version: 3.5.0**
 
 ---
 
@@ -31,6 +31,7 @@ An AI-powered email intelligence app that helps you understand your inbox, track
 - **Dual AI with auto-fallback** — Anthropic Claude primary; automatically falls back to OpenAI on rate limits, quota exhaustion, or billing errors
 - **Smart Daily Triage** — "Focus" tab surfaces your top priority unread emails using 7 urgency signals; score badges and reason tags explain why each email was flagged
 - **Meeting Prep Brief** — click a calendar event in the dashboard and tap "Meeting Prep" to get an AI-generated agenda, talking points, and prior email context from all attendees
+- **Security hardening** — OAuth tokens masked in all API responses, XSS protection in OAuth callback, config file permissions locked, digest schedule time validated
 - **Agentic recommendations** — the AI advisor uses an iterative search loop: it reads the email, decides what additional context it needs (related contracts, prior conversations, referenced documents), retrieves it via tool calls, and synthesizes a final recommendation — up to 3 search iterations before producing its answer
 - **Auto-triggered recommendations** — when a new email arrives with high-urgency signals (urgent, deadline, asap, critical, etc.), a recommendation is generated and cached automatically in the background — no click required, result is instant when you open the email
 - **Thread-aware recommendations** — the advisor reads the full prior conversation thread before recommending, so it understands context from earlier messages in the chain
@@ -72,13 +73,13 @@ An AI-powered email intelligence app that helps you understand your inbox, track
 Go to the [Releases page](https://github.com/asalamat/director-assistant/releases) and download:
 
 ```
-DirectorAssistant-mac-3.4.0.zip
+DirectorAssistant-mac-3.5.0.zip
 ```
 
 ### 2. Extract and run the installer
 
 ```bash
-unzip DirectorAssistant-mac-3.4.0.zip
+unzip DirectorAssistant-mac-3.5.0.zip
 cd DirectorAssistant
 bash scripts/install-mac.sh
 ```
@@ -118,7 +119,7 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.director-assistant.a
 
 ## Windows — Install from ZIP
 
-Download `DirectorAssistant-win-3.4.0.zip` from [Releases](https://github.com/asalamat/director-assistant/releases), extract it, then double-click:
+Download `DirectorAssistant-win-3.5.0.zip` from [Releases](https://github.com/asalamat/director-assistant/releases), extract it, then double-click:
 
 ```
 DirectorAssistant\scripts\install-windows.bat
@@ -170,7 +171,7 @@ Open `http://localhost:8000`.
 bash scripts/package.sh
 ```
 
-Outputs `dist/DirectorAssistant-mac-3.4.0.zip` and `dist/DirectorAssistant-win-3.4.0.zip`.
+Outputs `dist/DirectorAssistant-mac-3.5.0.zip` and `dist/DirectorAssistant-win-3.5.0.zip`.
 
 ---
 
