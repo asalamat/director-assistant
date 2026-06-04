@@ -76,11 +76,11 @@ export const api = {
   },
 
   getEmail(id: string, folder = 'INBOX'): Promise<EmailMessage> {
-    return request(`/emails/${id}?folder=${folder}`)
+    return request(`/emails/${encodeURIComponent(id)}?folder=${folder}`)
   },
 
   deleteEmail(id: string): Promise<{ deleted: string }> {
-    return request(`/emails/${id}`, { method: 'DELETE' })
+    return request(`/emails/${encodeURIComponent(id)}`, { method: 'DELETE' })
   },
 
   importBySubject(subject: string): Promise<{ imported: { id: string; subject: string; sender: string; folder: string }[]; count: number; errors: string[] }> {
@@ -88,7 +88,7 @@ export const api = {
   },
 
   getRecommendation(id: string, folder = 'INBOX'): Promise<AIRecommendation> {
-    return request(`/emails/${id}/recommend?folder=${folder}`)
+    return request(`/emails/${encodeURIComponent(id)}/recommend?folder=${folder}`)
   },
 
   search(query: string, n = 10) {
@@ -122,10 +122,10 @@ export const api = {
 
   // Classify
   classifyEmail(id: string): Promise<{ email_id: string; category: string }> {
-    return request(`/emails/${id}/classify`, { method: 'POST' })
+    return request(`/emails/${encodeURIComponent(id)}/classify`, { method: 'POST' })
   },
   getEmailCategory(id: string): Promise<{ email_id: string; category: string | null }> {
-    return request(`/emails/${id}/category`)
+    return request(`/emails/${encodeURIComponent(id)}/category`)
   },
 
   // Digest
@@ -264,7 +264,10 @@ export const api = {
   getConfig(): Promise<AppConfig> {
     return request('/config')
   },
-  saveConfig(data: { anthropic_api_key?: string; openai_api_key?: string; ms_client_id?: string; google_client_id?: string; google_client_secret?: string; poll_interval_seconds?: number; budget_mode?: boolean; sync_window_days?: number; digest_schedule_enabled?: boolean; digest_schedule_time?: string; digest_schedule_email?: string }): Promise<{ status: string; has_api_key: boolean; has_openai_key: boolean }> {
+  updateConfig(data: { translation_language?: string; [key: string]: unknown }): Promise<unknown> {
+    return request('/config', { method: 'POST', body: JSON.stringify(data) })
+  },
+  saveConfig(data: { anthropic_api_key?: string; openai_api_key?: string; ms_client_id?: string; google_client_id?: string; google_client_secret?: string; poll_interval_seconds?: number; budget_mode?: boolean; sync_window_days?: number; digest_schedule_enabled?: boolean; digest_schedule_time?: string; digest_schedule_email?: string; translation_language?: string }): Promise<{ status: string; has_api_key: boolean; has_openai_key: boolean }> {
     return request('/config', { method: 'POST', body: JSON.stringify(data) })
   },
   testApiKey(key: string): Promise<{ valid: boolean; model?: string; error?: string }> {
@@ -391,6 +394,28 @@ export const api = {
     return request(`/emails/${encodeURIComponent(emailId)}/smart-draft`, { method: 'POST' })
   },
 
+  summarizeThread(emailId: string): Promise<{ summary: string; key_points: string[]; outcome: string; participants: string[]; message_count: number }> {
+    return request(`/emails/${encodeURIComponent(emailId)}/summarize-thread`, { method: 'POST' })
+  },
+
+  extractCommitments(emailId: string, draft: string): Promise<{ commitments: string[] }> {
+    return request(`/emails/${encodeURIComponent(emailId)}/extract-commitments`, {
+      method: 'POST', body: JSON.stringify({ draft })
+    })
+  },
+
+  addActionItem(emailId: string, emailSubject: string, items: string[]): Promise<{ saved: number }> {
+    return request('/actions/bulk', { method: 'POST', body: JSON.stringify({ email_id: emailId, email_subject: emailSubject, items }) })
+  },
+
+  detectSentCommitments(): Promise<{ detected: { email_id: string; subject: string; date: string; commitments: string[] }[]; scanned: number }> {
+    return request('/actions/detect-from-sent', { method: 'POST' })
+  },
+
+  topicCluster(query: string, limit?: number): Promise<{ query: string; results: any[]; total: number }> {
+    return request('/emails/topic-cluster', { method: 'POST', body: JSON.stringify({ query, limit: limit ?? 15 }) })
+  },
+
   // Triage rules
   getTriageRules(): Promise<{ id: number; rule: string; created_at: string }[]> {
     return request('/triage-rules')
@@ -400,6 +425,11 @@ export const api = {
   },
   deleteTriageRule(id: number): Promise<{ ok: boolean }> {
     return request(`/triage-rules/${id}`, { method: 'DELETE' })
+  },
+
+  // Proactive alerts
+  getProactiveAlerts(): Promise<{ alerts: { id: string; type: string; message: string; action: string | null; ts: string }[] }> {
+    return request('/proactive-alerts')
   },
 
   // Contact relationship
@@ -420,6 +450,10 @@ export const api = {
   // Calendar event creation
   createCalendarEvent(emailId: string, data: { title: string; start_datetime: string; end_datetime: string; attendees: string[]; description: string }): Promise<{ status: string; event_id: string; web_link: string }> {
     return request(`/emails/${encodeURIComponent(emailId)}/create-event`, { method: 'POST', body: JSON.stringify(data) })
+  },
+
+  getOneLineSummary(emailId: string): Promise<{ summary: string }> {
+    return request(`/emails/${encodeURIComponent(emailId)}/one-line`)
   },
 
   // Waiting for reply
@@ -457,6 +491,59 @@ export const api = {
 
   // Follow-up reminders (set remind_at on an email, '' to clear)
   setFollowupRemind(emailId: string, remindAt: string): Promise<{ email_id: string; followup_remind_at: string | null }> {
-    return request(`/emails/${emailId}/followup-remind`, { method: 'POST', body: JSON.stringify({ remind_at: remindAt }) })
+    return request(`/emails/${encodeURIComponent(emailId)}/followup-remind`, { method: 'POST', body: JSON.stringify({ remind_at: remindAt }) })
+  },
+
+  // Tone adjuster
+  adjustTone(text: string, tone: 'formal' | 'casual' | 'shorter' | 'friendlier' | 'direct'): Promise<{ result: string }> {
+    return request('/emails/adjust-tone', { method: 'POST', body: JSON.stringify({ text, tone }) })
+  },
+
+  // Email translation
+  translateEmail(emailId: string, targetLang?: string): Promise<{ translation: string; detected_lang: string }> {
+    return request(`/emails/${encodeURIComponent(emailId)}/translate`, {
+      method: 'POST', body: JSON.stringify({ target_lang: targetLang ?? 'English' })
+    })
+  },
+
+  // Priority sorted emails
+  getPrioritySorted(folder?: string, limit?: number): Promise<{ emails: any[] }> {
+    return request(`/triage/sorted?folder=${folder ?? 'INBOX'}&limit=${limit ?? 50}`)
+  },
+
+  // Bulk smart draft
+  bulkSmartDraft(emailIds: string[]): Promise<{ drafts: { email_id: string; subject: string; to: string; draft: string }[] }> {
+    return request('/emails/bulk-draft', { method: 'POST', body: JSON.stringify({ email_ids: emailIds }) })
+  },
+
+  // Sender monthly volume
+  getSenderMonthlyVolume(sender: string): Promise<{ months: { month: string; count: number }[] }> {
+    return request(`/sender/${encodeURIComponent(sender)}/monthly`)
+  },
+
+  // NL search
+  nlSearch(query: string): Promise<{ query: string; filters: Record<string, string>; results: any[] }> {
+    return request('/emails/nl-search', { method: 'POST', body: JSON.stringify({ query }) })
+  },
+
+  // Ask docs only
+  askDocsOnly(question: string): Promise<{ answer: string; sources: { filename: string; file_type: string }[] }> {
+    return request('/ask/docs', { method: 'POST', body: JSON.stringify({ question }) })
+  },
+
+  // Scheduled sends
+  scheduleSend(data: { account_id?: number; to_addr: string; subject: string; body: string; send_at: string }): Promise<{ id: number; send_at: string }> {
+    return request('/scheduled-sends', { method: 'POST', body: JSON.stringify(data) })
+  },
+  listScheduledSends(): Promise<{ id: number; account_id: number; to_addr: string; subject: string; body: string; send_at: string; sent: number; created_at: string }[]> {
+    return request('/scheduled-sends')
+  },
+  cancelScheduledSend(id: number): Promise<{ ok: boolean }> {
+    return request(`/scheduled-sends/${id}`, { method: 'DELETE' })
+  },
+
+  // Auto-label email
+  autoLabelEmail(emailId: string): Promise<{ email_id: string; label: string }> {
+    return request(`/emails/${encodeURIComponent(emailId)}/auto-label`, { method: 'POST' })
   },
 }

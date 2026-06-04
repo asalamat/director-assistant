@@ -106,6 +106,34 @@ async def unread_count(request: Request):
     return {"unread": cache.count_unread()}
 
 
+@router.get("/followup-due")
+async def list_followup_due(
+    request: Request,
+    as_of: Optional[str] = Query(None, description="ISO datetime cutoff (defaults to now)"),
+):
+    """Return emails with followup_remind_at <= now (or as_of if provided)."""
+    cache: EmailCache = request.app.state.cache
+    emails = cache.list_followup_due(as_of=as_of)
+    return {"emails": emails, "total": len(emails)}
+
+
+@router.get("/threads")
+async def list_threads(
+    request: Request,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+    folder: str = Query("INBOX"),
+    account_id: Optional[int] = Query(None),
+):
+    """Return emails grouped by thread_id (Message-ID / In-Reply-To chain)."""
+    cache: EmailCache = request.app.state.cache
+    loop = asyncio.get_event_loop()
+    threads = await loop.run_in_executor(
+        None, lambda: cache.list_threads(folder=folder, skip=skip, limit=limit, account_id=account_id)
+    )
+    return {"threads": threads, "total": len(threads)}
+
+
 @router.get("/{email_id}")
 async def get_email(request: Request, email_id: str, folder: str = Query("INBOX")):
     cache: EmailCache = request.app.state.cache
@@ -197,17 +225,6 @@ async def recommend(request: Request, email_id: str, folder: str = Query("INBOX"
     return rec
 
 
-@router.get("/followup-due")
-async def list_followup_due(
-    request: Request,
-    as_of: Optional[str] = Query(None, description="ISO datetime cutoff (defaults to now)"),
-):
-    """Return emails with followup_remind_at <= now (or as_of if provided)."""
-    cache: EmailCache = request.app.state.cache
-    emails = cache.list_followup_due(as_of=as_of)
-    return {"emails": emails, "total": len(emails)}
-
-
 @router.post("/{email_id}/followup-remind")
 async def set_followup_remind(request: Request, email_id: str, body: dict):
     """Set or clear followup_remind_at for an email. Pass remind_at='' to clear."""
@@ -218,23 +235,6 @@ async def set_followup_remind(request: Request, email_id: str, body: dict):
     if not found:
         raise HTTPException(404, "Email not found")
     return {"email_id": email_id, "followup_remind_at": remind_at or None}
-
-
-@router.get("/threads")
-async def list_threads(
-    request: Request,
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=200),
-    folder: str = Query("INBOX"),
-    account_id: Optional[int] = Query(None),
-):
-    """Return emails grouped by thread_id (Message-ID / In-Reply-To chain)."""
-    cache: EmailCache = request.app.state.cache
-    loop = asyncio.get_event_loop()
-    threads = await loop.run_in_executor(
-        None, lambda: cache.list_threads(folder=folder, skip=skip, limit=limit, account_id=account_id)
-    )
-    return {"threads": threads, "total": len(threads)}
 
 
 @router.post("/import-by-subject")
@@ -302,6 +302,102 @@ async def import_by_subject(request: Request, body: dict):
     return {"imported": imported, "count": len(imported), "errors": errors}
 
 
+@router.post("/topic-cluster")
+async def topic_cluster(request: Request):
+    """Find emails related to a topic query — semantic clustering."""
+    import json as _json
+    body_bytes = await request.body()
+    try:
+        data = _json.loads(body_bytes)
+        query = data.get("query", "")
+        limit = min(int(data.get("limit", 15)), 50)
+    except Exception:
+        raise HTTPException(400, "Invalid body")
+    if not query.strip():
+        raise HTTPException(400, "query required")
+    rag: RAGEngine = request.app.state.rag
+    results = rag.semantic_search(query, n=limit)
+    # Return only emails (not documents)
+    emails = [r for r in results if r.get("source_type") != "document"]
+    return {"query": query, "results": emails, "total": len(emails)}
+
+
+@router.post("/nl-search")
+async def nl_search(request: Request):
+    """Convert a natural-language query to a structured SQL search."""
+    import json as _json
+    body_bytes = await request.body()
+    try:
+        data = _json.loads(body_bytes)
+        query = data.get("query", "")
+        limit = min(int(data.get("limit", 20)), 50)
+    except Exception:
+        raise HTTPException(400, "Invalid body")
+    if not query.strip():
+        raise HTTPException(400, "query required")
+
+    cache: EmailCache = request.app.state.cache
+    rag: RAGEngine = request.app.state.rag
+    advisor = request.app.state.advisor
+
+    # Let Claude interpret the query and extract filters
+    prompt = (
+        f'Convert this email search query into structured filters.\n'
+        f'Query: "{query}"\n\n'
+        'Return JSON with any applicable filters:\n'
+        '{"keywords": ["word1","word2"], "from_sender": "name or email or null", '
+        '"date_from": "YYYY-MM-DD or null", "date_to": "YYYY-MM-DD or null", '
+        '"folder": "INBOX or Sent or null", "semantic_query": "refined search phrase"}'
+        '\nReturn ONLY JSON.'
+    )
+    ant = getattr(advisor.ai, "_anthropic", None)
+    try:
+        if ant:
+            resp = await ant.messages.create(model="claude-haiku-4-5-20251001", max_tokens=200,
+                messages=[{"role": "user", "content": prompt}])
+            text = resp.content[0].text.strip()
+        else:
+            resp = await advisor.ai.messages.create(model="claude-haiku-4-5-20251001", max_tokens=200,
+                messages=[{"role": "user", "content": prompt}])
+            text = resp.content[0].text.strip()
+        s, e = text.find("{"), text.rfind("}") + 1
+        filters = _json.loads(text[s:e]) if s >= 0 else {}
+    except Exception:
+        filters = {}
+
+    # Run semantic search with the refined query
+    semantic_q = filters.get("semantic_query") or query
+    results = [r for r in rag.semantic_search(semantic_q, n=limit) if r.get("source_type") != "document"]
+
+    # Also run SQL filter if sender or date filters were extracted
+    sql_results = []
+    from_sender = filters.get("from_sender")
+    date_from = filters.get("date_from")
+    if from_sender or date_from:
+        summaries, _ = cache.list_emails(
+            folder=filters.get("folder") or "INBOX",
+            skip=0, limit=limit,
+            sort_by="date", sort_order="desc",
+            from_date=date_from,
+        )
+        for s in summaries:
+            if from_sender and from_sender.lower() not in (s.sender or "").lower():
+                continue
+            sql_results.append({"email_id": s.id, "subject": s.subject,
+                                 "sender": s.sender, "date": s.date, "text": s.preview})
+
+    # Merge, deduplicate
+    seen = set()
+    merged = []
+    for r in results + sql_results:
+        eid = r.get("email_id") or r.get("id")
+        if eid and eid not in seen:
+            seen.add(eid)
+            merged.append(r)
+
+    return {"query": query, "filters": filters, "results": merged[:limit]}
+
+
 @router.post("/search")
 async def search(req: SearchRequest, request: Request):
     rag: RAGEngine = request.app.state.rag
@@ -330,6 +426,21 @@ async def classify_email(request: Request, email_id: str):
     )
     cache.set_category(email_id, cat)
     return {"email_id": email_id, "category": cat}
+
+
+@router.post("/{email_id}/auto-label")
+async def auto_label(email_id: str, request: Request):
+    """AI-classify this email and persist the label."""
+    cache: EmailCache = request.app.state.cache
+    classifier = request.app.state.classifier
+    email = cache.get(email_id)
+    if not email:
+        raise HTTPException(404, "Email not found")
+    cat = await classifier.classify(
+        email_id, email.subject or "", email.sender or "", (email.body or "")[:200]
+    )
+    cache.set_category(email_id, cat)
+    return {"email_id": email_id, "label": cat}
 
 
 @router.get("/{email_id}/category")
@@ -443,6 +554,108 @@ Return ONLY the email body text — no subject line, no JSON, no markdown."""
     return {"draft": draft, "subject": subject, "to": email.sender}
 
 
+@router.post("/{email_id}/summarize-thread")
+async def summarize_thread(email_id: str, request: Request):
+    """Summarize an entire email thread into key points."""
+    cache: EmailCache = request.app.state.cache
+    advisor = request.app.state.advisor
+
+    email = cache.get(email_id)
+    if not email:
+        raise HTTPException(404, "Email not found")
+
+    # Fetch all messages in the thread
+    thread_msgs = []
+    if email.thread_id:
+        with cache._conn() as conn:
+            rows = conn.execute(
+                "SELECT subject, sender, date, body FROM emails "
+                "WHERE thread_id = ? ORDER BY date ASC LIMIT 20",
+                (email.thread_id,),
+            ).fetchall()
+            thread_msgs = [dict(r) for r in rows]
+    if not thread_msgs:
+        thread_msgs = [{"subject": email.subject, "sender": email.sender,
+                        "date": email.date, "body": email.body}]
+
+    thread_text = "\n\n---\n\n".join(
+        f"From: {m['sender']}  ({(m['date'] or '')[:10]})\n{(m['body'] or '')[:600]}"
+        for m in thread_msgs
+    )
+
+    prompt = f"""Summarize this email thread concisely.
+
+THREAD ({len(thread_msgs)} messages):
+{thread_text}
+
+Return JSON with exactly these fields:
+{{"summary": "2-3 sentence overview of the thread", "key_points": ["bullet 1", "bullet 2", "bullet 3"], "outcome": "one sentence on current status or what is needed next", "participants": ["name/email list"]}}
+Return ONLY valid JSON."""
+
+    ant = getattr(advisor.ai, "_anthropic", None)
+    model = "claude-haiku-4-5-20251001"
+    import json as _json
+    try:
+        if ant:
+            resp = await ant.messages.create(model=model, max_tokens=600,
+                messages=[{"role": "user", "content": prompt}])
+            text = resp.content[0].text.strip()
+        else:
+            resp = await advisor.ai.messages.create(model=model, max_tokens=600,
+                messages=[{"role": "user", "content": prompt}])
+            text = resp.content[0].text.strip()
+        start, end = text.find("{"), text.rfind("}") + 1
+        data = _json.loads(text[start:end]) if start >= 0 else {}
+    except Exception:
+        data = {}
+    return {
+        "summary": data.get("summary", ""),
+        "key_points": data.get("key_points", []),
+        "outcome": data.get("outcome", ""),
+        "participants": data.get("participants", []),
+        "message_count": len(thread_msgs),
+    }
+
+
+@router.post("/{email_id}/extract-commitments")
+async def extract_commitments(email_id: str, request: Request):
+    """Extract commitments/promises from a draft reply text."""
+    import json as _json
+    advisor = request.app.state.advisor
+    body_bytes = await request.body()
+    try:
+        draft_text = _json.loads(body_bytes).get("draft", "")
+    except Exception:
+        raise HTTPException(400, "Invalid body")
+    if not draft_text.strip():
+        return {"commitments": []}
+
+    prompt = f"""Extract any commitments, promises, or action items from this email draft.
+Look for: "I will", "I'll", "Will send", "Let's", "I promise", "By [date]", "I'll follow up", scheduled meetings, deliverables.
+
+DRAFT:
+{draft_text[:2000]}
+
+Return JSON: {{"commitments": ["commitment 1", "commitment 2"]}}
+Return ONLY JSON. If no commitments found, return {{"commitments": []}}"""
+
+    ant = getattr(advisor.ai, "_anthropic", None)
+    try:
+        if ant:
+            resp = await ant.messages.create(model="claude-haiku-4-5-20251001", max_tokens=300,
+                messages=[{"role": "user", "content": prompt}])
+            text = resp.content[0].text.strip()
+        else:
+            resp = await advisor.ai.messages.create(model="claude-haiku-4-5-20251001", max_tokens=300,
+                messages=[{"role": "user", "content": prompt}])
+            text = resp.content[0].text.strip()
+        start, end = text.find("{"), text.rfind("}") + 1
+        data = _json.loads(text[start:end]) if start >= 0 else {}
+    except Exception:
+        data = {}
+    return {"commitments": data.get("commitments", [])}
+
+
 @router.post("/{email_id}/quick-replies")
 async def quick_replies(email_id: str, request: Request):
     """Generate 3 AI reply options (short, detailed, formal) for an email."""
@@ -488,6 +701,35 @@ async def get_unsubscribe_url(email_id: str, request: Request):
     from services.unsubscribe import extract_unsubscribe_url
     url = extract_unsubscribe_url(email)
     return {"url": url}
+
+
+@router.get("/{email_id}/one-line")
+async def one_line_summary(email_id: str, request: Request):
+    """Generate a single-sentence AI summary for inbox preview."""
+    cache: EmailCache = request.app.state.cache
+    advisor = request.app.state.advisor
+    email = cache.get(email_id)
+    if not email:
+        raise HTTPException(404, "Email not found")
+    body = (email.body or "")[:800]
+    prompt = (
+        f"Summarize this email in ONE sentence (max 15 words). Be specific, not generic.\n"
+        f"From: {email.sender}\nSubject: {email.subject}\n\n{body}\n\n"
+        "Return ONLY the one-sentence summary, no quotes, no punctuation at end."
+    )
+    ant = getattr(advisor.ai, "_anthropic", None)
+    try:
+        if ant:
+            resp = await ant.messages.create(model="claude-haiku-4-5-20251001", max_tokens=60,
+                messages=[{"role": "user", "content": prompt}])
+            summary = resp.content[0].text.strip().rstrip(".")
+        else:
+            resp = await advisor.ai.messages.create(model="claude-haiku-4-5-20251001", max_tokens=60,
+                messages=[{"role": "user", "content": prompt}])
+            summary = resp.content[0].text.strip().rstrip(".")
+    except Exception:
+        summary = ""
+    return {"summary": summary}
 
 
 class CreateEventRequest(BaseModel):
@@ -544,3 +786,118 @@ async def create_calendar_event(email_id: str, req: CreateEventRequest, request:
         raise
     except Exception as e:
         raise HTTPException(500, str(e))
+
+
+@router.post("/bulk-draft")
+async def bulk_draft(request: Request):
+    """Generate smart draft replies for multiple emails at once."""
+    import json as _json
+    body_bytes = await request.body()
+    try:
+        data = _json.loads(body_bytes)
+        email_ids = data.get("email_ids", [])[:10]
+    except Exception:
+        raise HTTPException(400, "Invalid body")
+    if not email_ids:
+        raise HTTPException(400, "email_ids required")
+    cache: EmailCache = request.app.state.cache
+    advisor = request.app.state.advisor
+    ant = getattr(advisor.ai, "_anthropic", None)
+    drafts = []
+    for email_id in email_ids:
+        email = cache.get(email_id)
+        if not email:
+            continue
+        body = (email.body or "")[:1500]
+        subject = f"Re: {email.subject}" if not (email.subject or "").lower().startswith("re:") else email.subject
+        prompt = (f"Write a brief professional reply to this email.\n"
+                  f"From: {email.sender}\nSubject: {email.subject}\n\n{body}\n\n"
+                  "Return ONLY the email body text, no subject line.")
+        try:
+            if ant:
+                resp = await ant.messages.create(model="claude-haiku-4-5-20251001", max_tokens=400,
+                    messages=[{"role": "user", "content": prompt}])
+                draft_text = resp.content[0].text.strip()
+            else:
+                resp = await advisor.ai.messages.create(model="claude-haiku-4-5-20251001", max_tokens=400,
+                    messages=[{"role": "user", "content": prompt}])
+                draft_text = resp.content[0].text.strip()
+            drafts.append({"email_id": email_id, "subject": subject or "", "to": email.sender or "", "draft": draft_text})
+        except Exception as e:
+            drafts.append({"email_id": email_id, "subject": subject or "", "to": email.sender or "", "draft": f"Error: {e}"})
+    return {"drafts": drafts}
+
+
+@router.post("/adjust-tone")
+async def adjust_tone(request: Request):
+    """Rewrite a text excerpt in a different tone."""
+    import json as _json
+    body_bytes = await request.body()
+    try:
+        data = _json.loads(body_bytes)
+        text = data.get("text", "")
+        tone = data.get("tone", "formal")
+    except Exception:
+        raise HTTPException(400, "Invalid body")
+    if not text.strip():
+        raise HTTPException(400, "text required")
+    TONE_PROMPTS = {
+        "formal": "Rewrite this text to be more formal and professional.",
+        "casual": "Rewrite this text to be more conversational and casual.",
+        "shorter": "Rewrite this text to be significantly shorter while keeping all key information.",
+        "friendlier": "Rewrite this text to be warmer and more friendly.",
+        "direct": "Rewrite this text to be more direct and assertive, cutting any unnecessary words.",
+    }
+    instruction = TONE_PROMPTS.get(tone, TONE_PROMPTS["formal"])
+    advisor = request.app.state.advisor
+    ant = getattr(advisor.ai, "_anthropic", None)
+    prompt = f"{instruction}\n\nOriginal:\n{text[:2000]}\n\nReturn ONLY the rewritten text, no preamble."
+    try:
+        if ant:
+            resp = await ant.messages.create(model="claude-haiku-4-5-20251001", max_tokens=800,
+                messages=[{"role": "user", "content": prompt}])
+            result = resp.content[0].text.strip()
+        else:
+            resp = await advisor.ai.messages.create(model="claude-haiku-4-5-20251001", max_tokens=800,
+                messages=[{"role": "user", "content": prompt}])
+            result = resp.content[0].text.strip()
+    except Exception as e:
+        raise HTTPException(500, str(e))
+    return {"result": result}
+
+
+@router.post("/{email_id}/translate")
+async def translate_email(email_id: str, request: Request):
+    """Translate an email body into the target language."""
+    import json as _json
+    body_bytes = await request.body()
+    try:
+        target_lang = _json.loads(body_bytes).get("target_lang", "English")
+    except Exception:
+        target_lang = "English"
+    cache: EmailCache = request.app.state.cache
+    advisor = request.app.state.advisor
+    email = cache.get(email_id)
+    if not email:
+        raise HTTPException(404, "Email not found")
+    body = (email.body or "")[:3000]
+    if not body.strip():
+        return {"translation": "", "detected_lang": "unknown"}
+    prompt = (f"Translate the following email to {target_lang}.\nFirst detect the source language.\n\n{body}\n\n"
+              f'Return JSON: {{"detected_lang": "source language", "translation": "translated text"}}')
+    ant = getattr(advisor.ai, "_anthropic", None)
+    import json as _json2
+    try:
+        if ant:
+            resp = await ant.messages.create(model="claude-haiku-4-5-20251001", max_tokens=1500,
+                messages=[{"role": "user", "content": prompt}])
+            text = resp.content[0].text.strip()
+        else:
+            resp = await advisor.ai.messages.create(model="claude-haiku-4-5-20251001", max_tokens=1500,
+                messages=[{"role": "user", "content": prompt}])
+            text = resp.content[0].text.strip()
+        s, e = text.find("{"), text.rfind("}") + 1
+        data = _json2.loads(text[s:e]) if s >= 0 else {}
+    except Exception:
+        data = {}
+    return {"translation": data.get("translation", ""), "detected_lang": data.get("detected_lang", "unknown")}
