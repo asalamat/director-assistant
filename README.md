@@ -2,7 +2,7 @@
 
 An AI-powered email intelligence app that helps you understand your inbox, track commitments, and take action faster. Connects to Gmail, Microsoft 365, Yahoo, or any IMAP mailbox and uses Claude AI (or OpenAI) to surface what matters.
 
-**Current version: 3.9.3**
+**Current version: 3.9.4**
 
 ---
 
@@ -43,7 +43,7 @@ An AI-powered email intelligence app that helps you understand your inbox, track
 - **Commitment tracker from drafts** — after Smart Draft writes a reply, detected commitments appear as pills you can add directly to the action board
 - **Tone adjuster** — rewrite any compose text in a different tone (formal / casual / shorter / friendlier / direct) with one click
 - **Email translation** — translate any email body inline with language detection; preferred language set in App Settings (20 languages supported)
-- **Unread filter** — click the "N unread" chip in the toolbar to instantly filter the inbox to unread emails only; click again to return to all mail
+- **Unread filter** — click the "N unread" chip in the toolbar to instantly filter the inbox to unread emails only across all folders (not just INBOX); click again to return to all mail
 - **"New" badge** — emails received in the last 4 hours that are still unread show a green "New" pill for instant visibility
 - **Read time estimator** — each inbox email shows a ~Nm read-time badge so you can triage by effort
 - **Smart priority sort** — "Priority" toggle in the inbox reorders all emails by AI urgency score, not just the top 7
@@ -102,13 +102,13 @@ An AI-powered email intelligence app that helps you understand your inbox, track
 Go to the [Releases page](https://github.com/asalamat/director-assistant/releases) and download:
 
 ```
-DirectorAssistant-mac-3.9.3.zip
+DirectorAssistant-mac-3.9.4.zip
 ```
 
 ### 2. Extract and run the installer
 
 ```bash
-unzip DirectorAssistant-mac-3.9.3.zip
+unzip DirectorAssistant-mac-3.9.4.zip
 cd DirectorAssistant
 bash scripts/install-mac.sh
 ```
@@ -148,7 +148,7 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.director-assistant.a
 
 ## Windows — Install from ZIP
 
-Download `DirectorAssistant-win-3.9.3.zip` from [Releases](https://github.com/asalamat/director-assistant/releases), extract it, then double-click:
+Download `DirectorAssistant-win-3.9.4.zip` from [Releases](https://github.com/asalamat/director-assistant/releases), extract it, then double-click:
 
 ```
 DirectorAssistant\scripts\install-windows.bat
@@ -200,7 +200,7 @@ Open `http://localhost:8000`.
 bash scripts/package.sh
 ```
 
-Outputs `dist/DirectorAssistant-mac-3.9.3.zip` and `dist/DirectorAssistant-win-3.9.3.zip`.
+Outputs `dist/DirectorAssistant-mac-3.9.4.zip` and `dist/DirectorAssistant-win-3.9.4.zip`.
 
 ---
 
