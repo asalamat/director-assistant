@@ -2,7 +2,7 @@
 
 An AI-powered email intelligence app that helps you understand your inbox, track commitments, and take action faster. Connects to Gmail, Microsoft 365, Yahoo, or any IMAP mailbox and uses Claude AI (or OpenAI) to surface what matters.
 
-**Current version: 3.7.0**
+**Current version: 3.8.0**
 
 ---
 
@@ -41,6 +41,12 @@ An AI-powered email intelligence app that helps you understand your inbox, track
 - **Smart notifications** — new email desktop notifications now show the sender name and a 1-sentence AI summary of the email content
 - **Email topic search** — new "Topic Search" tab in the Ask panel: type any topic and get semantically matched emails from your full history
 - **Commitment tracker from drafts** — after Smart Draft writes a reply, detected commitments appear as pills you can add directly to the action board
+- **Proactive alert engine** — background tasks run automatically and surface insights as toast notifications and desktop alerts:
+  - *Deadline detection* — scans new emails for deadlines and auto-creates follow-up reminders
+  - *Cluster alerts* — notifies when 3+ new emails share the same topic
+  - *Sentiment escalation* — alerts immediately when a VIP contact sends a frustrated or demanding email
+  - *Auto commitment scan* — every 30 min, scans sent mail for commitments and adds them to the action board
+  - *Relationship health* — every 2 hours, detects when important contacts are waiting too long for a reply
 - **Security hardening** — OAuth tokens masked in all API responses, XSS protection in OAuth callback, config file permissions locked, digest schedule time validated
 - **Agentic recommendations** — the AI advisor uses an iterative search loop: it reads the email, decides what additional context it needs (related contracts, prior conversations, referenced documents), retrieves it via tool calls, and synthesizes a final recommendation — up to 3 search iterations before producing its answer
 - **Auto-triggered recommendations** — when a new email arrives with high-urgency signals (urgent, deadline, asap, critical, etc.), a recommendation is generated and cached automatically in the background — no click required, result is instant when you open the email
@@ -83,13 +89,13 @@ An AI-powered email intelligence app that helps you understand your inbox, track
 Go to the [Releases page](https://github.com/asalamat/director-assistant/releases) and download:
 
 ```
-DirectorAssistant-mac-3.7.0.zip
+DirectorAssistant-mac-3.8.0.zip
 ```
 
 ### 2. Extract and run the installer
 
 ```bash
-unzip DirectorAssistant-mac-3.7.0.zip
+unzip DirectorAssistant-mac-3.8.0.zip
 cd DirectorAssistant
 bash scripts/install-mac.sh
 ```
@@ -129,7 +135,7 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.director-assistant.a
 
 ## Windows — Install from ZIP
 
-Download `DirectorAssistant-win-3.7.0.zip` from [Releases](https://github.com/asalamat/director-assistant/releases), extract it, then double-click:
+Download `DirectorAssistant-win-3.8.0.zip` from [Releases](https://github.com/asalamat/director-assistant/releases), extract it, then double-click:
 
 ```
 DirectorAssistant\scripts\install-windows.bat
@@ -181,7 +187,7 @@ Open `http://localhost:8000`.
 bash scripts/package.sh
 ```
 
-Outputs `dist/DirectorAssistant-mac-3.7.0.zip` and `dist/DirectorAssistant-win-3.7.0.zip`.
+Outputs `dist/DirectorAssistant-mac-3.8.0.zip` and `dist/DirectorAssistant-win-3.8.0.zip`.
 
 ---
 
