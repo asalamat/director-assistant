@@ -216,6 +216,18 @@ class EmailCache(EmailExtrasMixin, DocumentCacheMixin):
                     results_json TEXT DEFAULT '[]'
                 )
             """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS scheduled_sends (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    account_id INTEGER DEFAULT 0,
+                    to_addr TEXT NOT NULL,
+                    subject TEXT NOT NULL,
+                    body TEXT NOT NULL,
+                    send_at TEXT NOT NULL,
+                    sent INTEGER DEFAULT 0,
+                    created_at TEXT DEFAULT (datetime('now'))
+                )
+            """)
             for col_def in ["account_id INTEGER DEFAULT 0", "server_id TEXT",
                              "followup_remind_at TEXT"]:
                 try:
@@ -313,14 +325,19 @@ class EmailCache(EmailExtrasMixin, DocumentCacheMixin):
         sort_order: str = "desc",
         from_date: Optional[str] = None,
         account_id: Optional[int] = None,
+        only_unread: bool = False,
     ) -> tuple[list[EmailSummary], int]:
         col = self.SORT_COLS.get(sort_by, "date")
         direction = "ASC" if sort_order.lower() == "asc" else "DESC"
 
-        if account_id is not None:
+        if only_unread:
+            # Cross-folder unread query — ignores folder/account filter
+            where = "is_read = 0"
+            params: list = []
+        elif account_id is not None:
             # Show all folders for a specific account
             where = "account_id = ?"
-            params: list = [account_id]
+            params = [account_id]
         else:
             normalized = self._normalize_folder(folder)
             where = "folder = ?"   # data is normalized on insert — direct compare uses index

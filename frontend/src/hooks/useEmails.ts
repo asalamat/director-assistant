@@ -12,6 +12,7 @@ interface ListParams {
   sort_order?: SortOrder
   from_date?: string
   account_id?: number
+  only_unread?: boolean
 }
 
 export function useEmails(defaultFolder = 'INBOX') {

@@ -101,6 +101,7 @@ export default function App() {
   const [importing, setImporting] = useState(false)
   const [importMsg, setImportMsg] = useState('')
   const [unreadCount, setUnreadCount] = useState(0)
+  const [onlyUnread, setOnlyUnread] = useState(false)
   const [folders, setFolders] = useState<Record<string, number>>({})
   const [currentFolder, setCurrentFolder] = useState('INBOX')
   const [exiting, setExiting] = useState(false)
@@ -170,6 +171,27 @@ export default function App() {
     check()
     const id = setInterval(check, 60000)
     return () => clearInterval(id)
+  }, [])
+
+  // Proactive alerts — poll backend and show toasts for new ones
+  useEffect(() => {
+    const ICONS: Record<string, string> = {
+      commitment: '📋', deadline: '⏰', cluster: '📬', relationship: '👤', sentiment: '⚠️',
+    }
+    const check = () =>
+      api.getProactiveAlerts().then(({ alerts }) => {
+        alerts.forEach(a => {
+          const icon = ICONS[a.type] || '💡'
+          addToast(`${icon} ${a.message}`, 'info')
+          if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification('Director Assistant', { body: a.message })
+          }
+        })
+      }).catch(() => {})
+    // First check after 30s so startup noise settles
+    const init = setTimeout(check, 30000)
+    const id = setInterval(check, 90000)
+    return () => { clearTimeout(init); clearInterval(id) }
   }, [])
 
   // Feature 3: keyboard shortcuts (j/k navigate, a analyze, Esc deselect)
@@ -274,8 +296,25 @@ export default function App() {
       const msg = newCount > 0 ? `+${newCount} new email${newCount !== 1 ? 's' : ''}` : 'Up to date'
       setRefreshMsg(msg)
       if (newCount > 0) {
+        // Try to enrich the notification with a one-line AI summary of the latest email
+        let richNotifSent = false
+        try {
+          const latest = await api.listEmails({ limit: 1, sort_by: 'date', sort_order: 'desc' })
+          if (latest.emails?.[0]) {
+            const { summary } = await api.getOneLineSummary(latest.emails[0].id)
+            if (summary) {
+              const senderName = latest.emails[0].sender?.split('<')[0].trim() || 'Someone'
+              if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification('Director Assistant — New Email', {
+                  body: `${senderName}: ${summary}`
+                })
+              }
+              richNotifSent = true
+            }
+          }
+        } catch { /* fall through to generic notification */ }
         addToast(msg, 'success')
-        if ('Notification' in window && Notification.permission === 'granted') {
+        if (!richNotifSent && 'Notification' in window && Notification.permission === 'granted') {
           new Notification('Director Assistant', { body: msg })
         }
       }
@@ -321,7 +360,24 @@ export default function App() {
         <div className="flex items-center gap-3">
           <span className="text-sm font-semibold text-gray-800">Director Assistant</span>
           <span className="text-xs text-gray-400 hidden sm:inline">{total.toLocaleString()} emails</span>
-          {unreadCount > 0 && <span className="text-xs text-accent font-semibold">{unreadCount} unread</span>}
+          {unreadCount > 0 && (
+            <button
+              onClick={() => {
+                const next = !onlyUnread
+                setOnlyUnread(next)
+                setActiveTab('inbox')
+                refresh({ only_unread: next || undefined })
+              }}
+              className={`text-xs font-semibold px-2 py-0.5 rounded-full transition-colors ${
+                onlyUnread
+                  ? 'bg-accent text-white'
+                  : 'text-accent hover:bg-blue-50 border border-accent'
+              }`}
+              title={onlyUnread ? 'Showing unread only — click to show all' : 'Click to show unread only'}
+            >
+              {unreadCount} unread
+            </button>
+          )}
           {overdueCount > 0 && <span className="text-xs text-red-500 font-semibold">{overdueCount} overdue</span>}
           {refreshMsg && <span className="text-xs text-gray-400">{refreshMsg}</span>}
         </div>
@@ -486,12 +542,14 @@ export default function App() {
                 onSort={(by, order) => setSort(by, order)}
                 onFolderChange={(f) => {
                   setCurrentFolder(f)
-                  refresh({ folder: f, q: undefined })
+                  setOnlyUnread(false)
+                  refresh({ folder: f, q: undefined, only_unread: undefined })
                 }}
                 onBulkDelete={handleBulkDelete}
                 onBulkSnooze={handleBulkSnooze}
                 sortBy={currentParams.sort_by ?? 'date'}
                 sortOrder={currentParams.sort_order ?? 'desc'}
+                onlyUnread={onlyUnread}
               />
             </div>
 
