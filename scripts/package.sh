@@ -8,8 +8,8 @@
 
 set -e
 
-VERSION="2.9.3"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+VERSION="$(python3 -c "import json; print(json.load(open('$ROOT/version.json'))['version'])")"
 DIST="$ROOT/dist"
 TMP="$DIST/tmp"
 
