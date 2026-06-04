@@ -2,7 +2,7 @@
 
 An AI-powered email intelligence app that helps you understand your inbox, track commitments, and take action faster. Connects to Gmail, Microsoft 365, Yahoo, or any IMAP mailbox and uses Claude AI (or OpenAI) to surface what matters.
 
-**Current version: 3.8.0**
+**Current version: 3.9.0**
 
 ---
 
@@ -41,6 +41,17 @@ An AI-powered email intelligence app that helps you understand your inbox, track
 - **Smart notifications** — new email desktop notifications now show the sender name and a 1-sentence AI summary of the email content
 - **Email topic search** — new "Topic Search" tab in the Ask panel: type any topic and get semantically matched emails from your full history
 - **Commitment tracker from drafts** — after Smart Draft writes a reply, detected commitments appear as pills you can add directly to the action board
+- **Tone adjuster** — rewrite any compose text in a different tone (formal / casual / shorter / friendlier / direct) with one click
+- **Email translation** — translate any email body to English (or any language) inline with language detection
+- **Read time estimator** — each inbox email shows a ~Nm read-time badge so you can triage by effort
+- **Smart priority sort** — "Priority" toggle in the inbox reorders all emails by AI urgency score, not just the top 7
+- **Bulk draft generation** — select multiple emails and generate AI draft replies for all of them at once
+- **Per-sender email chart** — contact card shows a bar chart of monthly email volume over the last 6 months
+- **Export action items** — one-click copy of all pending action items as a formatted markdown checklist
+- **Natural-language email search** — "Smart Search" tab in Ask: describe what you're looking for in plain English, Claude extracts filters and searches
+- **Document Q&A** — "Documents" tab in Ask: ask questions answered from your uploaded documents with source citations
+- **Scheduled send** — compose now, schedule delivery for any future date/time
+- **Auto-labeling** — emails are automatically classified in the background every hour
 - **Proactive alert engine** — background tasks run automatically and surface insights as toast notifications and desktop alerts:
   - *Deadline detection* — scans new emails for deadlines and auto-creates follow-up reminders
   - *Cluster alerts* — notifies when 3+ new emails share the same topic
@@ -89,13 +100,13 @@ An AI-powered email intelligence app that helps you understand your inbox, track
 Go to the [Releases page](https://github.com/asalamat/director-assistant/releases) and download:
 
 ```
-DirectorAssistant-mac-3.8.0.zip
+DirectorAssistant-mac-3.9.0.zip
 ```
 
 ### 2. Extract and run the installer
 
 ```bash
-unzip DirectorAssistant-mac-3.8.0.zip
+unzip DirectorAssistant-mac-3.9.0.zip
 cd DirectorAssistant
 bash scripts/install-mac.sh
 ```
@@ -135,7 +146,7 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.director-assistant.a
 
 ## Windows — Install from ZIP
 
-Download `DirectorAssistant-win-3.8.0.zip` from [Releases](https://github.com/asalamat/director-assistant/releases), extract it, then double-click:
+Download `DirectorAssistant-win-3.9.0.zip` from [Releases](https://github.com/asalamat/director-assistant/releases), extract it, then double-click:
 
 ```
 DirectorAssistant\scripts\install-windows.bat
@@ -187,7 +198,7 @@ Open `http://localhost:8000`.
 bash scripts/package.sh
 ```
 
-Outputs `dist/DirectorAssistant-mac-3.8.0.zip` and `dist/DirectorAssistant-win-3.8.0.zip`.
+Outputs `dist/DirectorAssistant-mac-3.9.0.zip` and `dist/DirectorAssistant-win-3.9.0.zip`.
 
 ---
 
