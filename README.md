@@ -2,7 +2,7 @@
 
 An AI-powered email intelligence app that helps you understand your inbox, track commitments, and take action faster. Connects to Gmail, Microsoft 365, Yahoo, or any IMAP mailbox and uses Claude AI (or OpenAI) to surface what matters.
 
-**Current version: 3.9.0**
+**Current version: 3.9.1**
 
 ---
 
@@ -42,7 +42,7 @@ An AI-powered email intelligence app that helps you understand your inbox, track
 - **Email topic search** — new "Topic Search" tab in the Ask panel: type any topic and get semantically matched emails from your full history
 - **Commitment tracker from drafts** — after Smart Draft writes a reply, detected commitments appear as pills you can add directly to the action board
 - **Tone adjuster** — rewrite any compose text in a different tone (formal / casual / shorter / friendlier / direct) with one click
-- **Email translation** — translate any email body to English (or any language) inline with language detection
+- **Email translation** — translate any email body inline with language detection; preferred language set in App Settings (20 languages supported)
 - **Read time estimator** — each inbox email shows a ~Nm read-time badge so you can triage by effort
 - **Smart priority sort** — "Priority" toggle in the inbox reorders all emails by AI urgency score, not just the top 7
 - **Bulk draft generation** — select multiple emails and generate AI draft replies for all of them at once
