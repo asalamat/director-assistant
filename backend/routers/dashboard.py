@@ -192,6 +192,66 @@ def _projects_from_intelligence(intelligence) -> list[dict]:
         return []
 
 
+def _user_projects(cache) -> list[dict]:
+    """Named projects from the projects table (created by user)."""
+    try:
+        with _db_conn(cache) as conn:
+            rows = conn.execute(
+                """SELECT p.id, p.name, p.description, p.status, p.created_at,
+                          COUNT(pe.email_id) as email_count
+                   FROM projects p
+                   LEFT JOIN project_emails pe ON pe.project_id = p.id
+                   WHERE p.status != 'resolved'
+                   GROUP BY p.id ORDER BY p.created_at DESC"""
+            ).fetchall()
+        return [dict(r) for r in rows]
+    except Exception:
+        return []
+
+
+def _vip_contacts(cache) -> list[dict]:
+    """VIP contacts with basic stats."""
+    try:
+        with _db_conn(cache) as conn:
+            vips = conn.execute("SELECT * FROM vip_contacts ORDER BY name").fetchall()
+        result = []
+        for v in vips:
+            v = dict(v)
+            with _db_conn(cache) as conn:
+                stats = conn.execute(
+                    """SELECT COUNT(*) as total, MAX(date) as last_received,
+                              SUM(CASE WHEN is_read=0 THEN 1 ELSE 0 END) as unread
+                       FROM emails WHERE LOWER(sender) LIKE ?""",
+                    (f"%{v['email_addr'].lower()}%",)
+                ).fetchone()
+                sent = conn.execute(
+                    """SELECT MAX(date) as last_sent FROM emails
+                       WHERE LOWER(folder) LIKE '%sent%' AND LOWER(recipients) LIKE ?""",
+                    (f"%{v['email_addr'].lower()}%",)
+                ).fetchone()
+            v["emails_received"] = stats["total"] if stats else 0
+            v["last_received"] = (stats["last_received"] or "")[:10] if stats else ""
+            v["unread"] = stats["unread"] if stats else 0
+            v["last_sent_to"] = (sent["last_sent"] or "")[:10] if sent else ""
+            v["awaiting_reply"] = bool(
+                v["last_sent_to"] and v["last_received"] and
+                v["last_sent_to"] > v["last_received"]
+            )
+            result.append(v)
+        return result
+    except Exception:
+        return []
+
+
+def _chase_queue(cache, days: int = 3) -> list[dict]:
+    """Sent emails with no reply for more than `days` days."""
+    try:
+        from services.waiting_reply import get_waiting_replies
+        return get_waiting_replies(cache, days, 10)
+    except Exception:
+        return []
+
+
 # ── Endpoint ──────────────────────────────────────────────────────────────────
 
 @router.get("", response_class=HTMLResponse)
@@ -200,10 +260,11 @@ async def get_dashboard(request: Request):
     intelligence = request.app.state.intelligence
     loop = asyncio.get_event_loop()
 
-    # Run DB-bound local helpers and Graph API calls in parallel
+    # Run all data fetchers in parallel
     (
         unread_count, unread_emails, actions, follow_ups,
-        top_senders, email_volume, training, projects, graph
+        top_senders, email_volume, training, projects,
+        user_projects, vips, chase, graph
     ) = await asyncio.gather(
         loop.run_in_executor(None, _unread_count, cache),
         loop.run_in_executor(None, _unread_emails, cache),
@@ -213,6 +274,9 @@ async def get_dashboard(request: Request):
         loop.run_in_executor(None, _emails_by_day, cache),
         loop.run_in_executor(None, _training_emails, cache),
         loop.run_in_executor(None, _projects_from_intelligence, intelligence),
+        loop.run_in_executor(None, _user_projects, cache),
+        loop.run_in_executor(None, _vip_contacts, cache),
+        loop.run_in_executor(None, _chase_queue, cache),
         _fetch_graph_data(cache),
     )
 
@@ -228,6 +292,9 @@ async def get_dashboard(request: Request):
         "calendar_today": graph["calendar_today"],
         "week_calendar":  graph["week_calendar"],
         "projects":       projects,
+        "user_projects":  user_projects,
+        "vip_contacts":   vips,
+        "chase_queue":    chase,
         "onedrive":       graph["onedrive"],
         "teams":          [],
     }

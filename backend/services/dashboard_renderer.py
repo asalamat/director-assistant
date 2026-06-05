@@ -20,47 +20,68 @@ _CSS = """
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
      background:#0d1117;color:#e6edf3;font-size:14px;line-height:1.6}
 a{color:#79c0ff;text-decoration:none}a:hover{text-decoration:underline}
-h2{font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;
-   color:#8b949e;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid #21262d}
-.wrap{max-width:1280px;margin:0 auto;padding:20px 24px}
+h2{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;
+   color:#8b949e;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid #21262d;
+   display:flex;align-items:center;gap:8px}
+.wrap{max-width:1360px;margin:0 auto;padding:20px 24px}
 .hdr{display:flex;justify-content:space-between;align-items:flex-end;
      margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid #21262d}
 .hdr-left h1{font-size:22px;font-weight:700;color:#f0f6fc}
 .hdr-left .sub{color:#8b949e;font-size:13px;margin-top:3px}
 .hdr-right{text-align:right;font-size:12px;color:#6e7681}
 .hint{margin-top:4px;font-size:11px;color:#484f58}
-.kpi{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:20px}
-@media(max-width:900px){.kpi{grid-template-columns:repeat(3,1fr)}}
-.kpi-tile{background:#161b22;border:1px solid #21262d;border-radius:8px;
+/* KPI */
+.kpi{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin-bottom:20px}
+@media(max-width:1100px){.kpi{grid-template-columns:repeat(4,1fr)}}
+@media(max-width:700px){.kpi{grid-template-columns:repeat(2,1fr)}}
+.kpi-tile{background:#161b22;border:1px solid #21262d;border-radius:10px;
           padding:14px 16px;cursor:default;transition:border-color .15s}
 .kpi-tile:hover{border-color:#58a6ff}
-.kpi-tile .val{font-size:28px;font-weight:700;line-height:1}
-.kpi-tile .lbl{font-size:11px;color:#8b949e;margin-top:5px}
+.kpi-tile .val{font-size:30px;font-weight:800;line-height:1}
+.kpi-tile .lbl{font-size:11px;color:#8b949e;margin-top:5px;font-weight:500}
+.kpi-tile .sub-lbl{font-size:10px;color:#484f58;margin-top:2px}
 .red .val{color:#f85149}.yellow .val{color:#d29922}
 .green .val{color:#3fb950}.blue .val{color:#58a6ff}
-.purple .val{color:#bc8cff}.teal .val{color:#39d353}
-.urgent{background:#1a0d0d;border:1px solid #6e1a1a;border-radius:8px;
+.purple .val{color:#bc8cff}.teal .val{color:#39d353}.orange .val{color:#e8912d}
+/* Urgent */
+.urgent{background:#160d00;border:1px solid #5a3a00;border-radius:10px;
         padding:14px 18px;margin-bottom:20px}
-.urgent h2{color:#f85149;border-color:#6e1a1a}
+.urgent h2{color:#e8912d;border-color:#5a3a00}
 .urgent-items{display:flex;flex-wrap:wrap;gap:8px}
-.u-tag{background:#2d1111;border:1px solid #8b1a1a;border-radius:5px;
-       padding:4px 10px;font-size:12px;color:#ff7b72;cursor:pointer;transition:background .15s}
-.u-tag:hover{background:#3d1515}
+.u-tag{background:#1f1200;border:1px solid #6e4900;border-radius:6px;
+       padding:5px 12px;font-size:12px;color:#e8912d;cursor:pointer;transition:background .15s}
+.u-tag:hover{background:#2d1a00;border-color:#e8912d}
+/* Alert */
+.alert-row{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px}
+.alert-card{background:#1a0a1a;border:1px solid #5a1a5a;border-radius:10px;
+            padding:12px 16px;cursor:pointer;transition:border-color .15s;min-width:200px}
+.alert-card:hover{border-color:#bc8cff}
+.alert-card .a-label{font-size:11px;color:#bc8cff;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
+.alert-card .a-name{font-size:13px;font-weight:600;color:#e6edf3;margin-top:2px}
+.alert-card .a-meta{font-size:11px;color:#8b949e;margin-top:2px}
+.alert-dot{width:8px;height:8px;border-radius:50%;background:#bc8cff;display:inline-block;
+           margin-right:6px;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+/* Grid */
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
-@media(max-width:800px){.grid2{grid-template-columns:1fr}}
-.card{background:#161b22;border:1px solid #21262d;border-radius:8px;padding:16px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px}
+@media(max-width:900px){.grid2,.grid3{grid-template-columns:1fr}}
+.card{background:#161b22;border:1px solid #21262d;border-radius:10px;padding:16px}
+/* Lists */
 .item-list{list-style:none}
-.item-list li{padding:7px 0;border-bottom:1px solid #21262d;font-size:13px;
-              cursor:pointer;transition:background .12s;border-radius:4px;padding-left:4px}
+.item-list li{padding:8px 6px;border-bottom:1px solid #21262d;font-size:13px;
+              cursor:pointer;transition:all .12s;border-radius:6px}
 .item-list li:last-child{border:none}
-.item-list li:hover{background:#1c2128}
-.badge{display:inline-block;padding:1px 7px;border-radius:4px;font-size:11px;font-weight:600;margin-left:6px}
+.item-list li:hover{background:#1c2128;padding-left:10px}
+.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;margin-left:6px}
 .bdg-red{background:#2d1111;color:#ff7b72}.bdg-yellow{background:#2d2207;color:#d29922}
 .bdg-green{background:#0d2a0d;color:#3fb950}.bdg-blue{background:#0a1929;color:#58a6ff}
+.bdg-orange{background:#2d1900;color:#e8912d}.bdg-purple{background:#1a0d2d;color:#bc8cff}
 .meta{font-size:11px;color:#6e7681;margin-top:2px}
+/* Charts */
 .bar-chart{margin-top:6px}
 .bar-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
-.bar-lbl{width:72px;font-size:11px;color:#8b949e;text-align:right;flex-shrink:0;
+.bar-lbl{width:80px;font-size:11px;color:#8b949e;text-align:right;flex-shrink:0;
          overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bar-track{flex:1;background:#21262d;border-radius:3px;height:18px;overflow:hidden}
 .bar-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,#1f6feb,#58a6ff);transition:width .3s}
@@ -72,38 +93,68 @@ h2{font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;
 .donut-legend{flex:1}
 .legend-row{display:flex;align-items:center;gap:8px;margin-bottom:5px;font-size:12px}
 .legend-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
-.proj-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
-.proj-card{background:#0d1117;border:1px solid #21262d;border-radius:6px;padding:12px;
+/* Projects */
+.proj-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+.proj-card{background:#0d1117;border:1px solid #21262d;border-radius:8px;padding:12px;
            cursor:pointer;transition:border-color .15s}
 .proj-card:hover{border-color:#58a6ff}
 .proj-card .pname{font-weight:600;font-size:13px;color:#e6edf3;margin-bottom:4px;
                   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.proj-card .pnext{font-size:12px;color:#8b949e}
-.evt{padding:8px 0;border-bottom:1px solid #21262d;cursor:pointer;border-radius:4px;
-     padding-left:4px;transition:background .12s}
+.proj-card .pmeta{font-size:11px;color:#8b949e}
+.proj-card .pstatus{font-size:10px;font-weight:700;text-transform:uppercase;
+                    letter-spacing:.06em;margin-bottom:6px}
+.status-active{color:#3fb950}.status-paused{color:#d29922}
+/* Calendar */
+.evt{padding:8px 6px;border-bottom:1px solid #21262d;cursor:pointer;border-radius:6px;
+     transition:all .12s}
 .evt:last-child{border:none}
-.evt:hover{background:#1c2128}
-.evt-time{font-size:11px;color:#6e7681;min-width:48px;display:inline-block}
+.evt:hover{background:#1c2128;padding-left:10px}
+.evt-time{font-size:11px;color:#6e7681;min-width:44px;display:inline-block}
 .evt-title{font-weight:500}
 .evt-org{font-size:11px;color:#8b949e;margin-top:2px}
-.footer{margin-top:32px;padding-top:16px;border-top:1px solid #21262d;
-        font-size:11px;color:#484f58;text-align:center}
+/* Chase */
+.chase-item{padding:8px 6px;border-bottom:1px solid #21262d;cursor:pointer;
+            border-radius:6px;transition:all .12s}
+.chase-item:hover{background:#1c2128;padding-left:10px}
+.chase-item:last-child{border:none}
+.chase-days-7{color:#d29922}.chase-days-14{color:#f85149}
+/* VIP */
+.vip-item{display:flex;align-items:center;gap:10px;padding:8px 6px;
+          border-bottom:1px solid #21262d;cursor:pointer;border-radius:6px;
+          transition:all .12s}
+.vip-item:hover{background:#1c2128;padding-left:10px}
+.vip-item:last-child{border:none}
+.vip-avatar{width:32px;height:32px;border-radius:50%;background:#1f6feb;
+            display:flex;align-items:center;justify-content:center;
+            font-size:12px;font-weight:700;flex-shrink:0}
+.vip-awaiting{background:#5a1a00}
 /* Modal */
-.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:1000;
           align-items:center;justify-content:center;padding:20px}
 .modal-bg.open{display:flex}
-.modal{background:#161b22;border:1px solid #30363d;border-radius:12px;max-width:640px;
-       width:100%;max-height:80vh;overflow-y:auto;padding:24px;position:relative}
-.modal h3{font-size:16px;font-weight:600;color:#f0f6fc;margin-bottom:12px;padding-right:24px}
-.modal .detail-row{margin-bottom:8px;font-size:13px}
+.modal{background:#161b22;border:1px solid #30363d;border-radius:14px;max-width:700px;
+       width:100%;max-height:85vh;overflow-y:auto;padding:28px;position:relative}
+.modal h3{font-size:17px;font-weight:700;color:#f0f6fc;margin-bottom:16px;padding-right:32px}
+.modal-actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;
+               padding-bottom:14px;border-bottom:1px solid #21262d}
+.btn{padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;
+     cursor:pointer;border:none;transition:opacity .15s}
+.btn:hover{opacity:.85}
+.btn-blue{background:#1f6feb;color:#fff}
+.btn-gray{background:#21262d;color:#e6edf3}
+.btn-green{background:#238636;color:#fff}
+.modal .detail-row{margin-bottom:10px;font-size:13px}
 .modal .detail-label{color:#8b949e;font-size:11px;text-transform:uppercase;
-                     letter-spacing:.06em;margin-bottom:2px}
+                     letter-spacing:.06em;margin-bottom:3px;font-weight:600}
 .modal .detail-body{color:#e6edf3;white-space:pre-wrap;word-break:break-word;
-                    max-height:300px;overflow-y:auto;background:#0d1117;
-                    border-radius:6px;padding:10px;font-size:12px;line-height:1.7}
-.modal-close{position:absolute;top:16px;right:16px;background:none;border:none;
-             color:#8b949e;font-size:20px;cursor:pointer;line-height:1}
+                    max-height:320px;overflow-y:auto;background:#0d1117;
+                    border-radius:8px;padding:12px;font-size:12px;line-height:1.7;
+                    border:1px solid #21262d}
+.modal-close{position:absolute;top:18px;right:18px;background:none;border:none;
+             color:#8b949e;font-size:22px;cursor:pointer;line-height:1}
 .modal-close:hover{color:#f0f6fc}
+.footer{margin-top:32px;padding-top:16px;border-top:1px solid #21262d;
+        font-size:11px;color:#484f58;text-align:center}
 """
 
 _CSS += AI_CSS
@@ -113,13 +164,32 @@ let currentCtx='';
 const bg=document.getElementById('modal-bg');
 const mTitle=document.getElementById('modal-title');
 const mBody=document.getElementById('modal-body');
-function showModal(title,rows){{
-  mTitle.textContent=title;
-  mBody.innerHTML=rows.map(([lbl,val])=>
-    '<div class="detail-row"><div class="detail-label">'+lbl+'</div>'+
-    '<div class="detail-body">'+val+'</div></div>').join('');
-  currentCtx=title+'\\n'+rows.map(([l,v])=>l+': '+v).join('\\n');
-  const o=document.getElementById('ai-out'),i=document.getElementById('ai-input');
+const mActions=document.getElementById('modal-actions');
+
+function showModal(title, rows, opts){{
+  opts = opts || {{}};
+  mTitle.textContent = title;
+  mBody.innerHTML = rows.map(([lbl,val]) =>
+    '<div class="detail-row"><div class="detail-label">' + lbl + '</div>' +
+    '<div class="detail-body">' + val + '</div></div>'
+  ).join('');
+  currentCtx = title + '\\n' + rows.map(([l,v]) => l+': '+v).join('\\n');
+
+  // Build action buttons
+  let btns = '';
+  if(opts.emailId) {{
+    btns += '<a href="/" class="btn btn-blue" onclick="sessionStorage.setItem(\'openEmail\',\''+opts.emailId+'\');return false;" target="_self">Open in App</a>';
+  }}
+  if(opts.replyTo) {{
+    btns += '<a href="mailto:'+opts.replyTo+'" class="btn btn-gray">Reply by Email</a>';
+  }}
+  if(opts.actionId) {{
+    btns += '<button class="btn btn-green" onclick="markDone('+opts.actionId+',this)">✓ Mark Done</button>';
+  }}
+  mActions.innerHTML = btns;
+  mActions.style.display = btns ? 'flex' : 'none';
+
+  const o=document.getElementById('ai-out'), i=document.getElementById('ai-input');
   const sd=document.getElementById('save-draft-btn');
   const mp=document.getElementById('meeting-prep-chip');
   if(o){{o.textContent='';o.classList.remove('active');}}
@@ -131,9 +201,20 @@ function showModal(title,rows){{
 function closeModal(){{bg.classList.remove('open');}}
 bg.addEventListener('click',e=>{{if(e.target===bg)closeModal();}});
 document.addEventListener('keydown',e=>{{if(e.key==='Escape')closeModal();}});
+
+function markDone(id, btn){{
+  fetch('/api/actions/'+id, {{method:'PATCH',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{done:true}})}})
+    .then(()=>{{btn.textContent='✓ Done!';btn.disabled=true;btn.style.opacity='.5';}})
+    .catch(()=>{{btn.textContent='Failed';}});
+}}
+
 document.querySelectorAll('[data-modal]').forEach(el=>{{
-  el.addEventListener('click',()=>{{const d=JSON.parse(el.dataset.modal);showModal(d.title,d.rows);}});
+  el.addEventListener('click',()=>{{
+    const d=JSON.parse(el.dataset.modal);
+    showModal(d.title, d.rows, d.opts||{{}});
+  }});
 }});
+
 const countdown=document.getElementById('countdown');
 let remaining={_REFRESH_MS}/1000;
 setInterval(()=>{{
@@ -148,20 +229,22 @@ setInterval(()=>{{
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _e(s: str) -> str:
-    """HTML-escape a string for use in data-modal JSON."""
     return _html.escape(str(s), quote=True)
 
 
-def _modal_attr(title: str, rows: list[tuple[str, str]]) -> str:
+def _modal_attr(title: str, rows: list[tuple[str, str]], opts: dict | None = None) -> str:
     import json
-    payload = json.dumps({"title": title, "rows": rows})
-    return f' data-modal=\'{_html.escape(payload, quote=True)}\''
+    payload = {"title": title, "rows": rows}
+    if opts:
+        payload["opts"] = opts
+    return f' data-modal=\'{_html.escape(json.dumps(payload), quote=True)}\''
 
 
-def _kpi_tile(val: str | int, label: str, cls: str = "") -> str:
+def _kpi_tile(val: str | int, label: str, cls: str = "", sub: str = "") -> str:
+    sub_html = f'<div class="sub-lbl">{_e(sub)}</div>' if sub else ""
     return (f'<div class="kpi-tile {cls}">'
             f'<div class="val">{val}</div>'
-            f'<div class="lbl">{label}</div></div>')
+            f'<div class="lbl">{label}</div>{sub_html}</div>')
 
 
 def _section(title: str, body: str, extra_class: str = "") -> str:
@@ -174,16 +257,114 @@ def _urgent_banner(actions: list[dict], follow_ups: list[dict]) -> str:
     if not overdue and not due_fup:
         return ""
     tags = "".join(
-        f'<span class="u-tag"{_modal_attr(a["text"][:80], [("Action", a["text"]), ("Email", a.get("email_subject",""))])}>{_e(a["text"][:80])}</span>'
+        f'<span class="u-tag"{_modal_attr(a["text"][:80], [("Action", a["text"]), ("Email", a.get("email_subject",""))], {"actionId": a.get("id")})}>{_e(a["text"][:80])}</span>'
         for a in overdue
     )
     tags += "".join(
-        f'<span class="u-tag"{_modal_attr("Follow-up: "+f.get("subject","")[:60], [("Subject", f.get("subject","")), ("Sender", f.get("sender","")), ("Due", f.get("due_date",""))])}>'
+        f'<span class="u-tag"{_modal_attr("Follow-up: "+f.get("subject","")[:60], [("Subject", f.get("subject","")), ("Sender", f.get("sender","")), ("Due", f.get("due_date",""))], {"replyTo": f.get("sender","")})}>'
         f'Follow-up: {_e(f.get("subject","")[:60])}</span>'
         for f in due_fup
     )
-    return (f'<div class="urgent"><h2>Needs Attention Today</h2>'
+    return (f'<div class="urgent"><h2>⚠ Needs Attention Today</h2>'
             f'<div class="urgent-items">{tags}</div></div>')
+
+
+def _vip_alert_row(vips: list[dict]) -> str:
+    at_risk = [v for v in vips if v.get("awaiting_reply") or v.get("unread", 0) > 0]
+    if not at_risk:
+        return ""
+    cards = ""
+    for v in at_risk[:6]:
+        name = v.get("name") or v.get("email_addr", "")
+        email = v.get("email_addr", "")
+        initials = "".join(p[0].upper() for p in name.split()[:2]) or email[0].upper()
+        status = "Awaiting your reply" if v.get("awaiting_reply") else f"{v.get('unread',0)} unread"
+        last = v.get("last_received", "") or "—"
+        modal = _modal_attr(name, [
+            ("Email", email), ("Status", status),
+            ("Last contact", last), ("Received", str(v.get("emails_received", 0))),
+            ("Sent to", str(v.get("emails_sent_to", 0))), ("Note", v.get("note", "—")),
+        ], {"replyTo": email})
+        cards += (f'<div class="alert-card"{modal}>'
+                  f'<div class="a-label"><span class="alert-dot"></span>VIP Alert</div>'
+                  f'<div class="a-name">{_e(name[:30])}</div>'
+                  f'<div class="a-meta">{_e(status)} · {_e(last)}</div></div>')
+    if not cards:
+        return ""
+    return f'<div class="alert-row">{cards}</div>'
+
+
+def _chase_list(chase: list[dict]) -> str:
+    if not chase:
+        return "<p style='color:#3fb950;font-size:13px'>No follow-ups pending.</p>"
+    items = []
+    for e in chase[:8]:
+        subj = (e.get("subject") or "(no subject)")[:70]
+        recipient = e.get("recipient") or e.get("sender", "")
+        days = e.get("days_waiting", 0)
+        badge_cls = "bdg-red" if days >= 14 else "bdg-yellow" if days >= 7 else "bdg-blue"
+        modal = _modal_attr(subj, [
+            ("To", recipient), ("Days waiting", str(days)),
+            ("Sent", (e.get("date") or "")[:10]),
+        ], {"replyTo": recipient, "emailId": e.get("id", "")})
+        items.append(
+            f'<div class="chase-item"{modal}>'
+            f'<div><b>{_e(subj)}</b>'
+            f'<span class="badge {badge_cls}">{days}d</span></div>'
+            f'<div class="meta">To: {_e(recipient[:40])}</div></div>'
+        )
+    return "".join(items)
+
+
+def _vip_list(vips: list[dict]) -> str:
+    if not vips:
+        return "<p style='color:#6e7681;font-size:13px'>No VIP contacts added yet. Add them in the VIP tab.</p>"
+    items = []
+    for v in vips[:8]:
+        name = v.get("name") or v.get("email_addr", "")
+        email = v.get("email_addr", "")
+        initials = "".join(p[0].upper() for p in name.split()[:2]) or email[0].upper()
+        awaiting = v.get("awaiting_reply", False)
+        unread = v.get("unread", 0)
+        last = v.get("last_received", "") or "—"
+        avatar_style = "vip-awaiting" if awaiting else ""
+        badge = f'<span class="badge bdg-orange">reply needed</span>' if awaiting else \
+                f'<span class="badge bdg-blue">{unread} unread</span>' if unread > 0 else ""
+        modal = _modal_attr(name, [
+            ("Email", email), ("Last received", last), ("Emails received", str(v.get("emails_received", 0))),
+            ("Emails sent to", str(v.get("emails_sent_to", 0))), ("Last sent to", v.get("last_sent_to", "—")),
+            ("Note", v.get("note", "—")),
+        ], {"replyTo": email})
+        items.append(
+            f'<div class="vip-item"{modal}>'
+            f'<div class="vip-avatar {avatar_style}">{_e(initials)}</div>'
+            f'<div style="flex:1;min-width:0">'
+            f'<div><b>{_e(name[:30])}</b>{badge}</div>'
+            f'<div class="meta">{_e(email[:40])} · {_e(last)}</div>'
+            f'</div></div>'
+        )
+    return "".join(items)
+
+
+def _user_projects_html(projects: list[dict]) -> str:
+    if not projects:
+        return "<p style='color:#6e7681;font-size:13px'>No projects yet. Create one in the Projects tab.</p>"
+    cards = ""
+    for p in projects[:9]:
+        status = p.get("status", "active")
+        status_cls = f"status-{status}"
+        email_count = p.get("email_count", 0)
+        desc = (p.get("description") or "")[:60]
+        modal = _modal_attr(p["name"], [
+            ("Status", status), ("Emails linked", str(email_count)),
+            ("Description", desc or "—"), ("Created", (p.get("created_at") or "")[:10]),
+        ])
+        cards += (f'<div class="proj-card"{modal}>'
+                  f'<div class="pstatus {status_cls}">{status}</div>'
+                  f'<div class="pname" title="{_e(p["name"])}">{_e(p["name"][:35])}</div>'
+                  f'<div class="pmeta">{email_count} email{"s" if email_count!=1 else ""}'
+                  f'{" · "+_e(desc) if desc else ""}</div></div>')
+    return f'<div class="proj-grid">{cards}</div>'
 
 
 def _schedule_section(events: list[dict]) -> str:
@@ -204,10 +385,9 @@ def _schedule_section(events: list[dict]) -> str:
         if resp == "declined":   badge = '<span class="badge bdg-red">Declined</span>'
         elif resp == "tentativelyaccepted": badge = '<span class="badge bdg-yellow">Tentative</span>'
         elif resp == "accepted":  badge = '<span class="badge bdg-green">Accepted</span>'
-        attendee_list = e.get("attendees") or []
         attendees_str = ", ".join(
             a.get("emailAddress", {}).get("address", "")
-            for a in attendee_list
+            for a in (e.get("attendees") or [])
             if a.get("emailAddress", {}).get("address")
         )[:500]
         modal = _modal_attr(subj, [
@@ -272,14 +452,17 @@ def _doughnut(categories: list[tuple[str, int, str]]) -> str:
 
 def _email_list(emails: list[dict]) -> str:
     if not emails:
-        return "<p style='color:#6e7681;font-size:13px'>Inbox zero!</p>"
+        return "<p style='color:#3fb950;font-size:13px'>Inbox zero! 🎉</p>"
     items = []
     for e in emails[:10]:
         subj   = (e.get("subject") or "(no subject)")[:72]
         sender = e.get("sender", "")
         d      = (e.get("date") or "")[:10]
         body   = (e.get("body") or "").replace("\n", " ")
-        modal  = _modal_attr(subj, [("From", sender), ("Date", d), ("Preview", body[:600] or "—")])
+        eid    = e.get("id", "")
+        modal  = _modal_attr(subj, [
+            ("From", sender), ("Date", d), ("Preview", body[:800] or "—")
+        ], {"emailId": eid, "replyTo": sender})
         items.append(
             f'<li{modal}><b>{_e(subj)}</b>'
             f'<div class="meta">{_e(sender[:40])} · {d}</div></li>'
@@ -295,7 +478,10 @@ def _action_list(actions: list[dict]) -> str:
         text = (a.get("text") or "")
         subj = (a.get("email_subject") or "")
         created = (a.get("created_at") or "")[:10]
-        modal = _modal_attr(text[:80], [("Action", text), ("Email", subj), ("Added", created)])
+        aid = a.get("id")
+        modal = _modal_attr(text[:80], [
+            ("Action", text), ("Email", subj), ("Added", created)
+        ], {"actionId": aid})
         items.append(
             f'<li{modal}>{_e(text[:90])}'
             f'{"<div class=meta>"+_e(subj[:50])+"</div>" if subj else ""}</li>'
@@ -313,25 +499,14 @@ def _follow_up_list(follow_ups: list[dict]) -> str:
         due    = f.get("due_date", "")
         note   = f.get("note", "")
         modal  = _modal_attr(subj[:60] or "Follow-up",
-                             [("Subject", subj), ("From", sender), ("Due", due or "—"), ("Note", note or "—")])
+                             [("Subject", subj), ("From", sender), ("Due", due or "—"), ("Note", note or "—")],
+                             {"replyTo": sender})
         mail = f'<a href="mailto:{_e(sender)}">{_e(sender[:40])}</a>' if "@" in (sender or "") else _e(sender)
         items.append(
             f'<li{modal}>{_e(subj[:60])}'
             f'<div class="meta">{mail}{"  ·  Due "+due if due else ""}</div></li>'
         )
     return f'<ul class="item-list">{"".join(items)}</ul>'
-
-
-def _projects_html(projects: list[dict]) -> str:
-    if not projects:
-        return "<p style='color:#6e7681;font-size:13px'>No project signals detected.</p>"
-    cards = "".join(
-        f'<div class="proj-card"{_modal_attr(p["name"], [("Topic", p["name"]), ("Signals", str(p.get("count",""))), ("Next", p.get("next","—"))])}>'
-        f'<div class="pname" title="{_e(p["name"])}">{_e(p["name"][:40])}</div>'
-        f'<div class="pnext">Next: {_e(p.get("next","—"))}</div></div>'
-        for p in projects
-    )
-    return f'<div class="proj-grid">{cards}</div>'
 
 
 def _training_list(items: list[dict]) -> str:
@@ -342,7 +517,8 @@ def _training_list(items: list[dict]) -> str:
         subj   = (i.get("subject") or "")
         sender = i.get("sender", "")
         d      = (i.get("date") or "")[:10]
-        modal  = _modal_attr(subj[:70] or "Training", [("Subject", subj), ("From", sender), ("Date", d)])
+        eid    = i.get("id", "")
+        modal  = _modal_attr(subj[:70] or "Training", [("Subject", subj), ("From", sender), ("Date", d)], {"emailId": eid})
         rows.append(
             f'<li{modal}>{_e(subj[:70])}'
             f'<div class="meta">{_e(sender[:40])} · {d}</div></li>'
@@ -353,22 +529,28 @@ def _training_list(items: list[dict]) -> str:
 # ── Main renderer ─────────────────────────────────────────────────────────────
 
 def render_dashboard(d: dict) -> str:
-    actions    = d.get("actions", [])
-    follow_ups = d.get("follow_ups", [])
-    unread     = d.get("unread_count", 0)
-    emails     = d.get("unread_emails", [])
-    projects   = d.get("projects", [])
-    training   = d.get("training", [])
-    cal_today  = d.get("calendar_today", [])
-    wk_cal     = d.get("week_calendar", [])
-    senders    = d.get("top_senders", [])
-    vol        = d.get("email_volume", [])
-    gen_at     = d.get("generated_at", "")
-    onedrive   = d.get("onedrive", [])
-    teams      = d.get("teams", [])
+    actions      = d.get("actions", [])
+    follow_ups   = d.get("follow_ups", [])
+    unread       = d.get("unread_count", 0)
+    emails       = d.get("unread_emails", [])
+    projects     = d.get("projects", [])
+    user_projects= d.get("user_projects", [])
+    vips         = d.get("vip_contacts", [])
+    chase        = d.get("chase_queue", [])
+    training     = d.get("training", [])
+    cal_today    = d.get("calendar_today", [])
+    wk_cal       = d.get("week_calendar", [])
+    senders      = d.get("top_senders", [])
+    vol          = d.get("email_volume", [])
+    gen_at       = d.get("generated_at", "")
+    onedrive     = d.get("onedrive", [])
+    teams        = d.get("teams", [])
 
-    overdue_count = len(actions)
-    mtgs_tomorrow = len(cal_today)
+    overdue_count  = len(actions)
+    mtgs_tomorrow  = len(cal_today)
+    chase_count    = len(chase)
+    vip_alert_count= len([v for v in vips if v.get("awaiting_reply") or v.get("unread", 0) > 0])
+    proj_count     = len(user_projects)
 
     cat_counts: dict[str, int] = {"Customer-facing": 0, "Internal sync": 0,
                                    "Focus": 0, "Training": 0, "Admin": 0}
@@ -396,11 +578,7 @@ def render_dashboard(d: dict) -> str:
                   for i, (lbl, pct) in enumerate(cat_counts.items())]
 
     urgent_html = _urgent_banner(actions, follow_ups)
-
-    sender_bars = _bar_chart(
-        [{"label": s["sender"], "count": s["count"]} for s in senders[:7]],
-        "label", "count"
-    )
+    vip_alerts  = _vip_alert_row(vips)
 
     body = f"""
 <div class="wrap">
@@ -408,53 +586,68 @@ def render_dashboard(d: dict) -> str:
     <div class="hdr-left">
       <h1>Director Assistant — Executive Brief</h1>
       <div class="sub">{_e(gen_at)}</div>
-      <div class="hint">Click any item for details · Auto-refreshes in <span id="countdown">30m 0s</span></div>
+      <div class="hint">Click any item to see full detail · <a href="/">← Back to App</a></div>
     </div>
     <div class="hdr-right">
-      <div>Last refreshed: {_e(gen_at)}</div>
-      <div class="hint"><a href="/api/dashboard">Refresh now</a> · <a href="/">← Back to App</a></div>
+      <div style="font-size:13px">Auto-refreshes in <span id="countdown" style="color:#58a6ff">30m 0s</span></div>
+      <div class="hint"><a href="/api/dashboard">Refresh now</a></div>
     </div>
   </div>
 
+  <!-- KPI Tiles -->
   <div class="kpi">
-    {_kpi_tile(overdue_count, "Overdue Actions", "red" if overdue_count else "green")}
-    {_kpi_tile(unread, "Unread Emails", "yellow" if unread > 20 else "green")}
-    {_kpi_tile(mtgs_tomorrow, "Meetings Tomorrow", "blue")}
-    {_kpi_tile("—", "Teams Unread", "purple")}
-    {_kpi_tile(len(projects), "Active Projects", "teal")}
-    {_kpi_tile("—", "OOF This Week", "blue")}
+    {_kpi_tile(overdue_count, "Open Actions", "red" if overdue_count else "green", "needs attention")}
+    {_kpi_tile(unread, "Unread Emails", "yellow" if unread > 20 else "green", "in your inbox")}
+    {_kpi_tile(chase_count, "Chase Queue", "orange" if chase_count else "green", "no reply received")}
+    {_kpi_tile(vip_alert_count, "VIP Alerts", "purple" if vip_alert_count else "green", "need attention")}
+    {_kpi_tile(mtgs_tomorrow, "Meetings Tomorrow", "blue", "on your calendar")}
+    {_kpi_tile(proj_count, "Active Projects", "teal", "in project tracker")}
+    {_kpi_tile(len(vips), "VIP Contacts", "purple", "being tracked")}
   </div>
 
   {urgent_html}
+  {vip_alerts}
 
+  <!-- Row 1: Schedule + Follow-ups -->
   <div class="grid2">
-    {_section("Tomorrow's Schedule", _schedule_section(cal_today))}
-    {_section("People to Follow Up With", _follow_up_list(follow_ups))}
+    {_section("📅 Tomorrow's Schedule", _schedule_section(cal_today))}
+    {_section("📬 Follow-ups Due", _follow_up_list(follow_ups))}
   </div>
 
-  {_section("Top Active Projects", _projects_html(projects))}
-
-  <div class="grid2" style="margin-top:16px">
-    {_section("Week Calendar Load", _week_bar_chart(wk_cal) if wk_cal else _bar_chart(vol[-7:] if vol else [], "date", "count"))}
-    {_section("Time Allocation This Week", _doughnut(alloc_cats))}
+  <!-- Row 2: Chase Queue + VIP Contacts -->
+  <div class="grid2">
+    {_section("⏰ Chase Queue — No Reply", _chase_list(chase))}
+    {_section("⭐ VIP Contact Status", _vip_list(vips))}
   </div>
 
-  <div class="grid2" style="margin-top:16px">
-    {_section("Emails Needing a Reply", _email_list(emails))}
-    {_section("Long-Term Action Items", _action_list(actions))}
+  <!-- Row 3: User Projects -->
+  {_section("📁 Your Projects", _user_projects_html(user_projects))}
+
+  <!-- Row 4: Calendar + Time allocation -->
+  <div class="grid2" style="margin-top:0">
+    {_section("📊 Week Calendar Load", _week_bar_chart(wk_cal) if wk_cal else _bar_chart(vol[-7:] if vol else [], "date", "count"))}
+    {_section("🕐 Time Allocation This Week", _doughnut(alloc_cats))}
   </div>
 
-  <div class="grid2" style="margin-top:16px">
-    {_section("Training & Learning", _training_list(training))}
-    {_section("Top Senders This Week", sender_bars)}
+  <!-- Row 5: Unread emails + Actions -->
+  <div class="grid2">
+    {_section("📩 Unread Emails", _email_list(emails))}
+    {_section("✅ Action Items", _action_list(actions))}
   </div>
 
-  <div class="grid2" style="margin-top:16px">
-    {_section("OneDrive — Recent Files", _onedrive_html(onedrive))}
-    {_section("Teams — Recent Chats", _teams_html(teams))}
+  <!-- Row 6: Training + Senders -->
+  <div class="grid2">
+    {_section("🎓 Training & Learning", _training_list(training))}
+    {_section("👤 Top Senders This Week", _bar_chart([dict(label=s["sender"],count=s["count"]) for s in senders[:7]], "label", "count"))}
   </div>
 
-  {_section("Email Volume — Last 7 Days", _bar_chart(vol[-7:] if vol else [], "date", "count"))}
+  <!-- Row 7: OneDrive + Teams -->
+  <div class="grid2">
+    {_section("📂 OneDrive — Recent Files", _onedrive_html(onedrive))}
+    {_section("💬 Teams — Recent Chats", _teams_html(teams))}
+  </div>
+
+  {_section("📈 Email Volume — Last 7 Days", _bar_chart(vol[-7:] if vol else [], "date", "count"))}
 
   <div class="footer">
     Director Assistant · <a href="/api/dashboard">Refresh</a> ·
@@ -462,10 +655,7 @@ def render_dashboard(d: dict) -> str:
     <script>
       document.getElementById('countdown2').textContent =
         document.getElementById('countdown').textContent;
-      setInterval(()=>{{
-        document.getElementById('countdown2').textContent =
-          document.getElementById('countdown').textContent;
-      }},1000);
+      setInterval(()=>{{document.getElementById('countdown2').textContent=document.getElementById('countdown').textContent;}},1000);
     </script>
   </div>
 </div>
@@ -475,6 +665,7 @@ def render_dashboard(d: dict) -> str:
   <div class="modal">
     <button class="modal-close" onclick="closeModal()">×</button>
     <h3 id="modal-title"></h3>
+    <div class="modal-actions" id="modal-actions" style="display:none"></div>
     <div id="modal-body"></div>
     {AI_MODAL_HTML}
   </div>
