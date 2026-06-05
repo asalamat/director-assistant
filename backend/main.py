@@ -35,7 +35,18 @@ from routers import update as update_router
 from routers import dashboard as dashboard_router
 from routers import triage as triage_router
 from routers import triage_rules as triage_rules_router
+from routers import proactive as proactive_router
+from routers import scheduled_send as scheduled_send_router
+from routers import weekly_brief as weekly_brief_router
+from routers import vip as vip_router
+from routers import projects as projects_router
+from routers.proactive import push_alert
 from services.intelligence_service import IntelligenceService
+from workers.background_tasks import (
+    _auto_recommend, _auto_deadline_extract, _auto_cluster_alert,
+    _auto_sentiment_escalation, _commitment_scan_loop,
+    _relationship_health_loop, _auto_label_loop, _scheduled_send_loop,
+)
 from routers.config import get_effective_api_key, load_app_config
 from services.ai_client import AIClient
 
@@ -61,196 +72,7 @@ def _is_high_priority(email) -> bool:
     return any(kw in (email.subject or "").lower() for kw in _URGENT_KEYWORDS)
 
 
-async def _auto_recommend(app, new_emails: list) -> None:
-    """Background: run the advisor on up to 3 high-priority new emails per poll cycle."""
-    from routers.config import get_effective_api_key
-    from routers.emails import _rec_cache, _REC_COOLDOWN
-    from time import monotonic
-
-    if not get_effective_api_key():
-        return
-
-    advisor = app.state.advisor
-    rag = app.state.rag
-    cache = app.state.cache
-
-    candidates = [e for e in new_emails if _is_high_priority(e)][:3]
-    for email in candidates:
-        if email.id in _rec_cache:
-            ts, _ = _rec_cache[email.id]
-            if monotonic() - ts < _REC_COOLDOWN:
-                continue
-        try:
-            similar = await rag.get_similar_emails(email, n=5)
-            doc_query = f"{email.subject} {(email.body or '')[:300]}"
-            related_docs = [r for r in rag.semantic_search(doc_query, n=3)
-                            if r.get("source_type") == "document"]
-            thread_history: list[dict] = []
-            if email.thread_id:
-                with cache._conn() as conn:
-                    t_rows = conn.execute(
-                        """SELECT subject, sender, date, body FROM emails
-                           WHERE thread_id = ? AND id != ?
-                           ORDER BY date ASC LIMIT 3""",
-                        (email.thread_id, email.id),
-                    ).fetchall()
-                    thread_history = [
-                        {"subject": r["subject"] or "", "sender": r["sender"] or "",
-                         "date": r["date"] or "", "text": (r["body"] or "")[:800]}
-                        for r in t_rows
-                    ]
-            rec = await advisor.get_recommendation(email, similar, related_docs, thread_history)
-            _rec_cache[email.id] = (monotonic(), rec)
-            print(f"[auto-rec] pre-cached recommendation: {email.subject!r}")
-        except Exception as e:
-            print(f"[auto-rec] skipped {email.id}: {e}")
-
-
-# Reuse provider instances across poll cycles so IMAP connections stay open.
-# Key 0 is reserved for the legacy single-account config.
-_provider_cache: dict[int, object] = {}
-_folder_cache: dict[int, list[str]] = {}   # avoid IMAP LIST on every poll cycle
-
-
-def _get_provider(account_id: int, acc):
-    if account_id not in _provider_cache:
-        from services.email_provider import build_provider
-        _provider_cache[account_id] = build_provider(acc.to_connection_config())
-    return _provider_cache[account_id]
-
-
-def _evict_provider(account_id: int):
-    """Remove and cleanly disconnect a cached provider."""
-    p = _provider_cache.pop(account_id, None)
-    _folder_cache.pop(account_id, None)
-    if p is not None and hasattr(p, "disconnect"):
-        try:
-            p.disconnect()
-        except Exception:
-            pass
-
-
-def _get_ingest_folders(account_id: int, provider, full_sweep: bool = False) -> list[str]:
-    """Return folders to check.
-
-    full_sweep=True  → all non-junk folders (initial ingest, not cached)
-    full_sweep=False → poll-only folders (INBOX + standard folders, cached)
-    """
-    if full_sweep:
-        return provider.get_ingest_folders()
-    if account_id not in _folder_cache:
-        _folder_cache[account_id] = provider.get_poll_folders()
-    return _folder_cache[account_id]
-
-
-def _check_folder(
-    account_id: int, provider, folder: str,
-    cache, rag, known_ids: set, all_new_emails: list,
-    since_dt, since_str, full_sweep: bool = False,
-) -> int:
-    """Sync one folder: detect deletions (full sweep only), fetch and index new emails.
-
-    Module-level so it can be safely run in a thread-pool executor without
-    implicitly closing over mutable outer-scope state.
-    """
-    from services.email_provider import IMAPProvider
-
-    # Step 1: detect server-side deletions (full sweep only)
-    if full_sweep:
-        try:
-            server_uids = provider.get_uid_list(folder=folder, from_date=since_dt)
-        except Exception as e:
-            print(f"[poll] uid_list failed account={account_id} folder={folder}: {e}")
-            server_uids = None
-
-        if server_uids is not None and len(server_uids) > 0:
-            cached = cache.get_cached_server_ids(account_id, folder, since_str)
-            for srv_id, cache_id in cached.items():
-                if srv_id not in server_uids:
-                    cache.delete_email(cache_id)
-                    rag.remove_email(cache_id)
-                    known_ids.discard(cache_id)
-                    print(f"[poll] removed deleted email cache_id={cache_id}")
-
-    # Step 2: fetch new emails
-    if full_sweep:
-        fetch_fn = lambda: provider.fetch_all(folder=folder, batch_size=200)
-    elif isinstance(provider, IMAPProvider):
-        fetch_fn = lambda: provider.fetch_recent_n(folder=folder, n=POLL_RECENT_N, from_date=since_dt)
-    else:
-        fetch_fn = lambda: provider.fetch_all(folder=folder, batch_size=POLL_RECENT_N, from_date=since_dt)
-
-    buffer = []
-    try:
-        for email, _ in fetch_fn():
-            if account_id:
-                email.server_id = email.id
-                email.id = f"a{account_id}_{email.id}"
-            if email.id not in known_ids:
-                buffer.append(email)
-    except Exception as e:
-        import imaplib as _imap
-        if isinstance(e, _imap.IMAP4.abort):
-            raise
-        print(f"[poll] fetch error account={account_id} folder={folder}: {e} "
-              f"— saving {len(buffer)} emails fetched so far")
-
-    count = 0
-    if buffer:
-        cache.save_batch(buffer, account_id=account_id)
-        for em in buffer:
-            if rag.ingest_email(em):
-                known_ids.add(em.id)
-                all_new_emails.append(em)
-                count += 1
-    return count
-
-
-def _is_connection_error(exc: Exception) -> bool:
-    import imaplib
-    if isinstance(exc, (BrokenPipeError, ConnectionResetError, EOFError, TimeoutError, SystemError)):
-        return True
-    if isinstance(exc, imaplib.IMAP4.abort):
-        return True
-    if isinstance(exc, imaplib.IMAP4.error):
-        return any(kw in str(exc).upper() for kw in ("EOF", "BYE", "CLOSED", "NONAUTH"))
-    # Graph API: 401 = expired token, treat as a connection error so we refresh + retry
-    try:
-        import httpx
-        if isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code == 401:
-            return True
-    except ImportError:
-        pass
-    return False
-
-
-async def _run_poll_cycle(rag: RAGEngine, cache: EmailCache, app=None) -> tuple[int, list[str]]:
-    """
-    One complete poll cycle: detect deletions, fetch new emails for all accounts.
-    Returns (new_count, error_list). Updates _last_poll_* globals on completion.
-    """
-    global _last_poll_time, _last_poll_error
-    from routers.connection import _progress
-
-    if _progress.status == "running":
-        return 0, []
-    if _poll_lock.locked():
-        return 0, []
-    async with _poll_lock:
-        try:
-            result = await asyncio.wait_for(_do_poll_cycle(rag, cache, app), timeout=200)
-            return result
-        except asyncio.TimeoutError:
-            _last_poll_error = "Poll timed out after 200s"
-            print("[poll] cycle timed out after 200s")
-            return 0, [_last_poll_error]
-        except Exception as e:
-            _last_poll_error = str(e)
-            return 0, [str(e)]
-        finally:
-            # Always stamp completion time so the frontend stops waiting
-            _last_poll_time = datetime.now(timezone.utc).isoformat(timespec="seconds") + "Z"
-
+# Background tasks moved to workers/background_tasks.py
 
 async def _do_poll_cycle(rag: RAGEngine, cache: EmailCache, app=None) -> tuple[int, list[str]]:
     global _last_poll_new, _last_poll_error
@@ -369,6 +191,9 @@ async def _do_poll_cycle(rag: RAGEngine, cache: EmailCache, app=None) -> tuple[i
         print(f"[poll] {new_total} new email(s) indexed")
         if app is not None and all_new_emails:
             asyncio.create_task(_auto_recommend(app, all_new_emails))
+            asyncio.create_task(_auto_deadline_extract(app, all_new_emails))
+            asyncio.create_task(_auto_cluster_alert(app, all_new_emails))
+            asyncio.create_task(_auto_sentiment_escalation(app, all_new_emails))
 
     _last_poll_new = new_total
     _last_poll_error = "; ".join(errors) if errors else ""
@@ -450,7 +275,7 @@ async def _poll_new_emails(rag: RAGEngine, cache: EmailCache, app=None):
     while True:
         interval = load_app_config().get("poll_interval_seconds", NEW_EMAIL_POLL_SECONDS)
         try:
-            await _run_poll_cycle(rag, cache, app)
+            await _do_poll_cycle(rag, cache, app)
         except Exception as e:
             _last_poll_error = str(e)
             print(f"[poll error] {e}")
@@ -493,13 +318,19 @@ async def lifespan(app: FastAPI):
     app.state.classifier = ClassifierService(client)
     app.state.intelligence = IntelligenceService(client, app.state.cache, app.state.rag)
 
+    app.state.proactive_alerts = []   # in-memory proactive alert feed
     app.state.poll_task = asyncio.create_task(
         _poll_new_emails(app.state.rag, app.state.cache, app)
     )
     app.state.digest_task = asyncio.create_task(_digest_scheduler(app))
+    app.state.commitment_task = asyncio.create_task(_commitment_scan_loop(app))
+    app.state.relationship_task = asyncio.create_task(_relationship_health_loop(app))
+    app.state.scheduled_send_task = asyncio.create_task(_scheduled_send_loop(app))
+    app.state.auto_label_task = asyncio.create_task(_auto_label_loop(app))
     app.state.restart_poll = lambda: asyncio.create_task(_restart_poll(app))
     yield
-    for task_name in ("digest_task", "poll_task"):
+    for task_name in ("digest_task", "poll_task", "commitment_task", "relationship_task",
+                      "scheduled_send_task", "auto_label_task"):
         task = getattr(app.state, task_name, None)
         if task:
             task.cancel()
@@ -542,6 +373,11 @@ app.include_router(update_router.router)
 app.include_router(dashboard_router.router)
 app.include_router(triage_router.router)
 app.include_router(triage_rules_router.router)
+app.include_router(proactive_router.router)
+app.include_router(scheduled_send_router.router)
+app.include_router(weekly_brief_router.router)
+app.include_router(vip_router.router)
+app.include_router(projects_router.router)
 
 
 @app.get("/health")
@@ -603,7 +439,7 @@ async def poll_now(request: Request):
         if not _poll_lock.locked():
             break
         await asyncio.sleep(0.5)
-    new_count, _ = await _run_poll_cycle(rag, cache)
+    new_count, _ = await _do_poll_cycle(rag, cache)
     return {"status": "done", "new_count": new_count}
 
 
