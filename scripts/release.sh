@@ -35,6 +35,11 @@ cd "$REPO_DIR"
 git add version.json frontend/package.json frontend/dist
 git diff --cached --quiet && echo "    Nothing to commit (version already at $VERSION)" || { git commit -m "chore: release v$VERSION" && git push; }
 
+echo "==> Updating dev backend/static with fresh build"
+rm -rf "$REPO_DIR/backend/static"
+cp -r "$REPO_DIR/frontend/dist" "$REPO_DIR/backend/static"
+echo "    Dev static updated"
+
 echo "==> Syncing installed app at $INSTALL_DIR"
 if [[ -d "$INSTALL_DIR" ]]; then
     cp "$REPO_DIR/version.json" "$INSTALL_DIR/version.json"
