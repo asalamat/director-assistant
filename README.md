@@ -1,126 +1,180 @@
 # Director Assistant
 
-An AI-powered email intelligence app that helps you understand your inbox, track commitments, and take action faster. Connects to Gmail, Microsoft 365, Yahoo, or any IMAP mailbox and uses Claude AI (or OpenAI) to surface what matters.
+> **Your AI-powered executive email intelligence platform.** Connects to Gmail, Microsoft 365, Yahoo, or any IMAP mailbox and uses Claude AI to help you triage faster, never miss a commitment, and stay on top of every relationship that matters.
 
-**Current version: 3.9.4**
+**Current version: 3.10.6** · [Releases](https://github.com/asalamat/director-assistant/releases) · MIT License
 
 ---
 
-## Features
+## What it does
 
-| Tab | What it does |
+Director Assistant sits alongside your email client and turns raw email volume into structured intelligence — surfacing what needs your attention, drafting replies in your voice, tracking commitments automatically, and giving you a weekly executive brief that would otherwise take hours to compile.
+
+Everything runs **locally on your machine**. Your emails never leave your device except for AI queries (which are sent to Anthropic or OpenAI over encrypted connections).
+
+---
+
+## Navigation
+
+| Tab | Description |
 |-----|-------------|
-| **Inbox** | Browse, search, and filter emails. Priority labels (urgent / action / finance), thread depth, smart sort, snooze, and pin-search smart folders. |
-| **Focus** ⚠ | **Smart Daily Triage** — AI scores all unread emails from the last 14 days by urgency, open action items, VIP senders, recency, and question detection. Shows your top 7 highest-priority emails with score badges (`!` / `!!` / `!!!`) and reason tags. Click any item to jump straight to it. Refreshes every 5 minutes. |
-| **Thread View** | Read full email threads inline with collapsible messages and AI-suggested replies. |
-| **Compose** | Write new emails or reply with AI-generated draft suggestions saved directly to your Drafts folder. |
-| **Ask** | Ask natural-language questions over your entire email history using semantic (vector) + full-text search, with full ask history. |
-| **Actions** | AI-generated action board — commitments, follow-ups, and deadlines extracted automatically. CSV export. **Waiting for Reply** tab detects sent emails with no response in 3+ days. |
-| **Brief** | Daily AI digest summarising your most important emails. Configurable date range. |
-| **Analytics** | Activity heatmap, volume trend, top senders, folder breakdown. CSV export. |
-| **Templates** | Save and reuse reply templates with `{name}`, `{date}`, `{subject}`, `{sender}` variables. |
-| **Health** | Backend status, IMAP connection health, AI availability, and polling loop state. |
-| **Knowledge** | Role-transition intelligence — people graph, open commitments, active projects, topic timeline, and an AI-written executive briefing. |
-| **Dashboard** | One-click executive brief — live KPIs, tomorrow's schedule, top projects, OneDrive recent files, Teams chats, email volume charts, follow-ups, and training items. Click any item to open an AI panel. **Meeting Prep** chip appears on calendar events — generates agenda, talking points, and prior email context from attendees. Auto-refreshes every 30 min. |
+| **Inbox** | Browse, search, and action your emails with AI-powered priority labels, thread view, smart sort, unread filter, and bulk operations |
+| **Focus** | Smart Daily Triage — AI scores all unread emails by 7 urgency signals and surfaces your top priority items with score badges and reason tags |
+| **Ask** | Natural-language Q&A over your entire email and document history using hybrid semantic + full-text search |
+| **Actions** | AI-extracted commitments, follow-ups, and deadlines with overdue tracking and CSV export |
+| **Chase** | Follow-up queue — emails you sent with no reply after 3+ days; AI writes polite chase drafts in one click |
+| **VIP** | Track your most important contacts with live stats: last contact, unread count, awaiting-reply flag, and full email history |
+| **Projects** | Link emails to named deals or initiatives; browse all related emails in one timeline view |
+| **Weekly** | One-click AI executive brief for the past 7 days — decisions made, commitments, waiting-for, wins, and top action items |
+| **Brief** | Daily AI digest of your most important recent emails, configurable date range |
+| **Analytics** | Activity heatmap, volume trends, top senders, folder breakdown — exportable as CSV |
+| **Templates** | Reusable reply templates with `{name}`, `{date}`, `{subject}`, `{sender}` auto-fill variables |
+| **Health** | Live system status — IMAP connection, AI provider, RAG database, polling loop |
+| **Knowledge** | Role-intelligence hub — people graph, open commitments, project clusters, topic timeline, and AI executive briefing |
+| **Dashboard** | Full-screen executive brief at `/api/dashboard` — 7 KPI tiles, VIP alerts, Chase Queue, Projects, calendar, actions, OneDrive, and clickable modals with live action buttons |
 
-### Highlights
+---
 
-- **Multiple accounts** — Gmail (OAuth or App Password), Microsoft 365/Hotmail (OAuth), Yahoo, Office 365, or any IMAP server
-- **Gmail OAuth2** — sign in with Google in one click; no App Password required. Requires a Google Cloud OAuth client (see [Gmail OAuth setup](#gmail-oauth-setup))
-- **Microsoft OAuth2** — sign in with Microsoft via popup or Azure CLI auto-setup; full Graph API integration for email, calendar, OneDrive, and Teams
-- **Dual AI with auto-fallback** — Anthropic Claude primary; automatically falls back to OpenAI on rate limits, quota exhaustion, or billing errors
-- **Smart Daily Triage** — "Focus" tab surfaces your top priority unread emails using 7 urgency signals; score badges and reason tags explain why each email was flagged
-- **Meeting Prep Brief** — click a calendar event in the dashboard and tap "Meeting Prep" to get an AI-generated agenda, talking points, and prior email context from all attendees
-- **Smart Draft Composer** — click "Smart Draft" on any email and Claude writes a complete, ready-to-send reply using the full thread history, related documents, and your own sent-mail style as a reference — one click pre-fills the compose window
-- **Natural-language triage rules** — define rules in plain English ("from: ceo@corp.com → critical", "subject contains: invoice → urgent") in App Settings; applied instantly to Focus tab scoring with no AI call
-- **Contact relationship tracker** — click any sender to see an AI-written relationship summary, unreplied email count, average reply time, and when you last reached out
-- **LinkedIn profile search** — contact card shows a "Find on LinkedIn" button that opens a pre-filled people search using the sender's name and company (extracted from their email domain)
-- **Thread summarization** — "Summarize thread" button distills any email chain into a summary, key bullet points, and next-step outcome
-- **Inbox hover preview** — hover over any email in the inbox for 600ms to see a 1-sentence AI summary without opening it
-- **Proactive follow-up detection** — "Scan sent mail" button in the Actions board uses AI to find commitments you made in outbound emails and lets you add them to the action board in one click
-- **Smart notifications** — new email desktop notifications now show the sender name and a 1-sentence AI summary of the email content
-- **Email topic search** — new "Topic Search" tab in the Ask panel: type any topic and get semantically matched emails from your full history
-- **Commitment tracker from drafts** — after Smart Draft writes a reply, detected commitments appear as pills you can add directly to the action board
-- **Tone adjuster** — rewrite any compose text in a different tone (formal / casual / shorter / friendlier / direct) with one click
-- **Email translation** — translate any email body inline with language detection; preferred language set in App Settings (20 languages supported)
-- **Unread filter** — click the "N unread" chip in the toolbar to instantly filter the inbox to unread emails only across all folders (not just INBOX); click again to return to all mail
-- **"New" badge** — emails received in the last 4 hours that are still unread show a green "New" pill for instant visibility
-- **Read time estimator** — each inbox email shows a ~Nm read-time badge so you can triage by effort
-- **Smart priority sort** — "Priority" toggle in the inbox reorders all emails by AI urgency score, not just the top 7
-- **Bulk draft generation** — select multiple emails and generate AI draft replies for all of them at once
-- **Per-sender email chart** — contact card shows a bar chart of monthly email volume over the last 6 months
-- **Export action items** — one-click copy of all pending action items as a formatted markdown checklist
-- **Natural-language email search** — "Smart Search" tab in Ask: describe what you're looking for in plain English, Claude extracts filters and searches
-- **Document Q&A** — "Documents" tab in Ask: ask questions answered from your uploaded documents with source citations
-- **Scheduled send** — compose now, schedule delivery for any future date/time
-- **Auto-labeling** — emails are automatically classified in the background every hour
-- **Proactive alert engine** — background tasks run automatically and surface insights as toast notifications and desktop alerts:
-  - *Deadline detection* — scans new emails for deadlines and auto-creates follow-up reminders
-  - *Cluster alerts* — notifies when 3+ new emails share the same topic
-  - *Sentiment escalation* — alerts immediately when a VIP contact sends a frustrated or demanding email
-  - *Auto commitment scan* — every 30 min, scans sent mail for commitments and adds them to the action board
-  - *Relationship health* — every 2 hours, detects when important contacts are waiting too long for a reply
-- **Security hardening** — OAuth tokens masked in all API responses, XSS protection in OAuth callback, config file permissions locked, digest schedule time validated
-- **Agentic recommendations** — the AI advisor uses an iterative search loop: it reads the email, decides what additional context it needs (related contracts, prior conversations, referenced documents), retrieves it via tool calls, and synthesizes a final recommendation — up to 3 search iterations before producing its answer
-- **Auto-triggered recommendations** — when a new email arrives with high-urgency signals (urgent, deadline, asap, critical, etc.), a recommendation is generated and cached automatically in the background — no click required, result is instant when you open the email
-- **Thread-aware recommendations** — the advisor reads the full prior conversation thread before recommending, so it understands context from earlier messages in the chain
-- **Document-aware recommendations** — related documents from your knowledge base (contracts, reports, files) are automatically retrieved and included in every recommendation
-- **Smart Reply Suggestions** — one click generates Short, Detailed, and Formal reply options; click any to pre-fill the compose window
-- **Waiting for Reply** — Actions board "Waiting" tab surfaces sent emails 3+ days old with no reply, sorted by urgency
-- **Calendar Event Creator** — "Event" button on any email opens an inline form pre-filled from the email; creates directly in Microsoft Calendar via Graph API
-- **One-Click Unsubscribe** — auto-detects unsubscribe links in email HTML; "Unsub" button appears when found, opens the link in one click
-- **Scheduled Email Digest** — configure a daily digest to be emailed to yourself at a set time (App Settings → Scheduled Digest)
-- **Auto-update** — checks GitHub for new versions and applies updates in-place with a one-click popup
-- **Dashboard AI panel** — click any email, action item, calendar event, or project in the dashboard to open an AI panel: Resolve, Schedule Meeting, Draft Reply, Summarize, Meeting Prep
-- **Save to Drafts** — "Draft Reply" generates an AI email draft and saves it directly to your Drafts folder with one click
-- **OneDrive integration** — dashboard shows recently modified OneDrive files (requires Files.Read scope)
-- **Teams integration** — dashboard shows recent Teams chats and message previews (requires Chat.Read scope)
-- **Follow-up reminders** — AI detects emails needing a reply and surfaces them as reminders
-- **Desktop notifications** — browser notifications for new email and refresh results
-- **Ask history** — all previous Ask queries saved and browsable
-- **Contact cards** — click any sender to see full history and stats
-- **Dock badge** — macOS unread count badge updated automatically
-- **Budget mode** — use a cheaper model for routine tasks to reduce API costs
-- **Docker** — one-command server deployment via `docker compose up`
+## Feature Highlights
+
+### Inbox & Email Management
+- **Unread filter** — click the "N unread" badge to see all unread emails across all folders instantly; click again to return
+- **Hover AI preview** — hover over any email for 600ms to see a 1-sentence AI summary without opening it
+- **Priority auto-labels** — emails automatically tagged `urgent`, `action`, or `finance` based on subject and preview
+- **Smart sort** — sort by date, sender, subject (asc/desc) or switch to AI urgency score ranking
+- **Thread depth indicator** — reply-chain depth shown on each email row
+- **Pinned searches** — save any search query as a persistent smart folder
+- **Bulk operations** — select multiple emails to delete, snooze, or generate AI draft replies for all at once
+- **Read-time estimator** — each email shows an estimated read time (e.g. ~3m) so you triage by effort
+- **"New" badge** — emails received in the last 4 hours show a green pill for instant visibility
+- **Auto-poll** — new emails checked every 60 seconds in the background
+
+### AI Reply & Drafting
+- **Smart Draft Composer** — one click writes a complete, ready-to-send reply using the full thread history, related documents, and your own sent-mail writing style as a reference
+- **Quick Replies** — generates Short, Detailed, and Formal reply options; click any to pre-fill the compose window
+- **Tone Adjuster** — rewrite any compose text as formal / casual / shorter / friendlier / direct with one click
+- **Commitment detection** — after Smart Draft, detected commitments appear as pills you can add directly to the Actions board
+- **Bulk Draft Generation** — select multiple emails, generate AI drafts for all simultaneously
+- **Save to Drafts** — save any AI reply directly to your IMAP Drafts folder, ready to review in your mail client
+- **Smart Follow-up Drafts (Chase)** — AI writes a polite follow-up for any email awaiting a reply, one click to compose
+
+### Send-Time Optimizer
+- When composing a reply, a green hint appears: **"Best time to send: Tuesday at 9:00 AM"** — derived from the recipient's historical email activity patterns to maximize response rates
+
+### VIP Contact Manager
+- Star up to any number of contacts as VIPs
+- Live stats: emails received/sent, last contact date, unread count, **awaiting reply** flag
+- Browse all emails from/to that contact in one scrollable timeline
+- Alerts surface automatically when a VIP hasn't heard from you in a while
+
+### Email-to-Project Tracker
+- Create named projects (deals, initiatives, hires, partnerships)
+- Link any email to a project directly from the email viewer with one click
+- Browse all linked emails in a project timeline
+- Status cycling: Active → Paused → Resolved
+- Filter projects by status with live counts
+
+### Weekly Executive Brief
+- One-click AI summary of the past 7 days: key decisions made, commitments, who you're waiting on, relationships to nurture, upcoming deadlines, wins, and top action items
+- Each item shows **source email chips** — click any chip to open the exact email it came from
+- Hover any item and click 🔍 to **find related emails** via semantic search
+- Sections are collapsible; stats bar shows total received, sent, actions, and linked emails
+- Generated using Claude Sonnet for depth; cached for 1 hour; force-refresh any time
+
+### Executive Dashboard (`/api/dashboard`)
+- Full-screen dark-theme dashboard with **7 live KPI tiles**: Open Actions, Unread Emails, Chase Queue, VIP Alerts, Meetings Tomorrow, Active Projects, VIP Contacts
+- **4 new sections**: Chase Queue with urgency color-coding, VIP Contact Status with last-contact stats, Your Projects tracker, VIP Alert row with pulse animation
+- **Click any item** → opens a detail modal with the full content plus context-specific action buttons:
+  - **↗ Open in App** — navigates directly to the email in Director Assistant (deep-link via `/?email=ID`)
+  - **✉ Reply by Email** — opens your mail client pre-addressed to the sender
+  - **✓ Mark Done** — marks action items complete live without leaving the dashboard
+  - **✎ Generate Follow-up Draft** — AI writes a chase email; shows editable textarea + Copy + Send via App
+  - **▶ Join Meeting** — opens Teams/Zoom link for online calendar events
+- Auto-refreshes every 30 minutes; accessible at `http://localhost:8000/api/dashboard`
+
+### Smart Triage (Focus Tab)
+- Scores all unread emails from the last 14 days using 7 signals: urgency keywords, open action items, VIP senders, recency, question detection, relationship health, deadline proximity
+- Top 7 emails shown with score badges (`!` / `!!` / `!!!`) and reason tags
+- Click any item to jump directly to the email; refreshes every 5 minutes
+
+### Knowledge & Intelligence
+- **People Graph** — all contacts with interaction stats; sortable by relevance, volume, or recency
+- **Open Loops** — AI detects unresolved commitments, awaited responses, and deadlines; filterable by type with live counts including dismissed items
+- **Project Clusters** — AI groups emails into ongoing project topics with status and keywords
+- **Topic Timeline** — search any topic to see all related emails in chronological order
+- **Executive Briefing** — AI narrative of role state, key relationships, and recommended first-week actions
+- **Contact Relationship Tracker** — click any sender for an AI relationship summary, response-time stats, and unreplied count
+
+### Actions & Follow-ups
+- AI extracts action items from every email automatically
+- Overdue items show a badge on the Actions tab
+- **Waiting for Reply** — surfaces sent emails 3+ days old with no response
+- **Chase Queue** — dedicated tab for follow-up drafts with urgency color-coding (3d / 7d / 14d+)
+- **Proactive Alerts** — background engine runs every 90 seconds detecting: deadline mentions, topic clusters, VIP sentiment escalation, commitment gaps, and relationship health
+
+### Translations & Accessibility
+- **Email Translation** — translate any email inline with automatic language detection; 20 languages supported; preferred language set in App Settings
+- **Thread Summarization** — distill any email chain into a summary, key bullet points, and next-step outcome
+- **Contact card** — LinkedIn profile search, per-sender monthly volume chart, relationship AI summary, unreplied count, average response time
+
+### Calendar & Scheduling
+- **Calendar Event Creator** — pre-filled event form on any email; creates directly in Microsoft Calendar via Graph API
+- **Meeting Prep Brief** — click any calendar event in the Dashboard for an AI-generated agenda, talking points, and prior email context from all attendees
+- **Scheduled Send** — compose now, schedule delivery for any future date and time
+
+### Platform & Integration
+- **Multiple accounts** — Gmail (OAuth2 or App Password), Microsoft 365 / Hotmail (OAuth2), Yahoo, Office 365, or any IMAP server; all searched together in one view
+- **Gmail OAuth2** — sign in with Google in one click; no App Password required
+- **Microsoft Graph integration** — email, calendar, OneDrive, and Teams chat access with full OAuth2 flow and auto-setup via Azure CLI
+- **Dual AI with auto-fallback** — Claude primary; automatically falls back to OpenAI on rate limits or errors
+- **Document Q&A** — index local PDFs, Word docs, and spreadsheets; searchable alongside emails in the Ask tab
+- **Dashboard** — live KPIs, calendar, OneDrive recent files, Teams chats, email volume charts; each item opens an AI action panel
+- **Auto-update** — checks GitHub for new releases every 60 minutes; one-click update applies in ~30 seconds
+- **Budget Mode** — use Claude Haiku for routine tasks to reduce API costs
+- **macOS Dock badge** — unread count updated automatically
+- **Desktop notifications** — new email alerts with sender name and 1-sentence AI summary
+- **Docker support** — one-command server or team deployment
 
 ---
 
 ## Requirements
 
-- **macOS 12+** (or Windows 10+)
-- **Python 3.11+**
-- **Node.js 18+**
-- An **Anthropic API key** (or OpenAI key) — get one at [console.anthropic.com](https://console.anthropic.com)
-- An IMAP-enabled email account (Gmail, Yahoo, Hotmail, Office 365, or any IMAP server)
+| Requirement | Details |
+|------------|---------|
+| **OS** | macOS 12+ or Windows 10+ |
+| **Python** | 3.11 or higher |
+| **Node.js** | 18 or higher |
+| **AI API key** | Anthropic Claude (recommended) or OpenAI — get one at [console.anthropic.com](https://console.anthropic.com) |
+| **Email account** | Gmail, Yahoo, Hotmail, Office 365, or any IMAP-enabled mailbox |
 
 ---
 
-## macOS — Install from ZIP
+## Install — macOS
 
-### 1. Download the latest release
+### 1. Download
 
 Go to the [Releases page](https://github.com/asalamat/director-assistant/releases) and download:
 
 ```
-DirectorAssistant-mac-3.9.4.zip
+DirectorAssistant-mac-3.10.6.zip
 ```
 
-### 2. Extract and run the installer
+### 2. Install
 
 ```bash
-unzip DirectorAssistant-mac-3.9.4.zip
+unzip DirectorAssistant-mac-3.10.6.zip
 cd DirectorAssistant
 bash scripts/install-mac.sh
 ```
 
 The installer will:
-- Check/install Python 3.11+ and Node.js 18+ (via Homebrew if needed)
-- Create a Python virtual environment and install dependencies
+- Check and install Python 3.11+ and Node.js 18+ via Homebrew if missing
+- Create a Python virtual environment and install all dependencies
 - Build the frontend and embed it in the backend
 - Create `~/Applications/Director Assistant.app`
 - Install a LaunchAgent so the app auto-starts on login
 
-### 3. Open the app
+### 3. Open
 
 ```
 http://localhost:8000
@@ -130,9 +184,9 @@ Or double-click **Director Assistant.app** in `~/Applications`.
 
 ### 4. First-time setup
 
-1. Open `http://localhost:8000`
-2. Go to **Settings → App Settings** — enter your Anthropic (or OpenAI) API key
-3. Go to **Settings → Email Accounts → Add Account** — connect your mailbox
+1. Go to **Settings → App Settings** → enter your Anthropic (or OpenAI) API key
+2. Go to **Settings → Email Accounts → Add Account** → connect your mailbox
+3. Click **Ingest** to download and index your emails
 
 ### Stop / Start manually
 
@@ -146,9 +200,9 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.director-assistant.a
 
 ---
 
-## Windows — Install from ZIP
+## Install — Windows
 
-Download `DirectorAssistant-win-3.9.4.zip` from [Releases](https://github.com/asalamat/director-assistant/releases), extract it, then double-click:
+Download `DirectorAssistant-win-3.10.6.zip` from [Releases](https://github.com/asalamat/director-assistant/releases), extract it, then double-click:
 
 ```
 DirectorAssistant\scripts\install-windows.bat
@@ -156,7 +210,7 @@ DirectorAssistant\scripts\install-windows.bat
 
 ---
 
-## Docker
+## Install — Docker
 
 ```bash
 docker compose up -d
@@ -167,7 +221,7 @@ Email data persists in the `director_data` Docker volume across restarts.
 
 ---
 
-## Install from source
+## Install — From Source
 
 ```bash
 git clone https://github.com/asalamat/director-assistant.git
@@ -176,79 +230,81 @@ cd director-assistant
 # Backend
 cd backend
 python3 -m venv .venv
-source .venv/bin/activate      # Windows: .venv\Scripts\activate
+source .venv/bin/activate       # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
 # Frontend
 cd ../frontend
-npm install
-npm run build
+npm install && npm run build
 cp -r dist/. ../backend/static/
 
 # Run
 cd ../backend
-uvicorn main:app --host 0.0.0.0 --port 8000
+python3 -m uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
 Open `http://localhost:8000`.
 
 ---
 
-## Build distribution packages
+## Build Distribution Packages
 
 ```bash
 bash scripts/package.sh
 ```
 
-Outputs `dist/DirectorAssistant-mac-3.9.4.zip` and `dist/DirectorAssistant-win-3.9.4.zip`.
+Outputs `dist/DirectorAssistant-mac-3.10.6.zip` and `dist/DirectorAssistant-win-3.10.6.zip`.
 
 ---
 
-## Tech stack
+## Tech Stack
 
-- **Backend** — FastAPI, Anthropic Claude API, OpenAI API, SQLite (FTS5), sentence-transformers
-- **Frontend** — React 18, TypeScript, Vite, Tailwind CSS
-- **AI** — Claude Haiku / Sonnet with automatic OpenAI fallback (configurable)
+| Layer | Technology |
+|-------|-----------|
+| **Backend** | FastAPI, Python 3.11+, SQLite (FTS5), sentence-transformers |
+| **Frontend** | React 18, TypeScript, Vite, Tailwind CSS |
+| **AI** | Anthropic Claude Haiku / Sonnet with automatic OpenAI fallback |
+| **Storage** | SQLite for emails and metadata; ChromaDB (optional) for vector search |
+| **Email** | IMAP, Gmail API, Microsoft Graph API |
 
 ---
 
-## Gmail setup
+## Gmail Setup
 
-### Option A — OAuth2 (recommended, no App Password needed)
+### Option A — OAuth2 (Recommended)
 
-1. Go to **App Settings → Google / Gmail Integration** and enter your Google Cloud OAuth credentials
-2. Create credentials at [Google Cloud Console](https://console.cloud.google.com/apis/credentials) → OAuth 2.0 Client IDs → Web application
+1. Go to **App Settings → Google / Gmail Integration**
+2. Create OAuth credentials at [Google Cloud Console](https://console.cloud.google.com/apis/credentials) → OAuth 2.0 Client IDs → Web application
 3. Add `http://localhost:8000/api/oauth/google/callback` as an authorized redirect URI
-4. Enable the **Gmail API** and **Google Calendar API** in your Google Cloud project
-5. Go to **Email Accounts → Add Account → Gmail → Sign in with Google (OAuth2)**
-6. Click **Sign in with Google** — a popup opens; sign in and approve permissions
+4. Enable the **Gmail API** and **Google Calendar API** in your project
+5. Enter your Client ID and Secret in App Settings
+6. Go to **Email Accounts → Add Account → Gmail → Sign in with Google**
 
 ### Option B — App Password (IMAP)
 
-Enable IMAP in Gmail settings, then use:
-- **Host**: `imap.gmail.com` | **Port**: `993`
-- **Username**: your Gmail address
-- **Password**: an [App Password](https://myaccount.google.com/apppasswords) (not your regular password — requires 2FA enabled)
+Enable IMAP in Gmail settings:
+- **Host:** `imap.gmail.com` | **Port:** `993`
+- **Username:** your Gmail address
+- **Password:** an [App Password](https://myaccount.google.com/apppasswords) (requires 2FA)
 
 ---
 
-## Microsoft / Outlook setup
+## Microsoft / Outlook Setup
 
-### Option A — OAuth2 (recommended)
+### Option A — OAuth2 (Recommended)
 
-1. Go to **App Settings → Microsoft Integration** and click **Auto-Setup Microsoft App** (uses Azure CLI — `brew install azure-cli` if not installed)
-2. Once configured, go to **Email Accounts → Add Account → Hotmail / Outlook.com → Sign in with Microsoft (OAuth2)**
-3. A popup opens — sign in and approve permissions. Email, calendar, and OneDrive data sync automatically.
+1. Go to **App Settings → Microsoft Integration** → click **Auto-Setup Microsoft App** (uses Azure CLI — `brew install azure-cli` if not installed)
+2. Go to **Email Accounts → Add Account → Hotmail / Outlook.com → Sign in with Microsoft**
 
-### Option B — Manual Azure app registration
+### Option B — Manual Azure Registration
 
 1. Create an app at [portal.azure.com](https://portal.azure.com) → App registrations
 2. Add `http://localhost:8000/api/oauth/microsoft/callback` as a redirect URI
 3. Copy the Application (client) ID into **App Settings → Microsoft App Client ID**
-4. Then use the OAuth2 sign-in flow above
+4. Use the OAuth2 sign-in flow above
 
 ---
 
 ## License
 
-MIT
+MIT — use freely, modify freely, attribution appreciated.
