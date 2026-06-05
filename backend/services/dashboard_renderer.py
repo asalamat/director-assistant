@@ -160,38 +160,103 @@ h2{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;
 _CSS += AI_CSS
 
 _JS = f"""
-let currentCtx='';
 const bg=document.getElementById('modal-bg');
 const mTitle=document.getElementById('modal-title');
 const mBody=document.getElementById('modal-body');
 const mActions=document.getElementById('modal-actions');
+let currentCtx='';
+let _currentOpts={{}};
 
+/* ── Action handlers ─────────────────────────────────────── */
+function openInApp(emailId){{
+  window.open('/?email='+encodeURIComponent(emailId),'_blank');
+}}
+function markDone(id,btn){{
+  fetch('/api/actions/'+id,{{method:'PATCH',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{done:true}})}})
+    .then(r=>r.ok?Promise.resolve():Promise.reject())
+    .then(()=>{{btn.textContent='✓ Done!';btn.disabled=true;btn.style.background='#238636';btn.style.opacity='.7';}})
+    .catch(()=>{{btn.textContent='Error';btn.style.background='#6e1a1a';}});
+}}
+function draftFollowUp(btn){{
+  const emailId=_currentOpts.chaseEmailId;
+  if(!emailId)return;
+  btn.textContent='Drafting…';btn.disabled=true;
+  fetch('/api/followups/chase-draft/'+encodeURIComponent(emailId),{{method:'POST'}})
+    .then(r=>r.json())
+    .then(d=>{{
+      document.getElementById('draft-box').style.display='block';
+      document.getElementById('draft-text').value=d.draft||'Could not generate draft.';
+      btn.textContent='✎ Re-draft';btn.disabled=false;
+    }})
+    .catch(()=>{{btn.textContent='Failed';btn.disabled=false;}});
+}}
+function copyDraft(){{
+  const t=document.getElementById('draft-text');
+  navigator.clipboard.writeText(t.value).then(()=>{{
+    const b=document.getElementById('copy-btn');
+    if(b){{b.textContent='Copied!';setTimeout(()=>{{b.textContent='Copy';}},1500);}}
+  }});
+}}
+function sendDraft(){{
+  const body=document.getElementById('draft-text').value;
+  const to=_currentOpts.replyTo||'';
+  const subject='Re: '+mTitle.textContent;
+  if(!body||!to)return;
+  const btn=document.getElementById('send-btn');
+  if(btn){{btn.textContent='Sending…';btn.disabled=true;}}
+  fetch('/api/email/send-new',{{method:'POST',headers:{{'Content-Type':'application/json'}},
+    body:JSON.stringify({{to:to,subject:subject,body:body}})}})
+    .then(r=>r.json())
+    .then(()=>{{if(btn){{btn.textContent='Sent ✓';btn.style.background='#0d2a0d';}}setTimeout(closeModal,1500);}})
+    .catch(()=>{{if(btn){{btn.textContent='Failed';btn.disabled=false;}}}});
+}}
+function joinMeeting(){{
+  if(_currentOpts.meetingUrl) window.open(_currentOpts.meetingUrl,'_blank');
+}}
+
+/* ── Modal ───────────────────────────────────────────────── */
 function showModal(title, rows, opts){{
-  opts = opts || {{}};
+  _currentOpts = opts || {{}};
   mTitle.textContent = title;
-  mBody.innerHTML = rows.map(([lbl,val]) =>
-    '<div class="detail-row"><div class="detail-label">' + lbl + '</div>' +
-    '<div class="detail-body">' + val + '</div></div>'
+  mBody.innerHTML = rows.map(([lbl,val])=>
+    '<div class="detail-row"><div class="detail-label">'+lbl+'</div>'+
+    '<div class="detail-body">'+val+'</div></div>'
   ).join('');
-  currentCtx = title + '\\n' + rows.map(([l,v]) => l+': '+v).join('\\n');
+  currentCtx = title+'\\n'+rows.map(([l,v])=>l+': '+v).join('\\n');
 
-  // Build action buttons
-  let btns = '';
-  if(opts.emailId) {{
-    btns += '<a href="/" class="btn btn-blue" onclick="sessionStorage.setItem(\'openEmail\',\''+opts.emailId+'\');return false;" target="_self">Open in App</a>';
+  // Build action buttons — all use _currentOpts, no inline values needed
+  let btns='';
+  if(_currentOpts.emailId)
+    btns+='<button class="btn btn-blue" onclick="openInApp(_currentOpts.emailId)">↗ Open in App</button>';
+  if(_currentOpts.replyTo){{
+    const mailto='mailto:'+encodeURIComponent(_currentOpts.replyTo)+
+      (_currentOpts.replySubject?'?subject='+encodeURIComponent('Re: '+_currentOpts.replySubject):'');
+    btns+='<a class="btn btn-gray" href="'+mailto+'">✉ Reply by Email</a>';
   }}
-  if(opts.replyTo) {{
-    btns += '<a href="mailto:'+opts.replyTo+'" class="btn btn-gray">Reply by Email</a>';
-  }}
-  if(opts.actionId) {{
-    btns += '<button class="btn btn-green" onclick="markDone('+opts.actionId+',this)">✓ Mark Done</button>';
-  }}
-  mActions.innerHTML = btns;
-  mActions.style.display = btns ? 'flex' : 'none';
+  if(_currentOpts.actionId)
+    btns+='<button class="btn btn-green" onclick="markDone('+_currentOpts.actionId+',this)">✓ Mark Done</button>';
+  if(_currentOpts.chaseEmailId)
+    btns+='<button class="btn btn-blue" onclick="draftFollowUp(this)">✎ Generate Follow-up Draft</button>';
+  if(_currentOpts.meetingUrl)
+    btns+='<button class="btn btn-green" onclick="joinMeeting()">▶ Join Meeting</button>';
 
-  const o=document.getElementById('ai-out'), i=document.getElementById('ai-input');
-  const sd=document.getElementById('save-draft-btn');
-  const mp=document.getElementById('meeting-prep-chip');
+  mActions.innerHTML=btns;
+  mActions.style.display=btns?'flex':'none';
+
+  // Draft textarea (for chase follow-ups)
+  if(_currentOpts.chaseEmailId){{
+    mBody.innerHTML+='<div id="draft-box" style="display:none;margin-top:14px;border-top:1px solid #21262d;padding-top:14px">'+
+      '<div class="detail-label" style="margin-bottom:6px">AI Follow-up Draft</div>'+
+      '<textarea id="draft-text" style="width:100%;height:120px;background:#0d1117;border:1px solid #21262d;'+
+      'border-radius:8px;padding:10px;color:#e6edf3;font-size:12px;line-height:1.7;resize:vertical"></textarea>'+
+      '<div style="display:flex;gap:8px;margin-top:8px">'+
+      '<button id="copy-btn" class="btn btn-gray" onclick="copyDraft()">Copy</button>'+
+      (_currentOpts.replyTo?'<button id="send-btn" class="btn btn-blue" onclick="sendDraft()">Send via App</button>':'')+
+      '</div></div>';
+  }}
+
+  const o=document.getElementById('ai-out'),i=document.getElementById('ai-input');
+  const sd=document.getElementById('save-draft-btn'),mp=document.getElementById('meeting-prep-chip');
   if(o){{o.textContent='';o.classList.remove('active');}}
   if(i)i.value='';
   if(sd){{sd.style.display='none';sd.disabled=false;sd.textContent='Save to Drafts';}}
@@ -201,18 +266,8 @@ function showModal(title, rows, opts){{
 function closeModal(){{bg.classList.remove('open');}}
 bg.addEventListener('click',e=>{{if(e.target===bg)closeModal();}});
 document.addEventListener('keydown',e=>{{if(e.key==='Escape')closeModal();}});
-
-function markDone(id, btn){{
-  fetch('/api/actions/'+id, {{method:'PATCH',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{done:true}})}})
-    .then(()=>{{btn.textContent='✓ Done!';btn.disabled=true;btn.style.opacity='.5';}})
-    .catch(()=>{{btn.textContent='Failed';}});
-}}
-
 document.querySelectorAll('[data-modal]').forEach(el=>{{
-  el.addEventListener('click',()=>{{
-    const d=JSON.parse(el.dataset.modal);
-    showModal(d.title, d.rows, d.opts||{{}});
-  }});
+  el.addEventListener('click',()=>{{const d=JSON.parse(el.dataset.modal);showModal(d.title,d.rows,d.opts||{{}});}});
 }});
 
 const countdown=document.getElementById('countdown');
@@ -296,21 +351,25 @@ def _vip_alert_row(vips: list[dict]) -> str:
 
 def _chase_list(chase: list[dict]) -> str:
     if not chase:
-        return "<p style='color:#3fb950;font-size:13px'>No follow-ups pending.</p>"
+        return "<p style='color:#3fb950;font-size:13px'>No follow-ups pending. 🎉</p>"
     items = []
     for e in chase[:8]:
         subj = (e.get("subject") or "(no subject)")[:70]
         recipient = e.get("recipient") or e.get("sender", "")
         days = e.get("days_waiting", 0)
+        eid = e.get("id", "")
         badge_cls = "bdg-red" if days >= 14 else "bdg-yellow" if days >= 7 else "bdg-blue"
+        opts = {"chaseEmailId": eid, "replyTo": recipient,
+                "replySubject": f"Re: {subj}", "emailId": eid}
         modal = _modal_attr(subj, [
             ("To", recipient), ("Days waiting", str(days)),
             ("Sent", (e.get("date") or "")[:10]),
-        ], {"replyTo": recipient, "emailId": e.get("id", "")})
+            ("Tip", "Click 'Generate Follow-up Draft' above to write a polite chase email."),
+        ], opts)
         items.append(
             f'<div class="chase-item"{modal}>'
             f'<div><b>{_e(subj)}</b>'
-            f'<span class="badge {badge_cls}">{days}d</span></div>'
+            f'<span class="badge {badge_cls}">{days}d waiting</span></div>'
             f'<div class="meta">To: {_e(recipient[:40])}</div></div>'
         )
     return "".join(items)
@@ -385,19 +444,24 @@ def _schedule_section(events: list[dict]) -> str:
         if resp == "declined":   badge = '<span class="badge bdg-red">Declined</span>'
         elif resp == "tentativelyaccepted": badge = '<span class="badge bdg-yellow">Tentative</span>'
         elif resp == "accepted":  badge = '<span class="badge bdg-green">Accepted</span>'
+        is_online = e.get("isOnlineMeeting", False)
+        meeting_url = (e.get("onlineMeeting") or {}).get("joinUrl", "") or \
+                      (e.get("onlineMeetingUrl") or "")
         attendees_str = ", ".join(
             a.get("emailAddress", {}).get("address", "")
             for a in (e.get("attendees") or [])
             if a.get("emailAddress", {}).get("address")
         )[:500]
+        opts = {"meetingUrl": meeting_url} if (is_online and meeting_url) else {}
         modal = _modal_attr(subj, [
             ("Time", t), ("Organizer", org), ("Response", resp or "—"),
-            ("Online", "Yes" if e.get("isOnlineMeeting") else "No"),
+            ("Online", "Yes — click Join Meeting above" if is_online else "No"),
             ("Attendees", attendees_str or "—"),
-        ])
+        ], opts)
+        join_badge = '<span class="badge bdg-blue">Online</span>' if is_online else ""
         rows.append(
             f'<div class="evt"{modal}><span class="evt-time">{t}</span>'
-            f'<span class="evt-title">{_e(subj)}</span>{badge}'
+            f'<span class="evt-title">{_e(subj)}</span>{badge}{join_badge}'
             f'{"<div class=evt-org>"+_e(org)+"</div>" if org else ""}</div>'
         )
     return "".join(rows)

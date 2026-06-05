@@ -16,11 +16,15 @@ import { TriagePanel } from './components/TriagePanel'
 import { ToastContainer, addToast } from './components/Toast'
 import UpdatePopup from './components/UpdatePopup'
 import { ComposeModal } from './components/ComposeModal'
+import { WeeklyBriefPanel } from './components/WeeklyBriefPanel'
+import { VIPPanel } from './components/VIPPanel'
+import { ChaseQueue } from './components/ChaseQueue'
+import { ProjectsPanel } from './components/ProjectsPanel'
 import { useEmails, useEmailDetail, useRecommendation } from './hooks/useEmails'
 import { api } from './api/client'
 import type { EmailSummary } from './types'
 
-type Tab = 'inbox' | 'actions' | 'digest' | 'analytics' | 'templates' | 'health' | 'ask' | 'knowledge' | 'triage'
+type Tab = 'inbox' | 'actions' | 'digest' | 'analytics' | 'templates' | 'health' | 'ask' | 'knowledge' | 'triage' | 'weekly' | 'vip' | 'chase' | 'projects'
 
 // Simple SVG icons
 const Icons: Record<Tab, JSX.Element> = {
@@ -70,6 +74,26 @@ const Icons: Record<Tab, JSX.Element> = {
       <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
     </svg>
   ),
+  weekly: (
+    <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+      <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zm6-4a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zm6-3a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
+    </svg>
+  ),
+  vip: (
+    <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+    </svg>
+  ),
+  chase: (
+    <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd"/>
+    </svg>
+  ),
+  projects: (
+    <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+      <path fillRule="evenodd" d="M2 5a2 2 0 012-2h8a2 2 0 012 2v10a2 2 0 002 2H4a2 2 0 01-2-2V5zm3 1h6v4H5V6zm6 6H5v2h6v-2z" clipRule="evenodd"/><path d="M15 7h1a2 2 0 012 2v5.5a1.5 1.5 0 01-3 0V7z"/>
+    </svg>
+  ),
 }
 
 const TABS: { id: Tab; label: string }[] = [
@@ -77,6 +101,10 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'triage', label: 'Focus' },
   { id: 'ask', label: 'Ask' },
   { id: 'actions', label: 'Actions' },
+  { id: 'chase', label: 'Chase' },
+  { id: 'vip', label: 'VIP' },
+  { id: 'projects', label: 'Projects' },
+  { id: 'weekly', label: 'Weekly' },
   { id: 'digest', label: 'Brief' },
   { id: 'analytics', label: 'Analytics' },
   { id: 'templates', label: 'Templates' },
@@ -131,6 +159,14 @@ export default function App() {
       if (s.connected) { refresh(); loadFolderData() }
     }).catch(() => setConnected(false))
     api.getAccounts().then(setAccounts).catch(() => {})
+    // Handle ?email=ID deep-link from dashboard
+    const params = new URLSearchParams(window.location.search)
+    const deepEmail = params.get('email')
+    if (deepEmail) {
+      fetchEmail(deepEmail)
+      setActiveTab('inbox')
+      window.history.replaceState({}, '', '/')
+    }
   }, [])
 
   useEffect(() => {
@@ -576,6 +612,19 @@ export default function App() {
           {activeTab === 'templates' && <TemplatesPanel />}
           {activeTab === 'health' && <HealthPanel />}
           {activeTab === 'knowledge' && <IntelligencePanel />}
+          {activeTab === 'weekly' && (
+            <WeeklyBriefPanel
+              onSelectEmail={(id) => {
+                const em = emails.find(e => e.id === id)
+                if (em) { handleSelect(em); setActiveTab('inbox') }
+                else { fetchEmail(id); setActiveTab('inbox') }
+              }}
+              onSearch={(q) => { refresh({ q }); setActiveTab('inbox') }}
+            />
+          )}
+          {activeTab === 'vip' && <VIPPanel onSelectEmail={(id) => { const em = emails.find(e => e.id === id); if (em) { handleSelect(em); setActiveTab('inbox') } else { fetchEmail(id); setActiveTab('inbox') } }} />}
+          {activeTab === 'chase' && <ChaseQueue onOpenCompose={(opts) => { setShowCompose(true) }} />}
+          {activeTab === 'projects' && <ProjectsPanel onSelectEmail={(id) => { const em = emails.find(e => e.id === id); if (em) { handleSelect(em); setActiveTab('inbox') } else { fetchEmail(id); setActiveTab('inbox') } }} />}
         </div>
       </div>
 
