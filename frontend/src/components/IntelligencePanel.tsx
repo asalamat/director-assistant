@@ -437,12 +437,15 @@ function LoopsTab() {
     <div className="flex flex-col h-full">
       <div className="px-4 pt-4 pb-2 flex items-center justify-between flex-shrink-0">
         <div className="flex gap-1">
-          {(['all', 'commitment', 'awaiting', 'deadline'] as const).map(f => (
-            <button key={f} onClick={() => setFilter(f)}
-              className={`text-xs px-2.5 py-1 rounded-lg transition-colors ${filter === f ? 'bg-accent text-white' : 'text-gray-500 hover:bg-gray-100'}`}>
-              {f === 'all' ? `All (${active.length})` : f.charAt(0).toUpperCase() + f.slice(1)}
-            </button>
-          ))}
+          {(['all', 'commitment', 'awaiting', 'deadline'] as const).map(f => {
+            const count = f === 'all' ? active.length : active.filter(l => l.type === f).length
+            return (
+              <button key={f} onClick={() => setFilter(f)}
+                className={`text-xs px-2.5 py-1 rounded-lg transition-colors ${filter === f ? 'bg-accent text-white' : 'text-gray-500 hover:bg-gray-100'}`}>
+                {f === 'all' ? `All (${count})` : `${f.charAt(0).toUpperCase() + f.slice(1)} (${count})`}
+              </button>
+            )
+          })}
         </div>
         <div className="flex items-center gap-1">
           {dismissedLoops.length > 0 && (
@@ -460,8 +463,12 @@ function LoopsTab() {
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-2">
-        {filtered.length === 0 && !showDismissed && (
-          <p className="text-sm text-gray-400 text-center py-8">No open items found</p>
+        {filtered.length === 0 && (
+          <p className="text-sm text-gray-400 text-center py-8">
+            {filter !== 'all' && active.filter(l => l.type === filter).length === 0 && dismissedLoops.some(l => l.type === filter)
+              ? `All ${filter} items are resolved — see Dismissed below`
+              : 'No open items found'}
+          </p>
         )}
         {[...high, ...medium, ...low].map((loop, i) => (
           <div key={i} className={`border rounded-xl p-3 ${urgencyStyle(loop.urgency)}`}>
