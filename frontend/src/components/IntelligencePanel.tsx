@@ -400,6 +400,7 @@ function LoopsTab() {
   }
 
   const filtered = filter === 'all' ? active : active.filter(l => l.type === filter)
+  const filteredDismissed = filter === 'all' ? dismissedLoops : dismissedLoops.filter(l => l.type === filter)
   const high = filtered.filter(l => l.urgency === 'high')
   const medium = filtered.filter(l => l.urgency === 'medium')
   const low = filtered.filter(l => l.urgency === 'low')
@@ -436,13 +437,15 @@ function LoopsTab() {
   return (
     <div className="flex flex-col h-full">
       <div className="px-4 pt-4 pb-2 flex items-center justify-between flex-shrink-0">
-        <div className="flex gap-1">
+        <div className="flex gap-1 flex-wrap">
           {(['all', 'commitment', 'awaiting', 'deadline'] as const).map(f => {
-            const count = f === 'all' ? active.length : active.filter(l => l.type === f).length
+            const activeCount = f === 'all' ? active.length : active.filter(l => l.type === f).length
+            const dismissedCount = f === 'all' ? dismissedLoops.length : dismissedLoops.filter(l => l.type === f).length
+            const total = showDismissed ? activeCount + dismissedCount : activeCount
             return (
               <button key={f} onClick={() => setFilter(f)}
                 className={`text-xs px-2.5 py-1 rounded-lg transition-colors ${filter === f ? 'bg-accent text-white' : 'text-gray-500 hover:bg-gray-100'}`}>
-                {f === 'all' ? `All (${count})` : `${f.charAt(0).toUpperCase() + f.slice(1)} (${count})`}
+                {f === 'all' ? `All (${total})` : `${f.charAt(0).toUpperCase() + f.slice(1)} (${total})`}
               </button>
             )
           })}
@@ -463,11 +466,12 @@ function LoopsTab() {
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-2">
-        {filtered.length === 0 && (
+        {filtered.length === 0 && filteredDismissed.length === 0 && (
+          <p className="text-sm text-gray-400 text-center py-8">No open items found</p>
+        )}
+        {filtered.length === 0 && filteredDismissed.length > 0 && !showDismissed && (
           <p className="text-sm text-gray-400 text-center py-8">
-            {filter !== 'all' && active.filter(l => l.type === filter).length === 0 && dismissedLoops.some(l => l.type === filter)
-              ? `All ${filter} items are resolved — see Dismissed below`
-              : 'No open items found'}
+            All items are resolved — click <span className="font-medium">Dismissed ({filteredDismissed.length})</span> to view
           </p>
         )}
         {[...high, ...medium, ...low].map((loop, i) => (
@@ -496,13 +500,15 @@ function LoopsTab() {
           </div>
         ))}
 
-        {showDismissed && dismissedLoops.length > 0 && (
+        {showDismissed && filteredDismissed.length > 0 && (
           <div className="mt-4">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Resolved / Dismissed</p>
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                Resolved / Dismissed ({filteredDismissed.length})
+              </p>
               <button onClick={clearAllDismissed} className="text-xs text-gray-400 hover:text-red-500 transition-colors">Clear all</button>
             </div>
-            {dismissedLoops.map((loop, i) => (
+            {filteredDismissed.map((loop, i) => (
               <div key={i} className="border border-gray-100 rounded-xl p-3 bg-gray-50 opacity-60 mb-2">
                 <div className="flex items-start gap-2">
                   <span className="text-base flex-shrink-0 mt-0.5 grayscale">{typeIcon(loop.type)}</span>
