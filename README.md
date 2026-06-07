@@ -2,7 +2,7 @@
 
 > **Your AI-powered executive email intelligence platform.** Connects to Gmail, Microsoft 365, Yahoo, or any IMAP mailbox and uses Claude AI to help you triage faster, never miss a commitment, and stay on top of every relationship that matters.
 
-**Current version: 3.10.6** · [Releases](https://github.com/asalamat/director-assistant/releases) · MIT License
+**Current version: 3.13.5** · [Releases](https://github.com/asalamat/director-assistant/releases) · MIT License
 
 ---
 
@@ -22,16 +22,13 @@ Everything runs **locally on your machine**. Your emails never leave your device
 | **Focus** | Smart Daily Triage — AI scores all unread emails by 7 urgency signals and surfaces your top priority items with score badges and reason tags |
 | **Ask** | Natural-language Q&A over your entire email and document history using hybrid semantic + full-text search |
 | **Actions** | AI-extracted commitments, follow-ups, and deadlines with overdue tracking and CSV export |
-| **Chase** | Follow-up queue — emails you sent with no reply after 3+ days; AI writes polite chase drafts in one click |
 | **VIP** | Track your most important contacts with live stats: last contact, unread count, awaiting-reply flag, and full email history |
-| **Projects** | Link emails to named deals or initiatives; browse all related emails in one timeline view |
-| **Weekly** | One-click AI executive brief for the past 7 days — decisions made, commitments, waiting-for, wins, and top action items |
 | **Brief** | Daily AI digest of your most important recent emails, configurable date range |
-| **Analytics** | Activity heatmap, volume trends, top senders, folder breakdown — exportable as CSV |
-| **Templates** | Reusable reply templates with `{name}`, `{date}`, `{subject}`, `{sender}` auto-fill variables |
 | **Health** | Live system status — IMAP connection, AI provider, RAG database, polling loop |
-| **Knowledge** | Role-intelligence hub — people graph, open commitments, project clusters, topic timeline, and AI executive briefing |
-| **Dashboard** | Full-screen executive brief at `/api/dashboard` — 7 KPI tiles, VIP alerts, Chase Queue, Projects, calendar, actions, OneDrive, and clickable modals with live action buttons |
+| **Knowledge** | Hub with left sidebar navigation containing 10 sub-sections across two groups: |
+| ↳ Intelligence | Role Briefing · People Graph · Open Loops · AI Clusters · Topic Timeline |
+| ↳ Tools | Weekly Brief · Chase Queue · Projects Tracker · Analytics · Templates · **PST/OLM Import** |
+| **Dashboard** | Full-screen executive brief at `/api/dashboard` — 7 KPI tiles, VIP alerts, Chase Queue, Projects, calendar, actions, and live action buttons |
 
 ---
 
@@ -122,6 +119,19 @@ Everything runs **locally on your machine**. Your emails never leave your device
 - **Meeting Prep Brief** — click any calendar event in the Dashboard for an AI-generated agenda, talking points, and prior email context from all attendees
 - **Scheduled Send** — compose now, schedule delivery for any future date and time
 
+### PST & OLM Email Archive Import
+- **Import PST files** (Outlook for Windows) — drag and drop to import; uses `readpst` (`brew install libpst`)
+- **Import OLM files** (Outlook for Mac) — built-in parser, zero external dependencies
+- Real-time progress with email count, streaming via Server-Sent Events
+- Stable deduplication — re-importing the same file skips emails already in the database
+- Access via **Knowledge → 📦 Import PST** in the left sidebar
+
+### Design System (v3.13)
+- Consistent UI primitives across all components: `Button`, `Badge`, `Avatar`, `Card`, `Input`, `EmptyState`, `Spinner`
+- Gradient initials avatars, color-coded badges, loading overlays
+- Dark sidebar navigation with active left-border indicator and hover tooltips
+- Redesigned Knowledge tab with left mini-sidebar (all 10 sections visible at once)
+
 ### Platform & Integration
 - **Multiple accounts** — Gmail (OAuth2 or App Password), Microsoft 365 / Hotmail (OAuth2), Yahoo, Office 365, or any IMAP server; all searched together in one view
 - **Gmail OAuth2** — sign in with Google in one click; no App Password required
@@ -156,13 +166,13 @@ Everything runs **locally on your machine**. Your emails never leave your device
 Go to the [Releases page](https://github.com/asalamat/director-assistant/releases) and download:
 
 ```
-DirectorAssistant-mac-3.10.6.zip
+DirectorAssistant-mac-3.13.5.zip
 ```
 
 ### 2. Install
 
 ```bash
-unzip DirectorAssistant-mac-3.10.6.zip
+unzip DirectorAssistant-mac-3.13.5.zip
 cd DirectorAssistant
 bash scripts/install-mac.sh
 ```
@@ -202,7 +212,7 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.director-assistant.a
 
 ## Install — Windows
 
-Download `DirectorAssistant-win-3.10.6.zip` from [Releases](https://github.com/asalamat/director-assistant/releases), extract it, then double-click:
+Download `DirectorAssistant-win-3.13.5.zip` from [Releases](https://github.com/asalamat/director-assistant/releases), extract it, then double-click:
 
 ```
 DirectorAssistant\scripts\install-windows.bat
@@ -253,7 +263,7 @@ Open `http://localhost:8000`.
 bash scripts/package.sh
 ```
 
-Outputs `dist/DirectorAssistant-mac-3.10.6.zip` and `dist/DirectorAssistant-win-3.10.6.zip`.
+Outputs `dist/DirectorAssistant-mac-3.13.5.zip` and `dist/DirectorAssistant-win-3.13.5.zip`.
 
 ---
 
