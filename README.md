@@ -2,7 +2,7 @@
 
 > **Your AI-powered executive email intelligence platform.** Connects to Gmail, Microsoft 365, Yahoo, or any IMAP mailbox and uses Claude AI to help you triage faster, never miss a commitment, and stay on top of every relationship that matters.
 
-**Current version: 3.13.5** · [Releases](https://github.com/asalamat/director-assistant/releases) · MIT License
+**Current version: 3.14.0** · [Releases](https://github.com/asalamat/director-assistant/releases) · MIT License
 
 ---
 
@@ -119,6 +119,17 @@ Everything runs **locally on your machine**. Your emails never leave your device
 - **Meeting Prep Brief** — click any calendar event in the Dashboard for an AI-generated agenda, talking points, and prior email context from all attendees
 - **Scheduled Send** — compose now, schedule delivery for any future date and time
 
+### Multi-Provider AI with Priority Control (v3.14)
+- **7 AI providers supported**: Anthropic Claude, OpenAI GPT, Groq (Llama/Mixtral), Google Gemini, Kimi (Moonshot AI), Ollama (local), and any OpenAI-compatible API
+- **Priority ordering**: set any provider as primary; if it hits a rate limit or quota error, the app automatically falls back to the next enabled provider
+- **▲▼ reorder**: drag providers up/down in Settings → App Settings → AI Providers to change who is primary and who is fallback
+- **Per-provider settings**: API key, custom base URL (for self-hosted or custom endpoints), default model override
+- **Test connection**: verify each provider works before saving with one click
+- **Kimi support**: Moonshot AI's Kimi models (`moonshot-v1-8k/32k/128k`) via OpenAI-compatible API at `api.moonshot.cn`
+- **Groq**: ultra-fast inference for Llama 3.3 70B, Mixtral, Gemma; great as a cost-effective fallback
+- **Ollama**: run local models (Llama 3.2, Mistral, Phi-3, Qwen) with zero API costs — no key required
+- **Auto model mapping**: when Claude models are requested but a non-Anthropic provider is active, models are automatically mapped (e.g. `claude-sonnet-4-6` → `llama-3.3-70b-versatile` on Groq)
+
 ### PST & OLM Email Archive Import
 - **Import PST files** (Outlook for Windows) — drag and drop to import; uses `readpst` (`brew install libpst`)
 - **Import OLM files** (Outlook for Mac) — built-in parser, zero external dependencies
@@ -166,13 +177,13 @@ Everything runs **locally on your machine**. Your emails never leave your device
 Go to the [Releases page](https://github.com/asalamat/director-assistant/releases) and download:
 
 ```
-DirectorAssistant-mac-3.13.5.zip
+DirectorAssistant-mac-3.14.0.zip
 ```
 
 ### 2. Install
 
 ```bash
-unzip DirectorAssistant-mac-3.13.5.zip
+unzip DirectorAssistant-mac-3.14.0.zip
 cd DirectorAssistant
 bash scripts/install-mac.sh
 ```
@@ -212,7 +223,7 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.director-assistant.a
 
 ## Install — Windows
 
-Download `DirectorAssistant-win-3.13.5.zip` from [Releases](https://github.com/asalamat/director-assistant/releases), extract it, then double-click:
+Download `DirectorAssistant-win-3.14.0.zip` from [Releases](https://github.com/asalamat/director-assistant/releases), extract it, then double-click:
 
 ```
 DirectorAssistant\scripts\install-windows.bat
@@ -263,7 +274,7 @@ Open `http://localhost:8000`.
 bash scripts/package.sh
 ```
 
-Outputs `dist/DirectorAssistant-mac-3.13.5.zip` and `dist/DirectorAssistant-win-3.13.5.zip`.
+Outputs `dist/DirectorAssistant-mac-3.14.0.zip` and `dist/DirectorAssistant-win-3.14.0.zip`.
 
 ---
 
