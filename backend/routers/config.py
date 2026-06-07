@@ -46,6 +46,7 @@ class AppConfigUpdate(BaseModel):
     digest_schedule_enabled: Optional[bool] = None
     digest_schedule_time: Optional[str] = None   # "HH:MM"
     digest_schedule_email: Optional[str] = None
+    translation_language: Optional[str] = None   # e.g. "English", "French"
 
 
 @router.get("")
@@ -70,6 +71,7 @@ async def get_config():
         "digest_schedule_enabled": cfg.get("digest_schedule_enabled", False),
         "digest_schedule_time": cfg.get("digest_schedule_time", "08:00"),
         "digest_schedule_email": cfg.get("digest_schedule_email", ""),
+        "translation_language": cfg.get("translation_language", "English"),
     }
 
 
@@ -101,6 +103,8 @@ async def update_config(update: AppConfigUpdate, request: Request):
         cfg["digest_schedule_time"] = t
     if update.digest_schedule_email is not None:
         cfg["digest_schedule_email"] = update.digest_schedule_email.strip()
+    if update.translation_language is not None:
+        cfg["translation_language"] = update.translation_language.strip()
 
     if update.poll_interval_seconds is not None:
         cfg["poll_interval_seconds"] = update.poll_interval_seconds
@@ -180,3 +184,148 @@ async def test_openai_key(update: AppConfigUpdate):
         return {"valid": False, "error": "Invalid API key"}
     except Exception as e:
         return {"valid": False, "error": str(e)}
+
+
+# ── AI Provider management ────────────────────────────────────────────────────
+
+_PROVIDER_DEFAULTS = {
+    "anthropic":         {"label": "Anthropic Claude",    "base_url": ""},
+    "openai":            {"label": "OpenAI GPT",          "base_url": ""},
+    "groq":              {"label": "Groq (Llama/Mixtral)", "base_url": "https://api.groq.com/openai/v1"},
+    "gemini":            {"label": "Google Gemini",        "base_url": ""},
+    "ollama":            {"label": "Ollama (Local)",       "base_url": "http://localhost:11434/v1"},
+    "kimi":              {"label": "Kimi (Moonshot AI)",   "base_url": "https://api.moonshot.cn/v1"},
+    "openai-compatible": {"label": "Custom OpenAI API",   "base_url": ""},
+}
+
+_DEFAULT_MODELS = {
+    "anthropic":  ["claude-haiku-4-5-20251001", "claude-sonnet-4-6", "claude-opus-4-7"],
+    "openai":     ["gpt-4o-mini", "gpt-4o", "gpt-4-turbo"],
+    "groq":       ["llama-3.1-8b-instant", "llama-3.3-70b-versatile", "mixtral-8x7b-32768", "gemma2-9b-it"],
+    "gemini":     ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.5-pro"],
+    "ollama":     ["llama3.2", "llama3.1", "mistral", "phi3", "qwen2.5"],
+    "kimi":       ["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"],
+    "openai-compatible": [],
+}
+
+
+@router.get("/providers")
+async def get_providers(request: Request):
+    """Return the current AI provider list (keys masked)."""
+    cfg = load_app_config()
+    providers = cfg.get("ai_providers", [])
+    if not providers:
+        # Build defaults from legacy keys
+        providers = []
+        if cfg.get("anthropic_api_key"):
+            providers.append({"type": "anthropic", "key": cfg["anthropic_api_key"],
+                               "enabled": True, "priority": 1, "label": "Anthropic Claude"})
+        if cfg.get("openai_api_key"):
+            providers.append({"type": "openai", "key": cfg["openai_api_key"],
+                               "enabled": True, "priority": 2, "label": "OpenAI GPT"})
+    # Mask keys
+    masked = []
+    for p in providers:
+        m = dict(p)
+        k = m.get("key", "")
+        m["key_preview"] = (k[:4] + "…" + k[-4:]) if len(k) > 8 else ("set" if k else "")
+        m["key"] = ""  # never return full key
+        masked.append(m)
+    return {"providers": masked, "available_types": _PROVIDER_DEFAULTS,
+            "available_models": _DEFAULT_MODELS}
+
+
+class ProviderUpdate(BaseModel):
+    providers: list[dict]
+
+
+@router.post("/providers")
+async def save_providers(body: ProviderUpdate, request: Request):
+    """Save the AI provider list (with full keys)."""
+    cfg = load_app_config()
+    # Validate each provider has at least a type
+    for p in body.providers:
+        if "type" not in p:
+            raise HTTPException(400, "Each provider must have a 'type'")
+    cfg["ai_providers"] = body.providers
+    # Keep legacy keys in sync for backward compat
+    for p in body.providers:
+        if p.get("type") == "anthropic" and p.get("key"):
+            cfg["anthropic_api_key"] = p["key"]
+        if p.get("type") == "openai" and p.get("key"):
+            cfg["openai_api_key"] = p["key"]
+    save_app_config(cfg)
+    # Hot-reload the AI client
+    client = request.app.state.advisor.ai
+    client.update_providers(providers=body.providers)
+    return {"saved": len(body.providers), "primary": body.providers[0]["type"] if body.providers else "none"}
+
+
+@router.post("/providers/test")
+async def test_provider(body: dict):
+    """Test a single provider configuration by making a minimal API call."""
+    provider_type = body.get("type", "")
+    key = body.get("key", "")
+    base_url = body.get("base_url", "")
+    model = body.get("model", "")
+
+    try:
+        if provider_type == "anthropic":
+            import anthropic as _ant
+            c = _ant.AsyncAnthropic(api_key=key)
+            resp = await c.messages.create(
+                model=model or "claude-haiku-4-5-20251001", max_tokens=10,
+                messages=[{"role": "user", "content": "Hi"}]
+            )
+            return {"valid": True, "model": resp.model, "provider": "anthropic"}
+
+        elif provider_type in ("openai", "groq", "ollama", "kimi", "openai-compatible"):
+            from openai import AsyncOpenAI
+            defaults = {
+                "groq":  "https://api.groq.com/openai/v1",
+                "ollama":"http://localhost:11434/v1",
+                "kimi":  "https://api.moonshot.cn/v1",
+            }
+            base = base_url or defaults.get(provider_type)
+            kwargs: dict = {"api_key": key or "ollama"}
+            if base:
+                kwargs["base_url"] = base
+            c = AsyncOpenAI(**kwargs)
+            if not model:
+                model = _DEFAULT_MODELS.get(provider_type, ["gpt-4o-mini"])[0]
+            resp = await c.chat.completions.create(
+                model=model, max_tokens=10,
+                messages=[{"role": "user", "content": "Hi"}]
+            )
+            return {"valid": True, "model": resp.model, "provider": provider_type}
+
+        elif provider_type == "gemini":
+            target_model = model or "gemini-2.0-flash"
+            # Try new google-genai SDK
+            try:
+                from google import genai as google_genai
+                client = google_genai.Client(api_key=key)
+                resp = await client.aio.models.generate_content(model=target_model, contents="Hi")
+                return {"valid": True, "model": target_model, "provider": "gemini"}
+            except ImportError:
+                pass
+            # Fallback to legacy SDK
+            try:
+                import google.generativeai as genai_legacy
+                import warnings
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    genai_legacy.configure(api_key=key)
+                    m = genai_legacy.GenerativeModel(target_model)
+                    resp = await m.generate_content_async("Hi")
+                return {"valid": True, "model": target_model, "provider": "gemini"}
+            except ImportError:
+                return {"valid": False, "error": "Install google-genai: pip install google-genai"}
+
+        return {"valid": False, "error": f"Unknown provider type: {provider_type}"}
+
+    except Exception as e:
+        msg = str(e)
+        if "auth" in msg.lower() or "key" in msg.lower() or "401" in msg:
+            return {"valid": False, "error": "Invalid API key"}
+        return {"valid": False, "error": msg[:200]}
