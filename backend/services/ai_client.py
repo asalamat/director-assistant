@@ -294,6 +294,38 @@ class _AnthropicStream:
 
 # ── Main client ───────────────────────────────────────────────────────────────
 
+class _GeminiPseudoStream:
+    """Wraps the non-streaming Gemini API call as an async streaming interface.
+    Yields the full response as a single chunk so callers that expect .text_stream work."""
+
+    def __init__(self, key: str, model: str, max_tokens: int, messages: list, kwargs: dict):
+        self._key = key
+        self._model = model
+        self._max_tokens = max_tokens
+        self._messages = messages
+        self._kwargs = kwargs
+        self._text: str = ""
+
+    async def __aenter__(self):
+        # Call non-streaming Gemini and store result
+        resp = await _call_gemini(self._key, self._model, self._max_tokens,
+                                  self._messages, self._kwargs)
+        self._text = resp.content[0].text if resp.content else ""
+        return self
+
+    async def __aexit__(self, *_): pass
+
+    async def _gen(self):
+        # Yield in small chunks for a smoother UX
+        chunk_size = 20
+        for i in range(0, len(self._text), chunk_size):
+            yield self._text[i:i + chunk_size]
+
+    @property
+    def text_stream(self):
+        return self._gen()
+
+
 class _Messages:
     def __init__(self, parent: "AIClient"):
         self._p = parent
@@ -453,9 +485,12 @@ class AIClient:
                     model = _BUDGET_MODEL.get(p.type, model)
                     break
 
-        # Find primary and first fallback
+        # Walk providers in priority order — prefer native streaming types first,
+        # but build a Gemini pseudo-stream if that's the only enabled provider.
         primary = None
         fallback = None
+        gemini_fallback = None  # used if no streaming-capable primary found
+
         for p in self._providers:
             if not p.enabled:
                 continue
@@ -464,22 +499,37 @@ class AIClient:
             if self._budget_mode:
                 mapped = _BUDGET_MODEL.get(p.type, mapped)
 
-            if primary is None:
-                primary = (p, client, mapped)
-            elif fallback is None:
-                fallback = (p, client, mapped)
-                break
+            # Native streaming: anthropic + OpenAI-compatible
+            is_streaming_capable = p.type in (
+                "anthropic", "openai", "groq", "ollama", "kimi", "openai-compatible"
+            ) and client
 
-        if primary is None:
-            raise RuntimeError("No AI provider configured.")
+            if is_streaming_capable:
+                if primary is None:
+                    primary = (p, client, mapped)
+                elif fallback is None:
+                    fallback = (p, client, mapped)
+                    break
+            elif p.type == "gemini" and p.key and gemini_fallback is None:
+                # Keep as last-resort pseudo-stream
+                gemini_fallback = (p, mapped)
+
+        if primary is None and gemini_fallback is None:
+            raise RuntimeError(
+                "No streaming-capable provider configured. "
+                "Enable Anthropic, OpenAI, Groq, Ollama, or Kimi in Settings → AI Providers."
+            )
+
+        # Use Gemini pseudo-stream if no native streaming provider is available
+        if primary is None and gemini_fallback:
+            gp, gm = gemini_fallback
+            return _GeminiPseudoStream(gp.key, gm, max_tokens, messages, kwargs)
 
         p, client, mapped = primary
         fb_ctx = None
         if fallback:
             fp, fc, fm = fallback
-            if fp.type == "anthropic":
-                fb_ctx = None  # anthropic as fallback handled differently
-            elif fp.type in ("openai", "groq", "ollama", "kimi", "openai-compatible") and fc:
+            if fp.type in ("openai", "groq", "ollama", "kimi", "openai-compatible") and fc:
                 fb_ctx = _OAIStream(fc, fm, max_tokens, messages, kwargs)
 
         if p.type == "anthropic" and client:
