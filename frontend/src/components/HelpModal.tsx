@@ -574,6 +574,14 @@ function TipsSection() {
 
       <H3>macOS dock badge</H3>
       <P>The dock icon badge shows your current unread email count, updated automatically every time the app polls for new mail.</P>
+
+      <H3>Memory usage</H3>
+      <P>Director Assistant uses a background subprocess for AI vector search. You may see one <code className="bg-gray-100 px-1 rounded text-xs">python3</code> worker process in Activity Monitor — this is normal and expected (~1 GB).</P>
+      <P>If you see many Python processes consuming excessive RAM after repeated restarts, they are cleaned up automatically on the next server start. You can also restart the app from the LaunchAgent to trigger cleanup immediately.</P>
+      <Tip>The app automatically kills stale background workers on startup. If memory still seems high, quit Director Assistant (Settings → Quit) and relaunch it.</Tip>
+
+      <H3>Contact</H3>
+      <P>Built by <strong>Ali Salamat</strong> · <a href="mailto:ali.salamat@firstpc.ca" className="text-accent-600 hover:underline">ali.salamat@firstpc.ca</a></P>
     </div>
   )
 }
