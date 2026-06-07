@@ -383,6 +383,11 @@ class AIClient:
                 if p.type == "anthropic" and p.key:
                     self._built[id(p)] = anthropic.AsyncAnthropic(api_key=p.key)
                 elif p.type in ("openai", "groq", "ollama", "kimi", "openai-compatible"):
+                    # Ollama doesn't require a real key; all others do
+                    effective_key = p.key or ("ollama" if p.type == "ollama" else "")
+                    if not effective_key and p.type != "ollama":
+                        logger.debug(f"[ai] skipping {p.type} provider — no API key")
+                        continue
                     from openai import AsyncOpenAI
                     base = p.base_url or (
                         "https://api.groq.com/openai/v1"    if p.type == "groq" else
@@ -390,10 +395,10 @@ class AIClient:
                         "https://api.moonshot.cn/v1"         if p.type == "kimi" else
                         None
                     )
-                    kwargs: dict = {"api_key": p.key or "ollama"}
+                    build_kwargs: dict = {"api_key": effective_key}
                     if base:
-                        kwargs["base_url"] = base
-                    self._built[id(p)] = AsyncOpenAI(**kwargs)
+                        build_kwargs["base_url"] = base
+                    self._built[id(p)] = AsyncOpenAI(**build_kwargs)
                 elif p.type == "gemini":
                     self._built[id(p)] = p.key  # pass key at call time
             except Exception as e:

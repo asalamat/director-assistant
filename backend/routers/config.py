@@ -247,9 +247,27 @@ async def save_providers(body: ProviderUpdate, request: Request):
     for p in body.providers:
         if "type" not in p:
             raise HTTPException(400, "Each provider must have a 'type'")
-    cfg["ai_providers"] = body.providers
-    # Keep legacy keys in sync for backward compat
+    # Preserve existing keys when new key is empty (frontend masks keys after first save)
+    existing = {p.get("type", ""): p for p in cfg.get("ai_providers", [])}
+    legacy_keys = {
+        "anthropic": cfg.get("anthropic_api_key", ""),
+        "openai":    cfg.get("openai_api_key", ""),
+    }
+    merged = []
     for p in body.providers:
+        ptype = p.get("type", "")
+        if not p.get("key"):
+            # Try to restore from previous ai_providers entry
+            prev = existing.get(ptype, {})
+            if prev.get("key"):
+                p = {**p, "key": prev["key"]}
+            elif legacy_keys.get(ptype):
+                p = {**p, "key": legacy_keys[ptype]}
+        merged.append(p)
+
+    cfg["ai_providers"] = merged
+    # Keep legacy keys in sync for backward compat
+    for p in merged:
         if p.get("type") == "anthropic" and p.get("key"):
             cfg["anthropic_api_key"] = p["key"]
         if p.get("type") == "openai" and p.get("key"):
