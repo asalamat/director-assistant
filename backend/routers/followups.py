@@ -49,3 +49,40 @@ async def get_waiting_replies(request: Request, days: int = 3, limit: int = 20):
     loop = asyncio.get_event_loop()
     result = await loop.run_in_executor(None, _get, cache, days, min(limit, 50))
     return {"emails": result, "threshold_days": days}
+
+
+@router.post("/chase-draft/{email_id}")
+async def generate_chase_draft(email_id: str, request: Request):
+    """Generate an AI follow-up draft for an email that hasn't been replied to."""
+    import json as _json
+    cache = request.app.state.cache
+    advisor = request.app.state.advisor
+    email = cache.get(email_id)
+    if not email:
+        from fastapi import HTTPException
+        raise HTTPException(404, "Email not found")
+
+    prompt = (
+        f"Write a short, polite follow-up email to check in on the status of this conversation.\n\n"
+        f"Original email:\nFrom: {email.sender}\nSubject: {email.subject}\n"
+        f"Date: {email.date}\n\n{(email.body or '')[:600]}\n\n"
+        "Write ONLY the follow-up email body — no subject line, no preamble. "
+        "Keep it under 4 sentences. Be polite and professional."
+    )
+    ant = getattr(advisor.ai, "_anthropic", None)
+    try:
+        if ant:
+            resp = await ant.messages.create(model="claude-haiku-4-5-20251001", max_tokens=300,
+                messages=[{"role": "user", "content": prompt}])
+            draft = resp.content[0].text.strip()
+        else:
+            resp = await advisor.ai.messages.create(model="claude-haiku-4-5-20251001", max_tokens=300,
+                messages=[{"role": "user", "content": prompt}])
+            draft = resp.content[0].text.strip()
+    except Exception as ex:
+        draft = f"Hi,\n\nJust following up on my previous email regarding {email.subject}. Please let me know if you have any updates.\n\nThank you."
+
+    subject = email.subject or ""
+    if not subject.lower().startswith("re:"):
+        subject = f"Re: {subject}"
+    return {"draft": draft, "subject": subject, "to": email.sender, "email_id": email_id}

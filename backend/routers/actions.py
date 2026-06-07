@@ -41,6 +41,68 @@ async def update_action(item_id: int, patch: ActionPatch, request: Request):
     return {"ok": True}
 
 
+@router.post("/detect-from-sent")
+async def detect_commitments_from_sent(request: Request):
+    """Scan recent sent emails for commitments and return them as suggested action items."""
+    import json as _json
+    from services.email_cache import EmailCache
+    cache: EmailCache = request.app.state.cache
+    advisor = request.app.state.advisor
+
+    # Get last 20 sent emails not yet processed
+    with cache._conn() as conn:
+        rows = conn.execute(
+            """SELECT id, subject, sender, date, body
+               FROM emails WHERE LOWER(folder) LIKE '%sent%'
+               AND date >= datetime('now', '-14 days')
+               ORDER BY date DESC LIMIT 20"""
+        ).fetchall()
+        # Get existing action item email_ids to avoid duplicates
+        existing = {r[0] for r in conn.execute(
+            "SELECT DISTINCT email_id FROM action_items"
+        ).fetchall()}
+
+    new_emails = [dict(r) for r in rows if r["id"] not in existing]
+    if not new_emails:
+        return {"detected": [], "scanned": 0}
+
+    detected = []
+    for em in new_emails[:10]:  # cap at 10 per call
+        body = (em.get("body") or "")[:600]
+        if not body.strip():
+            continue
+        prompt = (
+            f"This is an email YOU sent. Extract any commitments you made.\n"
+            f"Subject: {em.get('subject','')}\n{body}\n\n"
+            "List ONLY concrete commitments/promises (e.g. 'Send report by Friday', 'Schedule call next week').\n"
+            'Return JSON: {"commitments": ["item1", "item2"]} or {"commitments": []} if none.'
+        )
+        ant = getattr(advisor.ai, "_anthropic", None)
+        try:
+            if ant:
+                resp = await ant.messages.create(model="claude-haiku-4-5-20251001", max_tokens=200,
+                    messages=[{"role": "user", "content": prompt}])
+                text = resp.content[0].text.strip()
+            else:
+                resp = await advisor.ai.messages.create(model="claude-haiku-4-5-20251001", max_tokens=200,
+                    messages=[{"role": "user", "content": prompt}])
+                text = resp.content[0].text.strip()
+            start, end = text.find("{"), text.rfind("}") + 1
+            data = _json.loads(text[start:end]) if start >= 0 else {}
+            commitments = data.get("commitments", [])
+            if commitments:
+                detected.append({
+                    "email_id": em["id"],
+                    "subject": em.get("subject") or "(no subject)",
+                    "date": (em.get("date") or "")[:10],
+                    "commitments": commitments,
+                })
+        except Exception:
+            continue
+
+    return {"detected": detected, "scanned": len(new_emails)}
+
+
 @router.get("/export.csv")
 async def export_actions_csv(request: Request):
     items = request.app.state.cache.list_action_items()

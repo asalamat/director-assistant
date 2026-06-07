@@ -247,3 +247,54 @@ async def ask_db(req: AskRequest, request: Request):
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@router.post("/docs-only")
+async def ask_docs(request: Request):
+    """Answer a question using only the document knowledge base (not email history)."""
+    import json as _json
+    from fastapi import HTTPException
+    from services.rag_engine import RAGEngine
+    from services.email_cache import EmailCache
+    body_bytes = await request.body()
+    try:
+        data = _json.loads(body_bytes)
+        question = data.get("question", "")
+        n_results = min(int(data.get("n_results", 8)), 20)
+    except Exception:
+        raise HTTPException(400, "Invalid body")
+    if not question.strip():
+        raise HTTPException(400, "question required")
+
+    rag: RAGEngine = request.app.state.rag
+    advisor = request.app.state.advisor
+
+    # Documents only
+    doc_results = rag.semantic_search(question, n=n_results)
+    docs = [r for r in doc_results if r.get("source_type") == "document"]
+
+    if not docs:
+        return {"answer": "No relevant documents found in your knowledge base.", "sources": []}
+
+    context = "\n\n".join(
+        f"[Document: {d.get('subject','Untitled')}]\n{d.get('text','')[:600]}"
+        for d in docs[:5]
+    )
+    prompt = f"""Answer this question using ONLY the provided documents. \nIf the answer is not in the documents, say so clearly.\n\nQUESTION: {question}\n\nDOCUMENTS:\n{context}\n\nGive a direct, factual answer with the document name as source."""
+
+    ant = getattr(advisor.ai, "_anthropic", None)
+    try:
+        if ant:
+            resp = await ant.messages.create(model="claude-sonnet-4-6", max_tokens=600,
+                messages=[{"role": "user", "content": prompt}])
+            answer = resp.content[0].text.strip()
+        else:
+            resp = await advisor.ai.messages.create(model="claude-sonnet-4-6", max_tokens=600,
+                messages=[{"role": "user", "content": prompt}])
+            answer = resp.content[0].text.strip()
+    except Exception as e:
+        answer = f"Error generating answer: {e}"
+
+    sources = [{"filename": d.get("subject", "Unknown"), "snippet": (d.get("text") or "")[:120]}
+               for d in docs[:3]]
+    return {"answer": answer, "sources": sources}

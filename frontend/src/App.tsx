@@ -20,11 +20,13 @@ import { WeeklyBriefPanel } from './components/WeeklyBriefPanel'
 import { VIPPanel } from './components/VIPPanel'
 import { ChaseQueue } from './components/ChaseQueue'
 import { ProjectsPanel } from './components/ProjectsPanel'
-import { useEmails, useEmailDetail, useRecommendation } from './hooks/useEmails'
+import { useRecommendation } from './hooks/useEmails'
+import { useEmailContext } from './contexts/EmailContext'
+import { useUIContext } from './contexts/UIContext'
 import { api } from './api/client'
 import type { EmailSummary } from './types'
 
-type Tab = 'inbox' | 'actions' | 'digest' | 'analytics' | 'templates' | 'health' | 'ask' | 'knowledge' | 'triage' | 'weekly' | 'vip' | 'chase' | 'projects'
+type Tab = 'inbox' | 'actions' | 'digest' | 'health' | 'ask' | 'knowledge' | 'triage' | 'vip'
 
 // Simple SVG icons
 const Icons: Record<Tab, JSX.Element> = {
@@ -42,16 +44,6 @@ const Icons: Record<Tab, JSX.Element> = {
   digest: (
     <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
       <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
-    </svg>
-  ),
-  analytics: (
-    <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-      <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zm6-4a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zm6-3a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
-    </svg>
-  ),
-  templates: (
-    <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-      <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm0 6a1 1 0 011-1h6a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h6a1 1 0 110 2H4a1 1 0 01-1-1z" />
     </svg>
   ),
   health: (
@@ -74,72 +66,52 @@ const Icons: Record<Tab, JSX.Element> = {
       <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
     </svg>
   ),
-  weekly: (
-    <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-      <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zm6-4a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zm6-3a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
-    </svg>
-  ),
   vip: (
     <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
       <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
     </svg>
   ),
-  chase: (
-    <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd"/>
-    </svg>
-  ),
-  projects: (
-    <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-      <path fillRule="evenodd" d="M2 5a2 2 0 012-2h8a2 2 0 012 2v10a2 2 0 002 2H4a2 2 0 01-2-2V5zm3 1h6v4H5V6zm6 6H5v2h6v-2z" clipRule="evenodd"/><path d="M15 7h1a2 2 0 012 2v5.5a1.5 1.5 0 01-3 0V7z"/>
-    </svg>
-  ),
 }
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'inbox', label: 'Inbox' },
-  { id: 'triage', label: 'Focus' },
-  { id: 'ask', label: 'Ask' },
-  { id: 'actions', label: 'Actions' },
-  { id: 'chase', label: 'Chase' },
-  { id: 'vip', label: 'VIP' },
-  { id: 'projects', label: 'Projects' },
-  { id: 'weekly', label: 'Weekly' },
-  { id: 'digest', label: 'Brief' },
-  { id: 'analytics', label: 'Analytics' },
-  { id: 'templates', label: 'Templates' },
-  { id: 'health', label: 'Health' },
+  { id: 'inbox',     label: 'Inbox' },
+  { id: 'triage',    label: 'Focus' },
+  { id: 'ask',       label: 'Ask' },
+  { id: 'actions',   label: 'Actions' },
+  { id: 'vip',       label: 'VIP' },
+  { id: 'digest',    label: 'Brief' },
+  { id: 'health',    label: 'Health' },
   { id: 'knowledge', label: 'Knowledge' },
 ]
 
 export default function App() {
   const [connected, setConnected] = useState<boolean | null>(null)
-  const [showSettings, setShowSettings] = useState(false)
-  const [settingsInitialTab, setSettingsInitialTab] = useState<'accounts' | 'config'>('accounts')
   const [healthStatus, setHealthStatus] = useState<'ok' | 'degraded' | 'error' | null>(null)
-  const [selectedEmail, setSelectedEmail] = useState<EmailSummary | null>(null)
-  const [activeTab, setActiveTab] = useState<Tab>('inbox')
   const [accounts, setAccounts] = useState<{ id: number; username: string; provider: string }[]>([])
-  const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshMsg, setRefreshMsg] = useState('')
-  const [showHelp, setShowHelp] = useState(false)
   const [importPrompt, setImportPrompt] = useState(false)
   const [importSubject, setImportSubject] = useState('')
   const [importing, setImporting] = useState(false)
   const [importMsg, setImportMsg] = useState('')
-  const [unreadCount, setUnreadCount] = useState(0)
-  const [onlyUnread, setOnlyUnread] = useState(false)
-  const [folders, setFolders] = useState<Record<string, number>>({})
-  const [currentFolder, setCurrentFolder] = useState('INBOX')
   const [exiting, setExiting] = useState(false)
   const [overdueCount, setOverdueCount] = useState(0)
-  const [askContext, setAskContext] = useState('')
-  const [showCompose, setShowCompose] = useState(false)
   const prevOverdueRef = useRef(0)
 
-  const { emails, total, loading: listLoading, hasMore, refresh, mergeRefresh, loadMore, setSort, currentParams, removeEmail } = useEmails()
-  const { email, loading: emailLoading, fetch: fetchEmail } = useEmailDetail()
+  const {
+    emails, total, loading: listLoading, hasMore, currentParams, refresh, mergeRefresh, loadMore, setSort, removeEmail,
+    selectedEmail, email, emailLoading, emailError, selectEmail, fetchEmail,
+    currentFolder, setCurrentFolder, folders, setFolders,
+    onlyUnread, toggleUnread, unreadCount, setUnreadCount,
+    selectedAccountId, setSelectedAccountId,
+  } = useEmailContext()
+
+  const {
+    activeTab, setActiveTab, showCompose, setShowCompose,
+    showSettings, setShowSettings, settingsInitialTab, setSettingsInitialTab,
+    showHelp, setShowHelp, askContext, setAskContext,
+  } = useUIContext()
+
   const { rec, loading: recLoading, error: recError, fetch: fetchRec } = useRecommendation()
 
   const loadFolderData = useCallback(async () => {
@@ -242,7 +214,6 @@ export default function App() {
         if (emails[next]) handleSelect(emails[next])
       }
       if (e.key === 'a' && selectedEmail) handleAnalyze()
-      if (e.key === 'Escape') setSelectedEmail(null)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -256,8 +227,7 @@ export default function App() {
   }
 
   const handleSelect = (summary: EmailSummary) => {
-    setSelectedEmail(summary)
-    fetchEmail(summary.id)
+    selectEmail(summary)
     setActiveTab('inbox')
   }
 
@@ -289,7 +259,6 @@ export default function App() {
     try {
       await api.deleteEmail(emailId)
       removeEmail(emailId)
-      setSelectedEmail(null)
     } catch (e) {
       console.error('Delete failed:', e)
     }
@@ -299,20 +268,17 @@ export default function App() {
     try {
       await api.snoozeEmail(emailId, wakeDate)
       removeEmail(emailId)
-      setSelectedEmail(null)
     } catch { /* ignore */ }
   }
 
   const handleBulkDelete = async (ids: string[]) => {
     await Promise.all(ids.map(id => api.deleteEmail(id).catch(() => {})))
     ids.forEach(id => removeEmail(id))
-    if (selectedEmail && ids.includes(selectedEmail.id)) setSelectedEmail(null)
   }
 
   const handleBulkSnooze = async (ids: string[], date: string) => {
     await Promise.all(ids.map(id => api.snoozeEmail(id, date).catch(() => {})))
     ids.forEach(id => removeEmail(id))
-    if (selectedEmail && ids.includes(selectedEmail.id)) setSelectedEmail(null)
   }
 
   const handleAskAboutEmail = () => {
@@ -373,8 +339,14 @@ export default function App() {
 
   if (connected === null) {
     return (
-      <div className="h-screen flex items-center justify-center bg-gray-50">
-        <div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+      <div className="h-screen flex flex-col items-center justify-center bg-gray-50 gap-4">
+        <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-accent-500 to-accent-700 flex items-center justify-center shadow-lg">
+          <svg className="w-5 h-5 text-white" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/>
+            <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/>
+          </svg>
+        </div>
+        <div className="w-5 h-5 border-2 border-accent-500 border-t-transparent rounded-full animate-spin" />
       </div>
     )
   }
@@ -390,149 +362,158 @@ export default function App() {
     healthStatus === 'error' ? 'text-red-500' : 'text-gray-300'
 
   return (
-    <div className="h-screen flex flex-col bg-white overflow-hidden">
+    <div className="h-screen flex flex-col bg-surface-1 overflow-hidden">
       {/* Toolbar */}
-      <div className="h-11 flex items-center justify-between px-4 border-b border-gray-200 bg-white flex-shrink-0">
+      <div className="h-12 flex items-center justify-between px-4 border-b border-gray-100 bg-white shadow-[0_1px_0_0_rgb(0_0_0/0.05)] flex-shrink-0 z-10">
         <div className="flex items-center gap-3">
-          <span className="text-sm font-semibold text-gray-800">Director Assistant</span>
-          <span className="text-xs text-gray-400 hidden sm:inline">{total.toLocaleString()} emails</span>
+          {/* Logo */}
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-accent-500 to-accent-700 flex items-center justify-center shadow-sm">
+              <svg className="w-3.5 h-3.5 text-white" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/>
+                <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/>
+              </svg>
+            </div>
+            <span className="text-sm font-semibold text-gray-900 tracking-tight">Director Assistant</span>
+          </div>
+          <div className="h-4 w-px bg-gray-200" />
+          <span className="text-xs text-gray-400 hidden sm:inline tabular-nums">{total.toLocaleString()} emails</span>
           {unreadCount > 0 && (
             <button
               onClick={() => {
-                const next = !onlyUnread
-                setOnlyUnread(next)
+                toggleUnread()
                 setActiveTab('inbox')
-                refresh({ only_unread: next || undefined })
               }}
-              className={`text-xs font-semibold px-2 py-0.5 rounded-full transition-colors ${
+              className={`text-[11px] font-semibold px-2.5 py-1 rounded-full transition-all duration-150 ${
                 onlyUnread
-                  ? 'bg-accent text-white'
-                  : 'text-accent hover:bg-blue-50 border border-accent'
+                  ? 'bg-accent-500 text-white shadow-sm'
+                  : 'text-accent-500 hover:bg-accent-50 border border-accent-200'
               }`}
               title={onlyUnread ? 'Showing unread only — click to show all' : 'Click to show unread only'}
             >
               {unreadCount} unread
             </button>
           )}
-          {overdueCount > 0 && <span className="text-xs text-red-500 font-semibold">{overdueCount} overdue</span>}
-          {refreshMsg && <span className="text-xs text-gray-400">{refreshMsg}</span>}
+          {overdueCount > 0 && (
+            <span className="text-[11px] bg-red-50 text-red-600 font-semibold px-2 py-0.5 rounded-full border border-red-100">
+              {overdueCount} overdue
+            </span>
+          )}
+          {refreshMsg && <span className="text-xs text-gray-400 animate-fade-in">{refreshMsg}</span>}
         </div>
-        <div className="flex gap-2">
+
+        <div className="flex items-center gap-1">
           <button
             onClick={() => setShowCompose(true)}
-            title="Compose new email (Cmd+N)"
-            className="text-xs text-white bg-accent hover:bg-blue-700 px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1"
+            title="Compose new email (⌘N)"
+            className="flex items-center gap-1.5 text-[11px] font-semibold text-white bg-accent-500 hover:bg-accent-600 active:bg-accent-700 px-3 py-1.5 rounded-lg transition-all duration-150 shadow-sm"
           >
             <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
-              <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+              <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/>
             </svg>
-            <span>Compose</span>
+            Compose
           </button>
-          {activeTab === 'inbox' && (
-            <>
-              <button
-                onClick={handleRefresh}
-                disabled={refreshing}
-                className="text-xs text-gray-500 hover:text-gray-800 px-2 py-1 rounded hover:bg-gray-100 transition-colors disabled:opacity-60 flex items-center gap-1"
-              >
-                <svg className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
-                </svg>
-                <span>{refreshMsg || 'Refresh'}</span>
-              </button>
-              <button
-                onClick={() => setImportPrompt(true)}
-                title="Import a specific email by subject"
-                className="text-xs text-gray-500 hover:text-gray-800 px-2 py-1 rounded hover:bg-gray-100 transition-colors flex items-center gap-1"
-              >
-                <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
-                <span>Import</span>
-              </button>
-            </>
-          )}
-          <button
-            onClick={() => setShowHelp(true)}
-            title="Help"
-            className="text-xs text-gray-500 hover:text-gray-800 px-2 py-1 rounded hover:bg-gray-100 transition-colors flex items-center gap-1"
-          >
-            <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+
+          {activeTab === 'inbox' && (<>
+            <button onClick={handleRefresh} disabled={refreshing} title="Refresh inbox"
+              className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-all disabled:opacity-50">
+              <svg className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd"/>
+              </svg>
+            </button>
+            <button onClick={() => setImportPrompt(true)} title="Import by subject"
+              className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-all">
+              <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd"/>
+              </svg>
+            </button>
+          </>)}
+
+          <div className="h-4 w-px bg-gray-200 mx-0.5" />
+
+          <button onClick={() => setShowHelp(true)} title="Help"
+            className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-all">
+            <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd"/>
             </svg>
-            <span>Help</span>
           </button>
-          <button
-            onClick={() => { setSettingsInitialTab('accounts'); setShowSettings(true) }}
-            className="text-xs text-gray-500 hover:text-gray-800 px-2 py-1 rounded hover:bg-gray-100 transition-colors flex items-center gap-1"
-          >
-            <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+          <button onClick={() => { setSettingsInitialTab('accounts'); setShowSettings(true) }} title="Settings"
+            className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-all">
+            <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd"/>
             </svg>
-            <span>Settings</span>
           </button>
-          <button
-            onClick={handleExit}
-            disabled={exiting}
-            title="Quit Director Assistant"
-            className="text-xs text-gray-400 hover:text-red-500 px-2 py-1 rounded hover:bg-red-50 transition-colors flex items-center gap-1 disabled:opacity-50"
-          >
-            <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z" clipRule="evenodd" />
+          <button onClick={handleExit} disabled={exiting} title="Quit"
+            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all disabled:opacity-50">
+            <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z" clipRule="evenodd"/>
             </svg>
-            <span>{exiting ? 'Quitting…' : 'Quit'}</span>
           </button>
         </div>
       </div>
 
       {/* Content + Left sidebar */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left sidebar tab navigation */}
-        <div className="w-14 bg-gray-50 border-r border-gray-200 flex flex-col items-center py-2 gap-0.5 flex-shrink-0">
-          {TABS.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              title={tab.label}
-              className={`relative w-10 h-10 rounded-xl flex flex-col items-center justify-center transition-all ${
-                activeTab === tab.id
-                  ? 'bg-accent text-white shadow-sm'
-                  : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              {tab.id === 'health'
-                ? <span className={activeTab === tab.id ? 'text-white' : healthDotClass}>{Icons.health}</span>
-                : Icons[tab.id]}
-              {tab.id === 'inbox' && unreadCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[8px] font-bold rounded-full min-w-[14px] h-3.5 flex items-center justify-center px-0.5 leading-none">
-                  {unreadCount > 99 ? '99+' : unreadCount}
+        {/* Dark sidebar */}
+        <div className="w-16 bg-sidebar-bg border-r border-sidebar-border flex flex-col items-center py-3 gap-0.5 flex-shrink-0">
+          {TABS.map((tab) => {
+            const isActive = activeTab === tab.id
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                title={tab.label}
+                className={`relative w-11 h-11 rounded-xl flex flex-col items-center justify-center transition-all duration-150 group ${
+                  isActive
+                    ? 'bg-sidebar-active text-white shadow-sm ring-1 ring-white/10'
+                    : 'text-sidebar-text hover:text-sidebar-text-active hover:bg-sidebar-hover'
+                }`}
+              >
+                {/* Active left indicator */}
+                {isActive && (
+                  <span className="absolute left-0 top-2.5 bottom-2.5 w-0.5 rounded-r-full bg-accent-400 -translate-x-1.5" />
+                )}
+                {tab.id === 'health'
+                  ? <span className={isActive ? 'text-white' : healthDotClass}>{Icons.health}</span>
+                  : Icons[tab.id]}
+                {/* Badge: unread */}
+                {tab.id === 'inbox' && unreadCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[8px] font-bold rounded-full min-w-[15px] h-3.5 flex items-center justify-center px-0.5 leading-none border border-sidebar-bg">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
+                {/* Badge: overdue */}
+                {tab.id === 'actions' && overdueCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[8px] font-bold rounded-full min-w-[15px] h-3.5 flex items-center justify-center px-0.5 leading-none border border-sidebar-bg">
+                    {overdueCount}
+                  </span>
+                )}
+                {/* Health dot */}
+                {tab.id === 'health' && healthStatus && (
+                  <span className={`absolute bottom-1.5 right-1.5 w-2 h-2 rounded-full ring-2 ring-sidebar-bg ${
+                    healthStatus === 'ok' ? 'bg-emerald-400' :
+                    healthStatus === 'degraded' ? 'bg-orange-400' : 'bg-red-400'
+                  }`} />
+                )}
+                {/* Tooltip */}
+                <span className="absolute left-full ml-2 px-2 py-1 text-[11px] font-medium bg-gray-900 text-white rounded-lg
+                  opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 shadow-lg">
+                  {tab.label}
                 </span>
-              )}
-              {tab.id === 'actions' && overdueCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[8px] font-bold rounded-full min-w-[14px] h-3.5 flex items-center justify-center px-0.5 leading-none">
-                  {overdueCount}
-                </span>
-              )}
-              {tab.id === 'health' && healthStatus && (
-                <span className={`absolute bottom-1.5 right-1.5 w-1.5 h-1.5 rounded-full ${
-                  healthStatus === 'ok' ? 'bg-green-400' :
-                  healthStatus === 'degraded' ? 'bg-orange-400' : 'bg-red-400'
-                }`} />
-              )}
-            </button>
-          ))}
-          {/* Dashboard link — opens the executive brief in a new tab */}
+              </button>
+            )
+          })}
+          {/* Dashboard link */}
           <div className="mt-auto pb-1">
-            <a
-              href="/api/dashboard"
-              target="_blank"
-              rel="noopener noreferrer"
-              title="Dashboard"
-              className="w-10 h-10 rounded-xl flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all"
-            >
+            <a href="/api/dashboard" target="_blank" rel="noopener noreferrer" title="Executive Dashboard"
+              className="relative w-11 h-11 rounded-xl flex items-center justify-center text-sidebar-text hover:text-sidebar-text-active hover:bg-sidebar-hover transition-all group">
               <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-                <path d="M2 4a1 1 0 011-1h5a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1V4zm0 9a1 1 0 011-1h5a1 1 0 011 1v2a1 1 0 01-1 1H3a1 1 0 01-1-1v-2zm9-9a1 1 0 011-1h4a1 1 0 011 1v2a1 1 0 01-1 1h-4a1 1 0 01-1-1V4zm0 6a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1h-4a1 1 0 01-1-1v-5z" />
+                <path d="M2 4a1 1 0 011-1h5a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1V4zm0 9a1 1 0 011-1h5a1 1 0 011 1v2a1 1 0 01-1 1H3a1 1 0 01-1-1v-2zm9-9a1 1 0 011-1h4a1 1 0 011 1v2a1 1 0 01-1 1h-4a1 1 0 01-1-1V4zm0 6a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1h-4a1 1 0 01-1-1v-5z"/>
               </svg>
+              <span className="absolute left-full ml-2 px-2 py-1 text-[11px] font-medium bg-gray-900 text-white rounded-lg
+                opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 shadow-lg">
+                Dashboard
+              </span>
             </a>
           </div>
         </div>
@@ -541,7 +522,7 @@ export default function App() {
         <div className="flex-1 flex overflow-hidden">
           {activeTab === 'inbox' && (
           <>
-            <div className="w-64 flex-shrink-0 flex flex-col">
+            <div className="w-72 flex-shrink-0 flex flex-col border-r border-gray-100">
               {accounts.length > 1 && (
                 <div className="flex flex-wrap gap-1 px-2 pt-2 pb-1 border-b border-gray-100">
                   <button
@@ -578,13 +559,12 @@ export default function App() {
                 onSort={(by, order) => setSort(by, order)}
                 onFolderChange={(f) => {
                   setCurrentFolder(f)
-                  setOnlyUnread(false)
                   refresh({ folder: f, q: undefined, only_unread: undefined })
                 }}
                 onBulkDelete={handleBulkDelete}
                 onBulkSnooze={handleBulkSnooze}
-                sortBy={currentParams.sort_by ?? 'date'}
-                sortOrder={currentParams.sort_order ?? 'desc'}
+                sortBy={(currentParams.sort_by ?? 'date') as import('./hooks/useEmails').SortBy}
+                sortOrder={(currentParams.sort_order ?? 'desc') as import('./hooks/useEmails').SortOrder}
                 onlyUnread={onlyUnread}
               />
             </div>
@@ -592,6 +572,7 @@ export default function App() {
             <EmailViewer
               email={email}
               loading={emailLoading}
+              fetchError={emailError || undefined}
               onAnalyze={handleAnalyze}
               analyzing={recLoading}
               onDelete={handleDelete}
@@ -608,23 +589,17 @@ export default function App() {
           {activeTab === 'ask' && <AskPanel initialQuery={askContext} onClear={() => setAskContext('')} />}
           {activeTab === 'actions' && <ActionBoard />}
           {activeTab === 'digest' && <DigestView />}
-          {activeTab === 'analytics' && <Analytics />}
-          {activeTab === 'templates' && <TemplatesPanel />}
           {activeTab === 'health' && <HealthPanel />}
-          {activeTab === 'knowledge' && <IntelligencePanel />}
-          {activeTab === 'weekly' && (
-            <WeeklyBriefPanel
+          {activeTab === 'knowledge' && (
+            <IntelligencePanel
               onSelectEmail={(id) => {
                 const em = emails.find(e => e.id === id)
                 if (em) { handleSelect(em); setActiveTab('inbox') }
                 else { fetchEmail(id); setActiveTab('inbox') }
               }}
-              onSearch={(q) => { refresh({ q }); setActiveTab('inbox') }}
             />
           )}
           {activeTab === 'vip' && <VIPPanel onSelectEmail={(id) => { const em = emails.find(e => e.id === id); if (em) { handleSelect(em); setActiveTab('inbox') } else { fetchEmail(id); setActiveTab('inbox') } }} />}
-          {activeTab === 'chase' && <ChaseQueue onOpenCompose={(opts) => { setShowCompose(true) }} />}
-          {activeTab === 'projects' && <ProjectsPanel onSelectEmail={(id) => { const em = emails.find(e => e.id === id); if (em) { handleSelect(em); setActiveTab('inbox') } else { fetchEmail(id); setActiveTab('inbox') } }} />}
         </div>
       </div>
 

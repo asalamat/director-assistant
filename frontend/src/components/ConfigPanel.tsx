@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { api } from '../api/client'
 import type { AppConfig } from '../types'
+import { AIProvidersPanel } from './AIProvidersPanel'
 
 interface Props {
   onSaved?: () => void
@@ -301,6 +302,18 @@ export function ConfigPanel({ onSaved }: Props) {
   return (
     <div className="max-w-lg mx-auto p-6 space-y-6">
 
+      {/* ── Multi-provider AI settings ─────────────────────────────── */}
+      <div className="border border-accent-200 rounded-xl p-4">
+        <AIProvidersPanel />
+      </div>
+
+      {/* Legacy single-key fields — kept for quick access */}
+      <details className="border border-dashed border-gray-200 rounded-xl">
+        <summary className="px-4 py-3 text-xs font-medium text-gray-500 cursor-pointer hover:text-gray-700 select-none">
+          Legacy API key fields (also managed above)
+        </summary>
+        <div className="px-4 pb-4 space-y-4 pt-2">
+
       {/* Anthropic / Claude */}
       <KeyField
         label="Anthropic API Key (Claude)"
@@ -344,7 +357,9 @@ export function ConfigPanel({ onSaved }: Props) {
           linkText="Get a key"
           linkHref="https://platform.openai.com/api-keys"
         />
-      </div>
+      </div>{/* end openai border div */}
+        </div>{/* end legacy fields */}
+      </details>
 
       {/* Microsoft Integration — Auto-Setup */}
       <div className="border border-blue-200 rounded-xl p-4 space-y-3">
@@ -552,6 +567,24 @@ export function ConfigPanel({ onSaved }: Props) {
           <span>1 day</span>
           <span>Unlimited →</span>
         </div>
+      </div>
+
+      {/* Translation Language */}
+      <div className="border border-gray-200 rounded-xl p-4">
+        <h2 className="text-sm font-semibold text-gray-800 mb-1">Translation Language</h2>
+        <p className="text-xs text-gray-500 mb-2">Language used when you click "Translate" on an email.</p>
+        <select
+          value={config?.translation_language ?? 'English'}
+          onChange={async e => {
+            await api.updateConfig({ translation_language: e.target.value })
+            setConfig(c => c ? { ...c, translation_language: e.target.value } : c)
+          }}
+          className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:outline-none focus:border-accent bg-white"
+        >
+          {['English','Farsi (Persian)','French','Spanish','German','Italian','Portuguese','Dutch','Japanese','Chinese','Arabic','Korean','Russian','Polish','Turkish','Swedish','Norwegian','Danish','Finnish','Hebrew','Hindi'].map(lang => (
+            <option key={lang} value={lang}>{lang}</option>
+          ))}
+        </select>
       </div>
 
       {/* Scheduled Email Digest */}

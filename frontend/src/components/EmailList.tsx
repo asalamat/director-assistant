@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import type { EmailSummary, EmailThread } from '../types'
 import type { SortBy, SortOrder } from '../hooks/useEmails'
 import { api } from '../api/client'
+import { Avatar, Badge, Input } from './ui'
 
 const SEARCH_HISTORY_KEY = 'email_search_history'
 const MAX_HISTORY = 10
@@ -16,6 +17,8 @@ function addToHistory(q: string) {
   localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify([q, ...prev].slice(0, MAX_HISTORY)))
 }
 
+interface BulkDraft { email_id: string; subject: string; to: string; draft: string }
+
 interface Props {
   emails: EmailSummary[]
   selectedId: string | null
@@ -28,11 +31,18 @@ interface Props {
   onFolderChange: (folder: string) => void
   onBulkDelete?: (ids: string[]) => void
   onBulkSnooze?: (ids: string[], date: string) => void
+  onOpenCompose?: (opts: { to: string; subject: string; body: string }) => void
   sortBy: SortBy
   sortOrder: SortOrder
   total: number
   folders: Record<string, number>
   currentFolder: string
+  onlyUnread?: boolean
+}
+
+function isNewEmail(dateStr: string | null): boolean {
+  if (!dateStr) return false
+  return (Date.now() - new Date(dateStr).getTime()) < 4 * 60 * 60 * 1000  // last 4 hours
 }
 
 function formatDate(dateStr: string | null): string {
@@ -46,24 +56,6 @@ function formatDate(dateStr: string | null): string {
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' })
 }
 
-function initials(sender: string): string {
-  const parts = sender.replace(/<.*>/, '').trim().split(' ')
-  return parts
-    .slice(0, 2)
-    .map((p) => p[0]?.toUpperCase() ?? '')
-    .join('')
-}
-
-const AVATAR_COLORS = [
-  'bg-blue-500', 'bg-violet-500', 'bg-rose-500',
-  'bg-amber-500', 'bg-teal-500', 'bg-pink-500',
-]
-
-function avatarColor(sender: string): string {
-  let hash = 0
-  for (const ch of sender) hash = (hash * 31 + ch.charCodeAt(0)) & 0xffff
-  return AVATAR_COLORS[hash % AVATAR_COLORS.length]
-}
 
 function priorityLabel(subject: string, preview: string): { text: string; cls: string } | null {
   const hay = `${subject} ${preview}`.toLowerCase()
@@ -83,7 +75,7 @@ function replyDepth(subject: string): number {
   return depth
 }
 
-export function EmailList({ emails, selectedId, loading, hasMore, total, folders, currentFolder, onSelect, onLoadMore, onSearch, onSort, onFolderChange, onBulkDelete, onBulkSnooze, sortBy, sortOrder }: Props) {
+export function EmailList({ emails, selectedId, loading, hasMore, total, folders, currentFolder, onSelect, onLoadMore, onSearch, onSort, onFolderChange, onBulkDelete, onBulkSnooze, onOpenCompose, sortBy, sortOrder, onlyUnread }: Props) {
   const [query, setQuery] = useState('')
   const [savedSearches, setSavedSearches] = useState<{ id: number; name: string; query: string; folder: string }[]>([])
   const [history, setHistory] = useState<string[]>(loadHistory)
@@ -96,6 +88,14 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
   const [threadsLoading, setThreadsLoading] = useState(false)
   const sentinelRef = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
+  const [hoverSummary, setHoverSummary] = useState<Record<string, string>>({})
+  const [hoveredId, setHoveredId] = useState<string | null>(null)
+  const [bulkDrafts, setBulkDrafts] = useState<BulkDraft[] | null>(null)
+  const [generatingBulk, setGeneratingBulk] = useState(false)
+  const [bulkCopiedIdx, setBulkCopiedIdx] = useState<number | null>(null)
+  const [hoverTimer, setHoverTimer] = useState<ReturnType<typeof setTimeout> | null>(null)
+  const [priorityEmails, setPriorityEmails] = useState<any[] | null>(null)
+  const [loadingPriority, setLoadingPriority] = useState(false)
 
   useEffect(() => {
     api.getSavedSearches().then(setSavedSearches).catch(() => {})
@@ -154,6 +154,17 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
     onBulkSnooze?.(ids, bulkSnoozeDate)
   }
 
+  const handleBulkDraft = async () => {
+    const ids = Array.from(selected)
+    setGeneratingBulk(true)
+    setBulkDrafts(null)
+    try {
+      const res = await api.bulkSmartDraft(ids)
+      setBulkDrafts(res.drafts)
+    } catch { setBulkDrafts([]) }
+    setGeneratingBulk(false)
+  }
+
   const tomorrow = new Date()
   tomorrow.setDate(tomorrow.getDate() + 1)
   const tomorrowStr = tomorrow.toISOString().slice(0, 10)
@@ -203,16 +214,29 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
     } else {
       onSort(field, 'desc')
     }
+    setPriorityEmails(null)
+  }
+
+  const handlePrioritySort = async () => {
+    if (priorityEmails) {
+      setPriorityEmails(null)
+      return
+    }
+    setLoadingPriority(true)
+    try {
+      const { emails } = await api.getPrioritySorted(currentFolder, 50)
+      setPriorityEmails(emails)
+    } catch { /* silent */ } finally { setLoadingPriority(false) }
   }
 
   const SortBtn = ({ field, label }: { field: SortBy; label: string }) => (
     <button
       onClick={() => toggleSort(field)}
-      className={`text-xs px-2 py-0.5 rounded transition-colors ${
+      className={
         sortBy === field
-          ? 'bg-accent text-white'
-          : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'
-      }`}
+          ? 'bg-accent-500 text-white text-xs px-2.5 py-1 rounded-lg font-medium'
+          : 'text-gray-500 hover:text-gray-800 hover:bg-gray-100 text-xs px-2.5 py-1 rounded-lg transition-all'
+      }
     >
       {label}
       {sortBy === field && (
@@ -263,7 +287,7 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
       {/* Search */}
       <div className="px-3 pt-3 pb-2 border-b border-gray-100 space-y-2">
         <form onSubmit={handleSearch} className="flex gap-1 relative">
-          <input
+          <Input
             ref={searchRef}
             type="search"
             value={query}
@@ -274,7 +298,7 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
             onFocus={() => setShowHistory(history.length > 0)}
             onBlur={() => setTimeout(() => setShowHistory(false), 150)}
             placeholder="Search emails…"
-            className="flex-1 bg-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+            className="flex-1"
           />
           {query.trim() && (
             <button
@@ -331,33 +355,80 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
         )}
         {/* Sort controls / bulk toolbar */}
         {selected.size > 0 ? (
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-medium text-gray-700">{selected.size} selected</span>
-            {onBulkDelete && (
-              <button onClick={handleBulkDelete} className="text-xs text-red-500 hover:text-red-700 px-2 py-0.5 rounded hover:bg-red-50 transition-colors">Delete</button>
-            )}
-            {onBulkSnooze && (
-              <div className="flex items-center gap-1">
-                <button onClick={() => setShowBulkSnooze(v => !v)} className="text-xs text-amber-600 hover:text-amber-800 px-2 py-0.5 rounded hover:bg-amber-50 transition-colors">Snooze</button>
-                {showBulkSnooze && (
-                  <>
-                    <input type="date" value={bulkSnoozeDate} min={tomorrowStr} onChange={e => setBulkSnoozeDate(e.target.value)}
-                      className="text-[10px] border border-gray-200 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-accent" />
-                    <button onClick={handleBulkSnooze} disabled={!bulkSnoozeDate}
-                      className="text-[10px] bg-amber-500 text-white px-1.5 py-0.5 rounded disabled:opacity-50">OK</button>
-                  </>
-                )}
+          <>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-medium text-gray-700">{selected.size} selected</span>
+              {onBulkDelete && (
+                <button onClick={handleBulkDelete} className="text-xs text-red-500 hover:text-red-700 px-2 py-0.5 rounded hover:bg-red-50 transition-colors">Delete</button>
+              )}
+              {onBulkSnooze && (
+                <div className="flex items-center gap-1">
+                  <button onClick={() => setShowBulkSnooze(v => !v)} className="text-xs text-amber-600 hover:text-amber-800 px-2 py-0.5 rounded hover:bg-amber-50 transition-colors">Snooze</button>
+                  {showBulkSnooze && (
+                    <>
+                      <input type="date" value={bulkSnoozeDate} min={tomorrowStr} onChange={e => setBulkSnoozeDate(e.target.value)}
+                        className="text-[10px] border border-gray-200 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-accent" />
+                      <button onClick={handleBulkSnooze} disabled={!bulkSnoozeDate}
+                        className="text-[10px] bg-amber-500 text-white px-1.5 py-0.5 rounded disabled:opacity-50">OK</button>
+                    </>
+                  )}
+                </div>
+              )}
+              {selected.size >= 2 && (
+                <button
+                  onClick={handleBulkDraft}
+                  disabled={generatingBulk}
+                  className="text-xs text-accent hover:text-blue-700 px-2 py-0.5 rounded hover:bg-blue-50 transition-colors disabled:opacity-50 flex items-center gap-1"
+                >
+                  {generatingBulk ? <span className="w-3 h-3 border border-accent border-t-transparent rounded-full animate-spin inline-block" /> : null}
+                  {generatingBulk ? 'Drafting…' : 'Draft all'}
+                </button>
+              )}
+              <button onClick={() => { setSelected(new Set()); setBulkDrafts(null) }} className="text-xs text-gray-400 hover:text-gray-600 ml-auto">Clear</button>
+            </div>
+            {bulkDrafts !== null && (
+              <div className="mt-2 space-y-2 max-h-64 overflow-y-auto">
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">{bulkDrafts.length} draft{bulkDrafts.length !== 1 ? 's' : ''} generated</p>
+                  <button onClick={() => setBulkDrafts(null)} className="text-[10px] text-gray-400 hover:text-gray-600">Dismiss</button>
+                </div>
+                {bulkDrafts.map((d, i) => (
+                  <div key={d.email_id} className="border border-gray-200 rounded-lg p-2 bg-white text-xs space-y-1">
+                    <p className="font-medium text-gray-800 truncate">{d.subject}</p>
+                    <p className="text-gray-400 truncate">To: {d.to}</p>
+                    <p className="text-gray-600 line-clamp-2">{d.draft.slice(0, 100)}{d.draft.length > 100 ? '…' : ''}</p>
+                    <div className="flex gap-2 pt-0.5">
+                      {onOpenCompose ? (
+                        <button
+                          onClick={() => onOpenCompose({ to: d.to, subject: d.subject, body: d.draft })}
+                          className="text-accent hover:text-blue-700 font-medium"
+                        >
+                          Compose
+                        </button>
+                      ) : null}
+                      <button
+                        onClick={async () => {
+                          await navigator.clipboard.writeText(d.draft).catch(() => {})
+                          setBulkCopiedIdx(i)
+                          setTimeout(() => setBulkCopiedIdx(null), 1500)
+                        }}
+                        className="text-gray-500 hover:text-gray-700"
+                      >
+                        {bulkCopiedIdx === i ? 'Copied!' : 'Copy'}
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
-            <button onClick={() => setSelected(new Set())} className="text-xs text-gray-400 hover:text-gray-600 ml-auto">Clear</button>
-          </div>
+          </>
         ) : (
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="text-xs text-gray-400">{total.toLocaleString()} emails</span>
               <button
                 onClick={toggleThreadView}
-                className={`text-xs px-2 py-0.5 rounded transition-colors ${threadView ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'}`}
+                className={threadView ? 'bg-accent-500 text-white text-xs px-2.5 py-1 rounded-lg font-medium' : 'text-gray-500 hover:text-gray-800 hover:bg-gray-100 text-xs px-2.5 py-1 rounded-lg transition-all'}
                 title="Toggle thread view"
               >
                 Threads
@@ -368,6 +439,13 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
                 <SortBtn field="date" label="Date" />
                 <SortBtn field="sender" label="From" />
                 <SortBtn field="subject" label="Subject" />
+                <button
+                  onClick={handlePrioritySort}
+                  disabled={loadingPriority}
+                  className={priorityEmails ? 'bg-accent-500 text-white text-xs px-2.5 py-1 rounded-lg font-medium' : 'text-gray-500 hover:text-gray-800 hover:bg-gray-100 text-xs px-2.5 py-1 rounded-lg transition-all disabled:opacity-50'}
+                >
+                  {loadingPriority ? '⟳' : priorityEmails ? 'Priority ✕' : 'Priority'}
+                </button>
               </div>
             )}
           </div>
@@ -407,16 +485,48 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
           </>
         )}
 
-        {!threadView && emails.length === 0 && !loading && (
-          <div className="text-center text-gray-400 text-sm mt-12">No emails</div>
+        {onlyUnread && !threadView && (
+          <div className="px-3 py-1.5 bg-blue-50 border-b border-blue-100 text-[11px] text-blue-600 font-medium flex items-center justify-between sticky top-0 z-10">
+            <span>Showing unread only</span>
+          </div>
+        )}
+        {!threadView && (priorityEmails ?? emails).filter(e => !onlyUnread || !e.is_read).length === 0 && !loading && (
+          <div className="text-center text-gray-400 text-sm mt-12">
+            {onlyUnread ? 'No unread emails 🎉' : 'No emails'}
+          </div>
         )}
 
-        {!threadView && emails.map((email) => {
+        {!threadView && (priorityEmails ?? emails).filter(e => !onlyUnread || !e.is_read).map((email) => {
           const label = priorityLabel(email.subject || '', email.preview || '')
           const depth = replyDepth(email.subject || '')
+          const isNew = isNewEmail(email.date) && !email.is_read
           const isSelected = selected.has(email.id)
           return (
-            <div key={email.id} className="relative group border-b border-gray-50">
+            <div
+              key={email.id}
+              className="relative group border-b border-gray-50"
+              onMouseEnter={() => {
+                setHoveredId(email.id)
+                if (!hoverSummary[email.id]) {
+                  const timer = setTimeout(async () => {
+                    try {
+                      const { summary } = await api.getOneLineSummary(email.id)
+                      if (summary) {
+                        setHoverSummary(prev => ({ ...prev, [email.id]: summary }))
+                      }
+                    } catch { /* ignore */ }
+                  }, 600)
+                  setHoverTimer(timer)
+                }
+              }}
+              onMouseLeave={() => {
+                setHoveredId(null)
+                if (hoverTimer) {
+                  clearTimeout(hoverTimer)
+                  setHoverTimer(null)
+                }
+              }}
+            >
               {/* Checkbox over avatar */}
               <div
                 className={`absolute left-3 top-3 z-10 cursor-pointer transition-opacity ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
@@ -441,9 +551,7 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
                 }`}
               >
                 {/* Avatar */}
-                <div className={`flex-shrink-0 w-8 h-8 rounded-full ${avatarColor(email.sender)} text-white text-xs font-semibold flex items-center justify-center mt-0.5 transition-opacity ${isSelected ? 'opacity-20' : 'group-hover:opacity-20'}`}>
-                  {initials(email.sender) || '?'}
-                </div>
+                <Avatar name={email.sender} size="sm" className={`mt-0.5 transition-opacity ${isSelected ? 'opacity-20' : 'group-hover:opacity-20'}`} />
 
                 {/* Content */}
                 <div className="flex-1 min-w-0">
@@ -456,7 +564,14 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
                         {email.sender.replace(/<[^>]+>/, '').trim() || email.sender}
                       </span>
                     </div>
-                    <span className="text-xs text-gray-400 flex-shrink-0">{formatDate(email.date)}</span>
+                    <span className="flex items-center gap-1 flex-shrink-0">
+                      {email.preview && (
+                        <span className="text-[10px] text-gray-300">
+                          ~{Math.max(1, Math.round((email.preview.split(' ').length * 5) / 200))}m
+                        </span>
+                      )}
+                      <span className="text-xs text-gray-400">{formatDate(email.date)}</span>
+                    </span>
                   </div>
                   <div className={`flex items-center gap-1 mt-0.5 ${!email.is_read ? 'font-semibold text-gray-800' : 'text-gray-600'}`}>
                     {depth > 0 && (
@@ -465,13 +580,23 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
                       </span>
                     )}
                     <span className="text-xs truncate">{email.subject || '(no subject)'}</span>
+                    {isNew && (
+                      <Badge variant="new">New</Badge>
+                    )}
                     {label && (
-                      <span className={`text-[10px] px-1.5 rounded-full font-medium flex-shrink-0 ${label.cls}`}>{label.text}</span>
+                      <Badge variant={label.cls.includes('red') ? 'danger' : label.cls.includes('orange') ? 'orange' : 'purple'}>{label.text}</Badge>
                     )}
                   </div>
                   <div className="text-xs text-gray-400 mt-0.5 line-clamp-2 leading-relaxed">{email.preview}</div>
                 </div>
               </button>
+
+              {/* Hover AI summary tooltip */}
+              {hoverSummary[email.id] && hoveredId === email.id && (
+                <div className="absolute left-3 right-3 -bottom-8 z-20 bg-gray-900 text-white text-xs rounded-lg px-3 py-1.5 shadow-lg pointer-events-none">
+                  {hoverSummary[email.id]}
+                </div>
+              )}
             </div>
           )
         })}

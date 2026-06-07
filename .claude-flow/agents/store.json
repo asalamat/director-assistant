@@ -1,0 +1,128 @@
+{
+  "agents": {
+    "fix-vip-cache": {
+      "agentId": "fix-vip-cache",
+      "agentType": "backend-dev",
+      "status": "idle",
+      "health": 1,
+      "taskCount": 0,
+      "config": {
+        "model": "sonnet"
+      },
+      "createdAt": "2026-06-05T19:25:25.491Z",
+      "domain": "backend-performance",
+      "model": "sonnet",
+      "modelRoutedBy": "explicit"
+    },
+    "agent-ui-emaillist": {
+      "agentId": "agent-ui-emaillist",
+      "agentType": "coder",
+      "status": "idle",
+      "health": 1,
+      "taskCount": 0,
+      "config": {
+        "model": "sonnet"
+      },
+      "createdAt": "2026-06-07T16:04:57.507Z",
+      "domain": "frontend-ui",
+      "model": "sonnet",
+      "modelRoutedBy": "explicit"
+    },
+    "agent-ui-viewer": {
+      "agentId": "agent-ui-viewer",
+      "agentType": "coder",
+      "status": "idle",
+      "health": 1,
+      "taskCount": 0,
+      "config": {
+        "model": "sonnet"
+      },
+      "createdAt": "2026-06-07T16:04:59.106Z",
+      "domain": "frontend-ui",
+      "model": "sonnet",
+      "modelRoutedBy": "explicit"
+    },
+    "agent-ui-panels": {
+      "agentId": "agent-ui-panels",
+      "agentType": "coder",
+      "status": "idle",
+      "health": 1,
+      "taskCount": 0,
+      "config": {
+        "model": "sonnet"
+      },
+      "createdAt": "2026-06-07T16:05:00.483Z",
+      "domain": "frontend-ui",
+      "model": "sonnet",
+      "modelRoutedBy": "explicit"
+    },
+    "agent-router-split": {
+      "agentId": "agent-router-split",
+      "agentType": "backend-dev",
+      "status": "idle",
+      "health": 1,
+      "taskCount": 0,
+      "config": {
+        "model": "sonnet"
+      },
+      "createdAt": "2026-06-07T16:05:01.827Z",
+      "domain": "backend-architecture",
+      "model": "sonnet",
+      "modelRoutedBy": "explicit"
+    },
+    "agent-react-context": {
+      "agentId": "agent-react-context",
+      "agentType": "coder",
+      "status": "idle",
+      "health": 1,
+      "taskCount": 0,
+      "config": {
+        "model": "sonnet"
+      },
+      "createdAt": "2026-06-07T16:05:03.157Z",
+      "domain": "frontend-architecture",
+      "model": "sonnet",
+      "modelRoutedBy": "explicit"
+    },
+    "agent-app-context": {
+      "agentId": "agent-app-context",
+      "agentType": "coder",
+      "status": "idle",
+      "health": 1,
+      "taskCount": 0,
+      "config": {
+        "model": "sonnet"
+      },
+      "createdAt": "2026-06-07T20:15:46.938Z",
+      "model": "sonnet",
+      "modelRoutedBy": "explicit"
+    },
+    "agent-viewer-decompose": {
+      "agentId": "agent-viewer-decompose",
+      "agentType": "coder",
+      "status": "idle",
+      "health": 1,
+      "taskCount": 0,
+      "config": {
+        "model": "sonnet"
+      },
+      "createdAt": "2026-06-07T20:15:48.401Z",
+      "model": "sonnet",
+      "modelRoutedBy": "explicit"
+    },
+    "agent-tests": {
+      "agentId": "agent-tests",
+      "agentType": "tester",
+      "status": "idle",
+      "health": 1,
+      "taskCount": 0,
+      "config": {
+        "model": "sonnet"
+      },
+      "createdAt": "2026-06-07T20:15:49.272Z",
+      "model": "sonnet",
+      "modelRoutedBy": "explicit"
+    }
+  },
+  "version": "3.0.0"
+}

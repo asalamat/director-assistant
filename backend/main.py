@@ -19,7 +19,10 @@ from services.ai_advisor import AIAdvisor
 from services.email_cache import EmailCache
 from services.digest import DigestService
 from services.classifier import ClassifierService
-from routers import connection, emails
+from routers import connection
+from routers import email_list as email_list_router
+from routers import email_ai as email_ai_router
+from routers import email_actions as email_actions_router
 from routers import digest, actions, followups, templates, analytics, sender, accounts as accounts_router
 from routers import config as config_router
 from routers import health as health_router
@@ -37,6 +40,7 @@ from routers import triage as triage_router
 from routers import triage_rules as triage_rules_router
 from routers import proactive as proactive_router
 from routers import scheduled_send as scheduled_send_router
+from routers import pst_import as pst_import_router
 from routers import weekly_brief as weekly_brief_router
 from routers import vip as vip_router
 from routers import projects as projects_router
@@ -70,6 +74,104 @@ _URGENT_KEYWORDS = frozenset({
 
 def _is_high_priority(email) -> bool:
     return any(kw in (email.subject or "").lower() for kw in _URGENT_KEYWORDS)
+
+
+# ── Provider cache ────────────────────────────────────────────────────────────
+# Key 0 is reserved for the legacy single-account config.
+_provider_cache: dict[int, object] = {}
+_folder_cache: dict[int, list[str]] = {}   # avoid IMAP LIST on every poll cycle
+
+
+def _get_provider(account_id: int, acc):
+    if account_id not in _provider_cache:
+        from services.email_provider import build_provider
+        _provider_cache[account_id] = build_provider(acc.to_connection_config())
+    return _provider_cache[account_id]
+
+
+def _evict_provider(account_id: int):
+    """Remove and cleanly disconnect a cached provider."""
+    p = _provider_cache.pop(account_id, None)
+    _folder_cache.pop(account_id, None)
+    if p is not None and hasattr(p, "disconnect"):
+        try:
+            p.disconnect()
+        except Exception:
+            pass
+
+
+def _get_ingest_folders(account_id: int, provider, full_sweep: bool = False) -> list[str]:
+    if full_sweep:
+        return provider.get_ingest_folders()
+    if account_id not in _folder_cache:
+        _folder_cache[account_id] = provider.get_poll_folders()
+    return _folder_cache[account_id]
+
+
+def _check_folder(
+    account_id: int, provider, folder: str,
+    cache, rag, known_ids: set, all_new_emails: list,
+    since_dt, since_str, full_sweep: bool = False,
+) -> int:
+    from services.email_provider import IMAPProvider
+    if full_sweep:
+        try:
+            server_uids = provider.get_uid_list(folder=folder, from_date=since_dt)
+        except Exception as e:
+            print(f"[poll] uid_list failed account={account_id} folder={folder}: {e}")
+            server_uids = None
+        if server_uids is not None and len(server_uids) > 0:
+            cached = cache.get_cached_server_ids(account_id, folder, since_str)
+            for srv_id, cache_id in cached.items():
+                if srv_id not in server_uids:
+                    cache.delete_email(cache_id)
+                    rag.remove_email(cache_id)
+                    known_ids.discard(cache_id)
+    if full_sweep:
+        fetch_fn = lambda: provider.fetch_all(folder=folder, batch_size=200)
+    elif isinstance(provider, IMAPProvider):
+        fetch_fn = lambda: provider.fetch_recent_n(folder=folder, n=POLL_RECENT_N, from_date=since_dt)
+    else:
+        fetch_fn = lambda: provider.fetch_all(folder=folder, batch_size=POLL_RECENT_N, from_date=since_dt)
+    buffer = []
+    try:
+        for email, _ in fetch_fn():
+            if account_id:
+                email.server_id = email.id
+                email.id = f"a{account_id}_{email.id}"
+            if email.id not in known_ids:
+                buffer.append(email)
+    except Exception as e:
+        import imaplib as _imap
+        if isinstance(e, _imap.IMAP4.abort):
+            raise
+        print(f"[poll] fetch error account={account_id} folder={folder}: {e}")
+    count = 0
+    if buffer:
+        cache.save_batch(buffer, account_id=account_id)
+        for em in buffer:
+            if rag.ingest_email(em):
+                known_ids.add(em.id)
+                all_new_emails.append(em)
+                count += 1
+    return count
+
+
+def _is_connection_error(exc: Exception) -> bool:
+    import imaplib
+    if isinstance(exc, (BrokenPipeError, ConnectionResetError, EOFError, TimeoutError, SystemError)):
+        return True
+    if isinstance(exc, imaplib.IMAP4.abort):
+        return True
+    if isinstance(exc, imaplib.IMAP4.error):
+        return any(kw in str(exc).upper() for kw in ("EOF", "BYE", "CLOSED", "NONAUTH"))
+    try:
+        import httpx
+        if isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code == 401:
+            return True
+    except ImportError:
+        pass
+    return False
 
 
 # Background tasks moved to workers/background_tasks.py
@@ -309,8 +411,13 @@ async def lifespan(app: FastAPI):
     anthropic_key = cfg.get("anthropic_api_key") or os.getenv("ANTHROPIC_API_KEY", "")
     openai_key = cfg.get("openai_api_key") or os.getenv("OPENAI_API_KEY", "")
     budget_mode = cfg.get("budget_mode", False)
-    client = AIClient(anthropic_key=anthropic_key, openai_key=openai_key,
-                      budget_mode=budget_mode)
+    ai_providers = cfg.get("ai_providers")  # multi-provider list (new)
+    client = AIClient(
+        anthropic_key=anthropic_key,
+        openai_key=openai_key,
+        budget_mode=budget_mode,
+        providers=ai_providers,  # None = use legacy two-key mode
+    )
     app.state.cache = EmailCache()
     app.state.rag = RAGEngine(client, app.state.cache)
     app.state.advisor = AIAdvisor(client, rag=app.state.rag)
@@ -351,7 +458,9 @@ app.add_middleware(
 )
 
 app.include_router(connection.router)
-app.include_router(emails.router)
+app.include_router(email_list_router.router)
+app.include_router(email_ai_router.router)
+app.include_router(email_actions_router.router)
 app.include_router(digest.router)
 app.include_router(actions.router)
 app.include_router(followups.router)
@@ -375,6 +484,7 @@ app.include_router(triage_router.router)
 app.include_router(triage_rules_router.router)
 app.include_router(proactive_router.router)
 app.include_router(scheduled_send_router.router)
+app.include_router(pst_import_router.router)
 app.include_router(weekly_brief_router.router)
 app.include_router(vip_router.router)
 app.include_router(projects_router.router)

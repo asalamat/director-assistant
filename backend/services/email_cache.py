@@ -56,6 +56,9 @@ class EmailCache(EmailExtrasMixin, DocumentCacheMixin):
                     thread_id   TEXT,
                     folder      TEXT DEFAULT 'INBOX',
                     is_read     INTEGER DEFAULT 1,
+                    account_id  INTEGER DEFAULT 0,
+                    server_id   TEXT,
+                    followup_remind_at TEXT,
                     cached_at   TEXT DEFAULT (datetime('now'))
                 )
             """)
@@ -103,8 +106,6 @@ class EmailCache(EmailExtrasMixin, DocumentCacheMixin):
             conn.execute("CREATE INDEX IF NOT EXISTS idx_date                 ON emails(date DESC)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_sender               ON emails(sender)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_is_read              ON emails(is_read, date DESC) WHERE is_read = 0")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_followups_done_due   ON follow_ups(done, due_date)")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_action_items_email   ON action_items(email_id)")
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS documents_fts_store (
                     doc_id      TEXT PRIMARY KEY,
@@ -156,6 +157,8 @@ class EmailCache(EmailExtrasMixin, DocumentCacheMixin):
                     created_at   TEXT DEFAULT (datetime('now'))
                 )
             """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_followups_done_due   ON follow_ups(done, due_date)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_action_items_email   ON action_items(email_id)")
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS templates (
                     id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -226,6 +229,32 @@ class EmailCache(EmailExtrasMixin, DocumentCacheMixin):
                     send_at TEXT NOT NULL,
                     sent INTEGER DEFAULT 0,
                     created_at TEXT DEFAULT (datetime('now'))
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS vip_contacts (
+                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                    email_addr TEXT NOT NULL UNIQUE,
+                    name       TEXT DEFAULT '',
+                    note       TEXT DEFAULT '',
+                    created_at TEXT DEFAULT (datetime('now'))
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS projects (
+                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name        TEXT NOT NULL,
+                    description TEXT DEFAULT '',
+                    status      TEXT DEFAULT 'active',
+                    created_at  TEXT DEFAULT (datetime('now'))
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS project_emails (
+                    project_id INTEGER NOT NULL,
+                    email_id   TEXT NOT NULL,
+                    linked_at  TEXT DEFAULT (datetime('now')),
+                    PRIMARY KEY (project_id, email_id)
                 )
             """)
             for col_def in ["account_id INTEGER DEFAULT 0", "server_id TEXT",

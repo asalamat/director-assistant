@@ -142,6 +142,7 @@ export interface AppConfig {
   digest_schedule_enabled: boolean
   digest_schedule_time: string
   digest_schedule_email: string
+  translation_language: string
 }
 
 export interface TriageEmail {
@@ -196,6 +197,26 @@ export interface AskHistoryEntry {
   question: string
   answer: string
   results_json: string
+}
+
+export interface AIProvider {
+  type: string
+  label: string
+  enabled: boolean
+  priority: number
+  key_preview: string
+  base_url: string
+  model_override: string
+}
+
+export interface AIProviderSave {
+  type: string
+  label?: string
+  key: string
+  enabled: boolean
+  priority: number
+  base_url?: string
+  model_override?: string
 }
 
 export interface EmailThread {

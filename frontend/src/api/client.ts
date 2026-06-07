@@ -14,6 +14,8 @@ import type {
   AppConfig,
   AskHistoryEntry,
   EmailThread,
+  AIProvider,
+  AIProviderSave,
 } from '../types'
 
 const BASE = '/api'
@@ -277,6 +279,17 @@ export const api = {
   },
   testOpenAIKey(key: string): Promise<{ valid: boolean; model?: string; error?: string }> {
     return request('/config/test-openai-key', { method: 'POST', body: JSON.stringify({ openai_api_key: key }) })
+  },
+
+  // AI Provider management
+  getProviders(): Promise<{ providers: AIProvider[]; available_types: Record<string, {label: string; base_url: string}>; available_models: Record<string, string[]> }> {
+    return request('/config/providers')
+  },
+  saveProviders(providers: AIProviderSave[]): Promise<{ saved: number; primary: string }> {
+    return request('/config/providers', { method: 'POST', body: JSON.stringify({ providers }) })
+  },
+  testProvider(p: { type: string; key: string; base_url?: string; model?: string }): Promise<{ valid: boolean; model?: string; provider?: string; error?: string }> {
+    return request('/config/providers/test', { method: 'POST', body: JSON.stringify(p) })
   },
 
   // Accounts
@@ -547,5 +560,86 @@ export const api = {
   // Auto-label email
   autoLabelEmail(emailId: string): Promise<{ email_id: string; label: string }> {
     return request(`/emails/${encodeURIComponent(emailId)}/auto-label`, { method: 'POST' })
+  },
+
+  // Weekly Executive Brief
+  getWeeklyBrief(): Promise<any> {
+    return request('/weekly-brief', { method: 'POST' })
+  },
+  clearWeeklyBriefCache(): Promise<{ cleared: boolean }> {
+    return request('/weekly-brief/cache', { method: 'DELETE' })
+  },
+  searchBriefItem(q: string): Promise<{ query: string; emails: any[] }> {
+    return request(`/weekly-brief/search?q=${encodeURIComponent(q)}`)
+  },
+
+  // VIP Contacts
+  getVIPs(): Promise<{ vips: any[] }> {
+    return request('/vip')
+  },
+  addVIP(data: { email_addr: string; name: string; note: string }): Promise<{ added: string }> {
+    return request('/vip', { method: 'POST', body: JSON.stringify(data) })
+  },
+  updateVIP(id: number, data: { email_addr: string; name: string; note: string }): Promise<{ updated: number }> {
+    return request(`/vip/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+  },
+  removeVIP(id: number): Promise<{ removed: number }> {
+    return request(`/vip/${id}`, { method: 'DELETE' })
+  },
+  getVIPEmails(emailAddr: string, limit = 20): Promise<{ emails: any[] }> {
+    return request(`/vip/emails/${encodeURIComponent(emailAddr)}?limit=${limit}`)
+  },
+
+  // Chase Queue (follow-up drafts)
+  generateChaseDraft(emailId: string): Promise<{ draft: string; subject: string; to: string; email_id: string }> {
+    return request(`/followups/chase-draft/${encodeURIComponent(emailId)}`, { method: 'POST' })
+  },
+
+  // Projects
+  getProjects(): Promise<{ projects: any[] }> {
+    return request('/projects')
+  },
+  createProject(data: { name: string; description: string; status: string }): Promise<{ id: number; name: string }> {
+    return request('/projects', { method: 'POST', body: JSON.stringify(data) })
+  },
+  updateProject(id: number, data: { name?: string; description?: string; status?: string }): Promise<{ ok: boolean }> {
+    return request(`/projects/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+  },
+  deleteProject(id: number): Promise<{ deleted: number }> {
+    return request(`/projects/${id}`, { method: 'DELETE' })
+  },
+  getProjectEmails(projectId: number): Promise<{ emails: any[] }> {
+    return request(`/projects/${projectId}/emails`)
+  },
+  linkEmailToProject(projectId: number, emailId: string): Promise<{ linked: boolean }> {
+    return request(`/projects/${projectId}/emails/${encodeURIComponent(emailId)}`, { method: 'POST' })
+  },
+  unlinkEmailFromProject(projectId: number, emailId: string): Promise<{ unlinked: boolean }> {
+    return request(`/projects/${projectId}/emails/${encodeURIComponent(emailId)}`, { method: 'DELETE' })
+  },
+  getProjectsForEmail(emailId: string): Promise<{ projects: any[] }> {
+    return request(`/projects/for-email/${encodeURIComponent(emailId)}`)
+  },
+
+  // Send-Time Optimizer
+  getBestSendTime(emailAddr: string): Promise<{ suggestion: string | null; best_day: string; best_hour_display: string; top_days: string[]; reason: string }> {
+    return request(`/analytics/send-time/${encodeURIComponent(emailAddr)}`)
+  },
+
+  // PST / OLM Import
+  checkPSTAvailability(): Promise<{ available: boolean; olm_available: boolean; pst_available: boolean; pst_backend?: string; olm_backend?: string; pst_error?: string }> {
+    return request('/pst/status')
+  },
+  importPST(file: File): Promise<{ task_id: string; filename: string }> {
+    const form = new FormData()
+    form.append('file', file)
+    return fetch(`${BASE}/pst/import`, { method: 'POST', body: form })
+      .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(new Error(e.detail || 'Upload failed'))))
+  },
+  streamPSTProgress(taskId: string): EventSource {
+    return new EventSource(`${BASE}/pst/progress/${taskId}`)
+  },
+  listPSTTasks(): Promise<{ tasks: any[] }> {
+    return request('/pst/tasks')
   },
 }

@@ -1,0 +1,14 @@
+{
+  "id": "session-1779487817083",
+  "startedAt": "2026-05-22T22:10:17.083Z",
+  "cwd": "/Users/alisalamat/director-assistant/frontend",
+  "context": {},
+  "metrics": {
+    "edits": 35,
+    "commands": 0,
+    "tasks": 0,
+    "errors": 0
+  },
+  "endedAt": "2026-05-25T17:59:02.054Z",
+  "duration": 244124971
+}

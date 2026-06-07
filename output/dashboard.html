@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Director Assistant — Dashboard</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+     background:#0d1117;color:#e6edf3;font-size:14px;line-height:1.6}
+a{color:#79c0ff;text-decoration:none}a:hover{text-decoration:underline}
+h2{font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;
+   color:#8b949e;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid #21262d}
+.wrap{max-width:1280px;margin:0 auto;padding:20px 24px}
+.hdr{display:flex;justify-content:space-between;align-items:flex-end;
+     margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid #21262d}
+.hdr-left h1{font-size:22px;font-weight:700;color:#f0f6fc}
+.hdr-left .sub{color:#8b949e;font-size:13px;margin-top:3px}
+.hdr-right{text-align:right;font-size:12px;color:#6e7681}
+.hint{margin-top:4px;font-size:11px;color:#484f58}
+.kpi{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:20px}
+@media(max-width:900px){.kpi{grid-template-columns:repeat(3,1fr)}}
+.kpi-tile{background:#161b22;border:1px solid #21262d;border-radius:8px;
+          padding:14px 16px;cursor:default;transition:border-color .15s}
+.kpi-tile:hover{border-color:#58a6ff}
+.kpi-tile .val{font-size:28px;font-weight:700;line-height:1}
+.kpi-tile .lbl{font-size:11px;color:#8b949e;margin-top:5px}
+.red .val{color:#f85149}.yellow .val{color:#d29922}
+.green .val{color:#3fb950}.blue .val{color:#58a6ff}
+.purple .val{color:#bc8cff}.teal .val{color:#39d353}
+.urgent{background:#1a0d0d;border:1px solid #6e1a1a;border-radius:8px;
+        padding:14px 18px;margin-bottom:20px}
+.urgent h2{color:#f85149;border-color:#6e1a1a}
+.urgent-items{display:flex;flex-wrap:wrap;gap:8px}
+.u-tag{background:#2d1111;border:1px solid #8b1a1a;border-radius:5px;
+       padding:4px 10px;font-size:12px;color:#ff7b72;cursor:pointer;transition:background .15s}
+.u-tag:hover{background:#3d1515}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+@media(max-width:800px){.grid2{grid-template-columns:1fr}}
+.card{background:#161b22;border:1px solid #21262d;border-radius:8px;padding:16px}
+.item-list{list-style:none}
+.item-list li{padding:7px 0;border-bottom:1px solid #21262d;font-size:13px;
+              cursor:pointer;transition:background .12s;border-radius:4px;padding-left:4px}
+.item-list li:last-child{border:none}
+.item-list li:hover{background:#1c2128}
+.badge{display:inline-block;padding:1px 7px;border-radius:4px;font-size:11px;font-weight:600;margin-left:6px}
+.bdg-red{background:#2d1111;color:#ff7b72}.bdg-yellow{background:#2d2207;color:#d29922}
+.bdg-green{background:#0d2a0d;color:#3fb950}.bdg-blue{background:#0a1929;color:#58a6ff}
+.meta{font-size:11px;color:#6e7681;margin-top:2px}
+.bar-chart{margin-top:6px}
+.bar-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.bar-lbl{width:72px;font-size:11px;color:#8b949e;text-align:right;flex-shrink:0;
+         overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar-track{flex:1;background:#21262d;border-radius:3px;height:18px;overflow:hidden}
+.bar-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,#1f6feb,#58a6ff);transition:width .3s}
+.bar-val{width:28px;font-size:11px;color:#8b949e;flex-shrink:0}
+.donut-wrap{display:flex;align-items:center;gap:24px;margin-top:8px}
+.donut{width:120px;height:120px;border-radius:50%;flex-shrink:0;position:relative}
+.donut::after{content:'';position:absolute;top:25%;left:25%;width:50%;height:50%;
+              background:#161b22;border-radius:50%}
+.donut-legend{flex:1}
+.legend-row{display:flex;align-items:center;gap:8px;margin-bottom:5px;font-size:12px}
+.legend-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.proj-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+.proj-card{background:#0d1117;border:1px solid #21262d;border-radius:6px;padding:12px;
+           cursor:pointer;transition:border-color .15s}
+.proj-card:hover{border-color:#58a6ff}
+.proj-card .pname{font-weight:600;font-size:13px;color:#e6edf3;margin-bottom:4px;
+                  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.proj-card .pnext{font-size:12px;color:#8b949e}
+.evt{padding:8px 0;border-bottom:1px solid #21262d;cursor:pointer;border-radius:4px;
+     padding-left:4px;transition:background .12s}
+.evt:last-child{border:none}
+.evt:hover{background:#1c2128}
+.evt-time{font-size:11px;color:#6e7681;min-width:48px;display:inline-block}
+.evt-title{font-weight:500}
+.evt-org{font-size:11px;color:#8b949e;margin-top:2px}
+.footer{margin-top:32px;padding-top:16px;border-top:1px solid #21262d;
+        font-size:11px;color:#484f58;text-align:center}
+/* Modal */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;
+          align-items:center;justify-content:center;padding:20px}
+.modal-bg.open{display:flex}
+.modal{background:#161b22;border:1px solid #30363d;border-radius:12px;max-width:640px;
+       width:100%;max-height:80vh;overflow-y:auto;padding:24px;position:relative}
+.modal h3{font-size:16px;font-weight:600;color:#f0f6fc;margin-bottom:12px;padding-right:24px}
+.modal .detail-row{margin-bottom:8px;font-size:13px}
+.modal .detail-label{color:#8b949e;font-size:11px;text-transform:uppercase;
+                     letter-spacing:.06em;margin-bottom:2px}
+.modal .detail-body{color:#e6edf3;white-space:pre-wrap;word-break:break-word;
+                    max-height:300px;overflow-y:auto;background:#0d1117;
+                    border-radius:6px;padding:10px;font-size:12px;line-height:1.7}
+.modal-close{position:absolute;top:16px;right:16px;background:none;border:none;
+             color:#8b949e;font-size:20px;cursor:pointer;line-height:1}
+.modal-close:hover{color:#f0f6fc}
+
+.ai-panel{margin-top:14px;border-top:1px solid #21262d;padding-top:12px}
+.ai-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.ai-chip{background:#161b22;border:1px solid #21262d;border-radius:999px;padding:3px 11px;
+         font-size:11px;cursor:pointer;color:#8b949e;transition:border-color .15s,color .15s}
+.ai-chip:hover{border-color:#58a6ff;color:#e6edf3}
+.ai-out{font-size:12px;line-height:1.7;color:#e6edf3;background:#0d1117;border-radius:6px;
+        padding:8px;margin-top:6px;white-space:pre-wrap;display:none;max-height:200px;overflow-y:auto}
+.ai-out.active{display:block}
+.ai-input-row{display:flex;gap:6px;margin-top:8px}
+.ai-input{flex:1;background:#0d1117;border:1px solid #30363d;border-radius:6px;
+          padding:5px 8px;color:#e6edf3;font-size:12px;outline:none}
+.ai-input:focus{border-color:#58a6ff}
+.ai-btn{background:#1f6feb;border:none;border-radius:6px;color:#fff;
+        padding:5px 12px;cursor:pointer;font-size:12px}
+.ai-btn:hover{background:#388bfd}
+.ai-btn-save{background:#238636;margin-top:8px}
+.ai-btn-save:hover{background:#2ea043}
+.ai-btn-save:disabled{background:#21262d;color:#6e7681;cursor:default}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hdr">
+    <div class="hdr-left">
+      <h1>Director Assistant — Executive Brief</h1>
+      <div class="sub">Friday, 05 June 2026  12:47</div>
+      <div class="hint">Click any item for details · Auto-refreshes in <span id="countdown">30m 0s</span></div>
+    </div>
+    <div class="hdr-right">
+      <div>Last refreshed: Friday, 05 June 2026  12:47</div>
+      <div class="hint"><a href="/api/dashboard">Refresh now</a> · <a href="/">← Back to App</a></div>
+    </div>
+  </div>
+
+  <div class="kpi">
+    <div class="kpi-tile green"><div class="val">0</div><div class="lbl">Overdue Actions</div></div>
+    <div class="kpi-tile green"><div class="val">0</div><div class="lbl">Unread Emails</div></div>
+    <div class="kpi-tile blue"><div class="val">0</div><div class="lbl">Meetings Tomorrow</div></div>
+    <div class="kpi-tile purple"><div class="val">—</div><div class="lbl">Teams Unread</div></div>
+    <div class="kpi-tile teal"><div class="val">8</div><div class="lbl">Active Projects</div></div>
+    <div class="kpi-tile blue"><div class="val">—</div><div class="lbl">OOF This Week</div></div>
+  </div>
+
+  <div class="urgent"><h2>Needs Attention Today</h2><div class="urgent-items"><span class="u-tag" data-modal='{&quot;title&quot;: &quot;Follow-up: Ali, Last call for buy one, get one for $1 \u23f0\ud83c\udf55&quot;, &quot;rows&quot;: [[&quot;Subject&quot;, &quot;Ali, Last call for buy one, get one for $1 \u23f0\ud83c\udf55&quot;], [&quot;Sender&quot;, &quot;&quot;], [&quot;Due&quot;, &quot;2026-06-05&quot;]]}'>Follow-up: Ali, Last call for buy one, get one for $1 ⏰🍕</span></div></div>
+
+  <div class="grid2">
+    <div class="card "><h2>Tomorrow's Schedule</h2><p style='color:#6e7681;font-size:13px'>No calendar connected or no events tomorrow.</p></div>
+    <div class="card "><h2>People to Follow Up With</h2><ul class="item-list"><li data-modal='{&quot;title&quot;: &quot;Ali, Last call for buy one, get one for $1 \u23f0\ud83c\udf55&quot;, &quot;rows&quot;: [[&quot;Subject&quot;, &quot;Ali, Last call for buy one, get one for $1 \u23f0\ud83c\udf55&quot;], [&quot;From&quot;, &quot;&quot;], [&quot;Due&quot;, &quot;2026-06-05&quot;], [&quot;Note&quot;, &quot;Auto-detected deadline: Last call for buy one, get one for $1 pizza promotion - order now&quot;]]}'>Ali, Last call for buy one, get one for $1 ⏰🍕<div class="meta">  ·  Due 2026-06-05</div></li><li data-modal='{&quot;title&quot;: &quot;tavalode Tara zane morteza, Saturday, 06 June 2026&quot;, &quot;rows&quot;: [[&quot;Subject&quot;, &quot;tavalode Tara zane morteza, Saturday, 06 June 2026&quot;], [&quot;From&quot;, &quot;&quot;], [&quot;Due&quot;, &quot;2026-06-06&quot;], [&quot;Note&quot;, &quot;Auto-detected deadline: Event reminder for tavalode Tara zane morteza&quot;]]}'>tavalode Tara zane morteza, Saturday, 06 June 2026<div class="meta">  ·  Due 2026-06-06</div></li><li data-modal='{&quot;title&quot;: &quot;tavalode Tara zane morteza, Saturday, 06 June 2026&quot;, &quot;rows&quot;: [[&quot;Subject&quot;, &quot;tavalode Tara zane morteza, Saturday, 06 June 2026&quot;], [&quot;From&quot;, &quot;&quot;], [&quot;Due&quot;, &quot;2026-06-06&quot;], [&quot;Note&quot;, &quot;Auto-detected deadline: Event reminder for tavalode Tara zane morteza&quot;]]}'>tavalode Tara zane morteza, Saturday, 06 June 2026<div class="meta">  ·  Due 2026-06-06</div></li><li data-modal='{&quot;title&quot;: &quot;Firearm Hearing Date - July 7th 2026&quot;, &quot;rows&quot;: [[&quot;Subject&quot;, &quot;Firearm Hearing Date - July 7th 2026&quot;], [&quot;From&quot;, &quot;&quot;], [&quot;Due&quot;, &quot;2026-07-07&quot;], [&quot;Note&quot;, &quot;Auto-detected deadline: Firearms Disposition Hearing appearance&quot;]]}'>Firearm Hearing Date - July 7th 2026<div class="meta">  ·  Due 2026-07-07</div></li></ul></div>
+  </div>
+
+  <div class="card "><h2>Top Active Projects</h2><div class="proj-grid"><div class="proj-card" data-modal='{&quot;title&quot;: &quot;Ali Salamat shared the folder \&quot;Jobs\&quot; with you&quot;, &quot;rows&quot;: [[&quot;Topic&quot;, &quot;Ali Salamat shared the folder \&quot;Jobs\&quot; with you&quot;], [&quot;Signals&quot;, &quot;1&quot;], [&quot;Next&quot;, &quot;Review status&quot;]]}'><div class="pname" title="Ali Salamat shared the folder &quot;Jobs&quot; with you">Ali Salamat shared the folder &quot;Jobs&quot; wit</div><div class="pnext">Next: Review status</div></div><div class="proj-card" data-modal='{&quot;title&quot;: &quot;pls send me change management template&quot;, &quot;rows&quot;: [[&quot;Topic&quot;, &quot;pls send me change management template&quot;], [&quot;Signals&quot;, &quot;1&quot;], [&quot;Next&quot;, &quot;Review status&quot;]]}'><div class="pname" title="pls send me change management template">pls send me change management template</div><div class="pnext">Next: Review status</div></div><div class="proj-card" data-modal='{&quot;title&quot;: &quot;Cyber security controls&quot;, &quot;rows&quot;: [[&quot;Topic&quot;, &quot;Cyber security controls&quot;], [&quot;Signals&quot;, &quot;1&quot;], [&quot;Next&quot;, &quot;Review status&quot;]]}'><div class="pname" title="Cyber security controls">Cyber security controls</div><div class="pnext">Next: Review status</div></div><div class="proj-card" data-modal='{&quot;title&quot;: &quot;Emailing: PMI Member Certificate.pdf, PMI Member Card.pdf&quot;, &quot;rows&quot;: [[&quot;Topic&quot;, &quot;Emailing: PMI Member Certificate.pdf, PMI Member Card.pdf&quot;], [&quot;Signals&quot;, &quot;1&quot;], [&quot;Next&quot;, &quot;Review status&quot;]]}'><div class="pname" title="Emailing: PMI Member Certificate.pdf, PMI Member Card.pdf">Emailing: PMI Member Certificate.pdf, PM</div><div class="pnext">Next: Review status</div></div><div class="proj-card" data-modal='{&quot;title&quot;: &quot;\u067e\u0631\u0627\u0645\u067e\u062a \u062e\u0645\u06cc\u0631\u06cc&quot;, &quot;rows&quot;: [[&quot;Topic&quot;, &quot;\u067e\u0631\u0627\u0645\u067e\u062a \u062e\u0645\u06cc\u0631\u06cc&quot;], [&quot;Signals&quot;, &quot;1&quot;], [&quot;Next&quot;, &quot;Review status&quot;]]}'><div class="pname" title="پرامپت خمیری">پرامپت خمیری</div><div class="pnext">Next: Review status</div></div><div class="proj-card" data-modal='{&quot;title&quot;: &quot;Fw: Senior System Administrator at FGF Brands&quot;, &quot;rows&quot;: [[&quot;Topic&quot;, &quot;Fw: Senior System Administrator at FGF Brands&quot;], [&quot;Signals&quot;, &quot;1&quot;], [&quot;Next&quot;, &quot;Review status&quot;]]}'><div class="pname" title="Fw: Senior System Administrator at FGF Brands">Fw: Senior System Administrator at FGF B</div><div class="pnext">Next: Review status</div></div><div class="proj-card" data-modal='{&quot;title&quot;: &quot;Re: Manager, AI &amp; Automation at Choice Properties // next steps&quot;, &quot;rows&quot;: [[&quot;Topic&quot;, &quot;Re: Manager, AI &amp; Automation at Choice Properties // next steps&quot;], [&quot;Signals&quot;, &quot;1&quot;], [&quot;Next&quot;, &quot;Review status&quot;]]}'><div class="pname" title="Re: Manager, AI &amp; Automation at Choice Properties // next steps">Re: Manager, AI &amp; Automation at Choice P</div><div class="pnext">Next: Review status</div></div><div class="proj-card" data-modal='{&quot;title&quot;: &quot;Staples is hiring for Administrateur syst\u00e8me + 9 new VMware jobs in Richmond Hill, ON&quot;, &quot;rows&quot;: [[&quot;Topic&quot;, &quot;Staples is hiring for Administrateur syst\u00e8me + 9 new VMware jobs in Richmond Hill, ON&quot;], [&quot;Signals&quot;, &quot;1&quot;], [&quot;Next&quot;, &quot;Review status&quot;]]}'><div class="pname" title="Staples is hiring for Administrateur système + 9 new VMware jobs in Richmond Hill, ON">Staples is hiring for Administrateur sys</div><div class="pnext">Next: Review status</div></div></div></div>
+
+  <div class="grid2" style="margin-top:16px">
+    <div class="card "><h2>Week Calendar Load</h2><div class="bar-chart"><div class="bar-row"><span class="bar-lbl" title="2026-05-30">2026-05-30</span><div class="bar-track"><div class="bar-fill" style="width:30%"></div></div><span class="bar-val">21</span></div><div class="bar-row"><span class="bar-lbl" title="2026-05-31">2026-05-31</span><div class="bar-track"><div class="bar-fill" style="width:100%"></div></div><span class="bar-val">70</span></div><div class="bar-row"><span class="bar-lbl" title="2026-06-01">2026-06-01</span><div class="bar-track"><div class="bar-fill" style="width:34%"></div></div><span class="bar-val">24</span></div><div class="bar-row"><span class="bar-lbl" title="2026-06-02">2026-06-02</span><div class="bar-track"><div class="bar-fill" style="width:28%"></div></div><span class="bar-val">20</span></div><div class="bar-row"><span class="bar-lbl" title="2026-06-03">2026-06-03</span><div class="bar-track"><div class="bar-fill" style="width:42%"></div></div><span class="bar-val">30</span></div><div class="bar-row"><span class="bar-lbl" title="2026-06-04">2026-06-04</span><div class="bar-track"><div class="bar-fill" style="width:50%"></div></div><span class="bar-val">35</span></div><div class="bar-row"><span class="bar-lbl" title="2026-06-05">2026-06-05</span><div class="bar-track"><div class="bar-fill" style="width:50%"></div></div><span class="bar-val">35</span></div></div></div>
+    <div class="card "><h2>Time Allocation This Week</h2><div class="donut-wrap"><div class="donut" style="background:conic-gradient(#1f6feb 0% 30%, #f78166 30% 55%, #3fb950 55% 80%, #bc8cff 80% 90%, #d29922 90% 100%)"></div><div class="donut-legend"><div class="legend-row"><div class="legend-dot" style="background:#1f6feb"></div><span>Customer-facing <b>30%</b></span></div><div class="legend-row"><div class="legend-dot" style="background:#f78166"></div><span>Internal sync <b>25%</b></span></div><div class="legend-row"><div class="legend-dot" style="background:#3fb950"></div><span>Focus <b>25%</b></span></div><div class="legend-row"><div class="legend-dot" style="background:#bc8cff"></div><span>Training <b>10%</b></span></div><div class="legend-row"><div class="legend-dot" style="background:#d29922"></div><span>Admin <b>10%</b></span></div></div></div></div>
+  </div>
+
+  <div class="grid2" style="margin-top:16px">
+    <div class="card "><h2>Emails Needing a Reply</h2><p style='color:#6e7681;font-size:13px'>Inbox zero!</p></div>
+    <div class="card "><h2>Long-Term Action Items</h2><p style='color:#3fb950;font-size:13px'>No open actions.</p></div>
+  </div>
+
+  <div class="grid2" style="margin-top:16px">
+    <div class="card "><h2>Training & Learning</h2><ul class="item-list"><li data-modal='{&quot;title&quot;: &quot;UNLOCK DEAL: Save 50% on AI Courses and Membership NOW!&quot;, &quot;rows&quot;: [[&quot;Subject&quot;, &quot;UNLOCK DEAL: Save 50% on AI Courses and Membership NOW!&quot;], [&quot;From&quot;, &quot;isaca@em.isaca.org&quot;], [&quot;Date&quot;, &quot;2026-06-05&quot;]]}'>UNLOCK DEAL: Save 50% on AI Courses and Membership NOW!<div class="meta">isaca@em.isaca.org · 2026-06-05</div></li><li data-modal='{&quot;title&quot;: &quot;Final Call: ISC2 Securing AI Workshop | June Virtual&quot;, &quot;rows&quot;: [[&quot;Subject&quot;, &quot;Final Call: ISC2 Securing AI Workshop | June Virtual&quot;], [&quot;From&quot;, &quot;info@connect.isc2.org&quot;], [&quot;Date&quot;, &quot;2026-06-04&quot;]]}'>Final Call: ISC2 Securing AI Workshop | June Virtual<div class="meta">info@connect.isc2.org · 2026-06-04</div></li><li data-modal='{&quot;title&quot;: &quot;Expand your future skills with free AI learning from Akkodis and\r\n Mic&quot;, &quot;rows&quot;: [[&quot;Subject&quot;, &quot;Expand your future skills with free AI learning from Akkodis and\r\n Microsoft&quot;], [&quot;From&quot;, &quot;canada_feedback@akkodisgroup.com&quot;], [&quot;Date&quot;, &quot;2026-06-01&quot;]]}'>Expand your future skills with free AI learning from Akkodis and
+ Mic<div class="meta">canada_feedback@akkodisgroup.com · 2026-06-01</div></li><li data-modal='{&quot;title&quot;: &quot;Early Bird Pricing Extended | Zero Trust Workshop&quot;, &quot;rows&quot;: [[&quot;Subject&quot;, &quot;Early Bird Pricing Extended | Zero Trust Workshop&quot;], [&quot;From&quot;, &quot;info@connect.isc2.org&quot;], [&quot;Date&quot;, &quot;2026-05-29&quot;]]}'>Early Bird Pricing Extended | Zero Trust Workshop<div class="meta">info@connect.isc2.org · 2026-05-29</div></li><li data-modal='{&quot;title&quot;: &quot;$100K Resume Webinar is happening Tomorrow and 3 Lucky Mothers will WI&quot;, &quot;rows&quot;: [[&quot;Subject&quot;, &quot;$100K Resume Webinar is happening Tomorrow and 3 Lucky Mothers will WIN \ud83c\udfc6 GIFT \ud83c\udf81 cards too!&quot;], [&quot;From&quot;, &quot;Alex Amir Coaching \u270a &lt;start@alexcoaching.org&gt;&quot;], [&quot;Date&quot;, &quot;2026-05-11&quot;]]}'>$100K Resume Webinar is happening Tomorrow and 3 Lucky Mothers will WI<div class="meta">Alex Amir Coaching ✊ &lt;start@alexcoaching · 2026-05-11</div></li><li data-modal='{&quot;title&quot;: &quot;Alex B posted \&quot;Happy Mother\u2019s Day to all the amazing mothers in our co&quot;, &quot;rows&quot;: [[&quot;Subject&quot;, &quot;Alex B posted \&quot;Happy Mother\u2019s Day to all the amazing mothers in our community \ud83d\udc90 My GIFT \ud83c\udf81 to you: FREE Resume MasterClass Webinar  \&quot;&quot;], [&quot;From&quot;, &quot;Free BTE Career Coaching &lt;noreply@skool.com&gt;&quot;], [&quot;Date&quot;, &quot;2026-05-09&quot;]]}'>Alex B posted &quot;Happy Mother’s Day to all the amazing mothers in our co<div class="meta">Free BTE Career Coaching &lt;noreply@skool. · 2026-05-09</div></li><li data-modal='{&quot;title&quot;: &quot;Skill&quot;, &quot;rows&quot;: [[&quot;Subject&quot;, &quot;Skill&quot;], [&quot;From&quot;, &quot;Ali.Salamat@von.ca&quot;], [&quot;Date&quot;, &quot;2026-01-11&quot;]]}'>Skill<div class="meta">Ali.Salamat@von.ca · 2026-01-11</div></li><li data-modal='{&quot;title&quot;: &quot;Course&quot;, &quot;rows&quot;: [[&quot;Subject&quot;, &quot;Course&quot;], [&quot;From&quot;, &quot;a_salamat@yahoo.com&quot;], [&quot;Date&quot;, &quot;2026-01-03&quot;]]}'>Course<div class="meta">a_salamat@yahoo.com · 2026-01-03</div></li></ul></div>
+    <div class="card "><h2>Top Senders This Week</h2><div class="bar-chart"><div class="bar-row"><span class="bar-lbl" title="Ali Salamat &lt;salamat110@hotmail.com&gt;">alamat110@hotmail.com&gt;</span><div class="bar-track"><div class="bar-fill" style="width:100%"></div></div><span class="bar-val">1410</span></div><div class="bar-row"><span class="bar-lbl" title="a_salamat@yahoo.com">a_salamat@yahoo.com</span><div class="bar-track"><div class="bar-fill" style="width:50%"></div></div><span class="bar-val">717</span></div><div class="bar-row"><span class="bar-lbl" title="ali salamat &lt;salamat110@hotmail.com&gt;">alamat110@hotmail.com&gt;</span><div class="bar-track"><div class="bar-fill" style="width:34%"></div></div><span class="bar-val">483</span></div><div class="bar-row"><span class="bar-lbl" title="alert@indeed.com">alert@indeed.com</span><div class="bar-track"><div class="bar-fill" style="width:14%"></div></div><span class="bar-val">206</span></div><div class="bar-row"><span class="bar-lbl" title="htrogers50@gmail.com">htrogers50@gmail.com</span><div class="bar-track"><div class="bar-fill" style="width:11%"></div></div><span class="bar-val">158</span></div><div class="bar-row"><span class="bar-lbl" title="invitetoapply@match.indeed.com">apply@match.indeed.com</span><div class="bar-track"><div class="bar-fill" style="width:10%"></div></div><span class="bar-val">155</span></div><div class="bar-row"><span class="bar-lbl" title="nima.sadri@conavi.com">nima.sadri@conavi.com</span><div class="bar-track"><div class="bar-fill" style="width:6%"></div></div><span class="bar-val">98</span></div></div></div>
+  </div>
+
+  <div class="grid2" style="margin-top:16px">
+    <div class="card "><h2>OneDrive — Recent Files</h2><p style='color:#6e7681;font-size:13px'>No recent OneDrive files found.</p></div>
+    <div class="card "><h2>Teams — Recent Chats</h2><p style='color:#6e7681;font-size:13px'>Teams chats are only available with a work or school Microsoft account.</p></div>
+  </div>
+
+  <div class="card "><h2>Email Volume — Last 7 Days</h2><div class="bar-chart"><div class="bar-row"><span class="bar-lbl" title="2026-05-30">2026-05-30</span><div class="bar-track"><div class="bar-fill" style="width:30%"></div></div><span class="bar-val">21</span></div><div class="bar-row"><span class="bar-lbl" title="2026-05-31">2026-05-31</span><div class="bar-track"><div class="bar-fill" style="width:100%"></div></div><span class="bar-val">70</span></div><div class="bar-row"><span class="bar-lbl" title="2026-06-01">2026-06-01</span><div class="bar-track"><div class="bar-fill" style="width:34%"></div></div><span class="bar-val">24</span></div><div class="bar-row"><span class="bar-lbl" title="2026-06-02">2026-06-02</span><div class="bar-track"><div class="bar-fill" style="width:28%"></div></div><span class="bar-val">20</span></div><div class="bar-row"><span class="bar-lbl" title="2026-06-03">2026-06-03</span><div class="bar-track"><div class="bar-fill" style="width:42%"></div></div><span class="bar-val">30</span></div><div class="bar-row"><span class="bar-lbl" title="2026-06-04">2026-06-04</span><div class="bar-track"><div class="bar-fill" style="width:50%"></div></div><span class="bar-val">35</span></div><div class="bar-row"><span class="bar-lbl" title="2026-06-05">2026-06-05</span><div class="bar-track"><div class="bar-fill" style="width:50%"></div></div><span class="bar-val">35</span></div></div></div>
+
+  <div class="footer">
+    Director Assistant · <a href="/api/dashboard">Refresh</a> ·
+    Auto-refreshes every 30 min · Next in <span id="countdown2"></span>
+    <script>
+      document.getElementById('countdown2').textContent =
+        document.getElementById('countdown').textContent;
+      setInterval(()=>{
+        document.getElementById('countdown2').textContent =
+          document.getElementById('countdown').textContent;
+      },1000);
+    </script>
+  </div>
+</div>
+
+<!-- Detail Modal -->
+<div class="modal-bg" id="modal-bg">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal()">×</button>
+    <h3 id="modal-title"></h3>
+    <div id="modal-body"></div>
+    <div class="ai-panel">
+  <div class="ai-chips">
+    <button class="ai-chip" onclick="askAI('What is the best way to resolve this?')">Resolve</button>
+    <button class="ai-chip" onclick="askAI('Draft a meeting agenda to address this.')">Schedule Meeting</button>
+    <button class="ai-chip" onclick="askAI('Draft a professional email reply for this.')">Draft Reply</button>
+    <button class="ai-chip" onclick="askAI('Summarize the key points of this item.')">Summarize</button>
+    <button class="ai-chip" id="meeting-prep-chip" onclick="meetingPrep()" style="display:none;background:#0d2a1a;border-color:#238636;color:#3fb950">Meeting Prep</button>
+  </div>
+  <div class="ai-out" id="ai-out"></div>
+  <button class="ai-btn ai-btn-save" id="save-draft-btn" onclick="saveDraft()" style="display:none">Save to Drafts</button>
+  <div class="ai-input-row">
+    <input class="ai-input" id="ai-input" placeholder="Ask AI about this item…"
+           onkeydown="if(event.key==='Enter'&&this.value.trim())askAI(this.value)">
+    <button class="ai-btn" onclick="askAI(document.getElementById('ai-input').value)">Ask</button>
+  </div>
+</div>
+  </div>
+</div>
+<script>
+let currentCtx='';
+const bg=document.getElementById('modal-bg');
+const mTitle=document.getElementById('modal-title');
+const mBody=document.getElementById('modal-body');
+function showModal(title,rows){
+  mTitle.textContent=title;
+  mBody.innerHTML=rows.map(([lbl,val])=>
+    '<div class="detail-row"><div class="detail-label">'+lbl+'</div>'+
+    '<div class="detail-body">'+val+'</div></div>').join('');
+  currentCtx=title+'\n'+rows.map(([l,v])=>l+': '+v).join('\n');
+  const o=document.getElementById('ai-out'),i=document.getElementById('ai-input');
+  const sd=document.getElementById('save-draft-btn');
+  const mp=document.getElementById('meeting-prep-chip');
+  if(o){o.textContent='';o.classList.remove('active');}
+  if(i)i.value='';
+  if(sd){sd.style.display='none';sd.disabled=false;sd.textContent='Save to Drafts';}
+  if(mp)mp.style.display=/^Attendees: [^—]/m.test(currentCtx)?'inline-block':'none';
+  bg.classList.add('open');
+}
+function closeModal(){bg.classList.remove('open');}
+bg.addEventListener('click',e=>{if(e.target===bg)closeModal();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
+document.querySelectorAll('[data-modal]').forEach(el=>{
+  el.addEventListener('click',()=>{const d=JSON.parse(el.dataset.modal);showModal(d.title,d.rows);});
+});
+const countdown=document.getElementById('countdown');
+let remaining=1800000/1000;
+setInterval(()=>{
+  remaining--;if(remaining<=0){window.location.reload();return;}
+  const m=Math.floor(remaining/60),s=remaining%60;
+  if(countdown)countdown.textContent=m+'m '+s+'s';
+},1000);
+
+function parseCtx(ctx){
+  const lines=ctx.split('\n'),title=lines[0]||'',obj={};
+  lines.slice(1).forEach(l=>{const i=l.indexOf(': ');if(i>0)obj[l.slice(0,i).toLowerCase()]=l.slice(i+2);});
+  return{title,...obj};
+}
+async function saveDraft(){
+  const p=parseCtx(currentCtx);
+  const subject=p.subject||p.title||'(no subject)';
+  const toEmail=(p.from||p.sender||'').replace(/.*<(.+)>.*$/,'$1').trim();
+  const body=document.getElementById('ai-out').textContent;
+  const btn=document.getElementById('save-draft-btn');
+  btn.textContent='Saving…';btn.disabled=true;
+  try{
+    const r=await fetch('/api/dashboard/save-draft',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({subject:'Re: '+subject,to_email:toEmail,body})
+    });
+    const data=await r.json();
+    btn.textContent=r.ok?'✓ Saved to Drafts':'Save failed: '+(data.detail||'unknown error');
+    if(!r.ok)btn.disabled=false;
+  }catch(e){btn.textContent='Save failed';btn.disabled=false;}
+}
+async function meetingPrep(){
+  const out=document.getElementById('ai-out'),btn=document.getElementById('save-draft-btn');
+  if(!out)return;
+  if(btn){btn.style.display='none';btn.disabled=false;btn.textContent='Save to Drafts';}
+  out.textContent='⋯';out.classList.add('active');
+  const lines=currentCtx.split('\n');
+  const subject=lines[0]||'';
+  const atLine=lines.find(l=>l.startsWith('Attendees: '))||'';
+  const attendees=atLine?atLine.replace('Attendees: ','').split(',').map(e=>e.trim()).filter(e=>e&&e!=='—'):[];
+  const timeLine=lines.find(l=>l.startsWith('Time: '))||'';
+  const startTime=timeLine.replace('Time: ','').trim();
+  if(!attendees.length){askAI('Generate a meeting prep brief with agenda and talking points.');return;}
+  try{
+    const resp=await fetch('/api/dashboard/meeting-prep',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({subject,start_time:startTime,attendee_emails:attendees})
+    });
+    const reader=resp.body.getReader(),dec=new TextDecoder();
+    out.textContent='';
+    while(true){
+      const{done,value}=await reader.read();if(done)break;
+      dec.decode(value).split('\n').forEach(line=>{
+        if(!line.startsWith('data:'))return;
+        try{const d=JSON.parse(line.slice(5));if(d.type==='token')out.textContent+=d.text;}catch(e){}
+      });
+    }
+  }catch(e){out.textContent='Error: '+e.message;}
+}
+async function askAI(query){
+  if(!query||!query.trim())return;
+  const out=document.getElementById('ai-out'),btn=document.getElementById('save-draft-btn');
+  if(!out)return;
+  if(btn){btn.style.display='none';btn.disabled=false;btn.textContent='Save to Drafts';}
+  out.textContent='⋯';out.classList.add('active');
+  try{
+    const resp=await fetch('/api/dashboard/ask',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({query,context:currentCtx})
+    });
+    const reader=resp.body.getReader(),dec=new TextDecoder();
+    out.textContent='';
+    while(true){
+      const{done,value}=await reader.read();if(done)break;
+      dec.decode(value).split('\n').forEach(line=>{
+        if(!line.startsWith('data:'))return;
+        try{const d=JSON.parse(line.slice(5));if(d.type==='token')out.textContent+=d.text;}
+        catch(e){}
+      });
+    }
+    if(btn&&/draft|reply/i.test(query)){btn.style.display='block';}
+  }catch(e){out.textContent='Error: '+e.message;}
+}
+
+</script></body>
+</html>

@@ -634,6 +634,28 @@ class EmailExtrasMixin:
             cur = conn.execute("DELETE FROM ask_history WHERE id = ?", (entry_id,))
         return cur.rowcount > 0
 
+    # ── Scheduled Sends ──────────────────────────────────────────────────────
+
+    def schedule_send(self, account_id: int, to_addr: str, subject: str, body: str, send_at: str) -> int:
+        with self._conn() as conn:
+            cur = conn.execute(
+                "INSERT INTO scheduled_sends (account_id, to_addr, subject, body, send_at) VALUES (?,?,?,?,?)",
+                (account_id, to_addr, subject, body, send_at),
+            )
+        return cur.lastrowid
+
+    def list_scheduled_sends(self, sent: bool = False) -> list[dict]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT id, account_id, to_addr, subject, body, send_at, sent, created_at "
+                "FROM scheduled_sends WHERE sent = ? ORDER BY send_at", (1 if sent else 0,)
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def mark_sent(self, send_id: int) -> None:
+        with self._conn() as conn:
+            conn.execute("UPDATE scheduled_sends SET sent = 1 WHERE id = ?", (send_id,))
+
     # ── Email account lookup ──────────────────────────────────────────────────
 
     def get_email_account(self, email_id: str) -> dict | None:

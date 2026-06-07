@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import { api } from '../api/client'
 import type { SenderStats } from '../types'
 
+interface MonthlyData { months: { month: string; count: number }[] }
+
 interface Props {
   sender: string
   onClose: () => void
@@ -18,6 +20,7 @@ interface Relationship {
 export function ContactCard({ sender, onClose, onSearch }: Props) {
   const [stats, setStats] = useState<SenderStats | null>(null)
   const [rel, setRel] = useState<Relationship | null>(null)
+  const [monthly, setMonthly] = useState<MonthlyData | null>(null)
   const [loading, setLoading] = useState(true)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -25,9 +28,11 @@ export function ContactCard({ sender, onClose, onSearch }: Props) {
     Promise.all([
       api.getSenderStats(sender).catch(() => null),
       api.getContactRelationship(sender).catch(() => null),
-    ]).then(([s, r]) => {
+      api.getSenderMonthlyVolume(sender).catch(() => null),
+    ]).then(([s, r, m]) => {
       setStats(s)
       setRel(r)
+      setMonthly(m)
     }).finally(() => setLoading(false))
   }, [sender])
 
@@ -41,6 +46,15 @@ export function ContactCard({ sender, onClose, onSearch }: Props) {
 
   const displayName = sender.match(/^([^<]+)</) ?.[1]?.trim() || sender
   const email = sender.match(/<([^>]+)>/) ?.[1] || sender
+
+  const linkedInUrl = (() => {
+    const domain = email.split('@')[1] || ''
+    // Strip common email providers — not useful as company hints
+    const generic = new Set(['gmail.com','yahoo.com','hotmail.com','outlook.com','icloud.com','me.com','live.com','msn.com'])
+    const company = !generic.has(domain) ? domain.replace(/\.(com|org|net|io|co|ca|uk|au|de|fr)$/, '').split('.').pop() || '' : ''
+    const keywords = [displayName, company].filter(Boolean).join(' ')
+    return `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(keywords)}`
+  })()
 
   return (
     <div
@@ -105,6 +119,28 @@ export function ContactCard({ sender, onClose, onSearch }: Props) {
             </div>
           )}
 
+          {monthly && monthly.months.length > 0 && (
+            <div className="mt-2">
+              <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Email volume</p>
+              <div className="flex items-end gap-0.5 h-8">
+                {monthly.months.slice(-6).map(m => {
+                  const max = Math.max(...monthly.months.map(x => x.count), 1)
+                  const h = Math.max(2, Math.round((m.count / max) * 28))
+                  return (
+                    <div key={m.month} title={`${m.month}: ${m.count}`}
+                      className="bg-accent rounded-t-sm flex-1 min-w-0"
+                      style={{ height: `${h}px` }} />
+                  )
+                })}
+              </div>
+              <div className="flex gap-0.5 mt-0.5">
+                {monthly.months.slice(-6).map(m => (
+                  <div key={m.month} className="flex-1 text-center text-[8px] text-gray-300 truncate">{m.month.slice(5)}</div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {stats.recent_subjects.length > 0 && (
             <div>
               <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Recent subjects</p>
@@ -114,14 +150,25 @@ export function ContactCard({ sender, onClose, onSearch }: Props) {
             </div>
           )}
 
-          {onSearch && (
-            <button
-              onClick={() => { onSearch(email); onClose() }}
-              className="w-full text-xs text-accent hover:underline text-left mt-1"
+          <div className="flex flex-col gap-0.5 mt-1">
+            {onSearch && (
+              <button
+                onClick={() => { onSearch(email); onClose() }}
+                className="text-xs text-accent hover:underline text-left"
+              >
+                Search all emails from this sender →
+              </button>
+            )}
+            <a
+              href={linkedInUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-[#0077b5] hover:underline flex items-center gap-1"
             >
-              Search all emails from this sender →
-            </button>
-          )}
+              <svg className="w-3 h-3 fill-current flex-shrink-0" viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+              Find on LinkedIn
+            </a>
+          </div>
         </div>
       )}
     </div>

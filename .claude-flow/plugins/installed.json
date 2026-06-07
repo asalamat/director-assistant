@@ -1,0 +1,56 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": "2026-06-04T16:22:18.449Z",
+  "plugins": {
+    "@claude-flow/neural": {
+      "name": "@claude-flow/neural",
+      "version": "3.0.0-alpha.9",
+      "installedAt": "2026-06-04T16:21:48.711Z",
+      "enabled": true,
+      "source": "npm",
+      "path": "/Users/alisalamat/director-assistant/.claude-flow/plugins/node_modules/@claude-flow/neural",
+      "commands": [],
+      "hooks": []
+    },
+    "@claude-flow/embeddings": {
+      "name": "@claude-flow/embeddings",
+      "version": "3.0.0-alpha.45",
+      "installedAt": "2026-06-04T16:21:54.369Z",
+      "enabled": true,
+      "source": "npm",
+      "path": "/Users/alisalamat/director-assistant/.claude-flow/plugins/node_modules/@claude-flow/embeddings",
+      "commands": [],
+      "hooks": []
+    },
+    "@claude-flow/security": {
+      "name": "@claude-flow/security",
+      "version": "3.0.0-alpha.9",
+      "installedAt": "2026-06-04T16:22:03.281Z",
+      "enabled": true,
+      "source": "npm",
+      "path": "/Users/alisalamat/director-assistant/.claude-flow/plugins/node_modules/@claude-flow/security",
+      "commands": [],
+      "hooks": []
+    },
+    "@claude-flow/performance": {
+      "name": "@claude-flow/performance",
+      "version": "3.0.0-alpha.6",
+      "installedAt": "2026-06-04T16:22:12.361Z",
+      "enabled": true,
+      "source": "npm",
+      "path": "/Users/alisalamat/director-assistant/.claude-flow/plugins/node_modules/@claude-flow/performance",
+      "commands": [],
+      "hooks": []
+    },
+    "@claude-flow/claims": {
+      "name": "@claude-flow/claims",
+      "version": "3.0.0-alpha.8",
+      "installedAt": "2026-06-04T16:22:18.449Z",
+      "enabled": true,
+      "source": "npm",
+      "path": "/Users/alisalamat/director-assistant/.claude-flow/plugins/node_modules/@claude-flow/claims",
+      "commands": [],
+      "hooks": []
+    }
+  }
+}

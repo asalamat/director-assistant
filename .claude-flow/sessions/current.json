@@ -1,12 +1,13 @@
 {
-  "id": "session-1779722299131",
-  "startedAt": "2026-05-25T15:18:19.131Z",
+  "id": "session-1780590669754",
+  "startedAt": "2026-06-04T16:31:09.754Z",
   "cwd": "/Users/alisalamat/director-assistant",
   "context": {},
   "metrics": {
-    "edits": 33,
+    "edits": 271,
     "commands": 0,
     "tasks": 0,
     "errors": 0
-  }
+  },
+  "restoredAt": "2026-06-04T16:31:09.757Z"
 }

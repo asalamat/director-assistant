@@ -1,0 +1,9 @@
+{
+  "dependencies": {
+    "@claude-flow/claims": "^3.0.0-alpha.8",
+    "@claude-flow/embeddings": "^3.0.0-alpha.45",
+    "@claude-flow/neural": "^3.0.0-alpha.9",
+    "@claude-flow/performance": "^3.0.0-alpha.6",
+    "@claude-flow/security": "^3.0.0-alpha.9"
+  }
+}
