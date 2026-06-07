@@ -329,3 +329,11 @@ Enable IMAP in Gmail settings:
 ## License
 
 MIT — use freely, modify freely, attribution appreciated.
+
+---
+
+## Contact
+
+Built by **Ali Salamat** · [ali.salamat@firstpc.ca](mailto:ali.salamat@firstpc.ca)
+
+Questions, feedback, or collaboration? Feel free to reach out.

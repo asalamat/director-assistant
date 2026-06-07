@@ -691,10 +691,12 @@ export function HelpModal({ onClose }: Props) {
 
         {/* Footer */}
         <div className="px-6 py-3 border-t border-gray-100 bg-gray-50 flex items-center justify-between flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-400">Director Assistant v{pkgJson.version}</span>
-            <span className="text-gray-200">·</span>
-            <span className="text-xs text-gray-400">Built for executives who move fast</span>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-gray-500 font-medium">Director Assistant v{pkgJson.version}</span>
+            <span className="text-gray-300">·</span>
+            <span className="text-xs text-gray-500">Built by <a href="mailto:ali.salamat@firstpc.ca" className="font-semibold text-gray-700 hover:text-accent-600 transition-colors">Ali Salamat</a></span>
+            <span className="text-gray-300">·</span>
+            <a href="mailto:ali.salamat@firstpc.ca" className="text-xs text-accent-600 hover:text-accent-700 hover:underline transition-colors">ali.salamat@firstpc.ca</a>
           </div>
           <button onClick={onClose} className="text-xs bg-accent text-white px-4 py-1.5 rounded-lg hover:bg-blue-700 transition-colors font-medium">
             Close
