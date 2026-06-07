@@ -400,6 +400,26 @@ async def _restart_poll(app: FastAPI):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # ── Startup: kill any orphaned RAG worker subprocesses from previous runs ──
+    try:
+        import subprocess as _sp, signal as _sig
+        result = _sp.run(
+            ["pgrep", "-f", "multiprocessing.spawn"],
+            capture_output=True, text=True, timeout=5
+        )
+        own_pid = os.getpid()
+        for pid_str in result.stdout.strip().splitlines():
+            try:
+                pid = int(pid_str)
+                if pid != own_pid:
+                    os.kill(pid, _sig.SIGKILL)
+            except (ValueError, ProcessLookupError, PermissionError):
+                pass
+        if result.stdout.strip():
+            print(f"[startup] cleaned up orphaned RAG workers: {result.stdout.strip()}")
+    except Exception:
+        pass
+
     try:
         import torch
         torch.set_num_threads(1)

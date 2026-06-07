@@ -4,10 +4,41 @@ ChromaDB subprocess proxy — prevents hnswlib SIGSEGV on Python 3.13.
 Runs all vector queries and writes in a dedicated spawned subprocess so a
 crash in the worker never kills uvicorn. Falls back to FTS5-only search
 while the worker loads or if it dies.
+
+Memory leak fix: each startup writes the worker PID to a pidfile.
+On the next startup the old worker is killed before a new one is spawned,
+preventing orphaned processes from accumulating across server restarts.
 """
 import logging
 import multiprocessing
+import os
+import signal
+from pathlib import Path
 from typing import Optional
+
+_WORKER_PIDFILE = Path.home() / ".director-assistant" / "rag-worker.pid"
+
+
+def _kill_old_worker():
+    """Kill any leftover RAG worker from a previous server run."""
+    try:
+        if not _WORKER_PIDFILE.exists():
+            return
+        pid = int(_WORKER_PIDFILE.read_text().strip())
+        try:
+            os.kill(pid, signal.SIGKILL)
+            logging.getLogger(__name__).info(f"[RAG proxy] killed stale worker PID {pid}")
+        except ProcessLookupError:
+            pass  # already dead
+        except PermissionError:
+            pass
+    except Exception:
+        pass
+    finally:
+        try:
+            _WORKER_PIDFILE.unlink(missing_ok=True)
+        except Exception:
+            pass
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +63,8 @@ class _RAGQueryProxy:
         self._starting = False   # prevents concurrent restarts
         import threading
         self._lock = threading.Lock()
+        # Kill any stale worker from a previous server run before spawning a new one
+        _kill_old_worker()
         # Start in background — server startup is not blocked
         threading.Thread(target=self._start, daemon=True, name="rag-proxy-init").start()
 
@@ -51,6 +84,12 @@ class _RAGQueryProxy:
                 daemon=True,
             )
             proc.start()
+            # Persist PID so next startup can kill it cleanly
+            try:
+                _WORKER_PIDFILE.parent.mkdir(parents=True, exist_ok=True)
+                _WORKER_PIDFILE.write_text(str(proc.pid))
+            except Exception:
+                pass
             try:
                 msg = resp_q.get(timeout=self._STARTUP_TIMEOUT)
                 if msg.get("ready"):
@@ -238,3 +277,8 @@ class _RAGQueryProxy:
             self._proc.join(timeout=3)
             if self._proc.is_alive():
                 self._proc.kill()
+        # Remove pidfile on clean shutdown
+        try:
+            _WORKER_PIDFILE.unlink(missing_ok=True)
+        except Exception:
+            pass
