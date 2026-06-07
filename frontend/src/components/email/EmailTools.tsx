@@ -59,12 +59,16 @@ export function EmailTools({ email, translation, onClearTranslation, onOpenCompo
     <>
       {/* Translation panel */}
       {translation && (
-        <div className="mx-6 mb-3 bg-indigo-50 border border-indigo-100 rounded-xl p-3">
-          <div className="flex justify-between items-center mb-1">
-            <p className="text-xs font-medium text-indigo-700">Translation</p>
-            <button onClick={onClearTranslation} className="text-gray-300 hover:text-gray-500 text-xs">✕</button>
+        <div className="mx-6 mb-3 bg-white border border-indigo-200 rounded-xl p-4 shadow-card">
+          <div className="flex justify-between items-center mb-2">
+            <div className="flex items-center gap-1.5">
+              <span className="text-base">🌐</span>
+              <p className="text-xs font-semibold text-indigo-700">Translation</p>
+            </div>
+            <button onClick={onClearTranslation}
+              className="text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-lg px-1.5 py-0.5 text-xs transition-colors">✕ Close</button>
           </div>
-          <p className="text-xs text-gray-700 whitespace-pre-wrap">{translation}</p>
+          <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{translation}</p>
         </div>
       )}
 
@@ -97,7 +101,7 @@ export function EmailTools({ email, translation, onClearTranslation, onOpenCompo
           <div className="mt-3 bg-emerald-50 border border-emerald-100 rounded-xl p-3 space-y-2">
             <div className="flex items-center justify-between">
               <p className="text-xs font-semibold text-emerald-700">Thread Summary ({threadSummary.message_count} messages)</p>
-              <button onClick={() => setThreadSummary(null)} className="text-gray-300 hover:text-gray-500 text-xs">✕</button>
+              <button onClick={() => setThreadSummary(null)} className="text-gray-500 hover:text-gray-800 text-xs px-1 rounded hover:bg-gray-100 transition-colors">✕</button>
             </div>
             <p className="text-xs text-gray-700">{threadSummary.summary}</p>
             {threadSummary.key_points.length > 0 && (
@@ -124,7 +128,7 @@ export function EmailTools({ email, translation, onClearTranslation, onOpenCompo
                 <span className="text-gray-600 line-clamp-2">{text}</span>
               </button>
             ) : null)}
-            <button onClick={() => setQuickReplies(null)} className="text-xs text-gray-300 hover:text-gray-500 mt-1">Clear</button>
+            <button onClick={() => setQuickReplies(null)} className="text-xs text-gray-500 hover:text-gray-700 mt-1 px-2 py-0.5 rounded hover:bg-gray-100 transition-colors">Clear</button>
           </div>
         )}
       </div>
