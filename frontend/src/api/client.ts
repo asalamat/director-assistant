@@ -642,4 +642,12 @@ export const api = {
   listPSTTasks(): Promise<{ tasks: any[] }> {
     return request('/pst/tasks')
   },
+
+  // Pre-send AI review
+  preSendReview(opts: { to: string; subject: string; body: string; original_email_id?: string }): Promise<{
+    tone: string; tone_label: 'good' | 'warning' | 'issue'
+    unanswered_questions: string[]; commitments: string[]; suggestions: string[]; ready: boolean
+  }> {
+    return request('/drafts/review', { method: 'POST', body: JSON.stringify(opts) })
+  },
 }

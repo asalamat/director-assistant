@@ -32,9 +32,13 @@ export function EmailCompose({
   const [sendMsg, setSendMsg] = useState('')
   const [adjustingTone, setAdjustingTone] = useState(false)
   const [addingCommitment, setAddingCommitment] = useState<string | null>(null)
+  const [reviewing, setReviewing] = useState(false)
+  const [review, setReview] = useState<{
+    tone: string; tone_label: 'good' | 'warning' | 'issue'
+    unanswered_questions: string[]; commitments: string[]; suggestions: string[]; ready: boolean
+  } | null>(null)
 
   // Sync external initial values when the compose window opens
-  // (parent controls open/close and may pass new values)
   const [lastInitialTo, setLastInitialTo] = useState(initialTo)
   if (initialTo !== lastInitialTo) {
     setLastInitialTo(initialTo)
@@ -42,6 +46,7 @@ export function EmailCompose({
     setReplySubject(initialSubject)
     setReplyBody(initialBody)
     setSendMsg('')
+    setReview(null)
   }
 
   const handleSend = async () => {
@@ -66,6 +71,20 @@ export function EmailCompose({
       const { result } = await api.adjustTone(replyBody, tone as any)
       if (result) setReplyBody(result)
     } catch {} finally { setAdjustingTone(false) }
+  }
+
+  const handleReview = async () => {
+    if (!replyBody.trim() || reviewing) return
+    setReviewing(true)
+    setReview(null)
+    try {
+      const result = await api.preSendReview({
+        to: replyTo, subject: replySubject, body: replyBody,
+        original_email_id: email.id,
+      })
+      setReview(result)
+    } catch { /* silent */ }
+    setReviewing(false)
   }
 
   const handleAddCommitment = async (c: string) => {
@@ -126,13 +145,66 @@ export function EmailCompose({
               <span className={`text-xs ${sendMsg === 'Sent!' ? 'text-green-600' : 'text-red-500'}`}>{sendMsg}</span>
             )}
             <button
+              onClick={handleReview}
+              disabled={reviewing || !replyBody.trim()}
+              className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-600 disabled:opacity-50 transition-colors"
+            >
+              {reviewing ? <><span className="animate-spin inline-block text-[10px]">⟳</span> Reviewing…</> : '🔍 Review'}
+            </button>
+            <button
               onClick={handleSend}
               disabled={sending || !replyTo.trim()}
-              className="flex items-center gap-1.5 bg-accent text-white text-xs px-3 py-1.5 rounded-lg hover:bg-blue-700 disabled:opacity-60 transition-colors"
+              className={`flex items-center gap-1.5 text-white text-xs px-3 py-1.5 rounded-lg disabled:opacity-60 transition-colors ${
+                review?.ready ? 'bg-green-600 hover:bg-green-700' : 'bg-accent hover:bg-blue-700'
+              }`}
             >
-              {sending ? <><span className="animate-spin inline-block">⟳</span> Sending…</> : 'Send'}
+              {sending ? <><span className="animate-spin inline-block">⟳</span> Sending…</> : review?.ready ? '✓ Send' : 'Send'}
             </button>
           </div>
+
+          {/* Pre-send review panel */}
+          {review && (
+            <div className={`rounded-lg border p-3 text-xs space-y-2 ${
+              review.tone_label === 'good' ? 'border-green-200 bg-green-50' :
+              review.tone_label === 'issue' ? 'border-red-200 bg-red-50' :
+              'border-amber-200 bg-amber-50'
+            }`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <span>{review.tone_label === 'good' ? '✅' : review.tone_label === 'issue' ? '⚠️' : '💡'}</span>
+                  <span className={`font-medium ${
+                    review.tone_label === 'good' ? 'text-green-800' :
+                    review.tone_label === 'issue' ? 'text-red-800' : 'text-amber-800'
+                  }`}>{review.tone}</span>
+                </div>
+                <button onClick={() => setReview(null)} className="text-gray-400 hover:text-gray-600 text-[10px]">✕</button>
+              </div>
+              {review.unanswered_questions.length > 0 && (
+                <div>
+                  <p className="font-semibold text-red-700 mb-1">Unanswered questions:</p>
+                  <ul className="space-y-0.5 list-disc list-inside">
+                    {review.unanswered_questions.map((q, i) => <li key={i} className="text-red-700">{q}</li>)}
+                  </ul>
+                </div>
+              )}
+              {review.commitments.length > 0 && (
+                <div>
+                  <p className="font-semibold text-gray-600 mb-1">Commitments in this draft:</p>
+                  <ul className="space-y-0.5 list-disc list-inside">
+                    {review.commitments.map((c, i) => <li key={i} className="text-gray-600">{c}</li>)}
+                  </ul>
+                </div>
+              )}
+              {review.suggestions.length > 0 && (
+                <div>
+                  <p className="font-semibold text-amber-700 mb-1">Suggestions:</p>
+                  <ul className="space-y-0.5 list-disc list-inside">
+                    {review.suggestions.map((s, i) => <li key={i} className="text-amber-700">{s}</li>)}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
