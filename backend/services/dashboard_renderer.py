@@ -17,6 +17,8 @@ _REFRESH_MS = 30 * 60 * 1000  # 30 minutes
 
 _CSS = """
 *{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+.card[id]{scroll-margin-top:20px}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
      background:#0d1117;color:#e6edf3;font-size:14px;line-height:1.6}
 a{color:#79c0ff;text-decoration:none}a:hover{text-decoration:underline}
@@ -35,8 +37,9 @@ h2{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;
 @media(max-width:1100px){.kpi{grid-template-columns:repeat(4,1fr)}}
 @media(max-width:700px){.kpi{grid-template-columns:repeat(2,1fr)}}
 .kpi-tile{background:#161b22;border:1px solid #21262d;border-radius:10px;
-          padding:14px 16px;cursor:default;transition:border-color .15s}
-.kpi-tile:hover{border-color:#58a6ff}
+          padding:14px 16px;cursor:pointer;transition:border-color .15s,transform .1s;
+          display:block;color:inherit;text-decoration:none}
+.kpi-tile:hover{border-color:#58a6ff;transform:translateY(-2px)}
 .kpi-tile .val{font-size:30px;font-weight:800;line-height:1}
 .kpi-tile .lbl{font-size:11px;color:#8b949e;margin-top:5px;font-weight:500}
 .kpi-tile .sub-lbl{font-size:10px;color:#484f58;margin-top:2px}
@@ -295,15 +298,15 @@ def _modal_attr(title: str, rows: list[tuple[str, str]], opts: dict | None = Non
     return f' data-modal=\'{_html.escape(json.dumps(payload), quote=True)}\''
 
 
-def _kpi_tile(val: str | int, label: str, cls: str = "", sub: str = "") -> str:
+def _kpi_tile(val: str | int, label: str, cls: str = "", sub: str = "", href: str = "") -> str:
     sub_html = f'<div class="sub-lbl">{_e(sub)}</div>' if sub else ""
-    return (f'<div class="kpi-tile {cls}">'
-            f'<div class="val">{val}</div>'
-            f'<div class="lbl">{label}</div>{sub_html}</div>')
+    tag, close = (f'<a class="kpi-tile {cls}" href="{href}">', '</a>') if href else (f'<div class="kpi-tile {cls}">', '</div>')
+    return f'{tag}<div class="val">{val}</div><div class="lbl">{label}</div>{sub_html}{close}'
 
 
-def _section(title: str, body: str, extra_class: str = "") -> str:
-    return f'<div class="card {extra_class}"><h2>{title}</h2>{body}</div>'
+def _section(title: str, body: str, extra_class: str = "", section_id: str = "") -> str:
+    id_attr = f' id="{section_id}"' if section_id else ""
+    return f'<div class="card {extra_class}"{id_attr}><h2>{title}</h2>{body}</div>'
 
 
 def _urgent_banner(actions: list[dict], follow_ups: list[dict]) -> str:
@@ -660,13 +663,13 @@ def render_dashboard(d: dict) -> str:
 
   <!-- KPI Tiles -->
   <div class="kpi">
-    {_kpi_tile(overdue_count, "Open Actions", "red" if overdue_count else "green", "needs attention")}
-    {_kpi_tile(unread, "Unread Emails", "yellow" if unread > 20 else "green", "in your inbox")}
-    {_kpi_tile(chase_count, "Chase Queue", "orange" if chase_count else "green", "no reply received")}
-    {_kpi_tile(vip_alert_count, "VIP Alerts", "purple" if vip_alert_count else "green", "need attention")}
-    {_kpi_tile(mtgs_tomorrow, "Meetings Tomorrow", "blue", "on your calendar")}
-    {_kpi_tile(proj_count, "Active Projects", "teal", "in project tracker")}
-    {_kpi_tile(len(vips), "VIP Contacts", "purple", "being tracked")}
+    {_kpi_tile(overdue_count, "Open Actions", "red" if overdue_count else "green", "needs attention", "#s-actions")}
+    {_kpi_tile(unread, "Unread Emails", "yellow" if unread > 20 else "green", "in your inbox", "#s-unread")}
+    {_kpi_tile(chase_count, "Chase Queue", "orange" if chase_count else "green", "no reply received", "#s-chase")}
+    {_kpi_tile(vip_alert_count, "VIP Alerts", "purple" if vip_alert_count else "green", "need attention", "#s-vip")}
+    {_kpi_tile(mtgs_tomorrow, "Meetings Tomorrow", "blue", "on your calendar", "#s-schedule")}
+    {_kpi_tile(proj_count, "Active Projects", "teal", "in project tracker", "#s-projects")}
+    {_kpi_tile(len(vips), "VIP Contacts", "purple", "being tracked", "#s-vip")}
   </div>
 
   {urgent_html}
@@ -674,18 +677,18 @@ def render_dashboard(d: dict) -> str:
 
   <!-- Row 1: Schedule + Follow-ups -->
   <div class="grid2">
-    {_section("📅 Tomorrow's Schedule", _schedule_section(cal_today))}
+    {_section("📅 Tomorrow's Schedule", _schedule_section(cal_today), section_id="s-schedule")}
     {_section("📬 Follow-ups Due", _follow_up_list(follow_ups))}
   </div>
 
   <!-- Row 2: Chase Queue + VIP Contacts -->
   <div class="grid2">
-    {_section("⏰ Chase Queue — No Reply", _chase_list(chase))}
-    {_section("⭐ VIP Contact Status", _vip_list(vips))}
+    {_section("⏰ Chase Queue — No Reply", _chase_list(chase), section_id="s-chase")}
+    {_section("⭐ VIP Contact Status", _vip_list(vips), section_id="s-vip")}
   </div>
 
   <!-- Row 3: User Projects -->
-  {_section("📁 Your Projects", _user_projects_html(user_projects))}
+  {_section("📁 Your Projects", _user_projects_html(user_projects), section_id="s-projects")}
 
   <!-- Row 4: Calendar + Time allocation -->
   <div class="grid2" style="margin-top:0">
@@ -695,8 +698,8 @@ def render_dashboard(d: dict) -> str:
 
   <!-- Row 5: Unread emails + Actions -->
   <div class="grid2">
-    {_section("📩 Unread Emails", _email_list(emails))}
-    {_section("✅ Action Items", _action_list(actions))}
+    {_section("📩 Unread Emails", _email_list(emails), section_id="s-unread")}
+    {_section("✅ Action Items", _action_list(actions), section_id="s-actions")}
   </div>
 
   <!-- Row 6: Training + Senders -->
