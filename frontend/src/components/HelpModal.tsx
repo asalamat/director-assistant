@@ -414,15 +414,15 @@ function DashboardSection() {
       <P>Open the dashboard at <a href="/api/dashboard" target="_blank" className="text-accent hover:underline font-medium">http://localhost:8000/api/dashboard</a> — a full-screen dark-theme executive brief that updates every 30 minutes.</P>
 
       <H3>KPI Tiles</H3>
-      <P>Seven live metrics at the top of the page:</P>
+      <P>Seven live metrics at the top — click any tile to jump to that section:</P>
       <UL>
-        <Li><strong>Open Actions</strong> — pending action items (red if any)</Li>
-        <Li><strong>Unread Emails</strong> — unread count across all folders</Li>
-        <Li><strong>Chase Queue</strong> — sent emails with no reply in 3+ days</Li>
-        <Li><strong>VIP Alerts</strong> — VIP contacts needing your attention</Li>
-        <Li><strong>Meetings Tomorrow</strong> — events from your connected calendar</Li>
-        <Li><strong>Active Projects</strong> — projects you created in the Projects tab</Li>
-        <Li><strong>VIP Contacts</strong> — total VIP contacts being tracked</Li>
+        <Li><strong>Open Actions</strong> — pending action items (red if any) → scrolls to Action Items</Li>
+        <Li><strong>Unread Emails</strong> — unread count across all folders → scrolls to Unread Emails</Li>
+        <Li><strong>Chase Queue</strong> — sent emails with no reply in 3+ days → scrolls to Chase Queue</Li>
+        <Li><strong>VIP Alerts</strong> — VIP contacts needing your attention → scrolls to VIP Status</Li>
+        <Li><strong>Meetings Tomorrow</strong> — events from your connected calendar → scrolls to Schedule</Li>
+        <Li><strong>Active Projects</strong> — projects you created in the Projects tab → scrolls to Projects</Li>
+        <Li><strong>VIP Contacts</strong> — total VIP contacts being tracked → scrolls to VIP Status</Li>
       </UL>
 
       <H3>Sections — click any item for full detail</H3>
@@ -447,7 +447,7 @@ function DashboardSection() {
       <UL>
         <Li><strong>↗ Open in App</strong> — opens the exact email in Director Assistant (new tab, navigates directly)</Li>
         <Li><strong>✉ Reply by Email</strong> — opens your mail client pre-addressed to the sender</Li>
-        <Li><strong>✓ Mark Done</strong> — marks action items complete live; the item grays out immediately</Li>
+        <Li><strong>✓ Mark Done</strong> — marks action items complete instantly; the item disappears from the list immediately (enable "Show done" to see completed items)</Li>
         <Li><strong>✎ Generate Follow-up Draft</strong> — AI writes a chase email; editable textarea appears with Copy and Send via App buttons</Li>
         <Li><strong>▶ Join Meeting</strong> — opens the Teams/Zoom/Meet link for online calendar events</Li>
       </UL>

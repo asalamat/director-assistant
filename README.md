@@ -2,7 +2,7 @@
 
 > **Your AI-powered executive email intelligence platform.** Connects to Gmail, Microsoft 365, Yahoo, or any IMAP mailbox and uses Claude AI to help you triage faster, never miss a commitment, and stay on top of every relationship that matters.
 
-**Current version: 3.17.0** · [Releases](https://github.com/asalamat/director-assistant/releases) · MIT License
+**Current version: 3.17.3** · [Releases](https://github.com/asalamat/director-assistant/releases) · MIT License
 
 ---
 
@@ -80,7 +80,7 @@ Everything runs **locally on your machine**. Your emails never leave your device
 - Generated using Claude Sonnet for depth; cached for 1 hour; force-refresh any time
 
 ### Executive Dashboard (`/api/dashboard`)
-- Full-screen dark-theme dashboard with **7 live KPI tiles**: Open Actions, Unread Emails, Chase Queue, VIP Alerts, Meetings Tomorrow, Active Projects, VIP Contacts
+- Full-screen dark-theme dashboard with **7 live KPI tiles**: Open Actions, Unread Emails, Chase Queue, VIP Alerts, Meetings Tomorrow, Active Projects, VIP Contacts — **each tile is clickable** and scrolls directly to its section
 - **4 new sections**: Chase Queue with urgency color-coding, VIP Contact Status with last-contact stats, Your Projects tracker, VIP Alert row with pulse animation
 - **Click any item** → opens a detail modal with the full content plus context-specific action buttons:
   - **↗ Open in App** — navigates directly to the email in Director Assistant (deep-link via `/?email=ID`)
