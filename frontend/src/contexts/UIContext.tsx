@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, type ReactNode } from 'react'
 
-type Tab = 'inbox' | 'actions' | 'digest' | 'analytics' | 'templates' | 'health' | 'ask' | 'knowledge' | 'triage' | 'weekly' | 'vip' | 'chase' | 'projects'
+export type Tab = 'inbox' | 'actions' | 'digest' | 'analytics' | 'templates' | 'health' | 'ask' | 'knowledge' | 'triage' | 'weekly' | 'vip' | 'chase' | 'projects'
 
 interface UIContextValue {
   activeTab: Tab

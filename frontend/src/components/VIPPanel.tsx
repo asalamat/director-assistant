@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { api } from '../api/client'
 import { EmptyState, Spinner, Button, Avatar } from './ui'
+import { useEmailContext } from '../contexts/EmailContext'
+import { useUIContext } from '../contexts/UIContext'
 
 interface VIP {
   id: number; email_addr: string; name: string; note: string
@@ -44,12 +46,17 @@ function initials(name: string, email: string): string {
 // ── VIP Detail View ───────────────────────────────────────────────────────────
 
 function VIPDetail({
-  vip, onBack, onSelectEmail
+  vip, onBack
 }: {
   vip: VIP
   onBack: () => void
-  onSelectEmail?: (emailId: string) => void
 }) {
+  const { fetchEmail } = useEmailContext()
+  const { setActiveTab } = useUIContext()
+  const handleEmailSelect = (id: string) => {
+    fetchEmail(id)
+    setActiveTab('inbox')
+  }
   const [emails, setEmails] = useState<VIPEmail[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'received' | 'sent'>('all')
@@ -174,7 +181,7 @@ function VIPDetail({
           return (
             <div
               key={email.id}
-              onClick={() => onSelectEmail?.(email.id)}
+              onClick={() => handleEmailSelect(email.id)}
               className={`px-4 py-3 border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-colors group ${!email.is_read && !sent ? 'bg-amber-50/50' : ''}`}
             >
               <div className="flex items-start gap-3">
@@ -227,7 +234,7 @@ function VIPDetail({
 
 // ── VIP List View ─────────────────────────────────────────────────────────────
 
-export function VIPPanel({ onSelectEmail }: { onSelectEmail?: (emailId: string) => void }) {
+export function VIPPanel() {
   const [vips, setVips] = useState<VIP[]>([])
   const [loading, setLoading] = useState(true)
   const [showAdd, setShowAdd] = useState(false)
@@ -249,7 +256,6 @@ export function VIPPanel({ onSelectEmail }: { onSelectEmail?: (emailId: string) 
       <VIPDetail
         vip={selected}
         onBack={() => setSelected(null)}
-        onSelectEmail={onSelectEmail}
       />
     )
   }

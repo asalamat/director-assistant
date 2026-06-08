@@ -1,6 +1,8 @@
 import { useState, useCallback } from 'react'
 import { api } from '../api/client'
 import { LoadingOverlay, EmptyState, Button, Badge } from './ui'
+import { useEmailContext } from '../contexts/EmailContext'
+import { useUIContext } from '../contexts/UIContext'
 
 interface SourceEmail {
   id: string; subject: string; sender: string; date: string; folder: string
@@ -181,13 +183,9 @@ function Section({
 
 // ── Main panel ────────────────────────────────────────────────────────────────
 
-export function WeeklyBriefPanel({
-  onSelectEmail,
-  onSearch,
-}: {
-  onSelectEmail?: (emailId: string) => void
-  onSearch?: (q: string) => void
-}) {
+export function WeeklyBriefPanel() {
+  const { emails, selectEmail, fetchEmail } = useEmailContext()
+  const { setActiveTab } = useUIContext()
   const [brief, setBrief] = useState<Brief | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -201,13 +199,15 @@ export function WeeklyBriefPanel({
     setLoading(false)
   }
 
-  const handleSelectEmail = useCallback((id: string) => {
-    onSelectEmail?.(id)
-  }, [onSelectEmail])
+  const handleEmailSelect = useCallback((id: string) => {
+    const em = emails.find(e => e.id === id)
+    if (em) { selectEmail(em); setActiveTab('inbox') }
+    else { fetchEmail(id); setActiveTab('inbox') }
+  }, [emails, selectEmail, fetchEmail, setActiveTab])
 
-  const handleSearch = useCallback((q: string) => {
-    onSearch?.(q)
-  }, [onSearch])
+  const handleSearch = useCallback((_q: string) => {
+    // no-op: search is handled within the brief panel context
+  }, [])
 
   // ── Empty state ────────────────────────────────────────────────────────────
   if (!brief && !loading) {
@@ -293,19 +293,19 @@ export function WeeklyBriefPanel({
         </p>
 
         <Section icon="🎯" title="Top Action Items" items={brief?.action_items} color="text-red-600"
-          onSelectEmail={handleSelectEmail} onSearch={handleSearch} defaultOpen={true} />
+          onSelectEmail={handleEmailSelect} onSearch={handleSearch} defaultOpen={true} />
         <Section icon="⏳" title="Waiting For" items={brief?.waiting_for} color="text-amber-600"
-          onSelectEmail={handleSelectEmail} onSearch={handleSearch} defaultOpen={true} />
+          onSelectEmail={handleEmailSelect} onSearch={handleSearch} defaultOpen={true} />
         <Section icon="📋" title="Commitments Made" items={brief?.commitments_made} color="text-orange-600"
-          onSelectEmail={handleSelectEmail} onSearch={handleSearch} />
+          onSelectEmail={handleEmailSelect} onSearch={handleSearch} />
         <Section icon="⚡" title="Upcoming Deadlines" items={brief?.upcoming_deadlines} color="text-red-500"
-          onSelectEmail={handleSelectEmail} onSearch={handleSearch} />
+          onSelectEmail={handleEmailSelect} onSearch={handleSearch} />
         <Section icon="✅" title="Decisions Made" items={brief?.key_decisions} color="text-green-600"
-          onSelectEmail={handleSelectEmail} onSearch={handleSearch} />
+          onSelectEmail={handleEmailSelect} onSearch={handleSearch} />
         <Section icon="🏆" title="Wins This Week" items={brief?.wins} color="text-emerald-600"
-          onSelectEmail={handleSelectEmail} onSearch={handleSearch} />
+          onSelectEmail={handleEmailSelect} onSearch={handleSearch} />
         <Section icon="🤝" title="Relationships to Nurture" items={brief?.relationships_to_nurture} color="text-purple-600"
-          onSelectEmail={handleSelectEmail} onSearch={handleSearch} />
+          onSelectEmail={handleEmailSelect} onSearch={handleSearch} />
 
         {brief?.generated_at && (
           <p className="text-[10px] text-gray-300 mt-4 text-right">

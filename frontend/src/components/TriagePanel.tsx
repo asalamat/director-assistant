@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { api } from '../api/client'
 import type { TriageEmail } from '../types'
+import { useEmailContext } from '../contexts/EmailContext'
+import { useUIContext } from '../contexts/UIContext'
 
 const REASON_COLORS: Record<string, string> = {
   'urgent subject':    'bg-red-100 text-red-700',
@@ -24,11 +26,14 @@ function ScoreBadge({ score }: { score: number }) {
   )
 }
 
-interface Props {
-  onSelectEmail?: (id: string) => void
-}
-
-export function TriagePanel({ onSelectEmail }: Props) {
+export function TriagePanel() {
+  const { emails: contextEmails, selectEmail, fetchEmail } = useEmailContext()
+  const { setActiveTab } = useUIContext()
+  const handleEmailSelect = (id: string) => {
+    const em = contextEmails.find(e => e.id === id)
+    if (em) { selectEmail(em); setActiveTab('inbox') }
+    else { fetchEmail(id); setActiveTab('inbox') }
+  }
   const [emails, setEmails] = useState<TriageEmail[]>([])
   const [loading, setLoading] = useState(true)
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
@@ -98,7 +103,7 @@ export function TriagePanel({ onSelectEmail }: Props) {
         {emails.map((em, i) => (
           <button
             key={em.id}
-            onClick={() => onSelectEmail?.(em.id)}
+            onClick={() => handleEmailSelect(em.id)}
             className="w-full text-left bg-white border border-gray-200 rounded-xl p-4 hover:border-accent hover:shadow-sm transition-all group"
           >
             <div className="flex items-start gap-3">

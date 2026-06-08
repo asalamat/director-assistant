@@ -21,6 +21,7 @@ interface EmailContextValue {
   emailLoading: boolean
   emailError: string
   selectEmail: (summary: EmailSummary) => void
+  clearSelectedEmail: () => void
   fetchEmail: (id: string) => void
 
   // Folder/account state
@@ -58,6 +59,8 @@ export function EmailProvider({ children }: { children: ReactNode }) {
     fetchEmail(summary.id)
   }, [fetchEmail])
 
+  const clearSelectedEmail = useCallback(() => setSelectedEmail(null), [])
+
   const toggleUnread = useCallback(() => {
     const next = !onlyUnread
     setOnlyUnread(next)
@@ -67,7 +70,7 @@ export function EmailProvider({ children }: { children: ReactNode }) {
   return (
     <EmailContext.Provider value={{
       emails, total, loading, hasMore, currentParams, refresh, mergeRefresh, loadMore, setSort, removeEmail,
-      selectedEmail, email, emailLoading, emailError, selectEmail, fetchEmail,
+      selectedEmail, email, emailLoading, emailError, selectEmail, clearSelectedEmail, fetchEmail,
       currentFolder, setCurrentFolder, folders, setFolders,
       onlyUnread, toggleUnread, unreadCount, setUnreadCount,
       selectedAccountId, setSelectedAccountId,

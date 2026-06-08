@@ -177,6 +177,11 @@ def _is_connection_error(exc: Exception) -> bool:
 # Background tasks moved to workers/background_tasks.py
 
 async def _do_poll_cycle(rag: RAGEngine, cache: EmailCache, app=None) -> tuple[int, list[str]]:
+    async with _poll_lock:
+        return await _do_poll_cycle_inner(rag, cache, app)
+
+
+async def _do_poll_cycle_inner(rag: RAGEngine, cache: EmailCache, app=None) -> tuple[int, list[str]]:
     global _last_poll_new, _last_poll_error
     from routers.connection import load_config
     from services.email_provider import build_provider, IMAPProvider
@@ -400,25 +405,7 @@ async def _restart_poll(app: FastAPI):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # ── Startup: kill any orphaned RAG worker subprocesses from previous runs ──
-    try:
-        import subprocess as _sp, signal as _sig
-        result = _sp.run(
-            ["pgrep", "-f", "multiprocessing.spawn"],
-            capture_output=True, text=True, timeout=5
-        )
-        own_pid = os.getpid()
-        for pid_str in result.stdout.strip().splitlines():
-            try:
-                pid = int(pid_str)
-                if pid != own_pid:
-                    os.kill(pid, _sig.SIGKILL)
-            except (ValueError, ProcessLookupError, PermissionError):
-                pass
-        if result.stdout.strip():
-            print(f"[startup] cleaned up orphaned RAG workers: {result.stdout.strip()}")
-    except Exception:
-        pass
+    # Orphaned RAG worker cleanup is handled by rag_proxy._kill_old_worker() via pidfile.
 
     try:
         import torch

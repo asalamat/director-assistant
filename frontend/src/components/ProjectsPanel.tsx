@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { api } from '../api/client'
 import { EmptyState, Spinner, Button } from './ui'
+import { useEmailContext } from '../contexts/EmailContext'
+import { useUIContext } from '../contexts/UIContext'
 
 interface Project { id: number; name: string; description: string; status: string; email_count: number; created_at: string }
 
@@ -10,7 +12,14 @@ const STATUS_COLORS: Record<string, string> = {
   resolved: 'bg-gray-100 text-gray-500',
 }
 
-export function ProjectsPanel({ onSelectEmail }: { onSelectEmail?: (emailId: string) => void }) {
+export function ProjectsPanel() {
+  const { emails, selectEmail, fetchEmail } = useEmailContext()
+  const { setActiveTab } = useUIContext()
+  const handleEmailSelect = (id: string) => {
+    const em = emails.find(e => e.id === id)
+    if (em) { selectEmail(em); setActiveTab('inbox') }
+    else { fetchEmail(id); setActiveTab('inbox') }
+  }
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreate, setShowCreate] = useState(false)
@@ -94,7 +103,7 @@ export function ProjectsPanel({ onSelectEmail }: { onSelectEmail?: (emailId: str
           )}
           {projEmails.map(e => (
             <div key={e.id} className={`border rounded-xl p-3 flex gap-3 hover:border-accent transition-colors cursor-pointer group ${!e.is_read ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-100'}`}
-              onClick={() => onSelectEmail?.(e.id)}>
+              onClick={() => handleEmailSelect(e.id)}>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-800 truncate">{e.subject || '(no subject)'}</p>
                 <p className="text-xs text-gray-500 truncate">{e.sender}</p>

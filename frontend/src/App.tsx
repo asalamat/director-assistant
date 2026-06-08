@@ -16,20 +16,15 @@ import { TriagePanel } from './components/TriagePanel'
 import { ToastContainer, addToast } from './components/Toast'
 import UpdatePopup from './components/UpdatePopup'
 import { ComposeModal } from './components/ComposeModal'
-import { WeeklyBriefPanel } from './components/WeeklyBriefPanel'
 import { VIPPanel } from './components/VIPPanel'
-import { ChaseQueue } from './components/ChaseQueue'
-import { ProjectsPanel } from './components/ProjectsPanel'
 import { useRecommendation } from './hooks/useEmails'
 import { useEmailContext } from './contexts/EmailContext'
-import { useUIContext } from './contexts/UIContext'
+import { useUIContext, type Tab } from './contexts/UIContext'
 import { api } from './api/client'
 import type { EmailSummary } from './types'
 
-type Tab = 'inbox' | 'actions' | 'digest' | 'health' | 'ask' | 'knowledge' | 'triage' | 'vip'
-
 // Simple SVG icons
-const Icons: Record<Tab, JSX.Element> = {
+const Icons: Partial<Record<Tab, JSX.Element>> = {
   inbox: (
     <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
       <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
@@ -100,7 +95,7 @@ export default function App() {
 
   const {
     emails, total, loading: listLoading, hasMore, currentParams, refresh, mergeRefresh, loadMore, setSort, removeEmail,
-    selectedEmail, email, emailLoading, emailError, selectEmail, fetchEmail,
+    selectedEmail, email, emailLoading, emailError, selectEmail, clearSelectedEmail, fetchEmail,
     currentFolder, setCurrentFolder, folders, setFolders,
     onlyUnread, toggleUnread, unreadCount, setUnreadCount,
     selectedAccountId, setSelectedAccountId,
@@ -214,10 +209,11 @@ export default function App() {
         if (emails[next]) handleSelect(emails[next])
       }
       if (e.key === 'a' && selectedEmail) handleAnalyze()
+      if (e.key === 'Escape') clearSelectedEmail()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [activeTab, emails, selectedEmail])
+  }, [activeTab, emails, selectedEmail, clearSelectedEmail])
 
   const handleConnected = () => {
     setConnected(true)
@@ -585,21 +581,13 @@ export default function App() {
           </>
         )}
 
-          {activeTab === 'triage' && <TriagePanel onSelectEmail={(id) => { const em = emails.find(e => e.id === id); if (em) { handleSelect(em); setActiveTab('inbox') } }} />}
+          {activeTab === 'triage' && <TriagePanel />}
           {activeTab === 'ask' && <AskPanel initialQuery={askContext} onClear={() => setAskContext('')} />}
           {activeTab === 'actions' && <ActionBoard />}
           {activeTab === 'digest' && <DigestView />}
           {activeTab === 'health' && <HealthPanel />}
-          {activeTab === 'knowledge' && (
-            <IntelligencePanel
-              onSelectEmail={(id) => {
-                const em = emails.find(e => e.id === id)
-                if (em) { handleSelect(em); setActiveTab('inbox') }
-                else { fetchEmail(id); setActiveTab('inbox') }
-              }}
-            />
-          )}
-          {activeTab === 'vip' && <VIPPanel onSelectEmail={(id) => { const em = emails.find(e => e.id === id); if (em) { handleSelect(em); setActiveTab('inbox') } else { fetchEmail(id); setActiveTab('inbox') } }} />}
+          {activeTab === 'knowledge' && <IntelligencePanel />}
+          {activeTab === 'vip' && <VIPPanel />}
         </div>
       </div>
 
