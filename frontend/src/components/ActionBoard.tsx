@@ -60,8 +60,12 @@ export function ActionBoard() {
   useEffect(() => { reload() }, [showDone])
 
   const toggleAction = async (id: number, done: boolean) => {
-    await api.setActionDone(id, done)
     setActions((prev) => prev.map((a) => a.id === id ? { ...a, done } : a))
+    try {
+      await api.setActionDone(id, done)
+    } catch {
+      setActions((prev) => prev.map((a) => a.id === id ? { ...a, done: !done } : a))
+    }
   }
 
   const toggleFollowUp = async (id: number, done: boolean) => {
