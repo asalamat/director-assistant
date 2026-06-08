@@ -44,15 +44,8 @@ Be direct and actionable. Start with the most important observation."""
 async def sender_monthly(sender: str, request: Request):
     """Return email volume per month for a sender (last 12 months)."""
     decoded = unquote(sender)
-    with request.app.state.cache._conn() as conn:
-        rows = conn.execute(
-            """SELECT strftime('%Y-%m', date) AS month, COUNT(*) AS cnt
-               FROM emails WHERE LOWER(sender) = LOWER(?)
-               AND date >= datetime('now', '-12 months')
-               GROUP BY month ORDER BY month""",
-            (decoded,),
-        ).fetchall()
-    return {"months": [{"month": r["month"], "count": r["cnt"]} for r in rows]}
+    months = request.app.state.cache.sender_monthly_volume(decoded)
+    return {"months": months}
 
 
 @router.get("/{sender:path}")

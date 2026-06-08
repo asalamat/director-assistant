@@ -30,6 +30,5 @@ async def list_pending(request: Request):
 
 @router.delete("/{send_id}")
 async def cancel(send_id: int, request: Request):
-    with request.app.state.cache._conn() as conn:
-        conn.execute("DELETE FROM scheduled_sends WHERE id = ? AND sent = 0", (send_id,))
+    request.app.state.cache.cancel_scheduled_send(send_id)
     return {"ok": True}

@@ -82,11 +82,14 @@ class EmailExtrasMixin:
         return len(rows)
 
     def list_action_items(self, done: bool | None = None) -> list[ActionItem]:
-        where = "" if done is None else f"WHERE done = {1 if done else 0}"
+        sql = "SELECT * FROM action_items"
+        params: tuple = ()
+        if done is not None:
+            sql += " WHERE done = ?"
+            params = (1 if done else 0,)
+        sql += " ORDER BY created_at DESC"
         with self._conn() as conn:
-            rows = conn.execute(
-                f"SELECT * FROM action_items {where} ORDER BY created_at DESC"
-            ).fetchall()
+            rows = conn.execute(sql, params).fetchall()
         return [ActionItem(**{**dict(r), "done": bool(r["done"])}) for r in rows]
 
     def set_action_done(self, item_id: int, done: bool) -> bool:
@@ -108,11 +111,14 @@ class EmailExtrasMixin:
             return cur.lastrowid
 
     def list_follow_ups(self, done: bool | None = None) -> list[FollowUp]:
-        where = "" if done is None else f"WHERE done = {1 if done else 0}"
+        sql = "SELECT * FROM follow_ups"
+        params: tuple = ()
+        if done is not None:
+            sql += " WHERE done = ?"
+            params = (1 if done else 0,)
+        sql += " ORDER BY due_date ASC"
         with self._conn() as conn:
-            rows = conn.execute(
-                f"SELECT * FROM follow_ups {where} ORDER BY due_date ASC"
-            ).fetchall()
+            rows = conn.execute(sql, params).fetchall()
         return [FollowUp(**{**dict(r), "done": bool(r["done"])}) for r in rows]
 
     def set_follow_up_done(self, fid: int, done: bool) -> bool:
@@ -234,6 +240,17 @@ class EmailExtrasMixin:
             return conn.execute(
                 "SELECT COUNT(*) FROM emails WHERE is_read = 0"
             ).fetchone()[0]
+
+    def sender_monthly_volume(self, sender_email: str, months: int = 12) -> list[dict]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                """SELECT strftime('%Y-%m', date) AS month, COUNT(*) AS cnt
+                   FROM emails WHERE LOWER(sender) = LOWER(?)
+                   AND date >= datetime('now', '-' || ? || ' months')
+                   GROUP BY month ORDER BY month""",
+                (sender_email, str(months)),
+            ).fetchall()
+        return [{"month": r["month"], "count": r["cnt"]} for r in rows]
 
     def sender_stats(self, sender: str) -> dict:
         with self._conn() as conn:
@@ -651,6 +668,11 @@ class EmailExtrasMixin:
                 "FROM scheduled_sends WHERE sent = ? ORDER BY send_at", (1 if sent else 0,)
             ).fetchall()
         return [dict(r) for r in rows]
+
+    def cancel_scheduled_send(self, send_id: int) -> bool:
+        with self._conn() as conn:
+            cur = conn.execute("DELETE FROM scheduled_sends WHERE id = ? AND sent = 0", (send_id,))
+        return cur.rowcount > 0
 
     def mark_sent(self, send_id: int) -> None:
         with self._conn() as conn:
