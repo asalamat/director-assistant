@@ -156,6 +156,7 @@ function InboxEmail() {
       <H3>Compose & Send</H3>
       <UL>
         <Li>Send new emails or replies directly from Director Assistant</Li>
+        <Li><strong>Pre-send Review</strong> — click <strong>🔍 Review</strong> before sending; AI checks tone, flags unanswered questions, lists commitments, and suggests improvements. Send button turns green when the draft passes.</Li>
         <Li><strong>Save to Drafts</strong> — save any AI reply to your IMAP Drafts folder for review in your mail client</Li>
         <Li><strong>Scheduled Send</strong> — compose now, choose a future date/time, and the app sends automatically</Li>
         <Li><strong>Commitment detection</strong> — after Smart Draft, detected promises appear as pills to add to your Actions board</Li>

@@ -2,7 +2,7 @@
 
 > **Your AI-powered executive email intelligence platform.** Connects to Gmail, Microsoft 365, Yahoo, or any IMAP mailbox and uses Claude AI to help you triage faster, never miss a commitment, and stay on top of every relationship that matters.
 
-**Current version: 3.16.0** · [Releases](https://github.com/asalamat/director-assistant/releases) · MIT License
+**Current version: 3.17.0** · [Releases](https://github.com/asalamat/director-assistant/releases) · MIT License
 
 ---
 
@@ -54,6 +54,7 @@ Everything runs **locally on your machine**. Your emails never leave your device
 - **Bulk Draft Generation** — select multiple emails, generate AI drafts for all simultaneously
 - **Save to Drafts** — save any AI reply directly to your IMAP Drafts folder, ready to review in your mail client
 - **Smart Follow-up Drafts (Chase)** — AI writes a polite follow-up for any email awaiting a reply, one click to compose
+- **Pre-send AI Review** — click "🔍 Review" in the compose window before sending; AI checks tone (good/warning/issue), flags unanswered questions from the original email, lists commitments you're making, and gives up to 3 improvement suggestions; Send button turns green when the draft passes review
 
 ### Send-Time Optimizer
 - When composing a reply, a green hint appears: **"Best time to send: Tuesday at 9:00 AM"** — derived from the recipient's historical email activity patterns to maximize response rates
