@@ -2,7 +2,7 @@
 
 > **Your AI-powered executive email intelligence platform.** Connects to Gmail, Microsoft 365, Yahoo, or any IMAP mailbox and uses Claude AI to help you triage faster, never miss a commitment, and stay on top of every relationship that matters.
 
-**Current version: 3.15.3** · [Releases](https://github.com/asalamat/director-assistant/releases) · MIT License
+**Current version: 3.16.0** · [Releases](https://github.com/asalamat/director-assistant/releases) · MIT License
 
 ---
 
@@ -119,11 +119,19 @@ Everything runs **locally on your machine**. Your emails never leave your device
 - **Meeting Prep Brief** — click any calendar event in the Dashboard for an AI-generated agenda, talking points, and prior email context from all attendees
 - **Scheduled Send** — compose now, schedule delivery for any future date and time
 
+### Code Quality & Reliability (v3.16)
+- **Poll concurrency fixed** — `_poll_lock` now correctly serializes concurrent refresh cycles; no more duplicate email ingestion on manual refresh
+- **Escape key** — press Escape in Inbox to deselect the current email
+- **Prop drilling eliminated** — `VIPPanel`, `TriagePanel`, `WeeklyBriefPanel`, `ProjectsPanel`, `IntelligencePanel` all use React Context directly; no more callback threading
+- **`Tab` type unified** — single source of truth in `UIContext`; prevents tab-name mismatch bugs
+- **IntelligencePanel refactored** — 777 → 94 lines; all 6 intelligence sub-tabs extracted to `IntelligenceTabs.tsx`
+- **95 backend tests** — 25 new router-level tests added (VIP, followups, projects, actions filter, triage)
+- **Startup safety** — removed `pgrep multiprocessing.spawn` orphan kill that could SIGKILL unrelated processes; PID-file approach handles this correctly
+
 ### Architecture & Performance (v3.15)
 - **App.tsx migrated to React Context** — `EmailContext` and `UIContext` reduce prop drilling; `useEmails()` + `useEmailDetail()` removed from App root
 - **EmailViewer decomposed** — 702 → 154 lines; sub-components: `EmailHeader`, `EmailCompose`, `EmailTools`
-- **Repository layer** — `EmailRepository` wrapping EmailCache; cleaner separation of concerns
-- **33 backend tests** — router tests for email_list, email_ai, AI providers, EmailCache, workers
+- **70 backend tests** — router tests for email_list, email_ai, AI providers, EmailCache, workers
 - **Memory leak fixed** — 73 zombie RAG subprocess workers (~78 GB) cleaned up on startup; PID tracking prevents future leaks
 - **Contact** — Built by Ali Salamat · ali.salamat@firstpc.ca
 
