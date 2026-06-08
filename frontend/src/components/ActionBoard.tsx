@@ -60,11 +60,22 @@ export function ActionBoard() {
   useEffect(() => { reload() }, [showDone])
 
   const toggleAction = async (id: number, done: boolean) => {
-    setActions((prev) => prev.map((a) => a.id === id ? { ...a, done } : a))
-    try {
-      await api.setActionDone(id, done)
-    } catch {
-      setActions((prev) => prev.map((a) => a.id === id ? { ...a, done: !done } : a))
+    if (done && !showDone) {
+      // Remove immediately from list; restore on failure
+      const original = actions.find((a) => a.id === id)
+      setActions((prev) => prev.filter((a) => a.id !== id))
+      try {
+        await api.setActionDone(id, done)
+      } catch {
+        if (original) setActions((prev) => [...prev, original].sort((a, b) => a.id - b.id))
+      }
+    } else {
+      setActions((prev) => prev.map((a) => a.id === id ? { ...a, done } : a))
+      try {
+        await api.setActionDone(id, done)
+      } catch {
+        setActions((prev) => prev.map((a) => a.id === id ? { ...a, done: !done } : a))
+      }
     }
   }
 
