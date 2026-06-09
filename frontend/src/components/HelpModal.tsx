@@ -361,11 +361,11 @@ function KnowledgeSection() {
       <H3>People Graph</H3>
       <P>Automatically built from your email corpus. Shows all contacts with:</P>
       <UL>
-        <Li>Total emails sent and received</Li>
-        <Li>First and last contact dates</Li>
-        <Li>Recent subjects and email threads</Li>
+        <Li>Total emails sent and received, first and last contact dates, recent subjects</Li>
+        <Li><strong>Phone numbers</strong> — auto-populated from email signatures, Microsoft 365 Contacts (if connected), and indexed documents; shown as clickable <strong>📞 tel: chips</strong></Li>
+        <Li><strong>⭐ VIP toggle</strong> — star/unstar any contact as a VIP directly from this tab; VIP contacts are highlighted in amber</Li>
       </UL>
-      <P>Sort by <strong>Relevance</strong>, <strong>Volume</strong>, or <strong>Recency</strong>. Search by name. Click any person to see all their emails.</P>
+      <P>Sort by <strong>Relevance</strong>, <strong>Volume</strong>, or <strong>Recency</strong>. Search by name or email.</P>
 
       <H3>Open Loops</H3>
       <P>Click <strong>Scan emails</strong> to let AI find all unresolved items in your recent emails:</P>
