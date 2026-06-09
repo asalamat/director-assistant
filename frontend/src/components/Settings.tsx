@@ -3,10 +3,14 @@ import { api } from '../api/client'
 import type { EmailProvider, Account, IngestProgress } from '../types'
 import { ConfigPanel } from './ConfigPanel'
 import { FolderPicker } from './FolderPicker'
+import { WebhooksSettings } from './WebhooksSettings'
+import { NotifySettings } from './NotifySettings'
+import { TasksExportSettings } from './TasksExportSettings'
+import { ReportScheduleSettings } from './ReportScheduleSettings'
 
 interface Props {
   onConnected: () => void
-  initialTab?: 'accounts' | 'config'
+  initialTab?: 'accounts' | 'config' | 'integrations'
 }
 
 const PROVIDER_LABELS: Record<EmailProvider, string> = {
@@ -43,7 +47,7 @@ function ProviderBadge({ provider }: { provider: EmailProvider }) {
 }
 
 export function Settings({ onConnected, initialTab = 'accounts' }: Props) {
-  const [settingsTab, setSettingsTab] = useState<'accounts' | 'config'>(initialTab)
+  const [settingsTab, setSettingsTab] = useState<'accounts' | 'config' | 'integrations'>(initialTab)
   const [accounts, setAccounts] = useState<Account[]>([])
   const [showAdd, setShowAdd] = useState(false)
   const [provider, setProvider] = useState<EmailProvider>('gmail')
@@ -271,7 +275,7 @@ export function Settings({ onConnected, initialTab = 'accounts' }: Props) {
 
         {/* Tab bar */}
         <div className="flex border-b border-gray-200 mb-6">
-          {(['accounts', 'config'] as const).map(tab => (
+          {(['accounts', 'config', 'integrations'] as const).map(tab => (
             <button
               key={tab}
               onClick={() => setSettingsTab(tab)}
@@ -281,13 +285,33 @@ export function Settings({ onConnected, initialTab = 'accounts' }: Props) {
                   : 'border-transparent text-gray-500 hover:text-gray-800'
               }`}
             >
-              {tab === 'accounts' ? 'Email Accounts' : 'App Settings'}
+              {tab === 'accounts' ? 'Email Accounts' : tab === 'config' ? 'App Settings' : '🔗 Integrations'}
             </button>
           ))}
         </div>
 
         {settingsTab === 'config' && <ConfigPanel />}
         {settingsTab === 'config' && <TriageRulesPanel />}
+        {settingsTab === 'integrations' && (
+          <div className="space-y-6 py-4">
+            <section>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">Slack &amp; Teams</h3>
+              <NotifySettings />
+            </section>
+            <section>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">Webhooks / Zapier</h3>
+              <WebhooksSettings />
+            </section>
+            <section>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">Task Export</h3>
+              <TasksExportSettings />
+            </section>
+            <section>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">Scheduled Report Email</h3>
+              <ReportScheduleSettings />
+            </section>
+          </div>
+        )}
 
         {settingsTab === 'accounts' && <>
 

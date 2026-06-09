@@ -364,3 +364,143 @@ async def _scheduled_send_loop(app: "object") -> None:
         except Exception as e:
             print(f"[scheduled-send] loop error: {e}")
         await asyncio.sleep(60)
+
+
+# ── Scheduled report email ─────────────────────────────────────────────────────
+
+def _next_fire_seconds(schedule_str: str) -> float:
+    """Calculate seconds until the next occurrence of 'weekday:HH:MM'.
+
+    Returns at minimum 60.0 so the loop never fires immediately.
+    """
+    from datetime import datetime, timedelta
+    DAYS = {"monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3,
+            "friday": 4, "saturday": 5, "sunday": 6}
+    try:
+        parts = schedule_str.lower().split(":")
+        target_day = DAYS.get(parts[0], 0)
+        target_hour = int(parts[1])
+        target_min = int(parts[2])
+    except Exception:
+        return 24 * 3600  # default 24h if malformed
+
+    now = datetime.now()
+    today_weekday = now.weekday()
+    days_ahead = (target_day - today_weekday) % 7
+    fire_dt = now.replace(hour=target_hour, minute=target_min, second=0, microsecond=0)
+    if days_ahead == 0 and fire_dt <= now:
+        days_ahead = 7  # already passed today, next week
+    fire_dt += timedelta(days=days_ahead)
+    secs = (fire_dt - now).total_seconds()
+    return max(60.0, secs)
+
+
+async def _scheduled_report_loop(app) -> None:
+    """Background loop: send weekly brief email at the configured schedule."""
+    import asyncio
+    await asyncio.sleep(60)  # let server fully start
+    while True:
+        try:
+            from routers.config import load_app_config
+            cfg = load_app_config()
+            enabled = cfg.get("report_email_enabled", False)
+            schedule = cfg.get("report_email_schedule", "monday:07:00")
+            to_email = cfg.get("report_email_to", "").strip()
+
+            if not enabled or not to_email:
+                await asyncio.sleep(3600)  # check again in 1h
+                continue
+
+            wait_secs = _next_fire_seconds(schedule)
+            print(f"[report-scheduler] next report in {wait_secs/3600:.1f}h to {to_email}")
+            await asyncio.sleep(wait_secs)
+
+            # Re-check config after sleep (user may have disabled)
+            cfg = load_app_config()
+            if not cfg.get("report_email_enabled") or not cfg.get("report_email_to", "").strip():
+                continue
+
+            await _generate_and_send_report(app)
+
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            print(f"[report-scheduler] error: {e}")
+            await asyncio.sleep(3600)
+
+
+async def _generate_and_send_report(app) -> None:
+    """Generate the weekly brief and email it to report_email_to."""
+    import asyncio
+    try:
+        from routers.config import load_app_config
+        cfg = load_app_config()
+        to_email = cfg.get("report_email_to", "").strip()
+        if not to_email:
+            return
+
+        cache = app.state.cache
+        advisor = app.state.advisor
+
+        # Build a simple plain-text weekly brief summary
+        try:
+            from routers.weekly_brief import generate_brief
+            brief = await generate_brief(cache, advisor)
+        except Exception as e:
+            print(f"[report-scheduler] brief generation failed: {e}")
+            brief = {"summary": "Weekly brief could not be generated."}
+
+        summary = brief.get("summary") or "No summary available."
+        actions = brief.get("action_items") or []
+        waiting = brief.get("waiting_for") or []
+
+        lines = [
+            "Director Assistant — Weekly Brief",
+            "=" * 40,
+            "",
+            summary,
+            "",
+        ]
+        if actions:
+            lines.append("ACTION ITEMS:")
+            for a in actions[:10]:
+                # items may be dicts with "text" key or plain strings
+                text = a.get("text", str(a)) if isinstance(a, dict) else str(a)
+                lines.append(f"  - {text}")
+            lines.append("")
+        if waiting:
+            lines.append("WAITING FOR REPLY:")
+            for w in waiting[:5]:
+                text = w.get("text", str(w)) if isinstance(w, dict) else str(w)
+                lines.append(f"  - {text}")
+            lines.append("")
+        lines.append("---")
+        lines.append("Sent by Director Assistant")
+
+        body_text = "\n".join(lines)
+
+        # Send via first SMTP-capable account
+        accounts = cache.list_accounts()
+        smtp_acc = next(
+            (a for a in accounts if getattr(a, "password", None)),
+            None,
+        )
+        if not smtp_acc:
+            print("[report-scheduler] no SMTP account found — cannot send report")
+            return
+
+        import email.mime.text
+        import email.mime.multipart
+        msg = email.mime.multipart.MIMEMultipart()
+        msg["From"] = smtp_acc.username
+        msg["To"] = to_email
+        msg["Subject"] = "Weekly Brief — Director Assistant"
+        msg.attach(email.mime.text.MIMEText(body_text, "plain"))
+
+        loop = asyncio.get_event_loop()
+        from routers.email_send import _smtp_send
+        await loop.run_in_executor(None, _smtp_send, smtp_acc, msg)
+        print(f"[report-scheduler] report sent to {to_email}")
+
+    except Exception as e:
+        print(f"[report-scheduler] send failed: {e}")

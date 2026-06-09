@@ -9,14 +9,10 @@ router = APIRouter(prefix="/api/weekly-brief", tags=["weekly-brief"])
 _cache: TTLCache = TTLCache(maxsize=1, ttl=3600)
 
 
-@router.post("")
-async def generate_weekly_brief(request: Request):
-    """Generate an AI executive brief for the past 7 days."""
+async def generate_brief(cache, advisor) -> dict:
+    """Standalone brief generator — callable from background tasks."""
     if "data" in _cache:
         return _cache["data"]
-
-    cache = request.app.state.cache
-    advisor = request.app.state.advisor
 
     since = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%d")
 
@@ -106,6 +102,12 @@ Be specific with names and dates. Return ONLY valid JSON."""
     data["since"] = since
     _cache["data"] = data
     return data
+
+
+@router.post("")
+async def generate_weekly_brief(request: Request):
+    """Generate an AI executive brief for the past 7 days."""
+    return await generate_brief(request.app.state.cache, request.app.state.advisor)
 
 
 @router.get("/search")

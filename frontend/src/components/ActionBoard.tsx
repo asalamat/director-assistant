@@ -3,6 +3,7 @@ import { api } from '../api/client'
 import { addToast } from './Toast'
 import type { ActionItem, FollowUp, WaitingEmail } from '../types'
 import { Spinner, EmptyState, Button, Badge } from './ui'
+import { TaskExportButton } from './TaskExportButton'
 
 function formatDate(s: string) {
   return new Date(s).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
@@ -283,6 +284,9 @@ export function ActionBoard() {
                   </p>
                   <p className="text-xs text-gray-400 mt-0.5 truncate">{a.email_subject}</p>
                 </div>
+                {!a.done && (
+                  <TaskExportButton actionId={a.id} text={a.text} emailSubject={a.email_subject} />
+                )}
               </div>
             ))}
           </>

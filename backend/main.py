@@ -47,12 +47,17 @@ from routers import projects as projects_router
 from routers import contacts as contacts_router
 from routers import meeting as meeting_router
 from routers import crm as crm_router
+from routers import notify as notify_router
+from routers import tasks_export as tasks_export_router
+from routers import webhooks as webhooks_router
+from routers import report_schedule as report_schedule_router
 from routers.proactive import push_alert
 from services.intelligence_service import IntelligenceService
 from workers.background_tasks import (
     _auto_recommend, _auto_deadline_extract, _auto_cluster_alert,
     _auto_sentiment_escalation, _commitment_scan_loop,
     _relationship_health_loop, _auto_label_loop, _scheduled_send_loop,
+    _scheduled_report_loop,
 )
 from routers.config import get_effective_api_key, load_app_config
 from services.ai_client import AIClient
@@ -449,11 +454,12 @@ async def lifespan(app: FastAPI):
     app.state.commitment_task = asyncio.create_task(_commitment_scan_loop(app))
     app.state.relationship_task = asyncio.create_task(_relationship_health_loop(app))
     app.state.scheduled_send_task = asyncio.create_task(_scheduled_send_loop(app))
+    app.state.report_task = asyncio.create_task(_scheduled_report_loop(app))
     app.state.auto_label_task = asyncio.create_task(_auto_label_loop(app))
     app.state.restart_poll = lambda: asyncio.create_task(_restart_poll(app))
     yield
     for task_name in ("digest_task", "poll_task", "commitment_task", "relationship_task",
-                      "scheduled_send_task", "auto_label_task"):
+                      "scheduled_send_task", "auto_label_task", "report_task"):
         task = getattr(app.state, task_name, None)
         if task:
             task.cancel()
@@ -507,6 +513,10 @@ app.include_router(contacts_router.router)
 app.include_router(projects_router.router)
 app.include_router(meeting_router.router)
 app.include_router(crm_router.router)
+app.include_router(tasks_export_router.router)
+app.include_router(webhooks_router.router)
+app.include_router(report_schedule_router.router)
+app.include_router(notify_router.router)
 
 
 @app.get("/health")

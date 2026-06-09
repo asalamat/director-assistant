@@ -47,6 +47,28 @@ class AppConfigUpdate(BaseModel):
     digest_schedule_time: Optional[str] = None   # "HH:MM"
     digest_schedule_email: Optional[str] = None
     translation_language: Optional[str] = None   # e.g. "English", "French"
+    # Webhooks / Zapier
+    webhook_urls: Optional[list] = None
+    webhook_events: Optional[list] = None
+    # Slack / Teams
+    slack_webhook_url: Optional[str] = None
+    teams_webhook_url: Optional[str] = None
+    slack_vip_notify: Optional[bool] = None
+    slack_auto_urgent: Optional[bool] = None
+    teams_vip_notify: Optional[bool] = None
+    teams_auto_urgent: Optional[bool] = None
+    # Task export (Notion / Jira / Todoist)
+    notion_api_key: Optional[str] = None
+    notion_database_id: Optional[str] = None
+    jira_url: Optional[str] = None
+    jira_email: Optional[str] = None
+    jira_api_token: Optional[str] = None
+    jira_project_key: Optional[str] = None
+    todoist_api_token: Optional[str] = None
+    # Scheduled report email
+    report_email_enabled: Optional[bool] = None
+    report_email_schedule: Optional[str] = None
+    report_email_to: Optional[str] = None
 
 
 @router.get("")
@@ -105,6 +127,26 @@ async def update_config(update: AppConfigUpdate, request: Request):
         cfg["digest_schedule_email"] = update.digest_schedule_email.strip()
     if update.translation_language is not None:
         cfg["translation_language"] = update.translation_language.strip()
+
+    # Integration settings — save any non-None values directly
+    for key in (
+        "webhook_urls", "webhook_events",
+        "slack_webhook_url", "teams_webhook_url",
+        "slack_vip_notify", "slack_auto_urgent", "teams_vip_notify", "teams_auto_urgent",
+        "notion_api_key", "notion_database_id",
+        "jira_url", "jira_email", "jira_api_token", "jira_project_key",
+        "todoist_api_token",
+        "report_email_enabled", "report_email_to",
+    ):
+        val = getattr(update, key, None)
+        if val is not None:
+            cfg[key] = val
+    if update.report_email_schedule is not None:
+        import re as _re
+        if not _re.match(r'^(monday|tuesday|wednesday|thursday|friday|saturday|sunday):\d{2}:\d{2}$',
+                         update.report_email_schedule):
+            raise HTTPException(400, "report_email_schedule must be 'weekday:HH:MM' e.g. 'monday:07:00'")
+        cfg["report_email_schedule"] = update.report_email_schedule
 
     if update.poll_interval_seconds is not None:
         cfg["poll_interval_seconds"] = update.poll_interval_seconds
