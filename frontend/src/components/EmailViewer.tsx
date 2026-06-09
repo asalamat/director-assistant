@@ -68,12 +68,15 @@ export function EmailViewer({ email, loading, fetchError, onAnalyze, analyzing, 
   const handleTranslate = async () => {
     if (!email || translating) return
     setTranslating(true)
+    setTranslation(null)
     try {
       const cfg = await api.getConfig().catch(() => null)
       const lang = cfg?.translation_language || 'English'
       const r = await api.translateEmail(email.id, lang)
-      setTranslation(r.translation)
-    } catch {} finally { setTranslating(false) }
+      setTranslation(r.translation || `(No translation returned for ${lang})`)
+    } catch (err: any) {
+      setTranslation(`✗ Translation failed: ${err.message || 'Unknown error'}`)
+    } finally { setTranslating(false) }
   }
 
   if (loading) {

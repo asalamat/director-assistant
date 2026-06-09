@@ -493,24 +493,44 @@ async def translate_email(email_id: str, request: Request):
     email = cache.get(email_id)
     if not email:
         raise HTTPException(404, "Email not found")
-    body = (email.body or "")[:3000]
-    if not body.strip():
-        return {"translation": "", "detected_lang": "unknown"}
-    prompt = (f"Translate the following email to {target_lang}.\nFirst detect the source language.\n\n{body}\n\n"
-              f'Return JSON: {{"detected_lang": "source language", "translation": "translated text"}}')
+    # Use plain text body; fall back to stripping HTML tags
+    body = (email.body or "").strip()
+    if not body:
+        raise HTTPException(400, "Email has no body to translate")
+    # Strip basic HTML if present
+    import re as _re
+    body_text = _re.sub(r'<[^>]+>', ' ', body)
+    body_text = _re.sub(r'\s+', ' ', body_text).strip()[:3000]
+    if not body_text:
+        raise HTTPException(400, "Email body contains no readable text")
+    prompt = (
+        f"Translate the following email to {target_lang}.\n"
+        f"First detect the source language.\n\n"
+        f"{body_text}\n\n"
+        f'Return JSON only, no markdown: {{"detected_lang": "source language name", "translation": "translated text"}}'
+    )
     ant = getattr(advisor.ai, "_anthropic", None)
     import json as _json2
     try:
         if ant:
-            resp = await ant.messages.create(model="claude-haiku-4-5-20251001", max_tokens=1500,
-                messages=[{"role": "user", "content": prompt}])
+            resp = await ant.messages.create(
+                model="claude-haiku-4-5-20251001", max_tokens=2000,
+                messages=[{"role": "user", "content": prompt}],
+            )
             text = resp.content[0].text.strip()
         else:
-            resp = await advisor.ai.messages.create(model="claude-haiku-4-5-20251001", max_tokens=1500,
-                messages=[{"role": "user", "content": prompt}])
+            resp = await advisor.ai.messages.create(
+                model="claude-haiku-4-5-20251001", max_tokens=2000,
+                messages=[{"role": "user", "content": prompt}],
+            )
             text = resp.content[0].text.strip()
+        # Strip markdown fences if present
+        text = _re.sub(r'^```[a-z]*\n?', '', text).rstrip('`').strip()
         s, e = text.find("{"), text.rfind("}") + 1
-        data = _json2.loads(text[s:e]) if s >= 0 else {}
-    except Exception:
-        data = {}
-    return {"translation": data.get("translation", ""), "detected_lang": data.get("detected_lang", "unknown")}
+        data = _json2.loads(text[s:e]) if s >= 0 else {"translation": text, "detected_lang": "unknown"}
+    except Exception as exc:
+        raise HTTPException(500, f"Translation failed: {exc}") from exc
+    translation = data.get("translation", "").strip()
+    if not translation:
+        raise HTTPException(500, "AI returned empty translation")
+    return {"translation": translation, "detected_lang": data.get("detected_lang", "unknown")}
