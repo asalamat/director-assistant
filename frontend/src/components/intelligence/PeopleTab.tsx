@@ -62,10 +62,41 @@ export function PeopleTab() {
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState<'score' | 'received' | 'sent' | 'recent'>('score')
   const [viewMode, setViewMode] = useState<'list' | 'graph'>('list')
+  // VIP sync: email_addr → vip row id (undefined = not a VIP)
+  const [vipMap, setVipMap] = useState<Record<string, number>>({})
+  const [toggling, setToggling] = useState<string | null>(null)
 
   useEffect(() => {
-    api.getPeople(100).then(r => setPeople(r.people)).catch(() => setPeople([])).finally(() => setLoading(false))
+    Promise.all([
+      api.getPeople(100),
+      api.getVIPs(),
+    ]).then(([peopleRes, vipRes]) => {
+      setPeople(peopleRes.people)
+      const map: Record<string, number> = {}
+      for (const v of vipRes.vips) map[v.email_addr.toLowerCase()] = v.id
+      setVipMap(map)
+    }).catch(() => {}).finally(() => setLoading(false))
   }, [])
+
+  const toggleVIP = async (p: Person) => {
+    const key = p.email.toLowerCase()
+    if (toggling === key) return
+    setToggling(key)
+    try {
+      if (vipMap[key] !== undefined) {
+        await api.removeVIP(vipMap[key])
+        setVipMap(prev => { const n = { ...prev }; delete n[key]; return n })
+      } else {
+        const r = await api.addVIP({ email_addr: p.email, name: p.name, note: '' })
+        // Re-fetch VIPs to get the new id
+        const vipRes = await api.getVIPs()
+        const map: Record<string, number> = {}
+        for (const v of vipRes.vips) map[v.email_addr.toLowerCase()] = v.id
+        setVipMap(map)
+      }
+    } catch { /* silent */ }
+    setToggling(null)
+  }
 
   const filtered = people
     .filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase()) || p.email.toLowerCase().includes(search.toLowerCase()))
@@ -78,8 +109,12 @@ export function PeopleTab() {
 
   const exportCSV = () => {
     const rows = [
-      ['name', 'email', 'received', 'sent', 'score', 'last_contact'],
-      ...filtered.map(p => [`"${p.name.replace(/"/g, '""')}"`, p.email, p.received_count, p.sent_count, p.score, p.last_contact || ''])
+      ['name', 'email', 'received', 'sent', 'score', 'last_contact', 'vip'],
+      ...filtered.map(p => [
+        `"${p.name.replace(/"/g, '""')}"`, p.email,
+        p.received_count, p.sent_count, p.score, p.last_contact || '',
+        vipMap[p.email.toLowerCase()] !== undefined ? 'yes' : 'no',
+      ])
     ]
     const a = document.createElement('a')
     a.href = URL.createObjectURL(new Blob([rows.map(r => r.join(',')).join('\n')], { type: 'text/csv' }))
@@ -88,6 +123,8 @@ export function PeopleTab() {
   }
 
   if (loading) return <div className="flex justify-center py-16"><div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" /></div>
+
+  const vipCount = Object.keys(vipMap).length
 
   return (
     <div className="flex flex-col h-full">
@@ -132,6 +169,12 @@ export function PeopleTab() {
         </div>
       </div>
 
+      {viewMode === 'list' && vipCount > 0 && (
+        <p className="px-4 pb-1 text-[10px] text-amber-500 font-medium flex-shrink-0">
+          ⭐ {vipCount} VIP contact{vipCount !== 1 ? 's' : ''} — click ⭐ to toggle
+        </p>
+      )}
+
       {viewMode === 'graph' ? (
         <div className="flex-1 overflow-hidden px-4 pb-4">
           {people.length === 0
@@ -142,33 +185,50 @@ export function PeopleTab() {
       ) : (
         <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-2">
           {filtered.length === 0 && <p className="text-sm text-gray-400 text-center py-8">No contacts found</p>}
-          {filtered.map(p => (
-            <div key={p.email} className="border border-gray-100 rounded-xl p-3 hover:border-gray-200 hover:bg-gray-50 transition-colors">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="w-7 h-7 rounded-full bg-accent/10 text-accent text-xs font-bold flex items-center justify-center flex-shrink-0">
-                      {p.name.charAt(0).toUpperCase()}
-                    </span>
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-gray-800 truncate">{p.name}</p>
-                      <p className="text-xs text-gray-400 truncate">{p.email}</p>
+          {filtered.map(p => {
+            const isVIP = vipMap[p.email.toLowerCase()] !== undefined
+            const isToggling = toggling === p.email.toLowerCase()
+            return (
+              <div key={p.email} className={`border rounded-xl p-3 transition-colors ${isVIP ? 'border-amber-200 bg-amber-50/40 hover:bg-amber-50' : 'border-gray-100 hover:border-gray-200 hover:bg-gray-50'}`}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className={`w-7 h-7 rounded-full text-xs font-bold flex items-center justify-center flex-shrink-0 ${isVIP ? 'bg-amber-100 text-amber-600' : 'bg-accent/10 text-accent'}`}>
+                        {p.name.charAt(0).toUpperCase()}
+                      </span>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-sm font-medium text-gray-800 truncate">{p.name}</p>
+                          {isVIP && <span className="text-[10px] text-amber-500 font-semibold flex-shrink-0">VIP</span>}
+                        </div>
+                        <p className="text-xs text-gray-400 truncate">{p.email}</p>
+                      </div>
                     </div>
+                    {p.subjects.length > 0 && (
+                      <p className="text-xs text-gray-500 mt-1.5 ml-9 truncate">{p.subjects[0]}</p>
+                    )}
                   </div>
-                  {p.subjects.length > 0 && (
-                    <p className="text-xs text-gray-500 mt-1.5 ml-9 truncate">{p.subjects[0]}</p>
-                  )}
-                </div>
-                <div className="flex-shrink-0 text-right">
-                  <div className="flex gap-2 text-xs text-gray-500">
-                    <span title="Received">{p.received_count} in</span>
-                    <span title="Sent">{p.sent_count} out</span>
+                  <div className="flex items-start gap-2 flex-shrink-0">
+                    <div className="text-right">
+                      <div className="flex gap-2 text-xs text-gray-500">
+                        <span title="Received">{p.received_count} in</span>
+                        <span title="Sent">{p.sent_count} out</span>
+                      </div>
+                      <p className="text-[10px] text-gray-400 mt-0.5">{p.last_contact?.slice(0, 10)}</p>
+                    </div>
+                    <button
+                      onClick={() => toggleVIP(p)}
+                      disabled={isToggling}
+                      title={isVIP ? 'Remove from VIP' : 'Add to VIP'}
+                      className={`text-base leading-none transition-all disabled:opacity-40 hover:scale-110 ${isVIP ? 'text-amber-400' : 'text-gray-200 hover:text-amber-300'}`}
+                    >
+                      {isToggling ? '…' : '⭐'}
+                    </button>
                   </div>
-                  <p className="text-[10px] text-gray-400 mt-0.5">{p.last_contact?.slice(0, 10)}</p>
                 </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>
