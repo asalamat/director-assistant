@@ -286,14 +286,49 @@ async def sync_from_provider(request: Request):
         }
 
     provider_label = " + ".join(providers)
+    total = imported + skipped
+    if imported == 0 and skipped > 0:
+        msg = f"Already up to date — all {skipped} contacts from {provider_label} were previously imported"
+    elif imported > 0 and skipped > 0:
+        msg = f"Imported {imported} new contacts from {provider_label} ({skipped} already present)"
+    elif imported > 0:
+        msg = f"Imported {imported} contacts from {provider_label}"
+    else:
+        msg = f"No contacts found in {provider_label}"
     return {
         "success": True,
         "imported": imported,
         "skipped": skipped,
-        "total": imported + skipped,
+        "total": total,
         "provider": provider_label,
-        "message": f"Synced {imported} contacts from {provider_label}, skipped {skipped} already present",
+        "message": msg,
     }
+
+
+@router.get("/sync-status")
+async def sync_status(request: Request):
+    """Show which accounts are eligible for auto-sync."""
+    cache = request.app.state.cache
+    accounts = cache.list_accounts()
+    result = []
+    for acc in accounts:
+        has_token = bool(getattr(acc, "access_token", None))
+        has_password = bool(getattr(acc, "password", None))
+        domain = (acc.username or "").split("@")[-1].lower()
+        is_yahoo = domain in _YAHOO_DOMAINS or getattr(acc, "provider", "") in ("yahoo_imap", "yahoo")
+        is_ms365 = has_token and not has_password
+        result.append({
+            "id": acc.id,
+            "username": acc.username,
+            "provider": getattr(acc, "provider", ""),
+            "has_password": has_password,
+            "has_token": has_token,
+            "eligible_for": ("yahoo_carddav" if is_yahoo and has_password else None) or
+                            ("microsoft_graph" if is_ms365 else None) or "none",
+        })
+    with cache._conn() as conn:
+        total_imported = conn.execute("SELECT COUNT(*) FROM imported_contacts").fetchone()[0]
+    return {"accounts": result, "total_imported_contacts": total_imported}
 
 
 def _vcard_escape(s: str) -> str:
