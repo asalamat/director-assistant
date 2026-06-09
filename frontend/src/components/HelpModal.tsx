@@ -370,7 +370,7 @@ function KnowledgeSection() {
       <UL>
         <Li><strong>📥 Import ▾</strong> — dropdown with two options:
           <br />• <strong>📁 From file (.vcf)</strong> — upload a vCard exported from Yahoo Mail, Google Contacts, iPhone, or Outlook; duplicates automatically skipped
-          <br />• <strong>☁️ From account (auto)</strong> — one-click sync from Microsoft 365 Contacts (no file needed; requires Contacts.Read permission — if prompted, remove and re-add your M365 account)
+          <br />• <strong>☁️ From account (auto)</strong> — one-click sync from <strong>Yahoo</strong> (CardDAV via App Password, no extra setup) and/or <strong>Microsoft 365</strong> (Graph API; requires Contacts.Read — if 401 error, remove and re-add the account). Both run together if connected.
         </Li>
         <Li><strong>📤 Export</strong> — downloads all contacts + discovered phone numbers as <code>director-assistant-contacts.vcf</code>; import into Yahoo, iPhone, Google, or Outlook to sync phone numbers back</Li>
       </UL>
