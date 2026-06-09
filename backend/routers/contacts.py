@@ -212,6 +212,10 @@ async def _sync_yahoo_carddav(cache, accounts) -> tuple[int, int, str | None]:
                 break  # success — no need to try second URL
 
             except Exception as e:
+                err_str = str(e)
+                if "nodename nor servname" in err_str or "Name or service not known" in err_str or "getaddrinfo" in err_str:
+                    last_error = "Yahoo discontinued their CardDAV service — use '📁 From file' to import a .vcf exported from contacts.yahoo.com instead"
+                    break
                 last_error = f"Yahoo CardDAV error: {e}"
                 continue
 

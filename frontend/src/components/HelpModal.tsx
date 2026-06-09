@@ -370,7 +370,7 @@ function KnowledgeSection() {
       <UL>
         <Li><strong>📥 Import ▾</strong> — dropdown with two options:
           <br />• <strong>📁 From file (.vcf)</strong> — upload a vCard exported from Yahoo Mail, Google Contacts, iPhone, or Outlook; duplicates automatically skipped
-          <br />• <strong>☁️ From account (auto)</strong> — one-click sync from <strong>Yahoo</strong> (CardDAV via App Password, no extra setup) and/or <strong>Microsoft 365</strong> (Graph API; requires Contacts.Read — if 401 error, remove and re-add the account). Both run together if connected.
+          <br />• <strong>☁️ From account (auto)</strong> — one-click sync from <strong>Microsoft 365</strong> via Graph API (requires Contacts.Read permission — if 401 error, remove and re-add the account in Settings). Yahoo discontinued their CardDAV service so Yahoo contacts require the manual From file option.
         </Li>
         <Li><strong>📤 Export</strong> — downloads all contacts + discovered phone numbers as <code>director-assistant-contacts.vcf</code>; import into Yahoo, iPhone, Google, or Outlook to sync phone numbers back</Li>
       </UL>

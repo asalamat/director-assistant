@@ -99,7 +99,7 @@ Everything runs **locally on your machine**. Your emails never leave your device
 - **People Graph** — all contacts with interaction stats; sortable by relevance, volume, or recency
   - **★ / ☆ VIP star** — filled star = VIP (amber highlight), outline star = not VIP; click to toggle without leaving the tab
   - **Phone numbers** — auto-populated from email signatures, Microsoft 365 Contacts, and indexed documents (clickable `tel:` chips)
-  - **📥 Import ▾** — dropdown with two options: *📁 From file (.vcf)* for manual vCard uploads; *☁️ From account (auto)* syncs **Yahoo** (via CardDAV using existing App Password) and **Microsoft 365** (via Graph API) simultaneously — no file needed. If both are connected, shows "Synced N contacts from Yahoo + Microsoft 365"
+  - **📥 Import ▾** — dropdown with two options: *📁 From file (.vcf)* for manual vCard uploads (Yahoo, Google, Apple, Outlook); *☁️ From account (auto)* syncs **Microsoft 365** contacts via Graph API with one click. Note: Yahoo discontinued their CardDAV service — Yahoo contacts require manual `.vcf` export from `contacts.yahoo.com`
   - **📤 Export** — downloads all app contacts + phone numbers as `director-assistant-contacts.vcf` (importable into any contacts app)
 - **Consolidate duplicate accounts** — if the same email address was added twice (e.g., IMAP + OAuth), a **⚡ Consolidate duplicates** button appears in Settings → Email Accounts to merge them and re-attribute all emails to the surviving account
 - **Open Loops** — AI detects unresolved commitments, awaited responses, and deadlines; filterable by type with live counts including dismissed items
