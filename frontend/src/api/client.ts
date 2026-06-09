@@ -407,6 +407,12 @@ export const api = {
     return fetch(`${BASE}/contacts/import-vcard`, { method: 'POST', body: form })
       .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(new Error(e.detail || 'Import failed'))))
   },
+  importContacts(file: File): Promise<{ imported: number; skipped: number; total: number; message: string }> {
+    const form = new FormData()
+    form.append('file', file)
+    return fetch(`${BASE}/contacts/import-contacts`, { method: 'POST', body: form })
+      .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(new Error(e.detail || 'Import failed'))))
+  },
   exportVCard(): string {
     return `${BASE}/contacts/export-vcard`
   },

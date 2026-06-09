@@ -95,8 +95,8 @@ export function PeopleTab() {
     setImportMsg('')
     setShowImportMenu(false)
     try {
-      const r = await api.importVCard(file)
-      setImportMsg(`✓ ${r.imported} imported, ${r.skipped} skipped`)
+      const r = await api.importContacts(file)
+      setImportMsg(`✓ ${r.message}`)
       if (r.imported > 0) refreshHints()
     } catch (err: any) {
       setImportMsg(`✗ ${err.message || 'Import failed'}`)
@@ -202,8 +202,8 @@ export function PeopleTab() {
                 <div className="absolute top-full left-0 mt-1 z-20 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden min-w-[170px]"
                   onMouseLeave={() => setShowImportMenu(false)}>
                   <label className="flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 cursor-pointer">
-                    <span>📁 From file (.vcf)</span>
-                    <input type="file" accept=".vcf" className="hidden" onChange={handleVCardImport} />
+                    <span>📁 From file (.vcf / .csv)</span>
+                    <input type="file" accept=".vcf,.csv" className="hidden" onChange={handleVCardImport} />
                   </label>
                   <button
                     onClick={handleSyncProvider}

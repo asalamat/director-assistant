@@ -1,6 +1,8 @@
 """Imported contacts — vCard upload, export, deduplication, and list."""
 
 import asyncio
+import csv
+import io
 import json
 import re
 from fastapi import APIRouter, Request, UploadFile, File, HTTPException
@@ -39,6 +41,90 @@ def _parse_vcard(text: str) -> list[dict]:
             if email and '@' in email:
                 contacts.append({'email': email, 'name': name, 'phones': phones})
     return contacts
+
+
+_PHONE_COLS = [
+    'Mobile Phone', 'Home Phone', 'Work Phone',
+    'Home Phone 2', 'Work Phone 2', 'Other Phone', 'Pager', 'Fax',
+    'Mobile Phone 2', 'Work Fax', 'Home Fax',
+]
+_EMAIL_COLS = ['Email', 'Email 2', 'Email 3', 'Yahoo ID']
+
+
+def _parse_contacts_csv(text: str) -> list[dict]:
+    """Parse a contacts CSV (Yahoo format or generic) into contact dicts."""
+    contacts = []
+    try:
+        reader = csv.DictReader(io.StringIO(text))
+        for row in reader:
+            # Name
+            first = row.get('First Name', '').strip()
+            last = row.get('Last Name', '').strip()
+            name = row.get('Name', '').strip() or f"{first} {last}".strip()
+
+            # Emails
+            emails = []
+            for col in _EMAIL_COLS:
+                val = row.get(col, '').strip()
+                if val and '@' in val:
+                    emails.append(val.lower())
+
+            # Phones
+            phones = []
+            for col in _PHONE_COLS:
+                val = row.get(col, '').strip()
+                if val and len(re.sub(r'\D', '', val)) >= 7:
+                    phones.append(val)
+
+            for email in emails:
+                contacts.append({'email': email, 'name': name, 'phones': phones})
+    except Exception:
+        pass
+    return contacts
+
+
+@router.post("/import-contacts")
+async def import_contacts(request: Request, file: UploadFile = File(...)):
+    """Import contacts from a .vcf (vCard) or .csv file. Skips duplicates."""
+    fname = (file.filename or '').lower()
+    if not (fname.endswith('.vcf') or fname.endswith('.csv')):
+        raise HTTPException(400, "File must be a .vcf or .csv file")
+
+    content = await file.read()
+    try:
+        text = content.decode('utf-8')
+    except UnicodeDecodeError:
+        text = content.decode('latin-1', errors='replace')
+
+    contacts = _parse_contacts_csv(text) if fname.endswith('.csv') else _parse_vcard(text)
+    if not contacts:
+        return {"imported": 0, "skipped": 0, "total": 0, "message": "No contacts found in file"}
+
+    cache = request.app.state.cache
+    imported = 0
+    skipped = 0
+    source = 'csv' if fname.endswith('.csv') else 'vcard'
+
+    with cache._conn() as conn:
+        for c in contacts:
+            try:
+                conn.execute(
+                    "INSERT OR IGNORE INTO imported_contacts (email_addr, name, phones, source) VALUES (?,?,?,?)",
+                    (c['email'], c['name'], json.dumps(c['phones']), source),
+                )
+                if conn.execute("SELECT changes()").fetchone()[0] > 0:
+                    imported += 1
+                else:
+                    skipped += 1
+            except Exception:
+                skipped += 1
+
+    return {
+        "imported": imported,
+        "skipped": skipped,
+        "total": len(contacts),
+        "message": f"Imported {imported} contacts, skipped {skipped} duplicates",
+    }
 
 
 @router.post("/import-vcard")
