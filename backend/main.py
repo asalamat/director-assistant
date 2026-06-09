@@ -44,6 +44,7 @@ from routers import pst_import as pst_import_router
 from routers import weekly_brief as weekly_brief_router
 from routers import vip as vip_router
 from routers import projects as projects_router
+from routers import contacts as contacts_router
 from routers.proactive import push_alert
 from services.intelligence_service import IntelligenceService
 from workers.background_tasks import (
@@ -494,6 +495,7 @@ app.include_router(scheduled_send_router.router)
 app.include_router(pst_import_router.router)
 app.include_router(weekly_brief_router.router)
 app.include_router(vip_router.router)
+app.include_router(contacts_router.router)
 app.include_router(projects_router.router)
 
 

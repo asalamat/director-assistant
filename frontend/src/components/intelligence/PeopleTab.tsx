@@ -66,6 +66,11 @@ export function PeopleTab() {
   const [vipMap, setVipMap] = useState<Record<string, number>>({})
   const [toggling, setToggling] = useState<string | null>(null)
   const [hints, setHints] = useState<Record<string, { phones: string[]; sources: string[] }>>({})
+  const [importMsg, setImportMsg] = useState('')
+  const [importing, setImporting] = useState(false)
+
+  const refreshHints = () =>
+    api.getContactHints().then(r => setHints(r.hints)).catch(() => {})
 
   useEffect(() => {
     Promise.all([
@@ -80,6 +85,23 @@ export function PeopleTab() {
       setHints(hintsRes.hints)
     }).catch(() => {}).finally(() => setLoading(false))
   }, [])
+
+  const handleVCardImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setImporting(true)
+    setImportMsg('')
+    try {
+      const r = await api.importVCard(file)
+      setImportMsg(`✓ ${r.imported} imported, ${r.skipped} skipped`)
+      if (r.imported > 0) refreshHints()
+    } catch (err: any) {
+      setImportMsg(`✗ ${err.message || 'Import failed'}`)
+    }
+    setImporting(false)
+    setTimeout(() => setImportMsg(''), 5000)
+  }
 
   const toggleVIP = async (p: Person) => {
     const key = p.email.toLowerCase()
@@ -151,6 +173,11 @@ export function PeopleTab() {
               <button onClick={exportCSV} title="Export contacts to CSV"
                 className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-gray-500 hover:bg-gray-50 flex-shrink-0">CSV</button>
             )}
+            <label title="Import contacts from vCard (.vcf) file — no duplicates"
+              className={`text-xs border border-gray-200 rounded-lg px-2 py-1.5 cursor-pointer flex-shrink-0 transition-colors ${importing ? 'opacity-50 pointer-events-none text-gray-400' : 'text-gray-500 hover:bg-gray-50 hover:border-accent'}`}>
+              {importing ? '…' : '📇 Import vCard'}
+              <input type="file" accept=".vcf" className="hidden" onChange={handleVCardImport} disabled={importing} />
+            </label>
           </>
         )}
         {viewMode === 'graph' && <p className="flex-1 text-xs text-gray-400 py-1.5">Top 18 contacts by email volume</p>}
@@ -172,6 +199,11 @@ export function PeopleTab() {
         </div>
       </div>
 
+      {importMsg && (
+        <p className={`px-4 pb-1 text-[10px] font-medium flex-shrink-0 ${importMsg.startsWith('✓') ? 'text-green-600' : 'text-red-500'}`}>
+          {importMsg}
+        </p>
+      )}
       {viewMode === 'list' && vipCount > 0 && (
         <p className="px-4 pb-1 text-[10px] text-amber-500 font-medium flex-shrink-0">
           ⭐ {vipCount} VIP contact{vipCount !== 1 ? 's' : ''} — click ⭐ to toggle

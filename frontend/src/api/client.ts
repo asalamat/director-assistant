@@ -398,6 +398,12 @@ export const api = {
   }> {
     return request('/intelligence/contact-hints')
   },
+  importVCard(file: File): Promise<{ imported: number; skipped: number; total: number; message: string }> {
+    const form = new FormData()
+    form.append('file', file)
+    return fetch(`${BASE}/contacts/import-vcard`, { method: 'POST', body: form })
+      .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(new Error(e.detail || 'Import failed'))))
+  },
 
   // Triage
   getTriageTop(limit?: number): Promise<{ emails: import('../types').TriageEmail[] }> {

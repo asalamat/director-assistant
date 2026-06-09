@@ -203,6 +203,20 @@ async def get_contact_hints(request: Request):
         except Exception:
             pass
 
+    # --- Source 4: manually imported contacts (vCard / CSV) ---
+    if cache:
+        try:
+            with cache._conn() as conn:
+                rows = conn.execute(
+                    "SELECT email_addr, phones FROM imported_contacts WHERE phones != '[]'"
+                ).fetchall()
+            for row in rows:
+                phones = json.loads(row["phones"] or "[]")
+                if phones:
+                    _merge(row["email_addr"], phones, "imported")
+        except Exception:
+            pass
+
     # Remove entries with no phones
     hints = {k: v for k, v in hints.items() if v["phones"]}
 

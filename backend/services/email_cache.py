@@ -241,6 +241,16 @@ class EmailCache(EmailExtrasMixin, DocumentCacheMixin):
                 )
             """)
             conn.execute("""
+                CREATE TABLE IF NOT EXISTS imported_contacts (
+                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                    email_addr TEXT NOT NULL UNIQUE,
+                    name       TEXT DEFAULT '',
+                    phones     TEXT DEFAULT '[]',
+                    source     TEXT DEFAULT 'vcard',
+                    imported_at TEXT DEFAULT (datetime('now'))
+                )
+            """)
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS projects (
                     id          INTEGER PRIMARY KEY AUTOINCREMENT,
                     name        TEXT NOT NULL,
