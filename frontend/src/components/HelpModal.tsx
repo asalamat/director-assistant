@@ -371,6 +371,7 @@ function KnowledgeSection() {
         <Li><strong>📥 File</strong> — import from <strong>.vcf</strong> (Google, Apple, Outlook) or <strong>.csv</strong> (Yahoo Mail exports CSV — go to contacts.yahoo.com → Export as CSV); duplicates skipped automatically</Li>
         <Li><strong>☁️ Sync</strong> — auto-sync Microsoft 365 address book via Graph API (requires Contacts.Read — if it fails, remove and re-add your M365 account in Settings)</Li>
         <Li><strong>📤 Export</strong> — downloads all contacts + phone numbers as <code>director-assistant-contacts.vcf</code>; import into any contacts app</Li>
+        <Li><strong>✏️ Edit button</strong> on each card — opens an inline form with editable <strong>Name</strong>, a <strong>Phone list</strong> (add / remove rows), and a free-text <strong>Note</strong> field. Click Save to persist. Works for any contact — even ones only in email history (creates a record on first save).</Li>
         <Li><strong>🔍 Dupes</strong> — scans for contacts with the same name imported from multiple sources. Shows <strong>⚡ Merge N dupes</strong> (amber) if found — click to combine phone numbers and remove duplicates</Li>
         <Li><strong>✕ button</strong> on each contact card — hides that person from the People list. A "N hidden — show" link appears below the toolbar; click it to reveal hidden contacts and restore any with ↩</Li>
       </UL>
