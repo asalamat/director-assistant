@@ -124,14 +124,12 @@ _YAHOO_DOMAINS = frozenset({
 })
 
 
-async def _sync_yahoo_carddav(cache, accounts) -> tuple[int, int]:
-    """Fetch contacts from Yahoo CardDAV for all Yahoo accounts."""
+async def _sync_yahoo_carddav(cache, accounts) -> tuple[int, int, str | None]:
+    """Fetch contacts from Yahoo CardDAV for all Yahoo accounts.
+    Returns (imported, skipped, error_message_or_None)."""
     import httpx
     from base64 import b64encode
-    try:
-        import xml.etree.ElementTree as ET
-    except ImportError:
-        return 0, 0
+    import xml.etree.ElementTree as ET
 
     yahoo_accs = [
         a for a in accounts
@@ -141,9 +139,11 @@ async def _sync_yahoo_carddav(cache, accounts) -> tuple[int, int]:
         )
     ]
     if not yahoo_accs:
-        return 0, 0
+        return 0, 0, None
 
     imported = skipped = 0
+    last_error = None
+
     report_xml = (
         '<?xml version="1.0" encoding="utf-8"?>'
         '<CR:addressbook-query xmlns:D="DAV:" xmlns:CR="urn:ietf:params:xml:ns:carddav">'
@@ -152,49 +152,70 @@ async def _sync_yahoo_carddav(cache, accounts) -> tuple[int, int]:
     )
 
     for acc in yahoo_accs:
-        try:
-            auth = b64encode(f"{acc.username}:{acc.password}".encode()).decode()
-            url = f"https://carddav.yahoo.com/dav/{acc.username}/addressbook/"
-            async with httpx.AsyncClient(timeout=15, follow_redirects=True) as c:
-                r = await c.request(
-                    "REPORT", url,
-                    headers={
-                        "Authorization": f"Basic {auth}",
-                        "Content-Type": "application/xml; charset=utf-8",
-                        "Depth": "1",
-                    },
-                    content=report_xml.encode('utf-8'),
-                )
-            if r.status_code not in (200, 207):
-                continue
+        username = acc.username or ""
+        # Try both full email and just the local part (Yahoo varies)
+        local_part = username.split('@')[0]
+        url_candidates = [
+            f"https://carddav.yahoo.com/dav/{username}/addressbook/",
+            f"https://carddav.yahoo.com/dav/{local_part}/addressbook/",
+        ]
+        auth = b64encode(f"{username}:{acc.password}".encode()).decode()
 
-            root = ET.fromstring(r.content)
-            ns = {'D': 'DAV:', 'CR': 'urn:ietf:params:xml:ns:carddav'}
-            vcard_chunks = [
-                el.text for el in root.findall('.//CR:address-data', ns) if el.text
-            ]
-            if not vcard_chunks:
-                continue
+        for url in url_candidates:
+            try:
+                async with httpx.AsyncClient(timeout=15, follow_redirects=True) as c:
+                    r = await c.request(
+                        "REPORT", url,
+                        headers={
+                            "Authorization": f"Basic {auth}",
+                            "Content-Type": "application/xml; charset=utf-8",
+                            "Depth": "1",
+                        },
+                        content=report_xml.encode('utf-8'),
+                    )
 
-            contacts = _parse_vcard('\n'.join(vcard_chunks))
-            with cache._conn() as conn:
-                for c in contacts:
-                    try:
-                        conn.execute(
-                            "INSERT OR IGNORE INTO imported_contacts (email_addr, name, phones, source)"
-                            " VALUES (?,?,?,?)",
-                            (c['email'], c['name'], json.dumps(c['phones']), 'yahoo'),
-                        )
-                        if conn.execute("SELECT changes()").fetchone()[0] > 0:
-                            imported += 1
-                        else:
+                if r.status_code == 401:
+                    last_error = f"Yahoo CardDAV: authentication failed (status 401). Make sure you are using an App Password, not your regular Yahoo password."
+                    break
+                if r.status_code == 403:
+                    last_error = f"Yahoo CardDAV: access denied (status 403). Generate a new App Password in Yahoo Account Security."
+                    break
+                if r.status_code not in (200, 207):
+                    last_error = f"Yahoo CardDAV: unexpected status {r.status_code}"
+                    continue
+
+                root = ET.fromstring(r.content)
+                ns = {'D': 'DAV:', 'CR': 'urn:ietf:params:xml:ns:carddav'}
+                vcard_chunks = [
+                    el.text for el in root.findall('.//CR:address-data', ns) if el.text
+                ]
+                if not vcard_chunks:
+                    last_error = "Yahoo CardDAV connected but returned 0 contacts — address book may be empty."
+                    break
+
+                contacts = _parse_vcard('\n'.join(vcard_chunks))
+                with cache._conn() as conn:
+                    for ct in contacts:
+                        try:
+                            conn.execute(
+                                "INSERT OR IGNORE INTO imported_contacts (email_addr, name, phones, source)"
+                                " VALUES (?,?,?,?)",
+                                (ct['email'], ct['name'], json.dumps(ct['phones']), 'yahoo'),
+                            )
+                            if conn.execute("SELECT changes()").fetchone()[0] > 0:
+                                imported += 1
+                            else:
+                                skipped += 1
+                        except Exception:
                             skipped += 1
-                    except Exception:
-                        skipped += 1
-        except Exception:
-            continue
+                last_error = None
+                break  # success — no need to try second URL
 
-    return imported, skipped
+            except Exception as e:
+                last_error = f"Yahoo CardDAV error: {e}"
+                continue
+
+    return imported, skipped, last_error
 
 
 @router.post("/sync-provider")
@@ -209,14 +230,15 @@ async def sync_from_provider(request: Request):
     accounts = cache.list_accounts()
 
     # ── Yahoo CardDAV ─────────────────────────────────────────────────────────
+    yahoo_error = None
     try:
-        y_imp, y_skip = await _sync_yahoo_carddav(cache, accounts)
-        if y_imp + y_skip > 0:
-            imported += y_imp
-            skipped += y_skip
+        y_imp, y_skip, yahoo_error = await _sync_yahoo_carddav(cache, accounts)
+        imported += y_imp
+        skipped += y_skip
+        if y_imp + y_skip > 0 or yahoo_error is None:
             providers.append("Yahoo")
-    except Exception:
-        pass
+    except Exception as e:
+        yahoo_error = str(e)
 
     # ── Microsoft Graph contacts ──────────────────────────────────────────────
     ms_tried = False
@@ -295,7 +317,7 @@ async def sync_from_provider(request: Request):
         msg = f"Imported {imported} contacts from {provider_label}"
     else:
         msg = f"No contacts found in {provider_label}"
-    return {
+    result: dict = {
         "success": True,
         "imported": imported,
         "skipped": skipped,
@@ -303,6 +325,10 @@ async def sync_from_provider(request: Request):
         "provider": provider_label,
         "message": msg,
     }
+    if yahoo_error:
+        result["yahoo_error"] = yahoo_error
+        result["message"] += f" (Yahoo: {yahoo_error})"
+    return result
 
 
 @router.get("/sync-status")
