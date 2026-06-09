@@ -402,18 +402,37 @@ function KnowledgeSection() {
       <H3>Executive Briefing</H3>
       <P>Click <strong>"Brief me on this role"</strong> in the Briefing tab to generate an AI-powered overview covering active projects, key relationships, open commitments, and recommended first-week actions. Scans up to 300 recent emails. Takes 30–60 seconds the first time; cached for 10 minutes.</P>
 
-      <H3>Ask — Email Q&A</H3>
-      <P>The <strong>Ask</strong> tab uses hybrid search (dense vector + full-text) to answer natural-language questions across all your emails and documents:</P>
+      <H3>Ask — Second Brain Search</H3>
+      <P>The <strong>Ask</strong> tab uses hybrid search (dense vector + full-text) to answer natural-language questions across <strong>emails, documents, and contact notes</strong>:</P>
       <UL>
         <Li>"What did John say about the contract?"</Li>
         <Li>"When is the next board meeting?"</Li>
-        <Li>"What is Hannah's student ID number?"</Li>
+        <Li>"What did I note about Acme?"  ← searches contact notes</Li>
         <Li>"Find all emails about the Q3 budget"</Li>
       </UL>
-      <P>All previous Ask queries are saved and browsable in the history panel. Use <strong>Topic Search</strong> to semantically cluster all emails about a subject. Use <strong>Smart Search</strong> to describe what you're looking for in plain English — Claude extracts filters and runs the search.</P>
+      <P>Results show source badges — <strong>Email</strong>, <strong>Document</strong>, or <strong>Contact</strong> (emerald). Contact notes are indexed from the People tab's edit panel. All previous Ask queries are saved in the history panel.</P>
 
       <H3>Document Q&A</H3>
-      <P>Index local folders (PDFs, Word docs, Excel files, text files) in <strong>Settings → Documents</strong>. Indexed documents are fully searchable alongside your emails in the Ask tab — perfect for contracts, reports, and reference files.</P>
+      <P>Index local folders (PDFs, Word docs, Excel files, text files) in <strong>Settings → Documents</strong>. Indexed documents are fully searchable alongside emails and contact notes in the Ask tab.</P>
+
+      <H3>🎙 Meetings — Live Meeting Intelligence</H3>
+      <P>Open <strong>Knowledge → 🎙 Meetings</strong>.</P>
+      <UL>
+        <Li>Click <strong>Start Recording</strong> — browser microphone captures audio (you'll be prompted for mic access)</Li>
+        <Li>Click <strong>Stop</strong> — OpenAI Whisper transcribes the recording</Li>
+        <Li>Claude extracts <strong>Action Items</strong> (click "+ Actions" to save to your action board) and writes a <strong>Follow-up Draft</strong> email (click Copy)</Li>
+        <Li>Full transcript available in a collapsible section</Li>
+      </UL>
+      <Note>Requires an <strong>OpenAI API key</strong> in Settings → App Settings (used for Whisper transcription only).</Note>
+
+      <H3>💼 CRM — Deal Pipeline</H3>
+      <P>Open <strong>Knowledge → 💼 CRM</strong> for a 5-column Kanban pipeline.</P>
+      <UL>
+        <Li>Stages: <strong>Prospect → Active → Negotiating → Won → Lost</strong></Li>
+        <Li><strong>✨ AI Extract Deals</strong> — scans recent emails and suggests deals to add; approve or dismiss each suggestion</Li>
+        <Li><strong>+ New Deal</strong> — manually create a deal with name, contact email, value, and notes</Li>
+        <Li>Click a deal card to expand it, then use the arrow buttons to move it to the next or previous stage, or delete it</Li>
+      </UL>
     </div>
   )
 }

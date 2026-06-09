@@ -2,7 +2,7 @@
 
 > **Your AI-powered executive email intelligence platform.** Connects to Gmail, Microsoft 365, Yahoo, or any IMAP mailbox and uses Claude AI to help you triage faster, never miss a commitment, and stay on top of every relationship that matters.
 
-**Current version: 3.19.2** · [Releases](https://github.com/asalamat/director-assistant/releases) · MIT License
+**Current version: 3.20.0** · [Releases](https://github.com/asalamat/director-assistant/releases) · MIT License
 
 ---
 
@@ -20,14 +20,14 @@ Everything runs **locally on your machine**. Your emails never leave your device
 |-----|-------------|
 | **Inbox** | Browse, search, and action your emails with AI-powered priority labels, thread view, smart sort, unread filter, and bulk operations |
 | **Focus** | Smart Daily Triage — AI scores all unread emails by 7 urgency signals and surfaces your top priority items with score badges and reason tags |
-| **Ask** | Natural-language Q&A over your entire email and document history using hybrid semantic + full-text search |
+| **Ask** | Natural-language Q&A over your entire email, document, and **contact notes** history using hybrid semantic + full-text search — results show source badges (Email / Document / Contact) |
 | **Actions** | AI-extracted commitments, follow-ups, and deadlines with overdue tracking and CSV export |
 | **VIP** | Track your most important contacts with live stats: last contact, unread count, awaiting-reply flag, and full email history |
 | **Brief** | Daily AI digest of your most important recent emails, configurable date range |
 | **Health** | Live system status — IMAP connection, AI provider, RAG database, polling loop |
 | **Knowledge** | Hub with left sidebar navigation containing 10 sub-sections across two groups: |
 | ↳ Intelligence | Role Briefing · People Graph · Open Loops · AI Clusters · Topic Timeline |
-| ↳ Tools | Weekly Brief · Chase Queue · Projects Tracker · Analytics · Templates · **PST/OLM Import** |
+| ↳ Tools | Weekly Brief · Chase Queue · Projects Tracker · **🎙 Meetings** · **💼 CRM** · Analytics · Templates · PST/OLM Import |
 | **Dashboard** | Full-screen executive brief at `/api/dashboard` — 7 KPI tiles, VIP alerts, Chase Queue, Projects, calendar, actions, and live action buttons |
 
 ---
@@ -111,6 +111,9 @@ Everything runs **locally on your machine**. Your emails never leave your device
 - **Topic Timeline** — search any topic to see all related emails in chronological order
 - **Executive Briefing** — AI narrative of role state, key relationships, and recommended first-week actions
 - **Contact Relationship Tracker** — click any sender for an AI relationship summary, response-time stats, and unreplied count
+- **🎙 Live Meeting Intelligence** — open Knowledge → Meetings, hit Record, speak, hit Stop. Whisper transcribes it, Claude extracts action items (save to action board in one click) and drafts the follow-up email. Requires OpenAI API key.
+- **💼 Email-native CRM** — open Knowledge → CRM for a 5-column Kanban pipeline (Prospect → Active → Negotiating → Won → Lost). **✨ AI Extract Deals** scans recent emails and suggests deal entries. Create deals manually or move them between stages with one click.
+- **🧠 Second Brain Search** — the Ask tab now searches contact notes alongside emails and documents. Ask "What did I note about Acme?" and get answers from all three sources, each with a source badge (Email / Document / Contact).
 
 ### Actions & Follow-ups
 - AI extracts action items from every email automatically
