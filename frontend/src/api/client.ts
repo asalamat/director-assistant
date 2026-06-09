@@ -419,6 +419,12 @@ export const api = {
   syncContactsFromProvider(): Promise<{ success: boolean; imported: number; skipped: number; provider: string | null; message: string }> {
     return request('/contacts/sync-provider', { method: 'POST' })
   },
+  findContactDuplicates(): Promise<{ duplicate_groups: any[]; total_groups: number }> {
+    return request('/contacts/duplicates')
+  },
+  mergeContactDuplicates(): Promise<{ merged_groups: number; records_removed: number; message: string }> {
+    return request('/contacts/merge-duplicates', { method: 'POST' })
+  },
 
   // Triage
   getTriageTop(limit?: number): Promise<{ emails: import('../types').TriageEmail[] }> {

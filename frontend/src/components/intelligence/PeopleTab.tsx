@@ -68,9 +68,28 @@ export function PeopleTab() {
   const [hints, setHints] = useState<Record<string, { phones: string[]; sources: string[] }>>({})
   const [importMsg, setImportMsg] = useState('')
   const [importing, setImporting] = useState(false)
+  const [dupeCount, setDupeCount] = useState<number | null>(null)
 
   const refreshHints = () =>
     api.getContactHints().then(r => setHints(r.hints)).catch(() => {})
+
+  const checkDuplicates = () =>
+    api.findContactDuplicates().then(r => setDupeCount(r.total_groups)).catch(() => {})
+
+  const handleMergeDuplicates = async () => {
+    setImporting(true)
+    setImportMsg('')
+    try {
+      const r = await api.mergeContactDuplicates()
+      setImportMsg(`✓ ${r.message}`)
+      setDupeCount(0)
+      if (r.records_removed > 0) refreshHints()
+    } catch (err: any) {
+      setImportMsg(`✗ ${err.message || 'Merge failed'}`)
+    }
+    setImporting(false)
+    setTimeout(() => setImportMsg(''), 5000)
+  }
 
   useEffect(() => {
     Promise.all([
@@ -205,11 +224,32 @@ export function PeopleTab() {
             <a
               href={api.exportVCard()}
               download="director-assistant-contacts.vcf"
-              title="Export all contacts as vCard (.vcf) — import into Yahoo, iPhone, Google, Outlook"
+              title="Export all contacts as vCard (.vcf)"
               className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-gray-500 hover:bg-gray-50 hover:border-accent flex-shrink-0 transition-colors"
             >
               📤 Export
             </a>
+            {dupeCount === null ? (
+              <button
+                onClick={checkDuplicates}
+                disabled={importing}
+                title="Find duplicate contacts with the same name"
+                className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-gray-500 hover:bg-gray-50 hover:border-amber-300 flex-shrink-0 transition-colors disabled:opacity-50"
+              >
+                🔍 Dupes
+              </button>
+            ) : dupeCount > 0 ? (
+              <button
+                onClick={handleMergeDuplicates}
+                disabled={importing}
+                title={`${dupeCount} duplicate group${dupeCount !== 1 ? 's' : ''} found — click to merge`}
+                className="text-xs border border-amber-300 bg-amber-50 rounded-lg px-2 py-1.5 text-amber-700 hover:bg-amber-100 flex-shrink-0 transition-colors disabled:opacity-50 font-medium"
+              >
+                ⚡ Merge {dupeCount} dupe{dupeCount !== 1 ? 's' : ''}
+              </button>
+            ) : (
+              <span className="text-xs text-green-600 flex-shrink-0">✓ No dupes</span>
+            )}
           </>
         )}
         {viewMode === 'graph' && <p className="flex-1 text-xs text-gray-400 py-1.5">Top 18 contacts by email volume</p>}

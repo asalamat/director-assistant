@@ -203,6 +203,97 @@ async def clear_imported(request: Request):
     return {"cleared": True}
 
 
+@router.get("/duplicates")
+async def find_duplicates(request: Request):
+    """Find imported contacts that share the same normalised name (potential duplicates)."""
+    cache = request.app.state.cache
+    with cache._conn() as conn:
+        rows = conn.execute(
+            "SELECT id, email_addr, name, phones, source FROM imported_contacts ORDER BY name"
+        ).fetchall()
+
+    # Group by lowercased stripped name
+    from collections import defaultdict
+    groups: dict[str, list] = defaultdict(list)
+    for row in rows:
+        key = (row["name"] or "").strip().lower()
+        if key:
+            groups[key].append({
+                "id": row["id"],
+                "email_addr": row["email_addr"],
+                "name": row["name"],
+                "phones": json.loads(row["phones"] or "[]"),
+                "source": row["source"],
+            })
+
+    dupes = [group for group in groups.values() if len(group) > 1]
+    return {"duplicate_groups": dupes, "total_groups": len(dupes)}
+
+
+@router.post("/merge-duplicates")
+async def merge_duplicates(request: Request):
+    """Merge imported contacts that share the same name.
+
+    For each duplicate group, keeps the record with the most phones (or most
+    recent id as tiebreak), merges all unique phone numbers into it, then
+    deletes the other records.
+    """
+    cache = request.app.state.cache
+    with cache._conn() as conn:
+        rows = conn.execute(
+            "SELECT id, email_addr, name, phones, source FROM imported_contacts ORDER BY name"
+        ).fetchall()
+
+    from collections import defaultdict
+    groups: dict[str, list] = defaultdict(list)
+    for row in rows:
+        key = (row["name"] or "").strip().lower()
+        if key:
+            groups[key].append({
+                "id": row["id"],
+                "email_addr": row["email_addr"],
+                "name": row["name"],
+                "phones": json.loads(row["phones"] or "[]"),
+                "source": row["source"],
+            })
+
+    merged = 0
+    removed = 0
+
+    with cache._conn() as conn:
+        for group in groups.values():
+            if len(group) < 2:
+                continue
+            # Keep the record with most phones; tiebreak by highest id
+            group.sort(key=lambda c: (len(c["phones"]), c["id"]), reverse=True)
+            keep = group[0]
+            # Merge all unique phones from duplicates into keeper
+            all_phones = list(keep["phones"])
+            for dup in group[1:]:
+                for ph in dup["phones"]:
+                    if ph not in all_phones:
+                        all_phones.append(ph)
+            # Update keeper with merged phones
+            conn.execute(
+                "UPDATE imported_contacts SET phones = ? WHERE id = ?",
+                (json.dumps(all_phones), keep["id"]),
+            )
+            # Delete the duplicates
+            for dup in group[1:]:
+                conn.execute("DELETE FROM imported_contacts WHERE id = ?", (dup["id"],))
+                removed += 1
+            merged += 1
+
+    return {
+        "merged_groups": merged,
+        "records_removed": removed,
+        "message": (
+            f"Merged {merged} duplicate group{'s' if merged != 1 else ''}, removed {removed} duplicate record{'s' if removed != 1 else ''}."
+            if merged else "No duplicate contacts found."
+        ),
+    }
+
+
 _YAHOO_DOMAINS = frozenset({
     'yahoo.com', 'yahoo.ca', 'yahoo.co.uk', 'yahoo.com.au', 'yahoo.fr',
     'yahoo.de', 'yahoo.es', 'yahoo.it', 'yahoo.co.jp', 'yahoo.com.br',
