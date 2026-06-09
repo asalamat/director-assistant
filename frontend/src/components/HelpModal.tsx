@@ -362,10 +362,20 @@ function KnowledgeSection() {
       <P>Automatically built from your email corpus. Shows all contacts with:</P>
       <UL>
         <Li>Total emails sent and received, first and last contact dates, recent subjects</Li>
-        <Li><strong>Phone numbers</strong> — auto-populated from email signatures, Microsoft 365 Contacts (if connected), and indexed documents; shown as clickable <strong>📞 tel: chips</strong></Li>
-        <Li><strong>⭐ VIP toggle</strong> — star/unstar any contact as a VIP directly from this tab; VIP contacts are highlighted in amber</Li>
+        <Li><strong>📞 Phone numbers</strong> — auto-populated from email signatures, Microsoft 365 Contacts, and indexed documents; shown as clickable tel: chips</Li>
+        <Li><strong>★ / ☆ VIP star</strong> — filled amber star = VIP contact (amber row highlight); outline star = not VIP. Click to toggle. Changes sync instantly to the VIP tab.</Li>
       </UL>
       <P>Sort by <strong>Relevance</strong>, <strong>Volume</strong>, or <strong>Recency</strong>. Search by name or email.</P>
+      <H3>Contact Import &amp; Export</H3>
+      <UL>
+        <Li><strong>📥 Import ▾</strong> — dropdown with two options:
+          <br />• <strong>📁 From file (.vcf)</strong> — upload a vCard exported from Yahoo Mail, Google Contacts, iPhone, or Outlook; duplicates automatically skipped
+          <br />• <strong>☁️ From account (auto)</strong> — one-click sync from Microsoft 365 Contacts (no file needed; requires Contacts.Read permission — if prompted, remove and re-add your M365 account)
+        </Li>
+        <Li><strong>📤 Export</strong> — downloads all contacts + discovered phone numbers as <code>director-assistant-contacts.vcf</code>; import into Yahoo, iPhone, Google, or Outlook to sync phone numbers back</Li>
+      </UL>
+      <H3>Consolidate duplicate accounts</H3>
+      <P>If you connected the same email address twice (e.g., once via IMAP and once via Microsoft OAuth), an <strong>⚡ Consolidate duplicates</strong> button appears in <strong>Settings → Email Accounts</strong>. It keeps the OAuth account (preferred), re-attributes all emails, and removes the duplicate.</P>
 
       <H3>Open Loops</H3>
       <P>Click <strong>Scan emails</strong> to let AI find all unresolved items in your recent emails:</P>
