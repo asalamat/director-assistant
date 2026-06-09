@@ -206,6 +206,18 @@ export function Settings({ onConnected, initialTab = 'accounts' }: Props) {
     await loadAccounts()
   }
 
+  const handleConsolidate = async () => {
+    try {
+      const r = await api.consolidateAccounts()
+      setError('')
+      await loadAccounts()
+      if (r.accounts_removed > 0) onConnected()
+      alert(r.message)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Consolidate failed')
+    }
+  }
+
   const handleIngest = async (id: number | 'all') => {
     setIngestingId(id)
     setProgress({ total: 0, processed: 0, status: 'running', message: 'Starting…' })
@@ -282,7 +294,21 @@ export function Settings({ onConnected, initialTab = 'accounts' }: Props) {
         {/* Account list */}
         {hasAccounts && (
           <div className="mb-6 space-y-2">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Connected accounts</p>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Connected accounts</p>
+              {accounts.length > 1 && (() => {
+                const usernames = accounts.map(a => (a.username || '').toLowerCase())
+                const hasDupes = usernames.some((u, i) => usernames.indexOf(u) !== i)
+                return hasDupes ? (
+                  <button
+                    onClick={handleConsolidate}
+                    className="text-xs text-amber-600 hover:text-amber-700 border border-amber-200 bg-amber-50 hover:bg-amber-100 rounded-lg px-2.5 py-1 transition-colors"
+                    title="Merge duplicate accounts with the same email address"
+                  >
+                    ⚡ Consolidate duplicates
+                  </button>
+                ) : null
+              })()}</div>
             {accounts.map((acc) => (
               <div key={acc.id} className="flex items-center gap-3 p-3 border border-gray-200 rounded-xl bg-gray-50">
                 <div className="flex-1 min-w-0">

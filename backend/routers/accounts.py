@@ -264,6 +264,71 @@ async def clear_and_reingest(background_tasks: BackgroundTasks, request: Request
     return {"cleared": cleared, "status": "started", "accounts": len(accounts)}
 
 
+@router.post("/consolidate")
+async def consolidate_accounts(request: Request):
+    """Detect accounts with the same username and merge duplicates.
+
+    For each duplicate group, keeps the account with an OAuth token (preferred)
+    or the most recently ingested one. Re-attributes all emails from removed
+    accounts to the kept account, then deletes the duplicates.
+    """
+    cache = request.app.state.cache
+    accounts = cache.list_accounts()
+
+    # Group by normalised username
+    groups: dict[str, list] = {}
+    for acc in accounts:
+        key = (acc.username or "").strip().lower()
+        groups.setdefault(key, []).append(acc)
+
+    merged = 0
+    removed = 0
+    details = []
+
+    for username, group in groups.items():
+        if len(group) < 2:
+            continue
+
+        # Pick the best account to keep:
+        # 1. Has OAuth access_token (no password) — freshest auth
+        # 2. Most recently ingested
+        def _score(a) -> int:
+            has_oauth = bool(getattr(a, "access_token", None)) and not getattr(a, "password", None)
+            ingested_ts = getattr(a, "last_ingested", None) or ""
+            return (2 if has_oauth else 0) + (1 if ingested_ts else 0)
+
+        group.sort(key=_score, reverse=True)
+        keep = group[0]
+        to_remove = group[1:]
+
+        # Re-attribute emails, then delete duplicates
+        with cache._conn() as conn:
+            for dup in to_remove:
+                conn.execute(
+                    "UPDATE emails SET account_id = ? WHERE account_id = ?",
+                    (keep.id, dup.id),
+                )
+                conn.execute("DELETE FROM accounts WHERE id = ?", (dup.id,))
+                removed += 1
+
+        merged += 1
+        details.append({
+            "username": username,
+            "kept_id": keep.id,
+            "removed_ids": [d.id for d in to_remove],
+        })
+
+    return {
+        "merged_groups": merged,
+        "accounts_removed": removed,
+        "details": details,
+        "message": (
+            f"Consolidated {merged} duplicate group{'s' if merged != 1 else ''}, removed {removed} account{'s' if removed != 1 else ''}."
+            if merged else "No duplicate accounts found."
+        ),
+    }
+
+
 @router.get("/ingest/progress")
 async def ingest_progress():
     async def stream():

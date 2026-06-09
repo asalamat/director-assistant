@@ -302,6 +302,9 @@ export const api = {
   removeAccount(id: number): Promise<void> {
     return request(`/accounts/${id}`, { method: 'DELETE' })
   },
+  consolidateAccounts(): Promise<{ merged_groups: number; accounts_removed: number; message: string }> {
+    return request('/accounts/consolidate', { method: 'POST' })
+  },
   ingestAccount(id: number, fromDate?: string): Promise<void> {
     return request(`/accounts/${id}/ingest`, { method: 'POST', body: JSON.stringify({ from_date: fromDate || null }) })
   },
