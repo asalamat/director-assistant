@@ -143,6 +143,8 @@ export interface AppConfig {
   digest_schedule_time: string
   digest_schedule_email: string
   translation_language: string
+  webhook_urls?: string[]
+  webhook_events?: string[]
 }
 
 export interface TriageEmail {
