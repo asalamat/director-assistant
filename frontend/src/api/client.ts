@@ -393,6 +393,11 @@ export const api = {
   invalidateIntelligence(): Promise<{ status: string }> {
     return request('/intelligence/invalidate', { method: 'POST' })
   },
+  getContactHints(): Promise<{
+    hints: Record<string, { phones: string[]; sources: string[] }>
+  }> {
+    return request('/intelligence/contact-hints')
+  },
 
   // Triage
   getTriageTop(limit?: number): Promise<{ emails: import('../types').TriageEmail[] }> {

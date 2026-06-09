@@ -65,16 +65,19 @@ export function PeopleTab() {
   // VIP sync: email_addr → vip row id (undefined = not a VIP)
   const [vipMap, setVipMap] = useState<Record<string, number>>({})
   const [toggling, setToggling] = useState<string | null>(null)
+  const [hints, setHints] = useState<Record<string, { phones: string[]; sources: string[] }>>({})
 
   useEffect(() => {
     Promise.all([
       api.getPeople(100),
       api.getVIPs(),
-    ]).then(([peopleRes, vipRes]) => {
+      api.getContactHints(),
+    ]).then(([peopleRes, vipRes, hintsRes]) => {
       setPeople(peopleRes.people)
       const map: Record<string, number> = {}
       for (const v of vipRes.vips) map[v.email_addr.toLowerCase()] = v.id
       setVipMap(map)
+      setHints(hintsRes.hints)
     }).catch(() => {}).finally(() => setLoading(false))
   }, [])
 
@@ -206,6 +209,23 @@ export function PeopleTab() {
                     </div>
                     {p.subjects.length > 0 && (
                       <p className="text-xs text-gray-500 mt-1.5 ml-9 truncate">{p.subjects[0]}</p>
+                    )}
+                    {hints[p.email.toLowerCase()]?.phones?.length > 0 && (
+                      <div className="flex items-center gap-1.5 mt-1.5 ml-9 flex-wrap">
+                        {hints[p.email.toLowerCase()].phones.slice(0, 2).map((ph, i) => (
+                          <a key={i} href={`tel:${ph.replace(/\s/g, '')}`}
+                            className="text-[10px] text-blue-500 hover:text-blue-700 bg-blue-50 border border-blue-100 rounded px-1.5 py-0.5 font-mono"
+                            onClick={e => e.stopPropagation()}>
+                            📞 {ph}
+                          </a>
+                        ))}
+                        {hints[p.email.toLowerCase()].sources.includes('microsoft') && (
+                          <span className="text-[9px] text-gray-300 italic">from contacts</span>
+                        )}
+                        {hints[p.email.toLowerCase()].sources.includes('document') && (
+                          <span className="text-[9px] text-gray-300 italic">from docs</span>
+                        )}
+                      </div>
                     )}
                   </div>
                   <div className="flex items-start gap-2 flex-shrink-0">
