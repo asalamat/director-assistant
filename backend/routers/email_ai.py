@@ -482,55 +482,54 @@ async def adjust_tone(request: Request):
 @router.post("/{email_id}/translate")
 async def translate_email(email_id: str, request: Request):
     """Translate an email body into the target language."""
-    import json as _json
+    import json as _json, re as _re
     body_bytes = await request.body()
     try:
-        target_lang = _json.loads(body_bytes).get("target_lang", "English")
+        target_lang = _json.loads(body_bytes).get("target_lang", "English") or "English"
     except Exception:
         target_lang = "English"
+
     cache: EmailCache = request.app.state.cache
     advisor = request.app.state.advisor
     email = cache.get(email_id)
     if not email:
         raise HTTPException(404, "Email not found")
-    # Use plain text body; fall back to stripping HTML tags
-    body = (email.body or "").strip()
-    if not body:
+
+    # Clean body: strip HTML tags, decode entities, collapse whitespace
+    raw = (email.body or "").strip()
+    if not raw:
         raise HTTPException(400, "Email has no body to translate")
-    # Strip basic HTML if present
-    import re as _re
-    body_text = _re.sub(r'<[^>]+>', ' ', body)
-    body_text = _re.sub(r'\s+', ' ', body_text).strip()[:3000]
-    if not body_text:
-        raise HTTPException(400, "Email body contains no readable text")
+    text = _re.sub(r'<(style|script)[^>]*>.*?</\1>', ' ', raw, flags=_re.IGNORECASE | _re.DOTALL)
+    text = _re.sub(r'<[^>]+>', ' ', text)
+    text = text.replace('&nbsp;', ' ').replace('&amp;', '&').replace('&lt;', '<').replace('&gt;', '>').replace('&quot;', '"')
+    text = _re.sub(r'\s+', ' ', text).strip()[:4000]
+    if not text:
+        raise HTTPException(400, "Email body has no readable text after stripping HTML")
+
+    # Ask for plain translation — no JSON, no parsing issues
     prompt = (
-        f"Translate the following email to {target_lang}.\n"
-        f"First detect the source language.\n\n"
-        f"{body_text}\n\n"
-        f'Return JSON only, no markdown: {{"detected_lang": "source language name", "translation": "translated text"}}'
+        f"Translate the following email into {target_lang}. "
+        f"Return ONLY the translated text — no introduction, no explanation, no quotes.\n\n"
+        f"{text}"
     )
+
     ant = getattr(advisor.ai, "_anthropic", None)
-    import json as _json2
     try:
         if ant:
             resp = await ant.messages.create(
-                model="claude-haiku-4-5-20251001", max_tokens=2000,
+                model="claude-haiku-4-5-20251001", max_tokens=2500,
                 messages=[{"role": "user", "content": prompt}],
             )
-            text = resp.content[0].text.strip()
+            translation = resp.content[0].text.strip()
         else:
             resp = await advisor.ai.messages.create(
-                model="claude-haiku-4-5-20251001", max_tokens=2000,
+                model="claude-haiku-4-5-20251001", max_tokens=2500,
                 messages=[{"role": "user", "content": prompt}],
             )
-            text = resp.content[0].text.strip()
-        # Strip markdown fences if present
-        text = _re.sub(r'^```[a-z]*\n?', '', text).rstrip('`').strip()
-        s, e = text.find("{"), text.rfind("}") + 1
-        data = _json2.loads(text[s:e]) if s >= 0 else {"translation": text, "detected_lang": "unknown"}
+            translation = resp.content[0].text.strip()
     except Exception as exc:
         raise HTTPException(500, f"Translation failed: {exc}") from exc
-    translation = data.get("translation", "").strip()
+
     if not translation:
-        raise HTTPException(500, "AI returned empty translation")
-    return {"translation": translation, "detected_lang": data.get("detected_lang", "unknown")}
+        raise HTTPException(500, "AI returned empty translation — check your API key in Settings")
+    return {"translation": translation, "detected_lang": "auto"}
