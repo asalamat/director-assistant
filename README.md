@@ -2,7 +2,7 @@
 
 > **Your AI-powered executive email intelligence platform.** Connects to Gmail, Microsoft 365, Yahoo, or any IMAP mailbox and uses Claude AI to help you triage faster, never miss a commitment, and stay on top of every relationship that matters.
 
-**Current version: 3.20.0** · [Releases](https://github.com/asalamat/director-assistant/releases) · MIT License
+**Current version: 3.21.0** · [Releases](https://github.com/asalamat/director-assistant/releases) · MIT License
 
 ---
 
@@ -171,6 +171,12 @@ Everything runs **locally on your machine**. Your emails never leave your device
 - Gradient initials avatars, color-coded badges, loading overlays
 - Dark sidebar navigation with active left-border indicator and hover tooltips
 - Redesigned Knowledge tab with left mini-sidebar (all 10 sections visible at once)
+
+### Integrations (Settings → 🔗 Integrations)
+- **Slack / Teams** — configure incoming webhook URLs; VIP emails auto-post as rich cards; manual "Share →" button in the email viewer; toggle auto-post for VIP and urgent emails separately
+- **Webhooks / Zapier** — add up to 3 URLs (Zapier, Make, n8n, any endpoint); app POSTs `{event, timestamp, data}` JSON on `new_email`, `vip_alert`, `action_created`, `weekly_brief_ready`; built-in test-fire button
+- **Task Export** — push action items directly to **Notion** (creates a page), **Jira** (creates a Task issue), or **Todoist** (creates a task with optional due date); "📤 Export" button on every action item once configured
+- **Scheduled Report Email** — configure a day/time (e.g. Monday 7:00 AM) and destination address; app generates and emails the weekly brief automatically; "Send now" button for instant test
 
 ### Platform & Integration
 - **Multiple accounts** — Gmail (OAuth2 or App Password), Microsoft 365 / Hotmail (OAuth2), Yahoo, Office 365, or any IMAP server; all searched together in one view

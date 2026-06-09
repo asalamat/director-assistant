@@ -3,7 +3,7 @@ import pkgJson from '../../package.json'
 
 interface Props { onClose: () => void }
 
-type Section = 'start' | 'inbox' | 'ai' | 'executive' | 'contacts' | 'projects' | 'knowledge' | 'dashboard' | 'import' | 'providers' | 'tips'
+type Section = 'start' | 'inbox' | 'ai' | 'executive' | 'contacts' | 'projects' | 'knowledge' | 'dashboard' | 'import' | 'providers' | 'integrations' | 'tips'
 
 const SECTIONS: { id: Section; icon: string; label: string }[] = [
   { id: 'start',     icon: '🚀', label: 'Getting Started' },
@@ -15,8 +15,9 @@ const SECTIONS: { id: Section; icon: string; label: string }[] = [
   { id: 'knowledge', icon: '🧠', label: 'Knowledge Base' },
   { id: 'dashboard', icon: '🖥',  label: 'Dashboard' },
   { id: 'import',    icon: '📦', label: 'Import PST / OLM' },
-  { id: 'providers', icon: '🔀', label: 'AI Providers' },
-  { id: 'tips',      icon: '💡', label: 'Tips & Shortcuts' },
+  { id: 'providers',     icon: '🔀', label: 'AI Providers' },
+  { id: 'integrations', icon: '🔗', label: 'Integrations' },
+  { id: 'tips',         icon: '💡', label: 'Tips & Shortcuts' },
 ]
 
 // ── Shared components ─────────────────────────────────────────────────────────
@@ -662,18 +663,63 @@ sudo apt-get install readpst
   )
 }
 
+function IntegrationsSection() {
+  return (
+    <div>
+      <H2>Integrations</H2>
+      <P>Configure all integrations in <strong>Settings → 🔗 Integrations</strong>.</P>
+
+      <H3>💬 Slack &amp; 🟦 Teams</H3>
+      <P>Post email summaries to Slack or Teams channels.</P>
+      <UL>
+        <Li>Paste an <strong>Incoming Webhook URL</strong> from your Slack or Teams workspace</Li>
+        <Li>Toggle <strong>Auto-post when a VIP contacts you</strong> or <strong>Auto-post urgent emails</strong></Li>
+        <Li>Click <strong>Send test message</strong> to verify the connection</Li>
+        <Li>In the email viewer, a <strong>Share →</strong> button lets you manually push any email to Slack or Teams</Li>
+      </UL>
+
+      <H3>🔔 Webhooks / Zapier</H3>
+      <P>Connect to Zapier, Make, n8n, or any custom automation platform.</P>
+      <UL>
+        <Li>Add up to 3 webhook URLs</Li>
+        <Li>Choose which events to trigger: <strong>New email</strong>, <strong>VIP alert</strong>, <strong>Action item created</strong>, <strong>Weekly brief ready</strong></Li>
+        <Li>Each event POSTs <code className="text-xs bg-gray-100 px-1 rounded">{'{"event":"…","timestamp":"…","data":{…}}'}</code> JSON</Li>
+        <Li>Use <strong>Test</strong> to fire a sample payload to any URL before saving</Li>
+      </UL>
+
+      <H3>📤 Task Export (Notion / Jira / Todoist)</H3>
+      <P>Push action items to your external task manager with one click.</P>
+      <UL>
+        <Li><strong>Notion</strong> — add your API key and database ID; exports create a new page in that database</Li>
+        <Li><strong>Jira</strong> — add your Jira URL, email, API token, and project key; exports create a Task issue</Li>
+        <Li><strong>Todoist</strong> — add your API token; exports create a task with optional due date</Li>
+        <Li>Once configured, a <strong>📤 Export</strong> button appears on every action item in the Actions tab</Li>
+      </UL>
+
+      <H3>📬 Scheduled Report Email</H3>
+      <P>Get the weekly brief delivered to your inbox automatically.</P>
+      <UL>
+        <Li>Toggle <strong>Enable</strong>, pick a <strong>day and time</strong> (e.g. Monday 7:00 AM), and enter your email address</Li>
+        <Li>The app generates the brief and emails it at the scheduled time using your connected email account</Li>
+        <Li>Click <strong>Send now</strong> to test immediately without waiting for the schedule</Li>
+      </UL>
+    </div>
+  )
+}
+
 const CONTENT: Record<Section, React.ReactNode> = {
-  start:     <GettingStarted />,
-  inbox:     <InboxEmail />,
-  ai:        <AISection />,
-  executive: <ExecutiveTools />,
-  contacts:  <ContactsSection />,
-  projects:  <ProjectsSection />,
-  knowledge:  <KnowledgeSection />,
-  dashboard:  <DashboardSection />,
-  import:    <ImportSection />,
-  providers: <ProvidersSection />,
-  tips:      <TipsSection />,
+  start:        <GettingStarted />,
+  inbox:        <InboxEmail />,
+  ai:           <AISection />,
+  executive:    <ExecutiveTools />,
+  contacts:     <ContactsSection />,
+  projects:     <ProjectsSection />,
+  knowledge:    <KnowledgeSection />,
+  dashboard:    <DashboardSection />,
+  import:       <ImportSection />,
+  providers:    <ProvidersSection />,
+  integrations: <IntegrationsSection />,
+  tips:         <TipsSection />,
 }
 
 export function HelpModal({ onClose }: Props) {
