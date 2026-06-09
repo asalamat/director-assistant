@@ -425,6 +425,12 @@ export const api = {
   mergeContactDuplicates(): Promise<{ merged_groups: number; records_removed: number; message: string }> {
     return request('/contacts/merge-duplicates', { method: 'POST' })
   },
+  updateContact(id: number, data: { name: string; phones: string[]; note: string }): Promise<{ updated: number }> {
+    return request(`/contacts/imported/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+  },
+  upsertContact(data: { email_addr: string; name: string; phones: string[]; note: string }): Promise<{ id: number | null }> {
+    return request('/contacts/upsert', { method: 'POST', body: JSON.stringify(data) })
+  },
   hideContact(email: string): Promise<{ hidden: string }> {
     return request('/contacts/hide', { method: 'POST', body: JSON.stringify({ email_addr: email }) })
   },

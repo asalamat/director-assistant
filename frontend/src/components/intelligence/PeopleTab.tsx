@@ -71,6 +71,13 @@ export function PeopleTab() {
   const [dupeCount, setDupeCount] = useState<number | null>(null)
   const [hidden, setHidden] = useState<Set<string>>(new Set())
   const [showHidden, setShowHidden] = useState(false)
+  // Edit state
+  const [editEmail, setEditEmail] = useState<string | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editPhones, setEditPhones] = useState<string[]>([''])
+  const [editNote, setEditNote] = useState('')
+  const [editId, setEditId] = useState<number | null>(null)
+  const [saving, setSaving] = useState(false)
 
   const refreshHints = () =>
     api.getContactHints().then(r => setHints(r.hints)).catch(() => {})
@@ -85,6 +92,43 @@ export function PeopleTab() {
     const key = email.toLowerCase()
     setHidden(prev => { const n = new Set(prev); n.delete(key); return n })
     try { await api.unhideContact(key) } catch { setHidden(prev => new Set([...prev, key])) }
+  }
+
+  const openEdit = (p: { email: string; name: string }) => {
+    const key = p.email.toLowerCase()
+    const h = hints[key]
+    setEditEmail(key)
+    setEditName(p.name)
+    setEditPhones(h?.phones?.length ? [...h.phones, ''] : [''])
+    setEditNote('')
+    setEditId(null)
+    // Pre-load note and id from imported_contacts if available
+    api.listHiddenContacts() // no-op ping; real load below
+    fetch(`/api/contacts/imported`)
+      .then(r => r.json())
+      .then((data: any) => {
+        const ic = data.contacts?.find((c: any) => c.email_addr?.toLowerCase() === key)
+        if (ic) { setEditId(ic.id); setEditNote(ic.note || ''); setEditPhones(ic.phones?.length ? [...ic.phones, ''] : ['']) }
+      }).catch(() => {})
+  }
+
+  const closeEdit = () => setEditEmail(null)
+
+  const saveEdit = async () => {
+    if (!editEmail) return
+    setSaving(true)
+    const phones = editPhones.map(p => p.trim()).filter(Boolean)
+    try {
+      if (editId !== null) {
+        await api.updateContact(editId, { name: editName, phones, note: editNote })
+      } else {
+        const r = await api.upsertContact({ email_addr: editEmail, name: editName, phones, note: editNote })
+        if (r.id) setEditId(r.id)
+      }
+      refreshHints()
+      closeEdit()
+    } catch { /* silent */ }
+    setSaving(false)
   }
 
   const checkDuplicates = () =>
@@ -317,9 +361,10 @@ export function PeopleTab() {
           {filtered.map(p => {
             const isVIP = vipMap[p.email.toLowerCase()] !== undefined
             const isToggling = toggling === p.email.toLowerCase()
+            const isEditing = editEmail === p.email.toLowerCase()
             return (
-              <div key={p.email} className={`border rounded-xl p-3 transition-colors ${isVIP ? 'border-amber-200 bg-amber-50/40 hover:bg-amber-50' : 'border-gray-100 hover:border-gray-200 hover:bg-gray-50'}`}>
-                <div className="flex items-start justify-between gap-2">
+              <div key={p.email} className={`border rounded-xl transition-colors ${isVIP ? 'border-amber-200 bg-amber-50/40' : 'border-gray-100'} ${isEditing ? 'ring-2 ring-accent/30' : ''}`}>
+                <div className="flex items-start justify-between gap-2 p-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className={`w-7 h-7 rounded-full text-xs font-bold flex items-center justify-center flex-shrink-0 ${isVIP ? 'bg-amber-100 text-amber-600' : 'bg-accent/10 text-accent'}`}>
@@ -382,6 +427,11 @@ export function PeopleTab() {
                         </svg>
                       )}
                     </button>
+                    <button
+                      onClick={() => isEditing ? closeEdit() : openEdit(p)}
+                      title="Edit contact details"
+                      className={`text-xs flex-shrink-0 transition-colors px-0.5 ${isEditing ? 'text-accent' : 'text-gray-300 hover:text-accent'}`}
+                    >✏️</button>
                     {showHidden && hidden.has(p.email.toLowerCase()) ? (
                       <button
                         onClick={() => unhideContact(p.email)}
@@ -397,6 +447,61 @@ export function PeopleTab() {
                     )}
                   </div>
                 </div>
+
+                {/* Inline edit panel */}
+                {isEditing && (
+                  <div className="border-t border-gray-100 px-3 pb-3 pt-2 space-y-2 bg-gray-50/60 rounded-b-xl">
+                    <div className="flex gap-2">
+                      <div className="flex-1">
+                        <label className="text-[10px] text-gray-400 font-medium">Name</label>
+                        <input
+                          value={editName}
+                          onChange={e => setEditName(e.target.value)}
+                          className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1 mt-0.5 focus:outline-none focus:ring-1 focus:ring-accent bg-white"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-gray-400 font-medium">Phone numbers</label>
+                      <div className="space-y-1 mt-0.5">
+                        {editPhones.map((ph, i) => (
+                          <div key={i} className="flex gap-1">
+                            <input
+                              value={ph}
+                              onChange={e => { const next = [...editPhones]; next[i] = e.target.value; setEditPhones(next) }}
+                              placeholder={i === 0 ? '+1 416 555 1234' : 'Add another…'}
+                              className="flex-1 text-sm border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent bg-white font-mono"
+                            />
+                            {editPhones.length > 1 && (
+                              <button onClick={() => setEditPhones(editPhones.filter((_, j) => j !== i))}
+                                className="text-gray-300 hover:text-red-400 text-xs px-1">✕</button>
+                            )}
+                          </div>
+                        ))}
+                        <button onClick={() => setEditPhones([...editPhones, ''])}
+                          className="text-[10px] text-accent hover:underline">+ Add phone</button>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-gray-400 font-medium">Note</label>
+                      <textarea
+                        value={editNote}
+                        onChange={e => setEditNote(e.target.value)}
+                        placeholder="e.g. Key client, reports to Jane, best reached by text…"
+                        rows={2}
+                        className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1 mt-0.5 focus:outline-none focus:ring-1 focus:ring-accent resize-none bg-white"
+                      />
+                    </div>
+                    <div className="flex gap-2 justify-end">
+                      <button onClick={closeEdit} className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1">Cancel</button>
+                      <button
+                        onClick={saveEdit}
+                        disabled={saving}
+                        className="text-xs bg-accent text-white px-3 py-1 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                      >{saving ? 'Saving…' : 'Save'}</button>
+                    </div>
+                  </div>
+                )}
               </div>
             )
           })}

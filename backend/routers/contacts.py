@@ -185,6 +185,49 @@ async def list_imported(request: Request):
     }
 
 
+@router.patch("/imported/{contact_id}")
+async def update_imported(contact_id: int, request: Request):
+    """Update name, phones and note for an imported contact."""
+    body = await request.json()
+    name = (body.get("name") or "").strip()
+    phones = [p.strip() for p in (body.get("phones") or []) if p.strip()]
+    note = (body.get("note") or "").strip()
+    cache = request.app.state.cache
+    with cache._conn() as conn:
+        conn.execute(
+            "UPDATE imported_contacts SET name=?, phones=?, note=? WHERE id=?",
+            (name, json.dumps(phones), note, contact_id),
+        )
+    return {"updated": contact_id, "name": name, "phones": phones, "note": note}
+
+
+@router.post("/upsert")
+async def upsert_contact(request: Request):
+    """Create or update a contact by email address (used when editing email-history contacts)."""
+    body = await request.json()
+    email = (body.get("email_addr") or "").strip().lower()
+    if not email:
+        raise HTTPException(400, "email_addr required")
+    name = (body.get("name") or "").strip()
+    phones = [p.strip() for p in (body.get("phones") or []) if p.strip()]
+    note = (body.get("note") or "").strip()
+    cache = request.app.state.cache
+    with cache._conn() as conn:
+        conn.execute(
+            """INSERT INTO imported_contacts (email_addr, name, phones, note, source)
+               VALUES (?,?,?,?,'manual')
+               ON CONFLICT(email_addr) DO UPDATE SET
+                 name=excluded.name,
+                 phones=excluded.phones,
+                 note=excluded.note""",
+            (email, name, json.dumps(phones), note),
+        )
+        row = conn.execute(
+            "SELECT id, note FROM imported_contacts WHERE email_addr=?", (email,)
+        ).fetchone()
+    return {"id": row["id"] if row else None, "email_addr": email, "name": name, "phones": phones, "note": note}
+
+
 @router.delete("/imported/{contact_id}")
 async def delete_imported(contact_id: int, request: Request):
     """Remove a single imported contact."""

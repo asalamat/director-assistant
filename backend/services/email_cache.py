@@ -279,6 +279,11 @@ class EmailCache(EmailExtrasMixin, DocumentCacheMixin):
                     conn.execute(f"ALTER TABLE emails ADD COLUMN {col_def}")
                 except Exception:
                     pass
+            # Add note column to imported_contacts if missing (migration)
+            try:
+                conn.execute("ALTER TABLE imported_contacts ADD COLUMN note TEXT DEFAULT ''")
+            except Exception:
+                pass
 
     # Canonical names for well-known folders so case-inconsistent providers
     # (Office365 returns "inbox"/"sentitems", IMAP returns "INBOX") all map
