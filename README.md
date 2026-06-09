@@ -2,7 +2,7 @@
 
 > **Your AI-powered executive email intelligence platform.** Connects to Gmail, Microsoft 365, Yahoo, or any IMAP mailbox and uses Claude AI to help you triage faster, never miss a commitment, and stay on top of every relationship that matters.
 
-**Current version: 3.18.3** · [Releases](https://github.com/asalamat/director-assistant/releases) · MIT License
+**Current version: 3.19.0** · [Releases](https://github.com/asalamat/director-assistant/releases) · MIT License
 
 ---
 
@@ -99,8 +99,11 @@ Everything runs **locally on your machine**. Your emails never leave your device
 - **People Graph** — all contacts with interaction stats; sortable by relevance, volume, or recency
   - **★ / ☆ VIP star** — filled star = VIP (amber highlight), outline star = not VIP; click to toggle without leaving the tab
   - **Phone numbers** — auto-populated from email signatures, Microsoft 365 Contacts, and indexed documents (clickable `tel:` chips)
-  - **📥 Import ▾** — dropdown with two options: *📁 From file (.vcf)* for manual vCard uploads (Yahoo, Google, Apple, Outlook); *☁️ From account (auto)* syncs **Microsoft 365** contacts via Graph API with one click. Note: Yahoo discontinued their CardDAV service — Yahoo contacts require manual `.vcf` export from `contacts.yahoo.com`
-  - **📤 Export** — downloads all app contacts + phone numbers as `director-assistant-contacts.vcf` (importable into any contacts app)
+  - **📥 File** — import contacts from `.vcf` or `.csv` (Yahoo exports CSV; Google/Apple/Outlook export vCard); duplicates auto-skipped
+  - **☁️ Sync** — one-click sync from Microsoft 365 contacts via Graph API
+  - **📤 Export** — download all contacts + phones as `.vcf`
+  - **🔍 Dupes** → **⚡ Merge N dupes** — scan for same-name contacts across sources, merge phone numbers, remove duplicates
+  - **✕ button** on each card — hides that contact from the list; "N hidden — show" toggle lets you restore them with ↩
 - **Consolidate duplicate accounts** — if the same email address was added twice (e.g., IMAP + OAuth), a **⚡ Consolidate duplicates** button appears in Settings → Email Accounts to merge them and re-attribute all emails to the surviving account
 - **Open Loops** — AI detects unresolved commitments, awaited responses, and deadlines; filterable by type with live counts including dismissed items
 - **Project Clusters** — AI groups emails into ongoing project topics with status and keywords

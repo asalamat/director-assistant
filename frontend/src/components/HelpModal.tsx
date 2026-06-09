@@ -366,13 +366,13 @@ function KnowledgeSection() {
         <Li><strong>★ / ☆ VIP star</strong> — filled amber star = VIP contact (amber row highlight); outline star = not VIP. Click to toggle. Changes sync instantly to the VIP tab.</Li>
       </UL>
       <P>Sort by <strong>Relevance</strong>, <strong>Volume</strong>, or <strong>Recency</strong>. Search by name or email.</P>
-      <H3>Contact Import &amp; Export</H3>
+      <H3>Contact Import, Export &amp; Cleanup</H3>
       <UL>
-        <Li><strong>📥 Import ▾</strong> — dropdown with two options:
-          <br />• <strong>📁 From file (.vcf)</strong> — upload a vCard exported from Yahoo Mail, Google Contacts, iPhone, or Outlook; duplicates automatically skipped
-          <br />• <strong>☁️ From account (auto)</strong> — one-click sync from <strong>Microsoft 365</strong> via Graph API (requires Contacts.Read permission — if 401 error, remove and re-add the account in Settings). Yahoo discontinued their CardDAV service so Yahoo contacts require the manual From file option.
-        </Li>
-        <Li><strong>📤 Export</strong> — downloads all contacts + discovered phone numbers as <code>director-assistant-contacts.vcf</code>; import into Yahoo, iPhone, Google, or Outlook to sync phone numbers back</Li>
+        <Li><strong>📥 File</strong> — import from <strong>.vcf</strong> (Google, Apple, Outlook) or <strong>.csv</strong> (Yahoo Mail exports CSV — go to contacts.yahoo.com → Export as CSV); duplicates skipped automatically</Li>
+        <Li><strong>☁️ Sync</strong> — auto-sync Microsoft 365 address book via Graph API (requires Contacts.Read — if it fails, remove and re-add your M365 account in Settings)</Li>
+        <Li><strong>📤 Export</strong> — downloads all contacts + phone numbers as <code>director-assistant-contacts.vcf</code>; import into any contacts app</Li>
+        <Li><strong>🔍 Dupes</strong> — scans for contacts with the same name imported from multiple sources. Shows <strong>⚡ Merge N dupes</strong> (amber) if found — click to combine phone numbers and remove duplicates</Li>
+        <Li><strong>✕ button</strong> on each contact card — hides that person from the People list. A "N hidden — show" link appears below the toolbar; click it to reveal hidden contacts and restore any with ↩</Li>
       </UL>
       <H3>Consolidate duplicate accounts</H3>
       <P>If you connected the same email address twice (e.g., once via IMAP and once via Microsoft OAuth), an <strong>⚡ Consolidate duplicates</strong> button appears in <strong>Settings → Email Accounts</strong>. It keeps the OAuth account (preferred), re-attributes all emails, and removes the duplicate.</P>
