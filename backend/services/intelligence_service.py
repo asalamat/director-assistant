@@ -94,8 +94,33 @@ class IntelligenceService:
             score = data["received_count"] * 2 + data["sent_count"]
             people.append({**data, "score": score})
 
-        people.sort(key=lambda p: p["score"], reverse=True)
-        result = people[:limit]
+        # Merge entries that share the same name (same person, multiple email addresses)
+        name_groups: dict[str, list] = defaultdict(list)
+        for p in people:
+            key = (p["name"] or "").strip().lower()
+            if key:
+                name_groups[key].append(p)
+            # Anonymous / no-name entries kept as-is
+        merged: list[dict] = []
+        for key, group in name_groups.items():
+            if len(group) == 1:
+                merged.append(group[0])
+            else:
+                group.sort(key=lambda p: p["score"], reverse=True)
+                primary = dict(group[0])  # highest-score entry as base
+                for other in group[1:]:
+                    primary["received_count"] += other["received_count"]
+                    primary["sent_count"] += other["sent_count"]
+                    primary["score"] += other["score"]
+                    if (other["last_contact"] or "") > (primary["last_contact"] or ""):
+                        primary["last_contact"] = other["last_contact"]
+                    for s in other["subjects"]:
+                        if s not in primary["subjects"] and len(primary["subjects"]) < 5:
+                            primary["subjects"].append(s)
+                merged.append(primary)
+
+        merged.sort(key=lambda p: p["score"], reverse=True)
+        result = merged[:limit]
         _store("people", result)
         return result
 
