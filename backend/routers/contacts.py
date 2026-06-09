@@ -117,90 +117,182 @@ async def clear_imported(request: Request):
     return {"cleared": True}
 
 
+_YAHOO_DOMAINS = frozenset({
+    'yahoo.com', 'yahoo.ca', 'yahoo.co.uk', 'yahoo.com.au', 'yahoo.fr',
+    'yahoo.de', 'yahoo.es', 'yahoo.it', 'yahoo.co.jp', 'yahoo.com.br',
+    'ymail.com', 'rocketmail.com',
+})
+
+
+async def _sync_yahoo_carddav(cache, accounts) -> tuple[int, int]:
+    """Fetch contacts from Yahoo CardDAV for all Yahoo accounts."""
+    import httpx
+    from base64 import b64encode
+    try:
+        import xml.etree.ElementTree as ET
+    except ImportError:
+        return 0, 0
+
+    yahoo_accs = [
+        a for a in accounts
+        if getattr(a, 'password', None) and (
+            (a.username or '').split('@')[-1].lower() in _YAHOO_DOMAINS
+            or getattr(a, 'provider', '') in ('yahoo_imap', 'yahoo')
+        )
+    ]
+    if not yahoo_accs:
+        return 0, 0
+
+    imported = skipped = 0
+    report_xml = (
+        '<?xml version="1.0" encoding="utf-8"?>'
+        '<CR:addressbook-query xmlns:D="DAV:" xmlns:CR="urn:ietf:params:xml:ns:carddav">'
+        '<D:prop><D:getetag/><CR:address-data/></D:prop>'
+        '</CR:addressbook-query>'
+    )
+
+    for acc in yahoo_accs:
+        try:
+            auth = b64encode(f"{acc.username}:{acc.password}".encode()).decode()
+            url = f"https://carddav.yahoo.com/dav/{acc.username}/addressbook/"
+            async with httpx.AsyncClient(timeout=15, follow_redirects=True) as c:
+                r = await c.request(
+                    "REPORT", url,
+                    headers={
+                        "Authorization": f"Basic {auth}",
+                        "Content-Type": "application/xml; charset=utf-8",
+                        "Depth": "1",
+                    },
+                    content=report_xml.encode('utf-8'),
+                )
+            if r.status_code not in (200, 207):
+                continue
+
+            root = ET.fromstring(r.content)
+            ns = {'D': 'DAV:', 'CR': 'urn:ietf:params:xml:ns:carddav'}
+            vcard_chunks = [
+                el.text for el in root.findall('.//CR:address-data', ns) if el.text
+            ]
+            if not vcard_chunks:
+                continue
+
+            contacts = _parse_vcard('\n'.join(vcard_chunks))
+            with cache._conn() as conn:
+                for c in contacts:
+                    try:
+                        conn.execute(
+                            "INSERT OR IGNORE INTO imported_contacts (email_addr, name, phones, source)"
+                            " VALUES (?,?,?,?)",
+                            (c['email'], c['name'], json.dumps(c['phones']), 'yahoo'),
+                        )
+                        if conn.execute("SELECT changes()").fetchone()[0] > 0:
+                            imported += 1
+                        else:
+                            skipped += 1
+                    except Exception:
+                        skipped += 1
+        except Exception:
+            continue
+
+    return imported, skipped
+
+
 @router.post("/sync-provider")
 async def sync_from_provider(request: Request):
     """Auto-import contacts from the connected email provider (no file upload needed).
-    Supports Microsoft 365 via Graph API. Skips duplicates."""
+    Supports Microsoft 365 via Graph API and Yahoo via CardDAV. Skips duplicates."""
     cache = request.app.state.cache
     imported = 0
     skipped = 0
-    provider = None
+    providers: list[str] = []
 
-    # Microsoft Graph contacts
+    accounts = cache.list_accounts()
+
+    # ── Yahoo CardDAV ─────────────────────────────────────────────────────────
+    try:
+        y_imp, y_skip = await _sync_yahoo_carddav(cache, accounts)
+        if y_imp + y_skip > 0:
+            imported += y_imp
+            skipped += y_skip
+            providers.append("Yahoo")
+    except Exception:
+        pass
+
+    # ── Microsoft Graph contacts ──────────────────────────────────────────────
+    ms_tried = False
     try:
         import httpx
-        accounts = cache.list_accounts()
         acc = next(
             (a for a in accounts if getattr(a, "access_token", None) and not getattr(a, "password", None)),
             None,
         )
-        if not acc:
-            return {"success": False, "imported": 0, "skipped": 0, "provider": None,
-                    "message": "No connected cloud account found. Connect Microsoft 365 in Settings first."}
-
-        provider = "Microsoft 365"
-        token = acc.access_token
-        url = (
-            "https://graph.microsoft.com/v1.0/me/contacts"
-            "?$select=emailAddresses,displayName,homePhones,mobilePhone,businessPhones&$top=500"
-        )
-
-        async def _get(tok: str):
-            async with httpx.AsyncClient(timeout=12) as c:
-                r = await c.get(url, headers={"Authorization": f"Bearer {tok}"})
-                return r.status_code, r.json() if r.status_code in (200, 401) else {}
-
-        status, data = await _get(token)
-        if status == 401:
-            new_token = await asyncio.get_event_loop().run_in_executor(
-                None, cache.refresh_oauth_token, acc.id
+        if acc:
+            ms_tried = True
+            token = acc.access_token
+            ms_url = (
+                "https://graph.microsoft.com/v1.0/me/contacts"
+                "?$select=emailAddresses,displayName,homePhones,mobilePhone,businessPhones&$top=500"
             )
-            if new_token:
-                status, data = await _get(new_token)
 
-        if status != 200:
-            return {"success": False, "imported": 0, "skipped": 0, "provider": provider,
-                    "message": "Contacts permission missing — remove and re-add your Microsoft account in Settings → Accounts, then retry."}
+            async def _get(tok: str):
+                async with httpx.AsyncClient(timeout=12) as c2:
+                    r = await c2.get(ms_url, headers={"Authorization": f"Bearer {tok}"})
+                    return r.status_code, r.json() if r.status_code in (200, 401) else {}
 
-        contacts = []
-        for contact in data.get("value", []):
-            phones: list[str] = []
-            for field in ("homePhones", "businessPhones"):
-                phones.extend(contact.get(field) or [])
-            mobile = contact.get("mobilePhone")
-            if mobile:
-                phones.append(mobile)
-            name = contact.get("displayName") or ""
-            for addr_obj in contact.get("emailAddresses") or []:
-                email = (addr_obj.get("address") or "").strip().lower()
-                if email and "@" in email:
-                    contacts.append({"email": email, "name": name, "phones": phones})
+            status, data = await _get(token)
+            if status == 401:
+                new_token = await asyncio.get_event_loop().run_in_executor(
+                    None, cache.refresh_oauth_token, acc.id
+                )
+                if new_token:
+                    status, data = await _get(new_token)
 
-        with cache._conn() as conn:
-            for c in contacts:
-                try:
-                    conn.execute(
-                        "INSERT OR IGNORE INTO imported_contacts (email_addr, name, phones, source) VALUES (?,?,?,?)",
-                        (c["email"], c["name"], json.dumps(c["phones"]), "microsoft"),
-                    )
-                    if conn.execute("SELECT changes()").fetchone()[0] > 0:
-                        imported += 1
-                    else:
-                        skipped += 1
-                except Exception:
-                    skipped += 1
+            if status == 200:
+                providers.append("Microsoft 365")
+                ms_contacts = []
+                for contact in data.get("value", []):
+                    phones: list[str] = []
+                    for field in ("homePhones", "businessPhones"):
+                        phones.extend(contact.get(field) or [])
+                    mobile = contact.get("mobilePhone")
+                    if mobile:
+                        phones.append(mobile)
+                    name = contact.get("displayName") or ""
+                    for addr_obj in contact.get("emailAddresses") or []:
+                        email = (addr_obj.get("address") or "").strip().lower()
+                        if email and "@" in email:
+                            ms_contacts.append({"email": email, "name": name, "phones": phones})
+                with cache._conn() as conn:
+                    for c in ms_contacts:
+                        try:
+                            conn.execute(
+                                "INSERT OR IGNORE INTO imported_contacts (email_addr, name, phones, source) VALUES (?,?,?,?)",
+                                (c["email"], c["name"], json.dumps(c["phones"]), "microsoft"),
+                            )
+                            if conn.execute("SELECT changes()").fetchone()[0] > 0:
+                                imported += 1
+                            else:
+                                skipped += 1
+                        except Exception:
+                            skipped += 1
 
-    except Exception as e:
-        return {"success": False, "imported": 0, "skipped": 0, "provider": provider,
-                "message": f"Sync failed: {str(e)}"}
+    except Exception:
+        pass
 
+    if not providers:
+        return {
+            "success": False, "imported": 0, "skipped": 0, "provider": None,
+            "message": "No syncable account found. Connect Microsoft 365 or Yahoo (with App Password) in Settings → Accounts.",
+        }
+
+    provider_label = " + ".join(providers)
     return {
         "success": True,
         "imported": imported,
         "skipped": skipped,
         "total": imported + skipped,
-        "provider": provider,
-        "message": f"Synced {imported} contacts from {provider}, skipped {skipped} already present",
+        "provider": provider_label,
+        "message": f"Synced {imported} contacts from {provider_label}, skipped {skipped} already present",
     }
 
 
