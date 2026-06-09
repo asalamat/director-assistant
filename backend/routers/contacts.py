@@ -160,7 +160,7 @@ async def sync_from_provider(request: Request):
 
         if status != 200:
             return {"success": False, "imported": 0, "skipped": 0, "provider": provider,
-                    "message": f"Token expired — reconnect Microsoft 365 in Settings → Accounts."}
+                    "message": "Contacts permission missing — remove and re-add your Microsoft account in Settings → Accounts, then retry."}
 
         contacts = []
         for contact in data.get("value", []):
