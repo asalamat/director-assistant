@@ -425,6 +425,15 @@ export const api = {
   mergeContactDuplicates(): Promise<{ merged_groups: number; records_removed: number; message: string }> {
     return request('/contacts/merge-duplicates', { method: 'POST' })
   },
+  hideContact(email: string): Promise<{ hidden: string }> {
+    return request('/contacts/hide', { method: 'POST', body: JSON.stringify({ email_addr: email }) })
+  },
+  unhideContact(email: string): Promise<{ unhidden: string }> {
+    return request(`/contacts/hide/${encodeURIComponent(email)}`, { method: 'DELETE' })
+  },
+  listHiddenContacts(): Promise<{ hidden: { email_addr: string; hidden_at: string }[] }> {
+    return request('/contacts/hidden')
+  },
 
   // Triage
   getTriageTop(limit?: number): Promise<{ emails: import('../types').TriageEmail[] }> {

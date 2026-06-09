@@ -294,6 +294,43 @@ async def merge_duplicates(request: Request):
     }
 
 
+@router.post("/hide")
+async def hide_contact(request: Request):
+    """Hide a contact from the People tab. Accepts JSON body {email_addr: str}."""
+    body = await request.json()
+    email = (body.get("email_addr") or "").strip().lower()
+    if not email:
+        raise HTTPException(400, "email_addr required")
+    cache = request.app.state.cache
+    with cache._conn() as conn:
+        conn.execute("INSERT OR IGNORE INTO hidden_contacts (email_addr) VALUES (?)", (email,))
+        # Also remove from imported_contacts if present
+        conn.execute("DELETE FROM imported_contacts WHERE LOWER(email_addr) = ?", (email,))
+    return {"hidden": email}
+
+
+@router.delete("/hide/{email}")
+async def unhide_contact(email: str, request: Request):
+    """Restore a hidden contact so it shows in the People tab again."""
+    from urllib.parse import unquote
+    email = unquote(email).strip().lower()
+    cache = request.app.state.cache
+    with cache._conn() as conn:
+        conn.execute("DELETE FROM hidden_contacts WHERE email_addr = ?", (email,))
+    return {"unhidden": email}
+
+
+@router.get("/hidden")
+async def list_hidden(request: Request):
+    """List all hidden contacts."""
+    cache = request.app.state.cache
+    with cache._conn() as conn:
+        rows = conn.execute(
+            "SELECT email_addr, hidden_at FROM hidden_contacts ORDER BY hidden_at DESC"
+        ).fetchall()
+    return {"hidden": [dict(r) for r in rows]}
+
+
 _YAHOO_DOMAINS = frozenset({
     'yahoo.com', 'yahoo.ca', 'yahoo.co.uk', 'yahoo.com.au', 'yahoo.fr',
     'yahoo.de', 'yahoo.es', 'yahoo.it', 'yahoo.co.jp', 'yahoo.com.br',

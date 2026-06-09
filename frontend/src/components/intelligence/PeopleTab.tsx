@@ -69,9 +69,23 @@ export function PeopleTab() {
   const [importMsg, setImportMsg] = useState('')
   const [importing, setImporting] = useState(false)
   const [dupeCount, setDupeCount] = useState<number | null>(null)
+  const [hidden, setHidden] = useState<Set<string>>(new Set())
+  const [showHidden, setShowHidden] = useState(false)
 
   const refreshHints = () =>
     api.getContactHints().then(r => setHints(r.hints)).catch(() => {})
+
+  const hideContact = async (email: string) => {
+    const key = email.toLowerCase()
+    setHidden(prev => new Set([...prev, key]))
+    try { await api.hideContact(key) } catch { setHidden(prev => { const n = new Set(prev); n.delete(key); return n }) }
+  }
+
+  const unhideContact = async (email: string) => {
+    const key = email.toLowerCase()
+    setHidden(prev => { const n = new Set(prev); n.delete(key); return n })
+    try { await api.unhideContact(key) } catch { setHidden(prev => new Set([...prev, key])) }
+  }
 
   const checkDuplicates = () =>
     api.findContactDuplicates().then(r => setDupeCount(r.total_groups)).catch(() => {})
@@ -96,12 +110,14 @@ export function PeopleTab() {
       api.getPeople(100),
       api.getVIPs(),
       api.getContactHints(),
-    ]).then(([peopleRes, vipRes, hintsRes]) => {
+      api.listHiddenContacts(),
+    ]).then(([peopleRes, vipRes, hintsRes, hiddenRes]) => {
       setPeople(peopleRes.people)
       const map: Record<string, number> = {}
       for (const v of vipRes.vips) map[v.email_addr.toLowerCase()] = v.id
       setVipMap(map)
       setHints(hintsRes.hints)
+      setHidden(new Set(hiddenRes.hidden.map((h: any) => h.email_addr.toLowerCase())))
     }).catch(() => {}).finally(() => setLoading(false))
   }, [])
 
@@ -156,7 +172,8 @@ export function PeopleTab() {
     setToggling(null)
   }
 
-  const filtered = people
+  const visiblePeople = showHidden ? people : people.filter(p => !hidden.has(p.email.toLowerCase()))
+  const filtered = visiblePeople
     .filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase()) || p.email.toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) => {
       if (sort === 'received') return b.received_count - a.received_count
@@ -276,6 +293,11 @@ export function PeopleTab() {
           {importMsg}
         </p>
       )}
+      {hidden.size > 0 && (
+        <p className="px-4 pb-1 text-[10px] text-gray-400 flex-shrink-0 flex items-center gap-2">
+          {hidden.size} hidden — <button onClick={() => setShowHidden(v => !v)} className="underline hover:text-gray-600">{showHidden ? 'hide again' : 'show'}</button>
+        </p>
+      )}
       {viewMode === 'list' && vipCount > 0 && (
         <p className="px-4 pb-1 text-[10px] text-amber-500 font-medium flex-shrink-0">
           ★ {vipCount} VIP contact{vipCount !== 1 ? 's' : ''} — click star to toggle
@@ -360,6 +382,19 @@ export function PeopleTab() {
                         </svg>
                       )}
                     </button>
+                    {showHidden && hidden.has(p.email.toLowerCase()) ? (
+                      <button
+                        onClick={() => unhideContact(p.email)}
+                        title="Restore contact"
+                        className="text-[10px] text-gray-400 hover:text-accent transition-colors flex-shrink-0 px-1"
+                      >↩</button>
+                    ) : (
+                      <button
+                        onClick={() => hideContact(p.email)}
+                        title="Remove / hide this contact"
+                        className="text-gray-200 hover:text-red-400 transition-colors flex-shrink-0 text-xs leading-none px-0.5"
+                      >✕</button>
+                    )}
                   </div>
                 </div>
               </div>

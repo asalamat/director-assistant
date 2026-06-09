@@ -251,6 +251,12 @@ class EmailCache(EmailExtrasMixin, DocumentCacheMixin):
                 )
             """)
             conn.execute("""
+                CREATE TABLE IF NOT EXISTS hidden_contacts (
+                    email_addr TEXT NOT NULL PRIMARY KEY,
+                    hidden_at  TEXT DEFAULT (datetime('now'))
+                )
+            """)
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS projects (
                     id          INTEGER PRIMARY KEY AUTOINCREMENT,
                     name        TEXT NOT NULL,
