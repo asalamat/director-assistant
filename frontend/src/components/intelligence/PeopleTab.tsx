@@ -175,9 +175,17 @@ export function PeopleTab() {
             )}
             <label title="Import contacts from vCard (.vcf) file — no duplicates"
               className={`text-xs border border-gray-200 rounded-lg px-2 py-1.5 cursor-pointer flex-shrink-0 transition-colors ${importing ? 'opacity-50 pointer-events-none text-gray-400' : 'text-gray-500 hover:bg-gray-50 hover:border-accent'}`}>
-              {importing ? '…' : '📇 Import vCard'}
+              {importing ? '…' : '📥 Import'}
               <input type="file" accept=".vcf" className="hidden" onChange={handleVCardImport} disabled={importing} />
             </label>
+            <a
+              href={api.exportVCard()}
+              download="director-assistant-contacts.vcf"
+              title="Export all contacts as vCard (.vcf) — import into Yahoo, iPhone, Google, Outlook"
+              className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-gray-500 hover:bg-gray-50 hover:border-accent flex-shrink-0 transition-colors"
+            >
+              📤 Export
+            </a>
           </>
         )}
         {viewMode === 'graph' && <p className="flex-1 text-xs text-gray-400 py-1.5">Top 18 contacts by email volume</p>}

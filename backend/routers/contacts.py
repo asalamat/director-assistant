@@ -1,8 +1,9 @@
-"""Imported contacts — vCard upload, deduplication, and list."""
+"""Imported contacts — vCard upload, export, deduplication, and list."""
 
 import json
 import re
 from fastapi import APIRouter, Request, UploadFile, File, HTTPException
+from fastapi.responses import Response
 
 router = APIRouter(prefix="/api/contacts", tags=["contacts"])
 
@@ -113,3 +114,111 @@ async def clear_imported(request: Request):
     with cache._conn() as conn:
         conn.execute("DELETE FROM imported_contacts")
     return {"cleared": True}
+
+
+def _vcard_escape(s: str) -> str:
+    return s.replace('\\', '\\\\').replace(',', '\\,').replace(';', '\\;').replace('\n', '\\n')
+
+
+def _build_vcard(name: str, email: str, phones: list[str]) -> str:
+    parts = name.strip().split(' ', 1)
+    last = _vcard_escape(parts[1] if len(parts) > 1 else '')
+    first = _vcard_escape(parts[0] if parts else '')
+    fn = _vcard_escape(name.strip() or email)
+    lines = [
+        'BEGIN:VCARD',
+        'VERSION:3.0',
+        f'FN:{fn}',
+        f'N:{last};{first};;;',
+        f'EMAIL;TYPE=INTERNET:{email}',
+    ]
+    for ph in phones:
+        lines.append(f'TEL;TYPE=VOICE:{ph}')
+    lines.append('END:VCARD')
+    return '\r\n'.join(lines) + '\r\n'
+
+
+@router.get("/export-vcard")
+async def export_vcard(request: Request):
+    """Export all app contacts (email history + imported) as a downloadable .vcf file."""
+    cache = request.app.state.cache
+
+    # 1. Collect people from email history: one entry per sender email
+    contacts: dict[str, dict] = {}  # email → {name, phones}
+    try:
+        with cache._conn() as conn:
+            rows = conn.execute(
+                """SELECT sender FROM emails
+                   WHERE sender IS NOT NULL AND sender != ''
+                   GROUP BY LOWER(sender)"""
+            ).fetchall()
+        for row in rows:
+            raw = (row['sender'] or '').strip()
+            # Parse "Name <email>" or plain "email"
+            m = re.match(r'^"?([^"<]+?)"?\s*<([^>]+)>', raw)
+            if m:
+                name, email = m.group(1).strip(), m.group(2).strip().lower()
+            elif '@' in raw:
+                email = raw.lower()
+                name = email.split('@')[0].replace('.', ' ').replace('_', ' ').title()
+            else:
+                continue
+            if email not in contacts:
+                contacts[email] = {'name': name, 'phones': []}
+    except Exception:
+        pass
+
+    # 2. Merge imported contacts (may add new ones or richer names)
+    try:
+        with cache._conn() as conn:
+            rows = conn.execute(
+                "SELECT email_addr, name, phones FROM imported_contacts"
+            ).fetchall()
+        for row in rows:
+            email = row['email_addr'].lower()
+            phones = json.loads(row['phones'] or '[]')
+            if email in contacts:
+                # Prefer imported name if it looks more complete
+                if row['name'] and len(row['name']) > len(contacts[email]['name']):
+                    contacts[email]['name'] = row['name']
+                contacts[email]['phones'] = list(set(contacts[email]['phones'] + phones))
+            else:
+                contacts[email] = {'name': row['name'] or '', 'phones': phones}
+    except Exception:
+        pass
+
+    # 3. Merge phone hints from email signatures
+    try:
+        phone_re = re.compile(r'\+?[\d][\d\s\-\.\(\)]{7,18}[\d]')
+        with cache._conn() as conn:
+            rows = conn.execute(
+                """SELECT sender, body FROM emails
+                   WHERE body IS NOT NULL AND length(body) > 50
+                   GROUP BY LOWER(sender) HAVING MAX(date) LIMIT 500"""
+            ).fetchall()
+        for row in rows:
+            sender = (row['sender'] or '').strip()
+            m = re.match(r'^"?[^"<]+?"?\s*<([^>]+)>', sender)
+            email = (m.group(1).strip().lower() if m else sender.lower()) if '@' in sender else ''
+            if not email or email not in contacts:
+                continue
+            body = row['body'] or ''
+            sig_lines = body.strip().splitlines()[-5:]
+            for raw_ph in phone_re.findall('\n'.join(sig_lines)):
+                if len(re.sub(r'\D', '', raw_ph)) >= 10:
+                    if raw_ph not in contacts[email]['phones']:
+                        contacts[email]['phones'].append(raw_ph)
+    except Exception:
+        pass
+
+    # Build vCard file
+    vcf = ''.join(
+        _build_vcard(v['name'], email, v['phones'])
+        for email, v in sorted(contacts.items(), key=lambda x: x[1]['name'].lower() or x[0])
+    )
+
+    return Response(
+        content=vcf.encode('utf-8'),
+        media_type='text/vcard',
+        headers={'Content-Disposition': 'attachment; filename="director-assistant-contacts.vcf"'},
+    )

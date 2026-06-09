@@ -404,6 +404,9 @@ export const api = {
     return fetch(`${BASE}/contacts/import-vcard`, { method: 'POST', body: form })
       .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(new Error(e.detail || 'Import failed'))))
   },
+  exportVCard(): string {
+    return `${BASE}/contacts/export-vcard`
+  },
 
   // Triage
   getTriageTop(limit?: number): Promise<{ emails: import('../types').TriageEmail[] }> {
