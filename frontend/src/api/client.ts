@@ -407,7 +407,7 @@ export const api = {
   exportVCard(): string {
     return `${BASE}/contacts/export-vcard`
   },
-  syncContactsFromProvider(): Promise<{ imported: number; skipped: number; provider: string | null; message: string }> {
+  syncContactsFromProvider(): Promise<{ success: boolean; imported: number; skipped: number; provider: string | null; message: string }> {
     return request('/contacts/sync-provider', { method: 'POST' })
   },
 

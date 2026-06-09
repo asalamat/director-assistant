@@ -111,7 +111,7 @@ export function PeopleTab() {
     setShowImportMenu(false)
     try {
       const r = await api.syncContactsFromProvider()
-      setImportMsg(`✓ ${r.message}`)
+      setImportMsg(`${r.success ? '✓' : '✗'} ${r.message}`)
       if (r.imported > 0) refreshHints()
     } catch (err: any) {
       setImportMsg(`✗ ${err.message || 'Sync failed'}`)

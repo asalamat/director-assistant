@@ -1,5 +1,6 @@
 """Imported contacts — vCard upload, export, deduplication, and list."""
 
+import asyncio
 import json
 import re
 from fastapi import APIRouter, Request, UploadFile, File, HTTPException
@@ -134,7 +135,7 @@ async def sync_from_provider(request: Request):
             None,
         )
         if not acc:
-            return {"imported": 0, "skipped": 0, "provider": None,
+            return {"success": False, "imported": 0, "skipped": 0, "provider": None,
                     "message": "No connected cloud account found. Connect Microsoft 365 in Settings first."}
 
         provider = "Microsoft 365"
@@ -151,15 +152,15 @@ async def sync_from_provider(request: Request):
 
         status, data = await _get(token)
         if status == 401:
-            new_token = await __import__("asyncio").get_event_loop().run_in_executor(
+            new_token = await asyncio.get_event_loop().run_in_executor(
                 None, cache.refresh_oauth_token, acc.id
             )
             if new_token:
                 status, data = await _get(new_token)
 
         if status != 200:
-            return {"imported": 0, "skipped": 0, "provider": provider,
-                    "message": f"Provider returned status {status}. Token may have expired — reconnect in Settings."}
+            return {"success": False, "imported": 0, "skipped": 0, "provider": provider,
+                    "message": f"Token expired — reconnect Microsoft 365 in Settings → Accounts."}
 
         contacts = []
         for contact in data.get("value", []):
@@ -190,10 +191,11 @@ async def sync_from_provider(request: Request):
                     skipped += 1
 
     except Exception as e:
-        return {"imported": 0, "skipped": 0, "provider": provider,
+        return {"success": False, "imported": 0, "skipped": 0, "provider": provider,
                 "message": f"Sync failed: {str(e)}"}
 
     return {
+        "success": True,
         "imported": imported,
         "skipped": skipped,
         "total": imported + skipped,
