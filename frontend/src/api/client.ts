@@ -401,6 +401,13 @@ export const api = {
   }> {
     return request('/intelligence/contact-hints')
   },
+  transcribeMeeting(audio: Blob): Promise<{ transcript: string; action_items: string[]; draft_email: string }> {
+    const form = new FormData()
+    form.append('audio', audio, 'meeting.webm')
+    return fetch(`${BASE}/meeting/transcribe`, { method: 'POST', body: form })
+      .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(new Error(e.detail || 'Transcription failed'))))
+  },
+
   importVCard(file: File): Promise<{ imported: number; skipped: number; total: number; message: string }> {
     const form = new FormData()
     form.append('file', file)
@@ -696,5 +703,22 @@ export const api = {
     unanswered_questions: string[]; commitments: string[]; suggestions: string[]; ready: boolean
   }> {
     return request('/drafts/review', { method: 'POST', body: JSON.stringify(opts) })
+  },
+
+  // CRM
+  getCRMDeals(): Promise<{ deals: any[] }> {
+    return request('/crm/deals')
+  },
+  createCRMDeal(data: { name: string; contact_email: string; stage: string; value: string; notes: string }): Promise<{ id: number }> {
+    return request('/crm/deals', { method: 'POST', body: JSON.stringify(data) })
+  },
+  updateCRMDeal(id: number, data: Partial<{ name: string; contact_email: string; stage: string; value: string; notes: string }>): Promise<void> {
+    return request(`/crm/deals/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+  },
+  deleteCRMDeal(id: number): Promise<void> {
+    return request(`/crm/deals/${id}`, { method: 'DELETE' })
+  },
+  extractCRMDeals(): Promise<{ suggestions: any[] }> {
+    return request('/crm/deals/extract', { method: 'POST' })
   },
 }

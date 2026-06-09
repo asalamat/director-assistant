@@ -160,6 +160,12 @@ async def ask_db(req: AskRequest, request: Request):
             return
 
         def _format_result(i: int, r: dict) -> str:
+            if r.get("source_type") == "contact":
+                return (
+                    f"[{i+1}] CONTACT: {r.get('contact_name', r.get('sender', ''))} "
+                    f"<{r.get('contact_email', '')}>\n"
+                    f"    Notes: {r['text'][:800]}"
+                )
             if r.get("source_type") == "document":
                 return (
                     f"[{i+1}] DOCUMENT: {r.get('filename', 'unknown')}\n"
@@ -173,10 +179,11 @@ async def ask_db(req: AskRequest, request: Request):
                 f"    Preview: {r['text'][:400]}"
             )
 
-        # Show up to 5 documents + 8 emails in context (documents always included)
-        doc_results = [r for r in results if r.get("source_type") == "document"][:5]
-        email_results = [r for r in results if r.get("source_type") != "document"][:8]
-        ordered = doc_results + email_results if doc_results else email_results
+        # Show up to 3 contacts + 5 documents + 8 emails in context
+        contact_results = [r for r in results if r.get("source_type") == "contact"][:3]
+        doc_results     = [r for r in results if r.get("source_type") == "document"][:5]
+        email_results   = [r for r in results if r.get("source_type") not in ("document", "contact")][:8]
+        ordered = contact_results + doc_results + email_results
         context = "\n\n".join(_format_result(i, r) for i, r in enumerate(ordered))
 
         has_docs = any(r.get("source_type") == "document" for r in results[:10])
@@ -230,6 +237,9 @@ async def ask_db(req: AskRequest, request: Request):
             if r.get("source_type") == "document":
                 src["filename"] = r.get("filename", "")
                 src["file_type"] = r.get("file_type", "")
+            elif r.get("source_type") == "contact":
+                src["contact_email"] = r.get("contact_email", "")
+                src["contact_name"] = r.get("contact_name", "")
             sources.append(src)
         yield f"data: {json.dumps({'type': 'sources', 'sources': sources})}\n\n"
         yield 'data: {"type":"done"}\n\n'

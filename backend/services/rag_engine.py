@@ -619,3 +619,58 @@ class RAGEngine:
             "unique_emails_indexed": len(self._indexed_email_ids),
             "unique_docs_indexed": len(self._indexed_doc_ids),
         }
+
+    def ingest_contacts(self, cache) -> int:
+        """Index VIP and imported contact notes into the vector store."""
+        docs, ids, metas = [], [], []
+        with cache._conn() as conn:
+            for tbl, src_label in [("vip_contacts", "vip"), ("imported_contacts", "imported")]:
+                try:
+                    rows = conn.execute(
+                        f"SELECT email_addr, name, note FROM {tbl} WHERE note IS NOT NULL AND trim(note) != ''"
+                    ).fetchall()
+                    for r in rows:
+                        email = (r["email_addr"] or "").lower()
+                        name = r["name"] or ""
+                        note = r["note"] or ""
+                        cid = f"contact__{email}"
+                        text = f"Contact: {name} <{email}>\nSource: {src_label}\nNotes: {note}"
+                        docs.append(text)
+                        ids.append(cid)
+                        metas.append({
+                            "email_id": cid,
+                            "source_type": "contact",
+                            "contact_email": email,
+                            "contact_name": name,
+                            "contact_source": src_label,
+                            "subject": f"Contact: {name}",
+                            "sender": email,
+                            "date": "",
+                        })
+                except Exception:
+                    pass
+        if docs:
+            self._proxy.upsert(ids=ids, documents=docs, metadatas=metas)
+        return len(docs)
+
+    def ingest_contact(self, email_addr: str, name: str, note: str, source: str = "imported") -> None:
+        """Upsert a single contact's note into the vector store."""
+        if not note or not note.strip():
+            return
+        email = email_addr.lower()
+        cid = f"contact__{email}"
+        text = f"Contact: {name} <{email}>\nSource: {source}\nNotes: {note}"
+        self._proxy.upsert(
+            ids=[cid],
+            documents=[text],
+            metadatas=[{
+                "email_id": cid,
+                "source_type": "contact",
+                "contact_email": email,
+                "contact_name": name,
+                "contact_source": source,
+                "subject": f"Contact: {name}",
+                "sender": email,
+                "date": "",
+            }],
+        )

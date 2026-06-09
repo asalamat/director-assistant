@@ -10,6 +10,8 @@ interface Source {
   date: string
   filename?: string
   file_type?: string
+  contact_email?: string
+  contact_name?: string
 }
 
 interface Message {
@@ -346,26 +348,51 @@ export function AskPanel({ initialQuery, onClear }: { initialQuery?: string; onC
                     {msg.sources && msg.sources.length > 0 && (
                       <div className="mt-2 space-y-1">
                         <p className="text-xs text-gray-400 px-1">Sources</p>
-                        {msg.sources.map((src) => (
-                          <div key={src.email_id} className={`border rounded-lg px-3 py-1.5 ${src.source_type === 'document' ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-200'}`}>
-                            {src.source_type === 'document' ? (
-                              <>
-                                <p className="text-xs font-medium text-amber-800 truncate">{src.filename}</p>
-                                <p className="text-xs text-amber-500 uppercase">{src.file_type} file</p>
-                              </>
-                            ) : (
-                              <>
-                                <p className="text-xs font-medium text-gray-700 truncate">{src.subject}</p>
-                                <p className="text-xs text-gray-400 truncate">{src.sender}</p>
-                                {src.date && (
-                                  <p className="text-xs text-gray-300">
-                                    {new Date(src.date).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
-                                  </p>
-                                )}
-                              </>
-                            )}
-                          </div>
-                        ))}
+                        {msg.sources.map((src) => {
+                          const label = src.source_type === 'contact'
+                            ? (src.contact_name || src.contact_email || 'Contact')
+                            : src.source_type === 'document'
+                              ? (src.subject || src.filename || 'Document')
+                              : src.subject
+                          return (
+                            <div key={src.email_id} className={`border rounded-lg px-3 py-1.5 ${
+                              src.source_type === 'document'
+                                ? 'bg-amber-50 border-amber-200'
+                                : src.source_type === 'contact'
+                                  ? 'bg-emerald-950/20 border-emerald-800/30'
+                                  : 'bg-white border-gray-200'
+                            }`}>
+                              {src.source_type === 'document' ? (
+                                <>
+                                  <p className="text-xs font-medium text-amber-800 truncate">{label}</p>
+                                  <p className="text-xs text-amber-500 uppercase">{src.file_type} file</p>
+                                </>
+                              ) : src.source_type === 'contact' ? (
+                                <>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-emerald-900/40 text-emerald-300 border border-emerald-700/40">
+                                      Contact
+                                    </span>
+                                    <p className="text-xs font-medium text-emerald-200 truncate">{label}</p>
+                                  </div>
+                                  {src.contact_email && (
+                                    <p className="text-xs text-emerald-400/70 truncate mt-0.5">{src.contact_email}</p>
+                                  )}
+                                </>
+                              ) : (
+                                <>
+                                  <p className="text-xs font-medium text-gray-700 truncate">{label}</p>
+                                  <p className="text-xs text-gray-400 truncate">{src.sender}</p>
+                                  {src.date && (
+                                    <p className="text-xs text-gray-300">
+                                      {new Date(src.date).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
+                                    </p>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          )
+                        })}
                       </div>
                     )}
                   </div>

@@ -45,6 +45,8 @@ from routers import weekly_brief as weekly_brief_router
 from routers import vip as vip_router
 from routers import projects as projects_router
 from routers import contacts as contacts_router
+from routers import meeting as meeting_router
+from routers import crm as crm_router
 from routers.proactive import push_alert
 from services.intelligence_service import IntelligenceService
 from workers.background_tasks import (
@@ -433,6 +435,12 @@ async def lifespan(app: FastAPI):
     app.state.classifier = ClassifierService(client)
     app.state.intelligence = IntelligenceService(client, app.state.cache, app.state.rag)
 
+    # Index contact notes into RAG so Ask tab can search them
+    try:
+        app.state.rag.ingest_contacts(app.state.cache)
+    except Exception:
+        pass
+
     app.state.proactive_alerts = []   # in-memory proactive alert feed
     app.state.poll_task = asyncio.create_task(
         _poll_new_emails(app.state.rag, app.state.cache, app)
@@ -497,6 +505,8 @@ app.include_router(weekly_brief_router.router)
 app.include_router(vip_router.router)
 app.include_router(contacts_router.router)
 app.include_router(projects_router.router)
+app.include_router(meeting_router.router)
+app.include_router(crm_router.router)
 
 
 @app.get("/health")

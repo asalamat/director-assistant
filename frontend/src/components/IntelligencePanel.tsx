@@ -7,8 +7,10 @@ import { TemplatesPanel } from './TemplatesPanel'
 import { ProjectsPanel } from './ProjectsPanel'
 import { PSTImport } from './PSTImport'
 import { BriefingTab, PeopleTab, LoopsTab, ProjectsTab, TimelineTab } from './IntelligenceTabs'
+import { MeetingTab } from './intelligence/MeetingTab'
+import { CRMTab } from './intelligence/CRMTab'
 
-type SubTab = 'briefing' | 'people' | 'loops' | 'ai-projects' | 'timeline' | 'weekly' | 'chase' | 'analytics' | 'templates' | 'projects' | 'pst'
+type SubTab = 'briefing' | 'people' | 'loops' | 'ai-projects' | 'timeline' | 'weekly' | 'chase' | 'analytics' | 'templates' | 'projects' | 'pst' | 'meetings' | 'crm'
 
 const SUB_TABS: { id: SubTab; label: string; icon: string; group?: string }[] = [
   // Intelligence
@@ -21,6 +23,8 @@ const SUB_TABS: { id: SubTab; label: string; icon: string; group?: string }[] = 
   { id: 'weekly',      label: 'Weekly Brief', icon: '📊', group: 'tools' },
   { id: 'chase',       label: 'Chase Queue',  icon: '⏰', group: 'tools' },
   { id: 'projects',    label: 'Projects',     icon: '📁', group: 'tools' },
+  { id: 'meetings',    label: 'Meetings',     icon: '🎙', group: 'tools' },
+  { id: 'crm',         label: 'CRM',          icon: '💼', group: 'tools' },
   { id: 'analytics',   label: 'Analytics',    icon: '📈', group: 'tools' },
   { id: 'templates',   label: 'Templates',    icon: '✉',  group: 'tools' },
   { id: 'pst',         label: 'Import PST',   icon: '📦', group: 'tools' },
@@ -85,6 +89,8 @@ export function IntelligencePanel() {
         {activeTab === 'weekly'      && <WeeklyBriefPanel />}
         {activeTab === 'chase'       && <ChaseQueue />}
         {activeTab === 'projects'    && <ProjectsPanel />}
+        {activeTab === 'meetings'    && <MeetingTab />}
+        {activeTab === 'crm'         && <CRMTab />}
         {activeTab === 'analytics'   && <Analytics />}
         {activeTab === 'templates'   && <TemplatesPanel />}
         {activeTab === 'pst'         && <PSTImport />}

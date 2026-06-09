@@ -273,6 +273,23 @@ class EmailCache(EmailExtrasMixin, DocumentCacheMixin):
                     PRIMARY KEY (project_id, email_id)
                 )
             """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS crm_deals (
+                    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name          TEXT NOT NULL,
+                    contact_email TEXT DEFAULT '',
+                    stage         TEXT DEFAULT 'prospect',
+                    value         TEXT DEFAULT '',
+                    notes         TEXT DEFAULT '',
+                    created_at    TEXT DEFAULT (datetime('now')),
+                    updated_at    TEXT DEFAULT (datetime('now'))
+                )
+            """)
+            try:
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_crm_deals_stage ON crm_deals(stage)")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_crm_deals_contact ON crm_deals(contact_email)")
+            except Exception:
+                pass
             for col_def in ["account_id INTEGER DEFAULT 0", "server_id TEXT",
                              "followup_remind_at TEXT"]:
                 try:
