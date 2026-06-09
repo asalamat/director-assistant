@@ -116,6 +116,92 @@ async def clear_imported(request: Request):
     return {"cleared": True}
 
 
+@router.post("/sync-provider")
+async def sync_from_provider(request: Request):
+    """Auto-import contacts from the connected email provider (no file upload needed).
+    Supports Microsoft 365 via Graph API. Skips duplicates."""
+    cache = request.app.state.cache
+    imported = 0
+    skipped = 0
+    provider = None
+
+    # Microsoft Graph contacts
+    try:
+        import httpx
+        accounts = cache.list_accounts()
+        acc = next(
+            (a for a in accounts if getattr(a, "access_token", None) and not getattr(a, "password", None)),
+            None,
+        )
+        if not acc:
+            return {"imported": 0, "skipped": 0, "provider": None,
+                    "message": "No connected cloud account found. Connect Microsoft 365 in Settings first."}
+
+        provider = "Microsoft 365"
+        token = acc.access_token
+        url = (
+            "https://graph.microsoft.com/v1.0/me/contacts"
+            "?$select=emailAddresses,displayName,homePhones,mobilePhone,businessPhones&$top=500"
+        )
+
+        async def _get(tok: str):
+            async with httpx.AsyncClient(timeout=12) as c:
+                r = await c.get(url, headers={"Authorization": f"Bearer {tok}"})
+                return r.status_code, r.json() if r.status_code in (200, 401) else {}
+
+        status, data = await _get(token)
+        if status == 401:
+            new_token = await __import__("asyncio").get_event_loop().run_in_executor(
+                None, cache.refresh_oauth_token, acc.id
+            )
+            if new_token:
+                status, data = await _get(new_token)
+
+        if status != 200:
+            return {"imported": 0, "skipped": 0, "provider": provider,
+                    "message": f"Provider returned status {status}. Token may have expired — reconnect in Settings."}
+
+        contacts = []
+        for contact in data.get("value", []):
+            phones: list[str] = []
+            for field in ("homePhones", "businessPhones"):
+                phones.extend(contact.get(field) or [])
+            mobile = contact.get("mobilePhone")
+            if mobile:
+                phones.append(mobile)
+            name = contact.get("displayName") or ""
+            for addr_obj in contact.get("emailAddresses") or []:
+                email = (addr_obj.get("address") or "").strip().lower()
+                if email and "@" in email:
+                    contacts.append({"email": email, "name": name, "phones": phones})
+
+        with cache._conn() as conn:
+            for c in contacts:
+                try:
+                    conn.execute(
+                        "INSERT OR IGNORE INTO imported_contacts (email_addr, name, phones, source) VALUES (?,?,?,?)",
+                        (c["email"], c["name"], json.dumps(c["phones"]), "microsoft"),
+                    )
+                    if conn.execute("SELECT changes()").fetchone()[0] > 0:
+                        imported += 1
+                    else:
+                        skipped += 1
+                except Exception:
+                    skipped += 1
+
+    except Exception as e:
+        return {"imported": 0, "skipped": 0, "provider": provider,
+                "message": f"Sync failed: {str(e)}"}
+
+    return {
+        "imported": imported,
+        "skipped": skipped,
+        "total": imported + skipped,
+        "provider": provider,
+        "message": f"Synced {imported} contacts from {provider}, skipped {skipped} already present",
+    }
+
+
 def _vcard_escape(s: str) -> str:
     return s.replace('\\', '\\\\').replace(',', '\\,').replace(';', '\\;').replace('\n', '\\n')
 

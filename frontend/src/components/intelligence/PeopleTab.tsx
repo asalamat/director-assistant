@@ -68,6 +68,7 @@ export function PeopleTab() {
   const [hints, setHints] = useState<Record<string, { phones: string[]; sources: string[] }>>({})
   const [importMsg, setImportMsg] = useState('')
   const [importing, setImporting] = useState(false)
+  const [showImportMenu, setShowImportMenu] = useState(false)
 
   const refreshHints = () =>
     api.getContactHints().then(r => setHints(r.hints)).catch(() => {})
@@ -92,6 +93,7 @@ export function PeopleTab() {
     if (!file) return
     setImporting(true)
     setImportMsg('')
+    setShowImportMenu(false)
     try {
       const r = await api.importVCard(file)
       setImportMsg(`✓ ${r.imported} imported, ${r.skipped} skipped`)
@@ -101,6 +103,21 @@ export function PeopleTab() {
     }
     setImporting(false)
     setTimeout(() => setImportMsg(''), 5000)
+  }
+
+  const handleSyncProvider = async () => {
+    setImporting(true)
+    setImportMsg('')
+    setShowImportMenu(false)
+    try {
+      const r = await api.syncContactsFromProvider()
+      setImportMsg(`✓ ${r.message}`)
+      if (r.imported > 0) refreshHints()
+    } catch (err: any) {
+      setImportMsg(`✗ ${err.message || 'Sync failed'}`)
+    }
+    setImporting(false)
+    setTimeout(() => setImportMsg(''), 6000)
   }
 
   const toggleVIP = async (p: Person) => {
@@ -173,11 +190,30 @@ export function PeopleTab() {
               <button onClick={exportCSV} title="Export contacts to CSV"
                 className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-gray-500 hover:bg-gray-50 flex-shrink-0">CSV</button>
             )}
-            <label title="Import contacts from vCard (.vcf) file — no duplicates"
-              className={`text-xs border border-gray-200 rounded-lg px-2 py-1.5 cursor-pointer flex-shrink-0 transition-colors ${importing ? 'opacity-50 pointer-events-none text-gray-400' : 'text-gray-500 hover:bg-gray-50 hover:border-accent'}`}>
-              {importing ? '…' : '📥 Import'}
-              <input type="file" accept=".vcf" className="hidden" onChange={handleVCardImport} disabled={importing} />
-            </label>
+            <div className="relative flex-shrink-0">
+              <button
+                onClick={() => !importing && setShowImportMenu(v => !v)}
+                disabled={importing}
+                className={`text-xs border border-gray-200 rounded-lg px-2 py-1.5 flex items-center gap-1 transition-colors ${importing ? 'opacity-50 text-gray-400' : 'text-gray-500 hover:bg-gray-50 hover:border-accent'}`}
+              >
+                {importing ? '…' : '📥 Import'} <span className="text-[8px]">▾</span>
+              </button>
+              {showImportMenu && (
+                <div className="absolute top-full left-0 mt-1 z-20 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden min-w-[170px]"
+                  onMouseLeave={() => setShowImportMenu(false)}>
+                  <label className="flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 cursor-pointer">
+                    <span>📁 From file (.vcf)</span>
+                    <input type="file" accept=".vcf" className="hidden" onChange={handleVCardImport} />
+                  </label>
+                  <button
+                    onClick={handleSyncProvider}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-blue-50 hover:text-accent text-left"
+                  >
+                    ☁️ From account (auto)
+                  </button>
+                </div>
+              )}
+            </div>
             <a
               href={api.exportVCard()}
               download="director-assistant-contacts.vcf"
