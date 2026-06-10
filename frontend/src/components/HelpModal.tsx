@@ -3,11 +3,12 @@ import pkgJson from '../../package.json'
 
 interface Props { onClose: () => void }
 
-type Section = 'start' | 'inbox' | 'ai' | 'executive' | 'contacts' | 'projects' | 'knowledge' | 'dashboard' | 'import' | 'providers' | 'integrations' | 'tips'
+type Section = 'start' | 'inbox' | 'compose' | 'ai' | 'executive' | 'contacts' | 'projects' | 'knowledge' | 'dashboard' | 'import' | 'providers' | 'integrations' | 'tips'
 
 const SECTIONS: { id: Section; icon: string; label: string }[] = [
   { id: 'start',     icon: '🚀', label: 'Getting Started' },
   { id: 'inbox',     icon: '📥', label: 'Inbox & Email' },
+  { id: 'compose',   icon: '✏️', label: 'Composing' },
   { id: 'ai',        icon: '✦',  label: 'AI Features' },
   { id: 'executive', icon: '📊', label: 'Executive Tools' },
   { id: 'contacts',  icon: '⭐', label: 'VIP & Contacts' },
@@ -162,6 +163,21 @@ function InboxEmail() {
         <Li><strong>Scheduled Send</strong> — compose now, choose a future date/time, and the app sends automatically</Li>
         <Li><strong>Commitment detection</strong> — after Smart Draft, detected promises appear as pills to add to your Actions board</Li>
       </UL>
+    </div>
+  )
+}
+
+function CompositionSection() {
+  return (
+    <div>
+      <H2>Email Composition</H2>
+      <H3>CC, BCC &amp; Forward</H3>
+      <UL>
+        <Li>Click <strong>CC/BCC</strong> in the compose window to reveal CC and BCC fields — enter comma-separated addresses</Li>
+        <Li>Click <strong>↪ Forward</strong> in the email header toolbar to forward any email — compose opens pre-filled with the quoted original</Li>
+      </UL>
+      <H3>Voice Dictation</H3>
+      <P>Click <strong>Dictate</strong> in the compose toolbar (mic icon) to speak your reply. Whisper transcribes it and appends the text to the reply body. Requires an OpenAI API key in Settings.</P>
     </div>
   )
 }

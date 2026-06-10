@@ -21,13 +21,13 @@ Everything runs **locally on your machine**. Your emails never leave your device
 | **Inbox** | Browse, search, and action your emails with AI-powered priority labels, thread view, smart sort, unread filter, and bulk operations |
 | **Focus** | Smart Daily Triage — AI scores all unread emails by 7 urgency signals and surfaces your top priority items with score badges and reason tags |
 | **Ask** | Natural-language Q&A over your entire email, document, and **contact notes** history using hybrid semantic + full-text search — results show source badges (Email / Document / Contact) |
-| **Actions** | AI-extracted commitments, follow-ups, and deadlines with overdue tracking and CSV export |
+| **Actions** | AI-extracted commitments and follow-ups with overdue tracking, **Delegations** tab for forwarded-to-colleague tracking, and **Overnight** tab for morning review of AI-drafted replies |
 | **VIP** | Track your most important contacts with live stats: last contact, unread count, awaiting-reply flag, and full email history |
 | **Brief** | Daily AI digest of your most important recent emails, configurable date range |
 | **Health** | Live system status — IMAP connection, AI provider, RAG database, polling loop |
 | **Knowledge** | Hub with left sidebar navigation containing 10 sub-sections across two groups: |
 | ↳ Intelligence | Role Briefing · People Graph · Open Loops · AI Clusters · Topic Timeline |
-| ↳ Tools | Weekly Brief · Chase Queue · Projects Tracker · **🎙 Meetings** · **💼 CRM** · Analytics · Templates · PST/OLM Import |
+| ↳ Tools | Weekly Brief · Chase Queue · Projects Tracker · **🎙 Meetings** · **💼 CRM** · **📋 Board Report** · **🎯 Coaching** · Analytics · Templates · PST/OLM Import |
 | **Dashboard** | Full-screen executive brief at `/api/dashboard` — 7 KPI tiles, VIP alerts, Chase Queue, Projects, calendar, actions, and live action buttons |
 
 ---
@@ -322,6 +322,25 @@ Outputs `dist/DirectorAssistant-mac-3.15.3.zip` and `dist/DirectorAssistant-win-
 | **AI** | Anthropic Claude Haiku / Sonnet with automatic OpenAI fallback |
 | **Storage** | SQLite for emails and metadata; ChromaDB (optional) for vector search |
 | **Email** | IMAP, Gmail API, Microsoft Graph API |
+
+---
+
+### Email Composition (v3.25)
+- **CC/BCC** — click "CC/BCC" toggle in the compose window to add CC and BCC recipients
+- **Forward** — "↪ Forward" button in the email header; pre-fills compose with quoted original
+- **Voice dictation** — "Dictate" button in compose toolbar; speak your reply, Whisper transcribes it
+
+### Delegation Tracking (v3.25)
+- Forward an email to a colleague → create a delegation in **Actions → Delegations**
+- **Auto-check** cross-references pending delegations with received emails to auto-resolve
+- Accountability layer: see all outstanding "passed to X" items in one place
+
+### AI Productivity (v3.25)
+- **Overnight Triage** — at a configured hour (default 11 PM), AI scans unread emails, generates draft replies, queues them for your morning approval in **Actions → Overnight**. Enable in Settings → Integrations.
+- **Meeting Prep** — click "Meeting Prep" in Knowledge → Briefing; enter subject + attendee emails → AI generates a 4-section brief (background, open items, talking points, watch-outs)
+- **Board Report** — Knowledge → 📋 Board Report → one-click monthly executive status report from email activity, suitable for board briefings
+- **Email Coaching** — Knowledge → 🎯 Coaching → AI analyzes your last 30 days of sent emails, surfaces strengths and 3-5 actionable communication tips
+- **Contract/Invoice Extraction** — email viewer → 💰 Extract → AI pulls amounts, dates, vendors, parties from financial emails; one-click CSV download
 
 ---
 
