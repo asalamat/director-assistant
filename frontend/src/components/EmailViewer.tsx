@@ -83,6 +83,16 @@ export function EmailViewer({ email, loading, fetchError, onAnalyze, analyzing, 
     }
   }
 
+  const handleForward = () => {
+    if (!email) return
+    const fwdSubject = email.subject?.startsWith('Fwd: ') ? email.subject : `Fwd: ${email.subject || ''}`
+    const fwdBody = `\n\n---------- Forwarded message ----------\nFrom: ${email.sender}\nDate: ${email.date || ''}\nSubject: ${email.subject || ''}\n\n${email.body || ''}`
+    setComposeInitialTo('')
+    setComposeInitialSubject(fwdSubject)
+    setComposeInitialBody(fwdBody)
+    setShowCompose(true)
+  }
+
   const handleOpenCompose = (to: string, subject: string, body = '') => {
     setComposeInitialTo(to)
     setComposeInitialSubject(subject)
@@ -147,6 +157,7 @@ export function EmailViewer({ email, loading, fetchError, onAnalyze, analyzing, 
         onAsk={onAsk}
         onSearch={onSearch}
         onReplyClick={handleReplyClick}
+        onForwardClick={handleForward}
         onTranslate={handleTranslate}
         translating={translating}
       />

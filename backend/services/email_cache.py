@@ -311,6 +311,32 @@ class EmailCache(EmailExtrasMixin, DocumentCacheMixin):
                     note       TEXT DEFAULT ''
                 )
             """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS email_delegations (
+                    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                    email_id     TEXT NOT NULL,
+                    subject      TEXT DEFAULT '',
+                    original_sender TEXT DEFAULT '',
+                    delegated_to TEXT NOT NULL,
+                    delegated_at TEXT DEFAULT (datetime('now')),
+                    status       TEXT DEFAULT 'pending',
+                    resolved_at  TEXT DEFAULT NULL,
+                    note         TEXT DEFAULT ''
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS overnight_drafts (
+                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                    email_id    TEXT NOT NULL,
+                    email_subject TEXT DEFAULT '',
+                    email_sender  TEXT DEFAULT '',
+                    draft_body  TEXT DEFAULT '',
+                    draft_to    TEXT DEFAULT '',
+                    draft_subject TEXT DEFAULT '',
+                    created_at  TEXT DEFAULT (datetime('now')),
+                    status      TEXT DEFAULT 'pending'
+                )
+            """)
             for col_def in ["account_id INTEGER DEFAULT 0", "server_id TEXT",
                              "followup_remind_at TEXT"]:
                 try:

@@ -22,6 +22,8 @@ export function EmailTools({ email, translation, onClearTranslation, onOpenCompo
     insights: {key: string; value: string; label: string}[]
   } | null>(null)
   const [analyzingAttach, setAnalyzingAttach] = useState(false)
+  const [financialData, setFinancialData] = useState<any | null>(null)
+  const [extractingFinancials, setExtractingFinancials] = useState(false)
 
   const handleLoadReplies = async () => {
     if (loadingReplies) return
@@ -64,6 +66,30 @@ export function EmailTools({ email, translation, onClearTranslation, onOpenCompo
       else setAttachAnalysis({ attachments: [], insights: [] })
     } catch { /* silent */ }
     setAnalyzingAttach(false)
+  }
+
+  const handleExtractFinancials = async () => {
+    if (extractingFinancials) return
+    setExtractingFinancials(true)
+    try {
+      const data = await api.extractFinancials(email.id)
+      setFinancialData(data)
+    } catch { /* silent */ }
+    setExtractingFinancials(false)
+  }
+
+  const downloadCSV = () => {
+    if (!financialData) return
+    const headers = ['Type','Vendor','Amount','Currency','Date','Due Date','Description','Reference']
+    const values = [
+      financialData.type, financialData.vendor, financialData.amount, financialData.currency,
+      financialData.date, financialData.due_date, financialData.description, financialData.reference
+    ].map(v => `"${(v||'').toString().replace(/"/g,'""')}"`)
+    const csv = headers.join(',') + '\n' + values.join(',')
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+    a.download = `${financialData.type || 'financial'}-${financialData.date || 'extract'}.csv`
+    a.click()
   }
 
   const handleQuickReplyClick = (body: string) => {
@@ -114,6 +140,10 @@ export function EmailTools({ email, translation, onClearTranslation, onOpenCompo
           <button onClick={handleAnalyzeAttachments} disabled={analyzingAttach}
             className="text-xs text-amber-600 hover:underline flex items-center gap-1 disabled:opacity-50">
             {analyzingAttach ? <><span className="animate-spin inline-block">⟳</span> Analyzing…</> : '📎 Attachments'}
+          </button>
+          <button onClick={handleExtractFinancials} disabled={extractingFinancials}
+            className="text-xs text-green-600 hover:underline flex items-center gap-1 disabled:opacity-50">
+            {extractingFinancials ? <><span className="animate-spin inline-block">⟳</span> Extracting…</> : '💰 Extract'}
           </button>
         </div>
 
@@ -168,6 +198,58 @@ export function EmailTools({ email, translation, onClearTranslation, onOpenCompo
                   </div>
                 )}
               </>
+            )}
+          </div>
+        )}
+
+        {financialData && (
+          <div className="mt-3 bg-white border border-green-200 rounded-xl p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <span className="text-base">💰</span>
+                <p className="text-xs font-semibold text-green-700">Financial Extract</p>
+                {financialData.type && (
+                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-100 text-green-800 uppercase">
+                    {financialData.type}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button onClick={downloadCSV}
+                  className="text-xs text-green-700 hover:text-green-900 bg-green-50 hover:bg-green-100 border border-green-200 rounded-lg px-2 py-0.5 transition-colors">
+                  ↓ CSV
+                </button>
+                <button onClick={() => setFinancialData(null)}
+                  className="text-gray-500 hover:text-gray-800 text-xs px-1 rounded hover:bg-gray-100 transition-colors">✕</button>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                { label: 'Vendor', value: financialData.vendor },
+                { label: 'Amount', value: financialData.amount },
+                { label: 'Currency', value: financialData.currency },
+                { label: 'Date', value: financialData.date },
+                { label: 'Due', value: financialData.due_date },
+                { label: 'Ref', value: financialData.reference },
+              ].filter(f => f.value).map((f, i) => (
+                <span key={i} className="inline-flex items-center gap-1 bg-green-50 border border-green-100 rounded-full px-2 py-0.5 text-xs text-green-800">
+                  <span className="font-medium text-green-500">{f.label}:</span>
+                  {f.value}
+                </span>
+              ))}
+            </div>
+            {financialData.description && (
+              <p className="text-xs text-gray-600 border-t border-green-100 pt-2">{financialData.description}</p>
+            )}
+            {financialData.parties?.length > 0 && (
+              <p className="text-xs text-gray-500">
+                <span className="font-medium">Parties:</span> {financialData.parties.join(' · ')}
+              </p>
+            )}
+            {financialData.key_terms?.length > 0 && (
+              <p className="text-xs text-gray-500">
+                <span className="font-medium">Terms:</span> {financialData.key_terms.join(' · ')}
+              </p>
             )}
           </div>
         )}

@@ -257,7 +257,7 @@ export const api = {
   },
 
   // Send email via SMTP
-  sendEmail(data: { to: string; subject: string; body: string; account_id?: number }): Promise<{ status: string }> {
+  sendEmail(data: { to: string; subject: string; body: string; account_id?: number; cc?: string; bcc?: string }): Promise<{ status: string }> {
     return request('/email/send', { method: 'POST', body: JSON.stringify(data) })
   },
 
@@ -561,7 +561,7 @@ export const api = {
   },
 
   // Compose new email (not a reply)
-  sendNew(data: { to: string; cc?: string; subject: string; body: string; account_id?: number }): Promise<{ status: string }> {
+  sendNew(data: { to: string; cc?: string; bcc?: string; subject: string; body: string; account_id?: number }): Promise<{ status: string }> {
     return request('/email/send-new', { method: 'POST', body: JSON.stringify(data) })
   },
 
@@ -599,6 +599,18 @@ export const api = {
     detected_filenames: string[]
   }> {
     return request(`/emails/${encodeURIComponent(emailId)}/analyze-attachments`, { method: 'POST' })
+  },
+
+  extractFinancials(emailId: string): Promise<{
+    type: string; vendor: string; amount: string; currency: string; date: string;
+    due_date: string | null; description: string; reference: string;
+    parties: string[]; key_terms: string[]; email_subject: string; email_sender: string
+  }> {
+    return request(`/emails/${encodeURIComponent(emailId)}/extract-financials`, { method: 'POST' })
+  },
+
+  getEmailCoaching(): Promise<{ tips: string[]; strengths: string[]; stats: { avg_length: number; reply_ratio: number; emails_analyzed: number } }> {
+    return request('/intelligence/coaching')
   },
 
   // Priority sorted emails
@@ -775,5 +787,47 @@ export const api = {
     form.append('file', file)
     return fetch(`${BASE}/backup/import`, { method: 'POST', body: form })
       .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(new Error(e.detail || 'Restore failed'))))
+  },
+
+  // Delegations
+  getDelegations(status?: string): Promise<{ delegations: any[] }> {
+    const qs = status ? `?status=${status}` : ''
+    return request(`/delegations${qs}`)
+  },
+  createDelegation(data: { email_id: string; subject: string; original_sender: string; delegated_to: string; note?: string }): Promise<{ id: number }> {
+    return request('/delegations', { method: 'POST', body: JSON.stringify(data) })
+  },
+  resolveDelegation(id: number): Promise<void> {
+    return request(`/delegations/${id}/resolve`, { method: 'PATCH' })
+  },
+  deleteDelegation(id: number): Promise<void> {
+    return request(`/delegations/${id}`, { method: 'DELETE' })
+  },
+  autoCheckDelegations(): Promise<{ resolved: number }> {
+    return request('/delegations/auto-check', { method: 'POST' })
+  },
+
+  // Meeting Prep
+  getMeetingPrep(data: { subject: string; attendees: string[]; meeting_date?: string }): Promise<{ brief: string; attendees: string[]; subject: string }> {
+    return request('/intelligence/meeting-prep', { method: 'POST', body: JSON.stringify(data) })
+  },
+
+  // Board Report
+  generateBoardReport(): Promise<{ report: string; period: string; emails_analyzed: number }> {
+    return request('/report/board', { method: 'POST' })
+  },
+
+  // Overnight Drafts
+  getOvernightDrafts(): Promise<{ drafts: any[]; count: number }> {
+    return request('/overnight/drafts')
+  },
+  approveOvernightDraft(id: number): Promise<{ status: string }> {
+    return request(`/overnight/drafts/${id}/approve`, { method: 'POST' })
+  },
+  discardOvernightDraft(id: number): Promise<{ status: string }> {
+    return request(`/overnight/drafts/${id}/discard`, { method: 'POST' })
+  },
+  runOvernightTriageNow(): Promise<{ queued: boolean }> {
+    return request('/overnight/run-now', { method: 'POST' })
   },
 }

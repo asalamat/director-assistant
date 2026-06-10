@@ -4,6 +4,8 @@ import { addToast } from './Toast'
 import type { ActionItem, FollowUp, WaitingEmail } from '../types'
 import { Spinner, EmptyState, Button, Badge } from './ui'
 import { TaskExportButton } from './TaskExportButton'
+import { DelegationTracker } from './DelegationTracker'
+import { OvernightDrafts } from './OvernightDrafts'
 
 function formatDate(s: string) {
   return new Date(s).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
@@ -20,7 +22,7 @@ export function ActionBoard() {
   const [actions, setActions] = useState<ActionItem[]>([])
   const [followUps, setFollowUps] = useState<FollowUp[]>([])
   const [showDone, setShowDone] = useState(false)
-  const [tab, setTab] = useState<'actions' | 'followups' | 'waiting'>('actions')
+  const [tab, setTab] = useState<'actions' | 'followups' | 'waiting' | 'delegations' | 'overnight'>('actions')
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [waiting, setWaiting] = useState<WaitingEmail[]>([])
@@ -137,7 +139,7 @@ export function ActionBoard() {
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Tab bar */}
       <div className="flex border-b border-gray-200 px-4 pt-4 gap-4">
-        {(['actions', 'followups', 'waiting'] as const).map((t) => (
+        {(['actions', 'followups', 'waiting', 'delegations', 'overnight'] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -149,7 +151,11 @@ export function ActionBoard() {
               ? `Action Items${pendingActions.length ? ` (${pendingActions.length})` : ''}`
               : t === 'followups'
               ? `Follow-ups${overdueFollowUps.length ? ` ⚠ ${overdueFollowUps.length}` : pendingFollowUps.length ? ` (${pendingFollowUps.length})` : ''}`
-              : `Waiting${waiting.length ? ` (${waiting.length})` : ''}`}
+              : t === 'waiting'
+              ? `Waiting${waiting.length ? ` (${waiting.length})` : ''}`
+              : t === 'delegations'
+              ? 'Delegations'
+              : 'Overnight'}
           </button>
         ))}
         <div className="ml-auto flex items-center gap-3 pb-2">
@@ -346,6 +352,12 @@ export function ActionBoard() {
             })}
           </>
         )}
+      {/* Delegations */}
+      {tab === 'delegations' && <DelegationTracker />}
+
+      {/* Overnight Drafts */}
+      {tab === 'overnight' && <OvernightDrafts />}
+
       {/* Waiting for reply */}
       {tab === 'waiting' && (
         <div className="flex-1 overflow-y-auto px-4 pb-4 pt-2 space-y-2">

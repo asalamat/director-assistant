@@ -3,8 +3,9 @@
 import asyncio
 import json
 import re
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/intelligence", tags=["intelligence"])
 
@@ -221,3 +222,146 @@ async def get_contact_hints(request: Request):
     hints = {k: v for k, v in hints.items() if v["phones"]}
 
     return {"hints": hints}
+
+
+class MeetingPrepRequest(BaseModel):
+    subject: str
+    attendees: list[str] = []
+    meeting_date: str = ""
+
+
+@router.post("/meeting-prep")
+async def meeting_prep(req: MeetingPrepRequest, request: Request):
+    """One-click meeting prep: scan email history with attendees, generate brief."""
+    cache = request.app.state.cache
+    advisor = request.app.state.advisor
+
+    # Find relevant emails (with attendees or matching subject)
+    email_snippets = []
+    with cache._conn() as conn:
+        for attendee in req.attendees[:5]:
+            rows = conn.execute(
+                """SELECT subject, sender, date, body FROM emails
+                   WHERE (LOWER(sender) LIKE ? OR LOWER(recipients) LIKE ?)
+                   ORDER BY date DESC LIMIT 5""",
+                (f"%{attendee.lower()}%", f"%{attendee.lower()}%"),
+            ).fetchall()
+            for r in rows:
+                email_snippets.append(f"[{(r['date'] or '')[:10]}] {r['sender']}: {r['subject']} — {(r['body'] or '')[:200]}")
+
+    # Also search by meeting subject
+    if req.subject:
+        import json as _json
+        from services.rag_engine import RAGEngine
+        rag: RAGEngine = request.app.state.rag
+        results = rag.semantic_search(req.subject, n=5)
+        for r in results:
+            email_snippets.append(f"[{r.get('date','')[:10]}] {r.get('sender','')}: {r.get('subject','')} — {r.get('text','')[:200]}")
+
+    snippets_text = "\n".join(email_snippets[:20]) or "No prior email history found."
+
+    prompt = f"""You are preparing an executive for a meeting.
+
+Meeting: {req.subject}
+Date: {req.meeting_date or 'upcoming'}
+Attendees: {', '.join(req.attendees) or 'not specified'}
+
+Prior email history with these people:
+{snippets_text}
+
+Generate a concise meeting prep brief with:
+1. Background (2-3 sentences on relationship/context)
+2. Key open items (what's outstanding)
+3. Talking points (3-5 suggested points)
+4. Watch-outs (any tensions or sensitivities)
+
+Be specific and actionable. Format with clear section headers."""
+
+    ant = getattr(advisor.ai, "_anthropic", None)
+    try:
+        if ant:
+            resp = await ant.messages.create(
+                model="claude-haiku-4-5-20251001", max_tokens=1000,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            brief = resp.content[0].text.strip()
+        else:
+            resp = await advisor.ai.messages.create(
+                model="claude-haiku-4-5-20251001", max_tokens=1000,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            brief = resp.content[0].text.strip()
+    except Exception as exc:
+        raise HTTPException(500, str(exc))
+
+    return {"brief": brief, "attendees": req.attendees, "subject": req.subject}
+
+
+@router.get("/coaching")
+async def email_coaching(request: Request):
+    """Analyze sent email patterns and provide communication coaching tips."""
+    from datetime import datetime, timedelta
+    cache = request.app.state.cache
+    advisor = request.app.state.advisor
+
+    since = (datetime.utcnow() - timedelta(days=30)).strftime("%Y-%m-%d")
+    with cache._conn() as conn:
+        sent_rows = conn.execute(
+            """SELECT subject, body, date FROM emails
+               WHERE LOWER(folder) LIKE '%sent%' AND date >= ?
+               ORDER BY date DESC LIMIT 30""",
+            (since,),
+        ).fetchall()
+
+    if not sent_rows:
+        return {"tips": ["No sent emails found in the last 30 days."], "stats": {}}
+
+    # Basic stats
+    avg_len = sum(len(r["body"] or "") for r in sent_rows) // max(len(sent_rows), 1)
+    re_count = sum(1 for r in sent_rows if (r["subject"] or "").lower().startswith("re:"))
+
+    samples = "\n\n---\n".join(
+        f"Subject: {r['subject']}\n{(r['body'] or '')[:400]}"
+        for r in sent_rows[:10]
+    )
+
+    prompt = f"""Analyze these sent emails and provide 3-5 specific, actionable communication coaching tips.
+
+Stats: {len(sent_rows)} emails sent, avg {avg_len} chars, {re_count} were replies.
+
+Sample emails:
+{samples}
+
+Return JSON:
+{{
+  "tips": ["specific coaching tip 1", "tip 2", ...],
+  "strengths": ["what they do well 1", ...],
+  "stats": {{
+    "avg_length": {avg_len},
+    "reply_ratio": {round(re_count/max(len(sent_rows),1)*100)},
+    "emails_analyzed": {len(sent_rows)}
+  }}
+}}"""
+
+    ant = getattr(advisor.ai, "_anthropic", None)
+    import json as _json, re as _re
+    try:
+        if ant:
+            resp = await ant.messages.create(
+                model="claude-haiku-4-5-20251001", max_tokens=800,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            text = resp.content[0].text.strip()
+        else:
+            resp = await advisor.ai.messages.create(
+                model="claude-haiku-4-5-20251001", max_tokens=800,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            text = resp.content[0].text.strip()
+        text = _re.sub(r'^```[a-z]*\n?', '', text).rstrip('`').strip()
+        s, e = text.find("{"), text.rfind("}") + 1
+        data = _json.loads(text[s:e]) if s >= 0 else {}
+    except Exception as exc:
+        data = {"tips": [f"Analysis error: {exc}"], "strengths": [], "stats": {}}
+
+    return data

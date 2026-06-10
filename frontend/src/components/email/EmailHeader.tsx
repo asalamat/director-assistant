@@ -13,6 +13,7 @@ export interface EmailHeaderProps {
   onAsk?: () => void
   onSearch?: (q: string) => void
   onReplyClick: () => void
+  onForwardClick: () => void
   onTranslate: () => void
   translating: boolean
 }
@@ -27,7 +28,7 @@ function formatDateFull(dateStr: string | null): string {
 
 export function EmailHeader({
   email, analyzing, onAnalyze, onDelete, onSnooze, onAsk, onSearch,
-  onReplyClick, onTranslate, translating,
+  onReplyClick, onForwardClick, onTranslate, translating,
 }: EmailHeaderProps) {
   const [deleting, setDeleting] = useState(false)
   const [showSnooze, setShowSnooze] = useState(false)
@@ -139,6 +140,14 @@ export function EmailHeader({
             </svg>}
             onClick={onReplyClick}
           >Reply</Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={<svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M12.293 3.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L14.586 9H9a5 5 0 00-5 5v2a1 1 0 11-2 0v-2a7 7 0 017-7h5.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd"/>
+            </svg>}
+            onClick={onForwardClick}
+          >Forward</Button>
           <button
             onClick={onTranslate}
             disabled={translating}

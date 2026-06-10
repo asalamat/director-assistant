@@ -26,6 +26,9 @@ export function EmailCompose({
   onCommitmentsChange,
 }: EmailComposeProps) {
   const [replyTo, setReplyTo] = useState(initialTo)
+  const [replyCC, setReplyCC] = useState('')
+  const [replyBCC, setReplyBCC] = useState('')
+  const [showCcBcc, setShowCcBcc] = useState(false)
   const [replySubject, setReplySubject] = useState(initialSubject)
   const [replyBody, setReplyBody] = useState(initialBody)
   const [sending, setSending] = useState(false)
@@ -46,6 +49,9 @@ export function EmailCompose({
   if (initialTo !== lastInitialTo) {
     setLastInitialTo(initialTo)
     setReplyTo(initialTo)
+    setReplyCC('')
+    setReplyBCC('')
+    setShowCcBcc(false)
     setReplySubject(initialSubject)
     setReplyBody(initialBody)
     setSendMsg('')
@@ -57,9 +63,9 @@ export function EmailCompose({
     setSending(true)
     setSendMsg('')
     try {
-      await api.sendEmail({ to: replyTo, subject: replySubject, body: replyBody })
+      await api.sendEmail({ to: replyTo, subject: replySubject, body: replyBody, cc: replyCC || undefined, bcc: replyBCC || undefined })
       setSendMsg('Sent!')
-      setTimeout(() => { onClose(); setSendMsg('') }, 1500)
+      setTimeout(() => { onClose(); setSendMsg(''); setReplyCC(''); setReplyBCC(''); setShowCcBcc(false) }, 1500)
     } catch (e: any) {
       setSendMsg(e.message || 'Send failed')
     } finally {
@@ -143,7 +149,24 @@ export function EmailCompose({
             <span className="text-xs text-gray-400 w-12 flex-shrink-0">To</span>
             <input value={replyTo} onChange={e => setReplyTo(e.target.value)}
               className="flex-1 text-sm border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent bg-white" />
+            <button onClick={() => setShowCcBcc(v => !v)} className="text-[10px] text-gray-400 hover:text-accent flex-shrink-0">CC/BCC</button>
           </div>
+          {showCcBcc && (
+            <>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-400 w-12 flex-shrink-0">CC</span>
+                <input value={replyCC} onChange={e => setReplyCC(e.target.value)}
+                  placeholder="cc@example.com, another@example.com"
+                  className="flex-1 text-sm border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent bg-white" />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-400 w-12 flex-shrink-0">BCC</span>
+                <input value={replyBCC} onChange={e => setReplyBCC(e.target.value)}
+                  placeholder="bcc@example.com"
+                  className="flex-1 text-sm border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent bg-white" />
+              </div>
+            </>
+          )}
           {sendTimeSuggestion && (
             <div className="flex items-center gap-1.5 text-[11px] text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-lg px-2.5 py-1.5">
               <svg className="w-3 h-3 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd"/></svg>

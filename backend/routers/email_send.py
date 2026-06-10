@@ -21,6 +21,8 @@ class SendRequest(BaseModel):
     subject: str
     body: str
     account_id: int = 0
+    cc: str = ""
+    bcc: str = ""
 
 
 class ComposeRequest(BaseModel):
@@ -76,6 +78,10 @@ async def send_email(req: SendRequest, request: Request):
     msg = MIMEMultipart()
     msg["From"] = acc.username
     msg["To"] = req.to
+    if req.cc:
+        msg["Cc"] = req.cc
+    if req.bcc:
+        msg["Bcc"] = req.bcc
     msg["Subject"] = req.subject
     msg.attach(MIMEText(req.body, "plain", "utf-8"))
     _smtp_send(acc, msg)

@@ -9,8 +9,10 @@ import { PSTImport } from './PSTImport'
 import { BriefingTab, PeopleTab, LoopsTab, ProjectsTab, TimelineTab } from './IntelligenceTabs'
 import { MeetingTab } from './intelligence/MeetingTab'
 import { CRMTab } from './intelligence/CRMTab'
+import { BoardReportTab } from './intelligence/BoardReportTab'
+import { CoachingTab } from './intelligence/CoachingTab'
 
-type SubTab = 'briefing' | 'people' | 'loops' | 'ai-projects' | 'timeline' | 'weekly' | 'chase' | 'analytics' | 'templates' | 'projects' | 'pst' | 'meetings' | 'crm'
+type SubTab = 'briefing' | 'people' | 'loops' | 'ai-projects' | 'timeline' | 'weekly' | 'chase' | 'analytics' | 'templates' | 'projects' | 'pst' | 'meetings' | 'crm' | 'board' | 'coaching'
 
 const SUB_TABS: { id: SubTab; label: string; icon: string; group?: string }[] = [
   // Intelligence
@@ -25,6 +27,8 @@ const SUB_TABS: { id: SubTab; label: string; icon: string; group?: string }[] = 
   { id: 'projects',    label: 'Projects',     icon: '📁', group: 'tools' },
   { id: 'meetings',    label: 'Meetings',     icon: '🎙', group: 'tools' },
   { id: 'crm',         label: 'CRM',          icon: '💼', group: 'tools' },
+  { id: 'board',       label: 'Board Report', icon: '📋', group: 'tools' },
+  { id: 'coaching',    label: 'Coaching',     icon: '🎯', group: 'tools' },
   { id: 'analytics',   label: 'Analytics',    icon: '📈', group: 'tools' },
   { id: 'templates',   label: 'Templates',    icon: '✉',  group: 'tools' },
   { id: 'pst',         label: 'Import PST',   icon: '📦', group: 'tools' },
@@ -91,6 +95,8 @@ export function IntelligencePanel() {
         {activeTab === 'projects'    && <ProjectsPanel />}
         {activeTab === 'meetings'    && <MeetingTab />}
         {activeTab === 'crm'         && <CRMTab />}
+        {activeTab === 'board'       && <BoardReportTab />}
+        {activeTab === 'coaching'    && <CoachingTab />}
         {activeTab === 'analytics'   && <Analytics />}
         {activeTab === 'templates'   && <TemplatesPanel />}
         {activeTab === 'pst'         && <PSTImport />}

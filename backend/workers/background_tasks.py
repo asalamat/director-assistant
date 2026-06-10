@@ -429,6 +429,127 @@ async def _scheduled_report_loop(app) -> None:
             await asyncio.sleep(3600)
 
 
+async def _overnight_triage_loop(app) -> None:
+    """Run overnight triage at the configured hour, generating draft replies for unread emails."""
+    import asyncio
+    await asyncio.sleep(90)  # let server settle
+
+    while True:
+        try:
+            from routers.config import load_app_config
+            cfg = load_app_config()
+            enabled = cfg.get("overnight_triage_enabled", False)
+            triage_hour = int(cfg.get("overnight_triage_hour", 23))  # 11 PM default
+
+            if not enabled:
+                await asyncio.sleep(3600)
+                continue
+
+            from datetime import datetime
+            now = datetime.now()
+            next_run = now.replace(hour=triage_hour, minute=0, second=0, microsecond=0)
+            if next_run <= now:
+                next_run = next_run.replace(day=next_run.day + 1)
+            wait = (next_run - now).total_seconds()
+            print(f"[overnight-triage] next run in {wait/3600:.1f}h")
+            await asyncio.sleep(max(60, wait))
+
+            cfg = load_app_config()
+            if not cfg.get("overnight_triage_enabled"):
+                continue
+
+            await _run_overnight_triage(app)
+
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            print(f"[overnight-triage] error: {e}")
+            await asyncio.sleep(3600)
+
+
+async def _run_overnight_triage(app) -> None:
+    """Generate draft replies for unread emails."""
+    import asyncio
+    try:
+        cache = app.state.cache
+        advisor = app.state.advisor
+
+        with cache._conn() as conn:
+            # Get unread emails without existing overnight drafts
+            rows = conn.execute(
+                """SELECT id, subject, sender, body FROM emails
+                   WHERE is_read = 0
+                   AND id NOT IN (SELECT email_id FROM overnight_drafts WHERE status = 'pending')
+                   ORDER BY date DESC LIMIT 20"""
+            ).fetchall()
+
+        drafted = 0
+        for row in rows:
+            try:
+                body_preview = (row["body"] or "")[:600]
+                subject = row["subject"] or ""
+                sender = row["sender"] or ""
+
+                # Only draft for emails that seem to need a reply
+                check_prompt = f"""Does this email require a reply? Subject: {subject} From: {sender} Preview: {body_preview[:200]}
+Reply with just YES or NO."""
+                ant = getattr(advisor.ai, "_anthropic", None)
+                if ant:
+                    r = await ant.messages.create(
+                        model="claude-haiku-4-5-20251001", max_tokens=5,
+                        messages=[{"role": "user", "content": check_prompt}],
+                    )
+                    needs_reply = "yes" in r.content[0].text.lower()
+                else:
+                    r = await advisor.ai.messages.create(
+                        model="claude-haiku-4-5-20251001", max_tokens=5,
+                        messages=[{"role": "user", "content": check_prompt}],
+                    )
+                    needs_reply = "yes" in r.content[0].text.lower()
+
+                if not needs_reply:
+                    continue
+
+                # Generate draft reply
+                draft_prompt = f"""Write a professional, concise reply to this email.
+
+From: {sender}
+Subject: {subject}
+Body: {body_preview}
+
+Write a natural, helpful reply. Keep it brief (2-4 sentences). Return ONLY the email body text."""
+                if ant:
+                    dr = await ant.messages.create(
+                        model="claude-haiku-4-5-20251001", max_tokens=400,
+                        messages=[{"role": "user", "content": draft_prompt}],
+                    )
+                    draft = dr.content[0].text.strip()
+                else:
+                    dr = await advisor.ai.messages.create(
+                        model="claude-haiku-4-5-20251001", max_tokens=400,
+                        messages=[{"role": "user", "content": draft_prompt}],
+                    )
+                    draft = dr.content[0].text.strip()
+
+                sender_email = sender.split("<")[-1].rstrip(">").strip() if "<" in sender else sender
+                reply_subject = subject if subject.lower().startswith("re:") else f"Re: {subject}"
+
+                with cache._conn() as conn:
+                    conn.execute(
+                        """INSERT INTO overnight_drafts (email_id, email_subject, email_sender, draft_body, draft_to, draft_subject)
+                           VALUES (?,?,?,?,?,?)""",
+                        (row["id"], subject, sender, draft, sender_email, reply_subject),
+                    )
+                drafted += 1
+            except Exception:
+                continue
+
+        if drafted:
+            print(f"[overnight-triage] generated {drafted} overnight drafts")
+    except Exception as e:
+        print(f"[overnight-triage] run error: {e}")
+
+
 async def _generate_and_send_report(app) -> None:
     """Generate the weekly brief and email it to report_email_to."""
     import asyncio

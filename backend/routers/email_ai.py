@@ -611,3 +611,67 @@ Return ONLY valid JSON."""
         "has_attachments": bool(data.get("has_attachments") or filenames),
         "detected_filenames": filenames,
     }
+
+@router.post("/{email_id}/extract-financials")
+async def extract_financials(email_id: str, request: Request):
+    """Extract financial data (amounts, dates, vendors, parties) from an email for spreadsheet export."""
+    import re as _re, json as _json
+    cache: EmailCache = request.app.state.cache
+    advisor = request.app.state.advisor
+    email = cache.get(email_id)
+    if not email:
+        raise HTTPException(404, "Email not found")
+
+    body = _re.sub(r'<[^>]+>', ' ', (email.body or ""))[:3000]
+    subject = email.subject or ""
+
+    prompt = f"""Extract financial data from this email for a spreadsheet.
+
+Subject: {subject}
+From: {email.sender}
+Date: {email.date}
+Body:
+{body}
+
+Return ONLY valid JSON:
+{{
+  "type": "invoice|contract|receipt|proposal|other",
+  "vendor": "company or person name",
+  "amount": "numeric amount with currency, e.g. $1,500.00",
+  "currency": "USD/CAD/EUR etc",
+  "date": "YYYY-MM-DD",
+  "due_date": "YYYY-MM-DD or null",
+  "description": "what this is for",
+  "reference": "invoice number, PO number, contract ID",
+  "parties": ["party 1", "party 2"],
+  "key_terms": ["term 1", "term 2"]
+}}
+If a field is not found, use null."""
+
+    ant = getattr(advisor.ai, "_anthropic", None)
+    try:
+        if ant:
+            resp = await ant.messages.create(
+                model="claude-haiku-4-5-20251001", max_tokens=500,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            text = resp.content[0].text.strip()
+        else:
+            resp = await advisor.ai.messages.create(
+                model="claude-haiku-4-5-20251001", max_tokens=500,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            text = resp.content[0].text.strip()
+        import re as _re2
+        text = _re2.sub(r'^```[a-z]*\n?', '', text).rstrip('`').strip()
+        s, e = text.find("{"), text.rfind("}") + 1
+        data = _json.loads(text[s:e]) if s >= 0 else {}
+    except Exception as exc:
+        raise HTTPException(500, str(exc))
+
+    # Add email context
+    data["email_id"] = email_id
+    data["email_subject"] = subject
+    data["email_sender"] = email.sender
+    data["email_date"] = email.date
+    return data

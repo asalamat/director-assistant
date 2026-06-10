@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { api } from '../../api/client'
 import type { Cluster, OpenLoop } from '../../types'
+import { MeetingPrepModal } from './MeetingPrepModal'
 
 export function BriefingTab() {
   const [status, setStatus] = useState('')
@@ -11,6 +12,7 @@ export function BriefingTab() {
   const [running, setRunning] = useState(false)
   const [done, setDone] = useState(false)
   const stopRef = useRef<(() => void) | null>(null)
+  const [showMeetingPrep, setShowMeetingPrep] = useState(false)
 
   // Features 6 + 9: auto-run on first daily visit
   useEffect(() => {
@@ -44,6 +46,7 @@ export function BriefingTab() {
 
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-6">
+      {showMeetingPrep && <MeetingPrepModal onClose={() => setShowMeetingPrep(false)} />}
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-base font-semibold text-gray-900">Role Transition Briefing</h2>
@@ -51,17 +54,25 @@ export function BriefingTab() {
             AI analysis of your email corpus — understand the state of affairs, key relationships, and open items.
           </p>
         </div>
-        <button
-          onClick={handleGenerate}
-          disabled={running}
-          className="flex-shrink-0 px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-blue-700 disabled:opacity-60 transition-colors flex items-center gap-2"
-        >
-          {running ? (
-            <><span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin inline-block" /> Analyzing…</>
-          ) : (
-            <>{done ? 'Regenerate' : 'Brief me on this role'}</>
-          )}
-        </button>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <button
+            onClick={() => setShowMeetingPrep(true)}
+            className="px-3 py-2 text-sm border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-1.5"
+          >
+            <span>🗓</span> Meeting Prep
+          </button>
+          <button
+            onClick={handleGenerate}
+            disabled={running}
+            className="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-blue-700 disabled:opacity-60 transition-colors flex items-center gap-2"
+          >
+            {running ? (
+              <><span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin inline-block" /> Analyzing…</>
+            ) : (
+              <>{done ? 'Regenerate' : 'Brief me on this role'}</>
+            )}
+          </button>
+        </div>
       </div>
 
       {status && (
