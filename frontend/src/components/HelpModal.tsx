@@ -225,6 +225,15 @@ function AISection() {
         <Li><strong>Relationship health</strong> — every 2 hours, detects when important contacts are waiting too long</Li>
       </UL>
 
+      <H3>Overnight Triage Agent</H3>
+      <P>AI drafts replies to routine unread emails while you sleep. In the morning, review them in <strong>Actions → Overnight</strong>:</P>
+      <UL>
+        <Li>Enable in <strong>Settings → 🔗 Integrations → Overnight Triage</strong> and set a run time (default 11 PM)</Li>
+        <Li>AI evaluates each unread email and drafts a reply only if a response is needed</Li>
+        <Li>Click <strong>✓ Send</strong> to approve, or <strong>Discard</strong> to skip</Li>
+        <Li>Click <strong>▶ Run now</strong> to trigger immediately for testing</Li>
+      </UL>
+
       <H3>Budget Mode</H3>
       <P>Enable <strong>Budget Mode</strong> in App Settings to use Claude Haiku for routine tasks, keeping Sonnet for complex analysis. Reduces API costs by 10–20× while maintaining full capability.</P>
     </div>
@@ -286,6 +295,14 @@ function ExecutiveTools() {
         <Li><strong>Scan sent mail</strong> — AI scans your sent mail and surfaces commitments you made</Li>
         <Li><strong>CSV export</strong> — export all pending action items as a spreadsheet</Li>
         <Li><strong>Copy checklist</strong> — one-click copy of all items as a Markdown checklist</Li>
+      </UL>
+
+      <H3>Delegation Tracker</H3>
+      <P>When you forward an email to a colleague to handle, track it in <strong>Actions → Delegations</strong>:</P>
+      <UL>
+        <Li>After forwarding, click <strong>+ Track delegation</strong> (or add manually)</Li>
+        <Li>Click <strong>🔄 Auto-check</strong> to cross-reference pending delegations with your inbox — auto-resolves if a reply was received</Li>
+        <Li>Manually mark items resolved when done</Li>
       </UL>
     </div>
   )
@@ -450,6 +467,15 @@ function KnowledgeSection() {
         <Li><strong>+ New Deal</strong> — manually create a deal with name, contact email, value, and notes</Li>
         <Li>Click a deal card to expand it, then use the arrow buttons to move it to the next or previous stage, or delete it</Li>
       </UL>
+
+      <H3>📋 Board Report</H3>
+      <P>Open <strong>Knowledge → 📋 Board Report</strong>. Click <strong>Generate Board Report</strong> — AI analyzes the past 30 days of email activity and produces a professional 6-section status report (Executive Summary, Accomplishments, Initiatives, Decisions, Risks, Next Month). Copy to clipboard for board presentations.</P>
+
+      <H3>🎯 Email Coaching</H3>
+      <P>Open <strong>Knowledge → 🎯 Coaching</strong>. Click <strong>Analyze my emails</strong> — AI reviews your last 30 days of sent emails and returns: key stats (email count, avg length, reply ratio), your communication strengths, and 3-5 actionable coaching tips.</P>
+
+      <H3>🗓 Meeting Prep</H3>
+      <P>In <strong>Knowledge → 🧭 Briefing</strong>, click <strong>🗓 Meeting Prep</strong>. Enter the meeting subject, attendee email addresses (comma-separated), and date. AI scans prior email history with those attendees and generates a 4-section prep brief: background, open items, talking points, and watch-outs.</P>
     </div>
   )
 }
@@ -726,6 +752,7 @@ function IntegrationsSection() {
 const CONTENT: Record<Section, React.ReactNode> = {
   start:        <GettingStarted />,
   inbox:        <InboxEmail />,
+  compose:      <CompositionSection />,
   ai:           <AISection />,
   executive:    <ExecutiveTools />,
   contacts:     <ContactsSection />,
