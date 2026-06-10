@@ -2,7 +2,7 @@
 
 > **Your AI-powered executive email intelligence platform.** Connects to Gmail, Microsoft 365, Yahoo, or any IMAP mailbox and uses Claude AI to help you triage faster, never miss a commitment, and stay on top of every relationship that matters.
 
-**Current version: 3.25.0** · [Releases](https://github.com/asalamat/director-assistant/releases) · MIT License
+**Current version: 3.25.4** · [Releases](https://github.com/asalamat/director-assistant/releases) · MIT License
 
 ---
 
@@ -341,6 +341,12 @@ Outputs `dist/DirectorAssistant-mac-3.15.3.zip` and `dist/DirectorAssistant-win-
 - **Board Report** — Knowledge → 📋 Board Report → one-click monthly executive status report from email activity, suitable for board briefings
 - **Email Coaching** — Knowledge → 🎯 Coaching → AI analyzes your last 30 days of sent emails, surfaces strengths and 3-5 actionable communication tips
 - **Contract/Invoice Extraction** — email viewer → 💰 Extract → AI pulls amounts, dates, vendors, parties from financial emails; one-click CSV download
+
+### Slack & Teams Integration (v3.25.1–3.25.4)
+- **Share → button** in every email toolbar — push any email to Slack or Teams with one click
+- **Settings → 🔗 Integrations → Slack & Teams** — paste incoming webhook URL, set VIP/urgent auto-post, send test message
+- Integration settings persist correctly across page reloads
+- Fixed HTTP 500 when sharing emails with datetime date fields
 
 ---
 
