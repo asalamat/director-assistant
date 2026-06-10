@@ -408,7 +408,8 @@ _GOOGLE_TOKEN = "https://oauth2.googleapis.com/token"
 _GOOGLE_SCOPES = (
     "openid email "
     "https://www.googleapis.com/auth/gmail.modify "
-    "https://www.googleapis.com/auth/calendar.readonly"
+    "https://www.googleapis.com/auth/calendar.readonly "
+    "https://www.googleapis.com/auth/contacts.readonly"
 )
 
 

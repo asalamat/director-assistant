@@ -111,6 +111,51 @@ async def remove_vip(vip_id: int, request: Request):
     return {"removed": vip_id}
 
 
+@router.get("/{vip_id}/health")
+async def get_vip_health(vip_id: int, request: Request):
+    """Return email frequency trend for a VIP contact (last 90 days in 2-week windows)."""
+    cache = request.app.state.cache
+    with cache._conn() as conn:
+        vip = conn.execute("SELECT email_addr, name FROM vip_contacts WHERE id = ?", (vip_id,)).fetchone()
+        if not vip:
+            raise HTTPException(404, "VIP not found")
+        email_addr = vip["email_addr"].lower()
+
+        # Count emails per 2-week window for last 90 days (6 windows)
+        windows = []
+        from datetime import datetime, timedelta
+        now = datetime.utcnow()
+        for i in range(5, -1, -1):   # oldest to newest
+            start = (now - timedelta(days=(i + 1) * 14)).strftime("%Y-%m-%d")
+            end   = (now - timedelta(days=i * 14)).strftime("%Y-%m-%d")
+            row = conn.execute(
+                """SELECT COUNT(*) as cnt FROM emails
+                   WHERE (LOWER(sender) LIKE ? OR LOWER(recipients) LIKE ?)
+                   AND date >= ? AND date < ?""",
+                (f"%{email_addr}%", f"%{email_addr}%", start, end),
+            ).fetchone()
+            windows.append({"start": start, "end": end, "count": row["cnt"]})
+
+    # Trend: compare first 3 windows vs last 3 windows
+    first_half = sum(w["count"] for w in windows[:3])
+    second_half = sum(w["count"] for w in windows[3:])
+    if second_half > first_half * 1.2:
+        trend = "warming"
+    elif second_half < first_half * 0.8:
+        trend = "cooling"
+    else:
+        trend = "stable"
+
+    return {
+        "vip_id": vip_id,
+        "email_addr": email_addr,
+        "name": vip["name"],
+        "windows": windows,
+        "trend": trend,
+        "total_90d": sum(w["count"] for w in windows),
+    }
+
+
 @router.get("/emails/{email_addr}")
 async def vip_email_history(email_addr: str, request: Request, limit: int = 20):
     """Return recent emails from/to this VIP contact."""

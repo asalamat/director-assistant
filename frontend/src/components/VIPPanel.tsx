@@ -62,6 +62,7 @@ function VIPDetail({
   const [filter, setFilter] = useState<'all' | 'received' | 'sent'>('all')
   const [search, setSearch] = useState('')
   const [limit, setLimit] = useState(30)
+  const [health, setHealth] = useState<{ trend: 'warming' | 'stable' | 'cooling'; windows: { start: string; end: string; count: number }[]; total_90d: number } | null>(null)
 
   useEffect(() => {
     setLoading(true)
@@ -69,7 +70,10 @@ function VIPDetail({
       .then(r => setEmails(r.emails))
       .catch(() => setEmails([]))
       .finally(() => setLoading(false))
-  }, [vip.email_addr])
+    api.getVIPHealth(vip.id)
+      .then(h => setHealth(h))
+      .catch(() => {})
+  }, [vip.email_addr, vip.id])
 
   const isSent = (e: VIPEmail) => e.folder?.toLowerCase().includes('sent')
 
@@ -141,6 +145,37 @@ function VIPDetail({
             </div>
           ))}
         </div>
+
+        {/* 90-day activity sparkline */}
+        {health && (
+          <div className="mt-3 pt-3 border-t border-gray-100">
+            <div className="flex items-center justify-between mb-1.5">
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">90-day activity</p>
+              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                health.trend === 'warming' ? 'bg-green-100 text-green-700' :
+                health.trend === 'cooling' ? 'bg-red-100 text-red-700' :
+                'bg-gray-100 text-gray-500'
+              }`}>
+                {health.trend === 'warming' ? '↗ Warming' :
+                 health.trend === 'cooling' ? '↘ Cooling' : '→ Stable'}
+              </span>
+            </div>
+            {/* Sparkline bars */}
+            <div className="flex items-end gap-0.5 h-8">
+              {health.windows.map((w, i) => {
+                const maxCount = Math.max(...health.windows.map(x => x.count), 1)
+                const pct = Math.max(4, Math.round((w.count / maxCount) * 100))
+                return (
+                  <div key={i} title={`${w.start}: ${w.count} emails`}
+                    className="flex-1 rounded-t-sm bg-accent/40 transition-all hover:bg-accent/70"
+                    style={{ height: `${pct}%` }}
+                  />
+                )
+              })}
+            </div>
+            <p className="text-[9px] text-gray-300 mt-0.5">{health.total_90d} emails in last 90 days</p>
+          </div>
+        )}
       </div>
 
       {/* Filter + Search */}

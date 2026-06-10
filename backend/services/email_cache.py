@@ -257,6 +257,17 @@ class EmailCache(EmailExtrasMixin, DocumentCacheMixin):
                 )
             """)
             conn.execute("""
+                CREATE TABLE IF NOT EXISTS meeting_recordings (
+                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                    recorded_at TEXT DEFAULT (datetime('now')),
+                    duration_secs INTEGER DEFAULT 0,
+                    transcript  TEXT DEFAULT '',
+                    action_items TEXT DEFAULT '[]',
+                    draft_email TEXT DEFAULT '',
+                    title       TEXT DEFAULT ''
+                )
+            """)
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS projects (
                     id          INTEGER PRIMARY KEY AUTOINCREMENT,
                     name        TEXT NOT NULL,
@@ -290,6 +301,16 @@ class EmailCache(EmailExtrasMixin, DocumentCacheMixin):
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_crm_deals_contact ON crm_deals(contact_email)")
             except Exception:
                 pass
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS crm_deal_history (
+                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                    deal_id    INTEGER NOT NULL,
+                    changed_at TEXT DEFAULT (datetime('now')),
+                    from_stage TEXT DEFAULT '',
+                    to_stage   TEXT NOT NULL,
+                    note       TEXT DEFAULT ''
+                )
+            """)
             for col_def in ["account_id INTEGER DEFAULT 0", "server_id TEXT",
                              "followup_remind_at TEXT"]:
                 try:

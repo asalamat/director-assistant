@@ -116,15 +116,41 @@ async def update_deal(deal_id: int, req: DealUpdate, request: Request):
     fields = {k: v for k, v in req.model_dump().items() if v is not None}
     if not fields:
         raise HTTPException(400, "No fields to update")
-    set_clause = ", ".join(f"{k} = ?" for k in fields) + ", updated_at = datetime('now')"
+
     with cache._conn() as conn:
-        cur = conn.execute(
+        # Get current stage before update (for history log)
+        current = conn.execute("SELECT stage FROM crm_deals WHERE id = ?", (deal_id,)).fetchone()
+        if not current:
+            raise HTTPException(404, "Deal not found")
+        old_stage = current["stage"]
+
+        set_clause = ", ".join(f"{k} = ?" for k in fields) + ", updated_at = datetime('now')"
+        conn.execute(
             f"UPDATE crm_deals SET {set_clause} WHERE id = ?",
             (*fields.values(), deal_id),
         )
-    if cur.rowcount == 0:
-        raise HTTPException(404, "Deal not found")
+
+        # Log stage change to history
+        if "stage" in fields and fields["stage"] != old_stage:
+            conn.execute(
+                "INSERT INTO crm_deal_history (deal_id, from_stage, to_stage) VALUES (?,?,?)",
+                (deal_id, old_stage, fields["stage"]),
+            )
+
     return {"status": "updated"}
+
+
+@router.get("/deals/{deal_id}/history")
+async def get_deal_history(deal_id: int, request: Request):
+    """Return stage change history for a deal."""
+    cache = request.app.state.cache
+    with cache._conn() as conn:
+        rows = conn.execute(
+            "SELECT from_stage, to_stage, changed_at, note FROM crm_deal_history "
+            "WHERE deal_id = ? ORDER BY changed_at DESC",
+            (deal_id,),
+        ).fetchall()
+    return {"history": [dict(r) for r in rows]}
 
 
 @router.delete("/deals/{deal_id}")

@@ -17,6 +17,11 @@ export function EmailTools({ email, translation, onClearTranslation, onOpenCompo
     summary: string; key_points: string[]; outcome: string; message_count: number
   } | null>(null)
   const [loadingThreadSummary, setLoadingThreadSummary] = useState(false)
+  const [attachAnalysis, setAttachAnalysis] = useState<{
+    attachments: {filename: string; type: string; summary: string}[]
+    insights: {key: string; value: string; label: string}[]
+  } | null>(null)
+  const [analyzingAttach, setAnalyzingAttach] = useState(false)
 
   const handleLoadReplies = async () => {
     if (loadingReplies) return
@@ -48,6 +53,17 @@ export function EmailTools({ email, translation, onClearTranslation, onOpenCompo
       const r = await api.summarizeThread(email.id)
       setThreadSummary(r)
     } catch { /* silent */ } finally { setLoadingThreadSummary(false) }
+  }
+
+  const handleAnalyzeAttachments = async () => {
+    if (analyzingAttach) return
+    setAnalyzingAttach(true)
+    try {
+      const r = await api.analyzeAttachments(email.id)
+      if (r.has_attachments) setAttachAnalysis(r)
+      else setAttachAnalysis({ attachments: [], insights: [] })
+    } catch { /* silent */ }
+    setAnalyzingAttach(false)
   }
 
   const handleQuickReplyClick = (body: string) => {
@@ -95,7 +111,66 @@ export function EmailTools({ email, translation, onClearTranslation, onOpenCompo
             className="text-xs text-emerald-600 hover:underline flex items-center gap-1 disabled:opacity-50">
             {loadingThreadSummary ? <><span className="animate-spin inline-block">⟳</span> Summarizing…</> : '≡ Summarize thread'}
           </button>
+          <button onClick={handleAnalyzeAttachments} disabled={analyzingAttach}
+            className="text-xs text-amber-600 hover:underline flex items-center gap-1 disabled:opacity-50">
+            {analyzingAttach ? <><span className="animate-spin inline-block">⟳</span> Analyzing…</> : '📎 Attachments'}
+          </button>
         </div>
+
+        {attachAnalysis !== null && (
+          <div className="mt-3 bg-white border border-indigo-200 rounded-xl p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <span className="text-base">📎</span>
+                <p className="text-xs font-semibold text-indigo-700">Attachment Intelligence</p>
+              </div>
+              <button onClick={() => setAttachAnalysis(null)}
+                className="text-gray-500 hover:text-gray-800 text-xs px-1 rounded hover:bg-gray-100 transition-colors">✕</button>
+            </div>
+            {attachAnalysis.attachments.length === 0 && attachAnalysis.insights.length === 0 ? (
+              <p className="text-xs text-gray-400 italic">No attachment references detected in this email.</p>
+            ) : (
+              <>
+                {attachAnalysis.attachments.length > 0 && (
+                  <div className="space-y-1.5">
+                    {attachAnalysis.attachments.map((a, i) => {
+                      const badgeColors: Record<string, string> = {
+                        invoice: 'bg-yellow-100 text-yellow-800',
+                        contract: 'bg-indigo-100 text-indigo-800',
+                        proposal: 'bg-blue-100 text-blue-800',
+                        report: 'bg-purple-100 text-purple-800',
+                        receipt: 'bg-green-100 text-green-800',
+                        other: 'bg-gray-100 text-gray-700',
+                      }
+                      const badge = badgeColors[a.type?.toLowerCase()] ?? badgeColors.other
+                      return (
+                        <div key={i} className="flex items-start gap-2 bg-gray-50 rounded-lg px-2.5 py-1.5">
+                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 mt-0.5 ${badge}`}>
+                            {(a.type || 'file').toUpperCase()}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="text-xs font-medium text-gray-800 truncate">{a.filename}</p>
+                            {a.summary && <p className="text-xs text-gray-500 mt-0.5">{a.summary}</p>}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+                {attachAnalysis.insights.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pt-1 border-t border-indigo-100">
+                    {attachAnalysis.insights.map((ins, i) => (
+                      <span key={i} className="inline-flex items-center gap-1 bg-indigo-50 border border-indigo-100 rounded-full px-2 py-0.5 text-xs text-indigo-800">
+                        <span className="font-medium text-indigo-500">{ins.label}:</span>
+                        {ins.value}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
 
         {threadSummary && (
           <div className="mt-3 bg-emerald-50 border border-emerald-100 rounded-xl p-3 space-y-2">

@@ -9,32 +9,76 @@ interface MeetingResult {
   draft_email: string
 }
 
+interface RecordingEntry {
+  id: number
+  recorded_at: string
+  duration_secs: number
+  title: string
+  preview: string
+}
+
+interface RecordingDetail {
+  id: number
+  transcript: string
+  action_items: string[]
+  draft_email: string
+  title: string
+  recorded_at: string
+}
+
 export function MeetingTab() {
   const [state, setState] = useState<RecState>('idle')
   const [timer, setTimer] = useState(0)
   const [result, setResult] = useState<MeetingResult | null>(null)
   const [error, setError] = useState('')
   const [savingIdx, setSavingIdx] = useState<number | null>(null)
+  const [recordings, setRecordings] = useState<RecordingEntry[]>([])
+  const [expandedId, setExpandedId] = useState<number | null>(null)
+  const [expandedDetail, setExpandedDetail] = useState<RecordingDetail | null>(null)
+  const [loadingDetail, setLoadingDetail] = useState(false)
+  const [deletingId, setDeletingId] = useState<number | null>(null)
   const mediaRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const durationRef = useRef(0)
 
   const fmt = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
+
+  const fmtDate = (iso: string) => {
+    try {
+      return new Date(iso + 'Z').toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+    } catch {
+      return iso
+    }
+  }
+
+  const loadRecordings = () => {
+    api.listMeetingRecordings().then(r => setRecordings(r.recordings)).catch(() => {})
+  }
+
+  useEffect(() => {
+    loadRecordings()
+    return () => { if (timerRef.current) clearInterval(timerRef.current) }
+  }, [])
 
   const start = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       chunksRef.current = []
+      durationRef.current = 0
       const mr = new MediaRecorder(stream)
       mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data) }
       mr.onstop = async () => {
         stream.getTracks().forEach(t => t.stop())
+        const elapsed = durationRef.current
         setState('processing')
         const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
         try {
           const r = await api.transcribeMeeting(blob)
           setResult(r)
           setState('done')
+          // Server auto-saves on transcribe; just refresh history
+          loadRecordings()
         } catch (err: any) {
           setError(err.message || 'Transcription failed')
           setState('error')
@@ -44,7 +88,10 @@ export function MeetingTab() {
       mediaRef.current = mr
       setTimer(0)
       setState('recording')
-      timerRef.current = setInterval(() => setTimer(t => t + 1), 1000)
+      timerRef.current = setInterval(() => {
+        setTimer(t => t + 1)
+        durationRef.current += 1
+      }, 1000)
     } catch (err: any) {
       setError(err.message || 'Microphone access denied')
       setState('error')
@@ -56,12 +103,38 @@ export function MeetingTab() {
     mediaRef.current?.stop()
   }
 
-  useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current) }, [])
-
   const saveAction = async (text: string, idx: number) => {
     setSavingIdx(idx)
     try { await api.addActionItem('meeting', 'Meeting Recording', [text]) } catch {}
     setSavingIdx(null)
+  }
+
+  const toggleExpand = async (id: number) => {
+    if (expandedId === id) {
+      setExpandedId(null)
+      setExpandedDetail(null)
+      return
+    }
+    setExpandedId(id)
+    setExpandedDetail(null)
+    setLoadingDetail(true)
+    try {
+      const d = await api.getMeetingRecording(id)
+      setExpandedDetail(d)
+    } catch {
+      setExpandedDetail(null)
+    }
+    setLoadingDetail(false)
+  }
+
+  const deleteRecording = async (id: number) => {
+    setDeletingId(id)
+    try {
+      await api.deleteMeetingRecording(id)
+      setRecordings(prev => prev.filter(r => r.id !== id))
+      if (expandedId === id) { setExpandedId(null); setExpandedDetail(null) }
+    } catch {}
+    setDeletingId(null)
   }
 
   return (
@@ -150,6 +223,88 @@ export function MeetingTab() {
 
           <button onClick={() => { setResult(null); setState('idle'); setTimer(0) }}
             className="text-sm text-gray-400 hover:text-accent">New recording</button>
+        </div>
+      )}
+
+      {/* Past recordings history */}
+      {recordings.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="text-sm font-semibold text-gray-700">Past Recordings</h3>
+          <div className="space-y-2">
+            {recordings.slice(0, 5).map(rec => (
+              <div key={rec.id} className="border border-gray-200 rounded-xl overflow-hidden">
+                <div className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 cursor-pointer"
+                  onClick={() => toggleExpand(rec.id)}>
+                  <svg className="w-4 h-4 text-gray-400 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clipRule="evenodd" />
+                  </svg>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-800 truncate">{rec.title}</p>
+                    <p className="text-xs text-gray-400">{fmtDate(rec.recorded_at)}{rec.duration_secs > 0 ? ` · ${fmt(rec.duration_secs)}` : ''}</p>
+                    {expandedId !== rec.id && (
+                      <p className="text-xs text-gray-500 truncate mt-0.5">{rec.preview}</p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button
+                      onClick={e => { e.stopPropagation(); deleteRecording(rec.id) }}
+                      disabled={deletingId === rec.id}
+                      className="text-xs text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50 px-1">
+                      {deletingId === rec.id ? '…' : 'Delete'}
+                    </button>
+                    <svg className={`w-4 h-4 text-gray-400 transition-transform ${expandedId === rec.id ? 'rotate-180' : ''}`}
+                      viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                </div>
+
+                {expandedId === rec.id && (
+                  <div className="border-t border-gray-100 px-4 py-4 space-y-4 bg-gray-50">
+                    {loadingDetail && !expandedDetail && (
+                      <div className="flex items-center gap-2 text-gray-400 text-xs">
+                        <span className="w-3 h-3 border-2 border-gray-300 border-t-accent rounded-full animate-spin" />
+                        Loading…
+                      </div>
+                    )}
+                    {expandedDetail && (
+                      <>
+                        {expandedDetail.action_items.length > 0 && (
+                          <div>
+                            <p className="text-xs font-semibold text-gray-600 mb-1">Action Items</p>
+                            <ul className="space-y-1">
+                              {expandedDetail.action_items.map((item, i) => (
+                                <li key={i} className="flex items-start gap-1.5 text-xs text-gray-700">
+                                  <span className="text-gray-400 mt-0.5">•</span>
+                                  <span>{item}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {expandedDetail.draft_email && (
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <p className="text-xs font-semibold text-gray-600">Follow-up Draft</p>
+                              <button onClick={() => navigator.clipboard.writeText(expandedDetail.draft_email).catch(() => {})}
+                                className="text-[10px] text-gray-400 hover:text-accent border border-gray-200 rounded px-1.5 py-0.5">Copy</button>
+                            </div>
+                            <pre className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed font-sans">{expandedDetail.draft_email}</pre>
+                          </div>
+                        )}
+                        <details className="border border-gray-200 rounded-lg">
+                          <summary className="px-3 py-2 text-xs text-gray-500 cursor-pointer hover:bg-gray-100 rounded-lg">
+                            View transcript ({expandedDetail.transcript.split(' ').length} words)
+                          </summary>
+                          <pre className="px-3 pb-3 text-xs text-gray-600 whitespace-pre-wrap leading-relaxed font-mono">{expandedDetail.transcript}</pre>
+                        </details>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

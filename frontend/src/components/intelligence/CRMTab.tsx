@@ -27,6 +27,12 @@ export function CRMTab() {
   const [extracting, setExtracting] = useState(false)
   const [suggestions, setSuggestions] = useState<any[]>([])
   const [expandedId, setExpandedId] = useState<number | null>(null)
+  const [dealHistory, setDealHistory] = useState<Record<number, any[]>>({})
+
+  const loadHistory = (id: number) => {
+    if (dealHistory[id]) return
+    api.getCRMDealHistory(id).then(r => setDealHistory(prev => ({...prev, [id]: r.history}))).catch(() => {})
+  }
   const [showNew, setShowNew] = useState(false)
   const [newDeal, setNewDeal] = useState({ name: '', contact_email: '', stage: 'prospect' as Stage, value: '', notes: '' })
 
@@ -137,7 +143,7 @@ export function CRMTab() {
                 <div className="flex-1 overflow-y-auto p-2 space-y-2">
                   {stageDeals.map(deal => (
                     <div key={deal.id} className={`border rounded-lg bg-white shadow-sm cursor-pointer ${STAGE_BORDER[stage]}`}>
-                      <div className="p-2.5" onClick={() => setExpandedId(expandedId === deal.id ? null : deal.id)}>
+                      <div className="p-2.5" onClick={() => { setExpandedId(expandedId === deal.id ? null : deal.id); if (expandedId !== deal.id) loadHistory(deal.id) }}>
                         <p className="text-xs font-semibold text-gray-800 leading-tight">{deal.name}</p>
                         {deal.contact_email && <p className="text-[10px] text-gray-400 truncate mt-0.5">{deal.contact_email}</p>}
                         {deal.value && <span className="inline-block mt-1 text-[10px] bg-gray-100 text-gray-600 rounded px-1.5 py-0.5">{deal.value}</span>}
@@ -156,6 +162,16 @@ export function CRMTab() {
                             )}
                             <button onClick={() => deleteDeal(deal.id)} className="text-[10px] text-red-400 hover:text-red-600 ml-auto">Delete</button>
                           </div>
+                          {dealHistory[deal.id] && dealHistory[deal.id].length > 0 && (
+                            <div className="mt-1.5 border-t border-gray-50 pt-1.5">
+                              <p className="text-[9px] font-bold uppercase tracking-wide text-gray-300 mb-1">Stage history</p>
+                              {dealHistory[deal.id].slice(0, 4).map((h: any, i: number) => (
+                                <p key={i} className="text-[9px] text-gray-400">
+                                  {h.changed_at?.slice(0, 10)} · {h.from_stage} → {h.to_stage}
+                                </p>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

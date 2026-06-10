@@ -501,6 +501,63 @@ async def sync_from_provider(request: Request):
     except Exception as e:
         yahoo_error = str(e)
 
+    # ── Google Contacts ───────────────────────────────────────────────────────────
+    try:
+        import httpx as _httpx
+        google_accs = [
+            a for a in accounts
+            if getattr(a, "access_token", None)
+            and getattr(a, "provider", "") in ("gmail", "google")
+        ]
+        for g_acc in google_accs:
+            token = g_acc.access_token
+            url = (
+                "https://people.googleapis.com/v1/people/me/connections"
+                "?personFields=names,emailAddresses,phoneNumbers&pageSize=500"
+            )
+            try:
+                async with _httpx.AsyncClient(timeout=12.0) as c:
+                    r = await c.get(url, headers={"Authorization": f"Bearer {token}"})
+                if r.status_code == 401:
+                    new_token = await asyncio.get_event_loop().run_in_executor(
+                        None, cache.refresh_oauth_token, g_acc.id
+                    )
+                    if new_token:
+                        async with _httpx.AsyncClient(timeout=12.0) as c:
+                            r = await c.get(url, headers={"Authorization": f"Bearer {new_token}"})
+                if r.status_code == 200:
+                    data = r.json()
+                    contacts_list = data.get("connections") or []
+                    with cache._conn() as conn:
+                        for contact in contacts_list:
+                            names = contact.get("names") or []
+                            name = names[0].get("displayName", "") if names else ""
+                            emails_list = contact.get("emailAddresses") or []
+                            phones_list = [
+                                p.get("value", "") for p in (contact.get("phoneNumbers") or [])
+                                if p.get("value")
+                            ]
+                            for email_obj in emails_list:
+                                addr = (email_obj.get("value") or "").strip().lower()
+                                if addr and "@" in addr:
+                                    try:
+                                        conn.execute(
+                                            "INSERT OR IGNORE INTO imported_contacts (email_addr, name, phones, source) VALUES (?,?,?,?)",
+                                            (addr, name, json.dumps(phones_list), "google"),
+                                        )
+                                        if conn.execute("SELECT changes()").fetchone()[0] > 0:
+                                            imported += 1
+                                        else:
+                                            skipped += 1
+                                    except Exception:
+                                        skipped += 1
+                    if contacts_list:
+                        providers.append("Google")
+            except Exception as _ge:
+                pass
+    except Exception:
+        pass
+
     # ── Microsoft Graph contacts ──────────────────────────────────────────────
     ms_tried = False
     try:
@@ -604,14 +661,17 @@ async def sync_status(request: Request):
         domain = (acc.username or "").split("@")[-1].lower()
         is_yahoo = domain in _YAHOO_DOMAINS or getattr(acc, "provider", "") in ("yahoo_imap", "yahoo")
         is_ms365 = has_token and not has_password
+        is_google = has_token and getattr(acc, "provider", "") in ("gmail", "google")
+        eligible = ("yahoo_carddav" if is_yahoo and has_password else None) or \
+                   ("microsoft_graph" if is_ms365 else None) or \
+                   ("google_contacts" if is_google else None) or "none"
         result.append({
             "id": acc.id,
             "username": acc.username,
             "provider": getattr(acc, "provider", ""),
             "has_password": has_password,
             "has_token": has_token,
-            "eligible_for": ("yahoo_carddav" if is_yahoo and has_password else None) or
-                            ("microsoft_graph" if is_ms365 else None) or "none",
+            "eligible_for": eligible,
         })
     with cache._conn() as conn:
         total_imported = conn.execute("SELECT COUNT(*) FROM imported_contacts").fetchone()[0]

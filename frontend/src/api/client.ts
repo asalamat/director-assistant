@@ -409,6 +409,18 @@ export const api = {
     return fetch(`${BASE}/meeting/transcribe`, { method: 'POST', body: form })
       .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(new Error(e.detail || 'Transcription failed'))))
   },
+  saveMeetingRecording(data: { transcript: string; action_items: string[]; draft_email: string; duration_secs: number; title?: string }): Promise<{ id: number; title: string }> {
+    return request('/meeting/recordings', { method: 'POST', body: JSON.stringify(data) })
+  },
+  listMeetingRecordings(): Promise<{ recordings: { id: number; recorded_at: string; duration_secs: number; title: string; preview: string }[] }> {
+    return request('/meeting/recordings')
+  },
+  getMeetingRecording(id: number): Promise<{ id: number; transcript: string; action_items: string[]; draft_email: string; title: string; recorded_at: string }> {
+    return request(`/meeting/recordings/${id}`)
+  },
+  deleteMeetingRecording(id: number): Promise<void> {
+    return request(`/meeting/recordings/${id}`, { method: 'DELETE' })
+  },
 
   importVCard(file: File): Promise<{ imported: number; skipped: number; total: number; message: string }> {
     const form = new FormData()
@@ -577,6 +589,15 @@ export const api = {
     })
   },
 
+  analyzeAttachments(emailId: string): Promise<{
+    attachments: {filename: string; type: string; summary: string}[]
+    insights: {key: string; value: string; label: string}[]
+    has_attachments: boolean
+    detected_filenames: string[]
+  }> {
+    return request(`/emails/${encodeURIComponent(emailId)}/analyze-attachments`, { method: 'POST' })
+  },
+
   // Priority sorted emails
   getPrioritySorted(folder?: string, limit?: number): Promise<{ emails: any[] }> {
     return request(`/triage/sorted?folder=${folder ?? 'INBOX'}&limit=${limit ?? 50}`)
@@ -644,6 +665,12 @@ export const api = {
   },
   getVIPEmails(emailAddr: string, limit = 20): Promise<{ emails: any[] }> {
     return request(`/vip/emails/${encodeURIComponent(emailAddr)}?limit=${limit}`)
+  },
+  getVIPHealth(id: number): Promise<{
+    vip_id: number; email_addr: string; name: string; trend: 'warming' | 'stable' | 'cooling'
+    windows: { start: string; end: string; count: number }[]; total_90d: number
+  }> {
+    return request(`/vip/${id}/health`)
   },
 
   // Chase Queue (follow-up drafts)
@@ -722,5 +749,8 @@ export const api = {
   },
   extractCRMDeals(): Promise<{ suggestions: any[] }> {
     return request('/crm/deals/extract', { method: 'POST' })
+  },
+  getCRMDealHistory(id: number): Promise<{ history: { from_stage: string; to_stage: string; changed_at: string; note: string }[] }> {
+    return request(`/crm/deals/${id}/history`)
   },
 }
