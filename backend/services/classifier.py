@@ -9,7 +9,27 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-CATEGORIES = ("action_required", "meeting", "fyi", "newsletter", "other")
+CATEGORIES = (
+    "proposal",       # business proposal, quote, RFP
+    "contract",       # agreement, terms, legal document, NDA
+    "invoice",        # invoice, payment, billing, receipt
+    "meeting",        # invite, calendar, scheduling, agenda
+    "action_required",# needs a response or decision
+    "fyi",            # informational only, no action needed
+    "newsletter",     # bulk/marketing/automated
+    "other",
+)
+
+CATEGORY_LABELS = {
+    "proposal":       ("Proposal",  "bg-blue-100 text-blue-700"),
+    "contract":       ("Contract",  "bg-indigo-100 text-indigo-700"),
+    "invoice":        ("Invoice",   "bg-yellow-100 text-yellow-700"),
+    "meeting":        ("Meeting",   "bg-teal-100 text-teal-700"),
+    "action_required":("Action",    "bg-orange-100 text-orange-700"),
+    "fyi":            ("FYI",       "bg-gray-100 text-gray-600"),
+    "newsletter":     ("Newsletter","bg-slate-100 text-slate-500"),
+    "other":          ("Other",     "bg-gray-50 text-gray-400"),
+}
 
 
 class ClassifierService:
@@ -21,12 +41,15 @@ class ClassifierService:
             f"Classify this email into EXACTLY one category.\n"
             f"Subject: {subject}\nFrom: {sender}\nPreview: {preview[:200]}\n\n"
             f"Categories:\n"
-            f"  action_required — needs a response or decision\n"
-            f"  meeting — invite, calendar, scheduling\n"
-            f"  fyi — informational only, no action needed\n"
-            f"  newsletter — bulk/marketing/automated\n"
-            f"  other — everything else\n\n"
-            f"Reply with ONLY the category name."
+            f"  proposal       — business proposal, quote, bid, RFP response\n"
+            f"  contract       — agreement, contract, terms, NDA, legal document\n"
+            f"  invoice        — invoice, payment request, billing, receipt, purchase order\n"
+            f"  meeting        — calendar invite, scheduling, agenda, meeting notes\n"
+            f"  action_required — needs a response, decision, or follow-up action\n"
+            f"  fyi            — informational only, no action needed\n"
+            f"  newsletter     — bulk email, marketing, automated notification\n"
+            f"  other          — everything else\n\n"
+            f"Reply with ONLY the category name, nothing else."
         )
         try:
             resp = await self.ai.messages.create(

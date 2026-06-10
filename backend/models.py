@@ -33,6 +33,7 @@ class EmailSummary(BaseModel):
     date: Optional[str] = None
     preview: str = ""
     is_read: bool = True
+    category: Optional[str] = None
 
 
 class AIRecommendation(BaseModel):

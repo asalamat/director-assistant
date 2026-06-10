@@ -393,6 +393,7 @@ class EmailCache(EmailExtrasMixin, DocumentCacheMixin):
         from_date: Optional[str] = None,
         account_id: Optional[int] = None,
         only_unread: bool = False,
+        category: Optional[str] = None,
     ) -> tuple[list[EmailSummary], int]:
         col = self.SORT_COLS.get(sort_by, "date")
         direction = "ASC" if sort_order.lower() == "asc" else "DESC"
@@ -414,6 +415,10 @@ class EmailCache(EmailExtrasMixin, DocumentCacheMixin):
             where += " AND date >= ?"
             params.append(from_date)
 
+        if category:
+            where += " AND id IN (SELECT email_id FROM email_categories WHERE category = ?)"
+            params.append(category)
+
         # Exclude snoozed emails whose wake date hasn't arrived yet
         where += " AND id NOT IN (SELECT email_id FROM email_snooze WHERE wake_date > date('now'))"
 
@@ -422,9 +427,12 @@ class EmailCache(EmailExtrasMixin, DocumentCacheMixin):
                 f"SELECT COUNT(*) FROM emails WHERE {where}", params
             ).fetchone()[0]
             rows = conn.execute(
-                f"""SELECT id, subject, sender, date, body, is_read
-                    FROM emails WHERE {where}
-                    ORDER BY {col} {direction} LIMIT ? OFFSET ?""",
+                f"""SELECT e.id, e.subject, e.sender, e.date, e.body, e.is_read,
+                           ec.category
+                    FROM emails e
+                    LEFT JOIN email_categories ec ON ec.email_id = e.id
+                    WHERE {where}
+                    ORDER BY e.{col} {direction} LIMIT ? OFFSET ?""",
                 params + [limit, skip],
             ).fetchall()
         return [self._row_to_summary(dict(r)) for r in rows], total
@@ -614,4 +622,5 @@ class EmailCache(EmailExtrasMixin, DocumentCacheMixin):
             date=row.get("date"),
             preview=((row.get("body") or "")[:160]).replace("\n", " "),
             is_read=bool(row.get("is_read", 1)),
+            category=row.get("category") or None,
         )

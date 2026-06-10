@@ -13,6 +13,7 @@ interface ListParams {
   from_date?: string
   account_id?: number
   only_unread?: boolean
+  category?: string
 }
 
 export function useEmails(defaultFolder = 'INBOX') {

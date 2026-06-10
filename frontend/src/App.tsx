@@ -566,6 +566,8 @@ export default function App() {
                 sortBy={(currentParams.sort_by ?? 'date') as import('./hooks/useEmails').SortBy}
                 sortOrder={(currentParams.sort_order ?? 'desc') as import('./hooks/useEmails').SortOrder}
                 onlyUnread={onlyUnread}
+                activeCategory={(currentParams as any).category ?? null}
+                onCategoryChange={(cat) => refresh({ category: cat ?? undefined } as any)}
               />
             </div>
 

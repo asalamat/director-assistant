@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { CATEGORY_LABELS } from '../types'
 import type { EmailSummary, EmailThread } from '../types'
 import type { SortBy, SortOrder } from '../hooks/useEmails'
 import { api } from '../api/client'
@@ -38,6 +39,8 @@ interface Props {
   folders: Record<string, number>
   currentFolder: string
   onlyUnread?: boolean
+  activeCategory?: string | null
+  onCategoryChange?: (cat: string | null) => void
 }
 
 function isNewEmail(dateStr: string | null): boolean {
@@ -75,7 +78,7 @@ function replyDepth(subject: string): number {
   return depth
 }
 
-export function EmailList({ emails, selectedId, loading, hasMore, total, folders, currentFolder, onSelect, onLoadMore, onSearch, onSort, onFolderChange, onBulkDelete, onBulkSnooze, onOpenCompose, sortBy, sortOrder, onlyUnread }: Props) {
+export function EmailList({ emails, selectedId, loading, hasMore, total, folders, currentFolder, onSelect, onLoadMore, onSearch, onSort, onFolderChange, onBulkDelete, onBulkSnooze, onOpenCompose, sortBy, sortOrder, onlyUnread, activeCategory, onCategoryChange }: Props) {
   const [query, setQuery] = useState('')
   const [savedSearches, setSavedSearches] = useState<{ id: number; name: string; query: string; folder: string }[]>([])
   const [history, setHistory] = useState<string[]>(loadHistory)
@@ -452,6 +455,26 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
         )}
       </div>
 
+      {/* Category filter bar */}
+      {onCategoryChange && (
+        <div className="flex gap-1 px-3 py-1.5 border-b border-gray-100 overflow-x-auto flex-shrink-0">
+          {([null, 'proposal', 'contract', 'invoice', 'meeting', 'action_required'] as const).map(cat => {
+            const isActive = activeCategory === cat
+            const label = cat ? CATEGORY_LABELS[cat]?.text : 'All'
+            return (
+              <button key={cat ?? 'all'} onClick={() => onCategoryChange(cat)}
+                className={`text-[10px] font-medium px-2 py-0.5 rounded-full whitespace-nowrap transition-colors flex-shrink-0 ${
+                  isActive
+                    ? (cat ? `${CATEGORY_LABELS[cat].cls} border border-current/30` : 'bg-accent text-white')
+                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                }`}>
+                {label}
+              </button>
+            )
+          })}
+        </div>
+      )}
+
       {/* List */}
       <div className="flex-1 overflow-y-auto">
         {/* Thread view */}
@@ -585,6 +608,11 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
                     )}
                     {label && (
                       <Badge variant={label.cls.includes('red') ? 'danger' : label.cls.includes('orange') ? 'orange' : 'purple'}>{label.text}</Badge>
+                    )}
+                    {email.category && !['other','fyi','newsletter'].includes(email.category) && CATEGORY_LABELS[email.category as import('../types').EmailCategory] && (
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ${CATEGORY_LABELS[email.category as import('../types').EmailCategory].cls}`}>
+                        {CATEGORY_LABELS[email.category as import('../types').EmailCategory].text}
+                      </span>
                     )}
                   </div>
                   <div className="text-xs text-gray-400 mt-0.5 line-clamp-2 leading-relaxed">{email.preview}</div>

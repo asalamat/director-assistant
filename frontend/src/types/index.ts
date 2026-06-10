@@ -1,3 +1,18 @@
+export type EmailCategory =
+  | 'proposal' | 'contract' | 'invoice' | 'meeting'
+  | 'action_required' | 'fyi' | 'newsletter' | 'other'
+
+export const CATEGORY_LABELS: Record<EmailCategory, { text: string; cls: string }> = {
+  proposal:        { text: 'Proposal',    cls: 'bg-blue-100 text-blue-700' },
+  contract:        { text: 'Contract',    cls: 'bg-indigo-100 text-indigo-700' },
+  invoice:         { text: 'Invoice',     cls: 'bg-yellow-100 text-yellow-700' },
+  meeting:         { text: 'Meeting',     cls: 'bg-teal-100 text-teal-700' },
+  action_required: { text: 'Action',      cls: 'bg-orange-100 text-orange-700' },
+  fyi:             { text: 'FYI',         cls: 'bg-gray-100 text-gray-600' },
+  newsletter:      { text: 'Newsletter',  cls: 'bg-slate-100 text-slate-500' },
+  other:           { text: 'Other',       cls: 'bg-gray-50 text-gray-400' },
+}
+
 export interface EmailSummary {
   id: string
   subject: string
@@ -5,6 +20,7 @@ export interface EmailSummary {
   date: string | null
   preview: string
   is_read: boolean
+  category?: EmailCategory | null
 }
 
 export interface EmailMessage {
@@ -54,7 +70,6 @@ export interface Account {
   created_at: string | null
 }
 
-export type EmailCategory = 'action_required' | 'meeting' | 'fyi' | 'newsletter' | 'other'
 
 export interface ActionItem {
   id: number
