@@ -387,7 +387,7 @@ def _vip_list(vips: list[dict]) -> str:
         email = v.get("email_addr", "")
         initials = "".join(p[0].upper() for p in name.split()[:2]) or email[0].upper()
         awaiting = v.get("awaiting_reply", False)
-        unread = v.get("unread", 0)
+        unread = v.get("unread") or 0
         last = v.get("last_received", "") or "—"
         avatar_style = "vip-awaiting" if awaiting else ""
         badge = f'<span class="badge bdg-orange">reply needed</span>' if awaiting else \
@@ -616,7 +616,7 @@ def render_dashboard(d: dict) -> str:
     overdue_count  = len(actions)
     mtgs_tomorrow  = len(cal_today)
     chase_count    = len(chase)
-    vip_alert_count= len([v for v in vips if v.get("awaiting_reply") or v.get("unread", 0) > 0])
+    vip_alert_count= len([v for v in vips if v.get("awaiting_reply") or (v.get("unread") or 0) > 0])
     proj_count     = len(user_projects)
 
     cat_counts: dict[str, int] = {"Customer-facing": 0, "Internal sync": 0,

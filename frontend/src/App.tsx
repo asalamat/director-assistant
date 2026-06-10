@@ -391,9 +391,13 @@ export default function App() {
             </button>
           )}
           {overdueCount > 0 && (
-            <span className="text-[11px] bg-red-50 text-red-600 font-semibold px-2 py-0.5 rounded-full border border-red-100">
+            <button
+              onClick={() => setActiveTab('actions')}
+              title="View overdue follow-ups in Actions tab"
+              className="text-[11px] bg-red-50 text-red-600 font-semibold px-2 py-0.5 rounded-full border border-red-100 hover:bg-red-100 transition-colors cursor-pointer"
+            >
               {overdueCount} overdue
-            </span>
+            </button>
           )}
           {refreshMsg && <span className="text-xs text-gray-400 animate-fade-in">{refreshMsg}</span>}
         </div>
