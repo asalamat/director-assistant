@@ -6,17 +6,41 @@ export function EmailNotifyButton({ emailId }: Props) {
   const [open, setOpen] = useState(false)
   const [status, setStatus] = useState<{target: string; ok: boolean} | null>(null)
 
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+
   const share = async (target: 'slack' | 'teams') => {
     setOpen(false)
+    setErrorMsg(null)
     try {
-      const r = await fetch(`/api/notify/${target}`, {
+      const res = await fetch(`/api/notify/${target}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email_id: emailId }),
-      }).then(r => r.json())
-      setStatus({ target, ok: r.ok })
-    } catch { setStatus({ target, ok: false }) }
-    setTimeout(() => setStatus(null), 3000)
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        const msg = data.detail || `HTTP ${res.status}`
+        const friendly = msg.includes('not configured')
+          ? `${target === 'slack' ? 'Slack' : 'Teams'} not configured — add webhook URL in Settings → Integrations`
+          : msg
+        setErrorMsg(friendly)
+        setTimeout(() => setErrorMsg(null), 5000)
+      } else {
+        setStatus({ target, ok: data.ok ?? true })
+        setTimeout(() => setStatus(null), 3000)
+      }
+    } catch (e: any) {
+      setErrorMsg(e.message || 'Network error')
+      setTimeout(() => setErrorMsg(null), 4000)
+    }
+  }
+
+  if (errorMsg) {
+    return (
+      <span className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 max-w-xs leading-tight">
+        ⚠ {errorMsg}
+      </span>
+    )
   }
 
   if (status) {
