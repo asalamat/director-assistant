@@ -328,7 +328,7 @@ def _urgent_banner(actions: list[dict], follow_ups: list[dict]) -> str:
 
 
 def _vip_alert_row(vips: list[dict]) -> str:
-    at_risk = [v for v in vips if v.get("awaiting_reply") or v.get("unread", 0) > 0]
+    at_risk = [v for v in vips if v.get("awaiting_reply") or (v.get("unread") or 0) > 0]
     if not at_risk:
         return ""
     cards = ""
