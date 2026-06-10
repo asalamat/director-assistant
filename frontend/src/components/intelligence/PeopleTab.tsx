@@ -149,6 +149,20 @@ export function PeopleTab() {
     setTimeout(() => setImportMsg(''), 5000)
   }
 
+  const handleFuzzyMerge = async () => {
+    setImporting(true)
+    setImportMsg('')
+    try {
+      const r = await api.fuzzyMergeContacts()
+      setImportMsg(`✓ ${r.message}`)
+      if (r.records_removed > 0) refreshHints()
+    } catch (err: any) {
+      setImportMsg(`✗ ${err.message || 'Fuzzy merge failed'}`)
+    }
+    setImporting(false)
+    setTimeout(() => setImportMsg(''), 5000)
+  }
+
   useEffect(() => {
     Promise.all([
       api.getPeople(100),
@@ -311,6 +325,14 @@ export function PeopleTab() {
             ) : (
               <span className="text-xs text-green-600 flex-shrink-0">✓ No dupes</span>
             )}
+            <button
+              onClick={handleFuzzyMerge}
+              disabled={importing}
+              title="Merge contacts with similar names (handles typos, abbreviations, case variations)"
+              className={`text-xs border border-gray-200 rounded-lg px-2 py-1.5 flex-shrink-0 transition-colors ${importing ? 'opacity-50 text-gray-400' : 'text-gray-500 hover:bg-gray-50 hover:border-purple-300'}`}
+            >
+              {importing ? '…' : '🔍 Fuzzy merge'}
+            </button>
           </>
         )}
         {viewMode === 'graph' && <p className="flex-1 text-xs text-gray-400 py-1.5">Top 18 contacts by email volume</p>}

@@ -7,6 +7,7 @@ import { WebhooksSettings } from './WebhooksSettings'
 import { NotifySettings } from './NotifySettings'
 import { TasksExportSettings } from './TasksExportSettings'
 import { ReportScheduleSettings } from './ReportScheduleSettings'
+import { BackupSettings } from './BackupSettings'
 
 interface Props {
   onConnected: () => void
@@ -309,6 +310,10 @@ export function Settings({ onConnected, initialTab = 'accounts' }: Props) {
             <section>
               <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">Scheduled Report Email</h3>
               <ReportScheduleSettings />
+            </section>
+            <section>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">Data &amp; Backup</h3>
+              <BackupSettings />
             </section>
           </div>
         )}

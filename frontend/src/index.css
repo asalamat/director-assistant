@@ -158,3 +158,26 @@ html, body, #root {
 .dark .shadow-card    { box-shadow: 0 1px 3px 0 rgb(0 0 0/0.3), 0 1px 2px -1px rgb(0 0 0/0.3) !important; }
 .dark .shadow-card-md { box-shadow: 0 4px 12px 0 rgb(0 0 0/0.4) !important; }
 .dark .shadow-modal   { box-shadow: 0 20px 60px -10px rgb(0 0 0/0.7), 0 0 0 1px rgb(255 255 255/0.05) !important; }
+
+/* ── Mobile responsive ───────────────────────────────────────── */
+@media (max-width: 640px) {
+  /* Collapse sidebar to icon-only strip */
+  .w-16 { width: 3rem; }
+
+  /* Inbox: stack email list above viewer */
+  .w-72.flex-shrink-0 {
+    width: 100% !important;
+    max-height: 45vh;
+    border-right: none !important;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  /* Email viewer and AI panel fill remaining space */
+  .flex-1.flex.overflow-hidden.min-w-0 {
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  /* Toolbar: hide non-essential items */
+  .h-12 .hidden.sm\:inline { display: none; }
+}

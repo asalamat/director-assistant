@@ -48,6 +48,7 @@ from routers import contacts as contacts_router
 from routers import meeting as meeting_router
 from routers import crm as crm_router
 from routers import notify as notify_router
+from routers import backup as backup_router
 from routers import tasks_export as tasks_export_router
 from routers import webhooks as webhooks_router
 from routers import report_schedule as report_schedule_router
@@ -309,6 +310,19 @@ async def _do_poll_cycle_inner(rag: RAGEngine, cache: EmailCache, app=None) -> t
             asyncio.create_task(_auto_deadline_extract(app, all_new_emails))
             asyncio.create_task(_auto_cluster_alert(app, all_new_emails))
             asyncio.create_task(_auto_sentiment_escalation(app, all_new_emails))
+            # Auto-label new emails immediately (don't wait for the hourly loop)
+            async def _label_new(a=app, emails=all_new_emails):
+                try:
+                    clf = a.state.classifier
+                    ch = a.state.cache
+                    for em in emails[:20]:  # cap at 20 per poll to avoid API cost spikes
+                        if not ch.get_category(em.id):
+                            cat = await clf.classify(em.id, em.subject or "", em.sender or "",
+                                                     (em.body or "")[:200])
+                            ch.set_category(em.id, cat)
+                except Exception:
+                    pass
+            asyncio.create_task(_label_new())
 
     _last_poll_new = new_total
     _last_poll_error = "; ".join(errors) if errors else ""
@@ -517,6 +531,7 @@ app.include_router(tasks_export_router.router)
 app.include_router(webhooks_router.router)
 app.include_router(report_schedule_router.router)
 app.include_router(notify_router.router)
+app.include_router(backup_router.router)
 
 
 @app.get("/health")

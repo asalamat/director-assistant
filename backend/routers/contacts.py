@@ -337,6 +337,78 @@ async def merge_duplicates(request: Request):
     }
 
 
+@router.post("/fuzzy-merge")
+async def fuzzy_merge_contacts(request: Request):
+    """Merge contacts with very similar names (handles typos, abbreviations, case variations).
+
+    Uses a simple character-overlap ratio: if two names share >80% of their characters
+    (after lowercasing and removing punctuation), they're treated as the same person.
+    """
+    cache = request.app.state.cache
+    with cache._conn() as conn:
+        rows = conn.execute(
+            "SELECT id, email_addr, name, phones FROM imported_contacts ORDER BY name"
+        ).fetchall()
+
+    def normalize(s: str) -> str:
+        import re as _re
+        return _re.sub(r'[^a-z0-9]', '', (s or '').lower())
+
+    def similarity(a: str, b: str) -> float:
+        na, nb = normalize(a), normalize(b)
+        if not na or not nb:
+            return 0.0
+        longer = max(len(na), len(nb))
+        common = sum(1 for c in set(na) if c in nb)
+        # Also check if one is a prefix/substring of the other
+        is_substring = na in nb or nb in na
+        ratio = common / longer
+        return max(ratio, 0.9 if is_substring else 0)
+
+    # Group by similar names
+    contacts = [{"id": r["id"], "email_addr": r["email_addr"],
+                 "name": r["name"] or "", "phones": json.loads(r["phones"] or "[]")}
+                for r in rows]
+
+    merged = 0
+    removed = 0
+    visited = set()
+
+    with cache._conn() as conn:
+        for i, c1 in enumerate(contacts):
+            if c1["id"] in visited or not c1["name"].strip():
+                continue
+            group = [c1]
+            for j, c2 in enumerate(contacts):
+                if i == j or c2["id"] in visited:
+                    continue
+                if similarity(c1["name"], c2["name"]) >= 0.82:
+                    group.append(c2)
+            if len(group) < 2:
+                continue
+            # Keep the one with most phones; merge all phones
+            group.sort(key=lambda c: len(c["phones"]), reverse=True)
+            keep = group[0]
+            all_phones = list(keep["phones"])
+            for dup in group[1:]:
+                for ph in dup["phones"]:
+                    if ph not in all_phones:
+                        all_phones.append(ph)
+                conn.execute("DELETE FROM imported_contacts WHERE id = ?", (dup["id"],))
+                visited.add(dup["id"])
+                removed += 1
+            conn.execute("UPDATE imported_contacts SET phones = ? WHERE id = ?",
+                         (json.dumps(all_phones), keep["id"]))
+            visited.add(keep["id"])
+            merged += 1
+
+    return {
+        "merged_groups": merged,
+        "records_removed": removed,
+        "message": f"Fuzzy merged {merged} similar-name group(s), removed {removed} record(s)." if merged else "No fuzzy duplicates found.",
+    }
+
+
 @router.post("/hide")
 async def hide_contact(request: Request):
     """Hide a contact from the People tab. Accepts JSON body {email_addr: str}."""

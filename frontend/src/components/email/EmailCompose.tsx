@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import type { EmailMessage } from '../../types'
 import { api } from '../../api/client'
 
@@ -33,6 +33,9 @@ export function EmailCompose({
   const [adjustingTone, setAdjustingTone] = useState(false)
   const [addingCommitment, setAddingCommitment] = useState<string | null>(null)
   const [reviewing, setReviewing] = useState(false)
+  const [dictating, setDictating] = useState(false)
+  const dictChunksRef = useRef<Blob[]>([])
+  const dictRecorderRef = useRef<MediaRecorder | null>(null)
   const [review, setReview] = useState<{
     tone: string; tone_label: 'good' | 'warning' | 'issue'
     unanswered_questions: string[]; commitments: string[]; suggestions: string[]; ready: boolean
@@ -87,6 +90,35 @@ export function EmailCompose({
     setReviewing(false)
   }
 
+  const startDictation = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      dictChunksRef.current = []
+      const mr = new MediaRecorder(stream)
+      mr.ondataavailable = e => { if (e.data.size > 0) dictChunksRef.current.push(e.data) }
+      mr.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop())
+        const blob = new Blob(dictChunksRef.current, { type: 'audio/webm' })
+        try {
+          const form = new FormData()
+          form.append('audio', blob, 'dictation.webm')
+          const r = await fetch('/api/meeting/transcribe', { method: 'POST', body: form }).then(res => res.json())
+          if (r.transcript) {
+            setReplyBody(prev => prev ? prev + ' ' + r.transcript : r.transcript)
+          }
+        } catch { /* silent */ }
+        setDictating(false)
+      }
+      mr.start()
+      dictRecorderRef.current = mr
+      setDictating(true)
+    } catch { setDictating(false) }
+  }
+
+  const stopDictation = () => {
+    dictRecorderRef.current?.stop()
+  }
+
   const handleAddCommitment = async (c: string) => {
     setAddingCommitment(c)
     try {
@@ -139,6 +171,26 @@ export function EmailCompose({
               </button>
             ))}
             {adjustingTone && <span className="text-[10px] text-gray-400 animate-pulse self-center">rewriting…</span>}
+            <button
+              onClick={dictating ? stopDictation : startDictation}
+              title={dictating ? 'Stop dictation' : 'Dictate reply (Whisper)'}
+              className={`flex items-center gap-1 text-xs px-2 py-1 rounded border transition-colors ${
+                dictating
+                  ? 'border-red-300 bg-red-50 text-red-600'
+                  : 'border-gray-200 text-gray-500 hover:bg-gray-50 hover:border-accent'
+              }`}
+            >
+              {dictating ? (
+                <><span className="w-2 h-2 bg-red-500 rounded-full animate-pulse inline-block" /> Stop</>
+              ) : (
+                <>
+                  <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clipRule="evenodd" />
+                  </svg>
+                  Dictate
+                </>
+              )}
+            </button>
           </div>
           <div className="flex items-center gap-2 justify-end">
             {sendMsg && (

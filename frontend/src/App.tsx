@@ -543,7 +543,7 @@ export default function App() {
         </div>
 
         {/* Main content area */}
-        <div className="flex-1 flex overflow-hidden">
+        <div className="flex-1 flex overflow-hidden min-w-0">
           {activeTab === 'inbox' && (
           <>
             <div className="w-72 flex-shrink-0 flex flex-col border-r border-gray-100 dark:border-gray-700 dark:bg-gray-900">

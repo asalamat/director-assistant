@@ -446,6 +446,9 @@ export const api = {
   mergeContactDuplicates(): Promise<{ merged_groups: number; records_removed: number; message: string }> {
     return request('/contacts/merge-duplicates', { method: 'POST' })
   },
+  fuzzyMergeContacts(): Promise<{ merged_groups: number; records_removed: number; message: string }> {
+    return request('/contacts/fuzzy-merge', { method: 'POST' })
+  },
   updateContact(id: number, data: { name: string; phones: string[]; note: string }): Promise<{ updated: number }> {
     return request(`/contacts/imported/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
   },
@@ -758,5 +761,19 @@ export const api = {
   },
   getCRMDealHistory(id: number): Promise<{ history: { from_stage: string; to_stage: string; changed_at: string; note: string }[] }> {
     return request(`/crm/deals/${id}/history`)
+  },
+
+  // Backup & Restore
+  getBackupStats(): Promise<{ db_size_mb: number; last_modified: number | null }> {
+    return request('/backup/stats')
+  },
+  exportBackupUrl(): string {
+    return `${BASE}/backup/export`
+  },
+  importBackup(file: File): Promise<{ ok: boolean; message: string }> {
+    const form = new FormData()
+    form.append('file', file)
+    return fetch(`${BASE}/backup/import`, { method: 'POST', body: form })
+      .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(new Error(e.detail || 'Restore failed'))))
   },
 }
