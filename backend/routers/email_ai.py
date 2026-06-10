@@ -387,17 +387,35 @@ async def create_calendar_event(email_id: str, req: CreateEventRequest, request:
             for addr in req.attendees if "@" in addr
         ],
     }
-    try:
+
+    async def _post(tok: str):
         async with httpx.AsyncClient(timeout=15) as c:
-            r = await c.post(
+            return await c.post(
                 "https://graph.microsoft.com/v1.0/me/calendar/events",
-                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                headers={"Authorization": f"Bearer {tok}", "Content-Type": "application/json"},
                 json=payload,
             )
+
+    try:
+        r = await _post(token)
+        # Token expired or invalid JWT — try refresh once
+        if r.status_code in (401, 400):
+            new_token = await asyncio.get_event_loop().run_in_executor(
+                None, cache.refresh_oauth_token, ms_acc.id
+            )
+            if new_token:
+                r = await _post(new_token)
+            else:
+                raise HTTPException(401,
+                    "Microsoft token expired — remove and re-add your Microsoft account in Settings → Email Accounts")
         if r.status_code == 201:
             data = r.json()
             return {"status": "created", "event_id": data.get("id", ""), "web_link": data.get("webLink", "")}
-        raise HTTPException(r.status_code, r.json().get("error", {}).get("message", "Graph API error"))
+        err_msg = r.json().get("error", {}).get("message", f"Graph API error {r.status_code}")
+        if "IDX14100" in err_msg or "JWT" in err_msg or "not well formed" in err_msg:
+            raise HTTPException(401,
+                "Microsoft token is malformed — remove and re-add your Microsoft account in Settings → Email Accounts")
+        raise HTTPException(r.status_code, err_msg)
     except HTTPException:
         raise
     except Exception as e:
