@@ -20,7 +20,7 @@ def _get_email_data(cache, email_id: str) -> dict:
     return {
         "subject": email.subject or "(no subject)",
         "sender": email.sender or "",
-        "date": (email.date or "")[:16],
+        "date": str(email.date or "")[:16],
         "body_preview": body,
     }
 
