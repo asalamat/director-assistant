@@ -94,6 +94,22 @@ async def get_config():
         "digest_schedule_time": cfg.get("digest_schedule_time", "08:00"),
         "digest_schedule_email": cfg.get("digest_schedule_email", ""),
         "translation_language": cfg.get("translation_language", "English"),
+        # Integrations — return URLs and settings so Settings UI can populate on reload
+        "webhook_urls": cfg.get("webhook_urls", []),
+        "webhook_events": cfg.get("webhook_events", []),
+        "slack_webhook_url": cfg.get("slack_webhook_url", ""),
+        "teams_webhook_url": cfg.get("teams_webhook_url", ""),
+        "slack_vip_notify": cfg.get("slack_vip_notify", False),
+        "slack_auto_urgent": cfg.get("slack_auto_urgent", False),
+        "teams_vip_notify": cfg.get("teams_vip_notify", False),
+        "teams_auto_urgent": cfg.get("teams_auto_urgent", False),
+        "report_email_enabled": cfg.get("report_email_enabled", False),
+        "report_email_schedule": cfg.get("report_email_schedule", "monday:07:00"),
+        "report_email_to": cfg.get("report_email_to", ""),
+        "jira_url": cfg.get("jira_url", ""),
+        "jira_email": cfg.get("jira_email", ""),
+        "jira_project_key": cfg.get("jira_project_key", ""),
+        "notion_database_id": cfg.get("notion_database_id", ""),
     }
 
 
