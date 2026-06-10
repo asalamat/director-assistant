@@ -156,6 +156,73 @@ async def get_vip_health(vip_id: int, request: Request):
     }
 
 
+@router.get("/decay-alerts")
+async def get_decay_alerts(request: Request):
+    """Identify VIP contacts showing relationship decay patterns."""
+    from datetime import datetime, timedelta
+    cache = request.app.state.cache
+
+    with cache._conn() as conn:
+        vips = conn.execute("SELECT id, email_addr, name FROM vip_contacts").fetchall()
+
+    alerts = []
+    now = datetime.utcnow()
+
+    for vip in vips:
+        email = vip["email_addr"].lower()
+        name = vip["name"] or email
+
+        with cache._conn() as conn:
+            # Last 60 days of contact
+            rows = conn.execute(
+                """SELECT date, sender, folder FROM emails
+                   WHERE (LOWER(sender) LIKE ? OR LOWER(recipients) LIKE ?)
+                   AND date >= ?
+                   ORDER BY date DESC""",
+                (f"%{email}%", f"%{email}%",
+                 (now - timedelta(days=60)).strftime("%Y-%m-%d")),
+            ).fetchall()
+
+        if not rows:
+            continue
+
+        # Split into two 30-day windows
+        cutoff = (now - timedelta(days=30)).strftime("%Y-%m-%d")
+        recent = [r for r in rows if (r["date"] or "") >= cutoff]
+        older  = [r for r in rows if (r["date"] or "") <  cutoff]
+
+        days_since_last = (now - datetime.fromisoformat((rows[0]["date"] or now.isoformat())[:10])).days
+
+        # Decay signals
+        freq_drop = len(older) > 3 and len(recent) < len(older) * 0.5
+        gone_silent = len(older) >= 4 and days_since_last >= 14
+        very_overdue = days_since_last >= 21 and len(rows) >= 3
+
+        if not (freq_drop or gone_silent or very_overdue):
+            continue
+
+        reasons = []
+        if freq_drop:     reasons.append(f"Emails dropped from {len(older)} to {len(recent)} (last 30 days vs prior 30)")
+        if gone_silent:   reasons.append(f"No contact in {days_since_last} days (was active before)")
+        if very_overdue:  reasons.append(f"Last contact {days_since_last} days ago")
+
+        severity = "high" if days_since_last >= 21 else "medium"
+        alerts.append({
+            "vip_id": vip["id"],
+            "email_addr": email,
+            "name": name,
+            "days_since_last": days_since_last,
+            "last_contact": (rows[0]["date"] or "")[:10],
+            "recent_30d": len(recent),
+            "prior_30d": len(older),
+            "severity": severity,
+            "reasons": reasons,
+        })
+
+    alerts.sort(key=lambda a: a["days_since_last"], reverse=True)
+    return {"alerts": alerts, "total": len(alerts)}
+
+
 @router.get("/emails/{email_addr}")
 async def vip_email_history(email_addr: str, request: Request, limit: int = 20):
     """Return recent emails from/to this VIP contact."""

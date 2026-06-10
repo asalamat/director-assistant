@@ -71,6 +71,23 @@ function priorityLabel(subject: string, preview: string): { text: string; cls: s
   return null
 }
 
+function Highlight({ text, query }: { text: string; query: string }) {
+  if (!query.trim()) return <>{text}</>
+  const terms = query.trim().split(/\s+/).filter(t => t.length > 2).slice(0, 5)
+  if (!terms.length) return <>{text}</>
+  const pattern = new RegExp(`(${terms.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'gi')
+  const parts = text.split(pattern)
+  return (
+    <>
+      {parts.map((part, i) =>
+        pattern.test(part)
+          ? <mark key={i} className="bg-yellow-200 text-yellow-900 rounded px-0.5 not-italic">{part}</mark>
+          : <span key={i}>{part}</span>
+      )}
+    </>
+  )
+}
+
 function replyDepth(subject: string): number {
   let depth = 0
   let s = subject
@@ -602,7 +619,7 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
                         {depth}↩
                       </span>
                     )}
-                    <span className="text-xs truncate">{email.subject || '(no subject)'}</span>
+                    <span className="text-xs truncate">{query.trim() ? <Highlight text={email.subject || '(no subject)'} query={query} /> : (email.subject || '(no subject)')}</span>
                     {isNew && (
                       <Badge variant="new">New</Badge>
                     )}
@@ -615,7 +632,7 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
                       </span>
                     )}
                   </div>
-                  <div className="text-xs text-gray-400 mt-0.5 line-clamp-2 leading-relaxed">{email.preview}</div>
+                  <div className="text-xs text-gray-400 mt-0.5 line-clamp-2 leading-relaxed">{email.preview && query.trim() ? <Highlight text={email.preview} query={query} /> : email.preview}</div>
                 </div>
               </button>
 

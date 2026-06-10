@@ -80,6 +80,14 @@ const TABS: { id: Tab; label: string }[] = [
 ]
 
 export default function App() {
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('theme') === 'dark')
+
+  useEffect(() => {
+    const root = document.documentElement
+    if (darkMode) { root.classList.add('dark'); localStorage.setItem('theme', 'dark') }
+    else { root.classList.remove('dark'); localStorage.setItem('theme', 'light') }
+  }, [darkMode])
+
   const [connected, setConnected] = useState<boolean | null>(null)
   const [healthStatus, setHealthStatus] = useState<'ok' | 'degraded' | 'error' | null>(null)
   const [accounts, setAccounts] = useState<{ id: number; username: string; provider: string }[]>([])
@@ -360,7 +368,7 @@ export default function App() {
   return (
     <div className="h-screen flex flex-col bg-surface-1 overflow-hidden">
       {/* Toolbar */}
-      <div className="h-12 flex items-center justify-between px-4 border-b border-gray-100 bg-white shadow-[0_1px_0_0_rgb(0_0_0/0.05)] flex-shrink-0 z-10">
+      <div className="h-12 flex items-center justify-between px-4 border-b border-gray-100 bg-white dark:bg-gray-900 dark:border-gray-700 shadow-[0_1px_0_0_rgb(0_0_0/0.05)] flex-shrink-0 z-10">
         <div className="flex items-center gap-3">
           {/* Logo */}
           <div className="flex items-center gap-2">
@@ -430,6 +438,22 @@ export default function App() {
           </>)}
 
           <div className="h-4 w-px bg-gray-200 mx-0.5" />
+
+          <button
+            onClick={() => setDarkMode(v => !v)}
+            title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:text-gray-500 dark:hover:text-gray-200 dark:hover:bg-gray-800 transition-colors"
+          >
+            {darkMode ? (
+              <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd"/>
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/>
+              </svg>
+            )}
+          </button>
 
           <button onClick={() => setShowHelp(true)} title="Help"
             className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-all">
@@ -522,7 +546,7 @@ export default function App() {
         <div className="flex-1 flex overflow-hidden">
           {activeTab === 'inbox' && (
           <>
-            <div className="w-72 flex-shrink-0 flex flex-col border-r border-gray-100">
+            <div className="w-72 flex-shrink-0 flex flex-col border-r border-gray-100 dark:border-gray-700 dark:bg-gray-900">
               {accounts.length > 1 && (
                 <div className="flex flex-wrap gap-1 px-2 pt-2 pb-1 border-b border-gray-100">
                   <button

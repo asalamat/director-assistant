@@ -61,6 +61,8 @@ export function MeetingTab() {
     return () => { if (timerRef.current) clearInterval(timerRef.current) }
   }, [])
 
+  const MAX_SECS = 45 * 60  // 45 min limit (Whisper 25 MB at ~48kbps ≈ 62 min; use 45 for safety)
+
   const start = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
@@ -89,7 +91,15 @@ export function MeetingTab() {
       setTimer(0)
       setState('recording')
       timerRef.current = setInterval(() => {
-        setTimer(t => t + 1)
+        setTimer(t => {
+          const next = t + 1
+          if (next >= MAX_SECS) {
+            // Auto-stop at limit
+            if (timerRef.current) clearInterval(timerRef.current)
+            mediaRef.current?.stop()
+          }
+          return next
+        })
         durationRef.current += 1
       }, 1000)
     } catch (err: any) {
@@ -160,6 +170,9 @@ export function MeetingTab() {
           <span className="flex items-center gap-2 text-red-500 font-medium text-sm">
             <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />
             Recording — {fmt(timer)}
+            {timer >= MAX_SECS - 300 && timer < MAX_SECS && (
+              <span className="text-xs text-amber-500 ml-2">({Math.ceil((MAX_SECS - timer) / 60)}m remaining)</span>
+            )}
           </span>
           <button onClick={stop}
             className="px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 text-sm transition-colors">

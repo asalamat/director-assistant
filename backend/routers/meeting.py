@@ -31,14 +31,22 @@ async def save_recording(req: SaveRecordingRequest, request: Request):
         )
         rid = cur.lastrowid
 
-    # Index transcript into RAG so Ask can search it (best-effort)
+    # Index transcript into RAG so Ask can find it (source_type="meeting")
     try:
         rag = request.app.state.rag
-        rag.ingest_contact(
-            email_addr=f"meeting__{rid}",
-            name=f"Meeting: {title}",
-            note=req.transcript[:4000],
-            source="meeting",
+        chunk_id = f"meeting__{rid}"
+        rag._proxy.upsert(
+            ids=[chunk_id],
+            documents=[f"Meeting recording: {title}\n\n{req.transcript[:6000]}"],
+            metadatas=[{
+                "email_id": chunk_id,
+                "source_type": "meeting",
+                "subject": f"Meeting: {title}",
+                "sender": "meeting",
+                "date": "",
+                "meeting_id": str(rid),
+                "meeting_title": title,
+            }],
         )
     except Exception:
         pass
@@ -162,15 +170,28 @@ Respond with valid JSON only, no markdown fences:
         except Exception:
             data = {}
 
-        # Auto-save recording to DB
+        # Auto-save recording to DB and index in RAG
         try:
             auto_title = (transcript[:60].split('.')[0] + '…') if transcript else "Meeting"
             with cache._conn() as conn:
-                conn.execute(
+                cur2 = conn.execute(
                     """INSERT INTO meeting_recordings (transcript, action_items, draft_email, title)
                        VALUES (?,?,?,?)""",
                     (transcript, json.dumps(action_items), draft_email, auto_title),
                 )
+                rid2 = cur2.lastrowid
+            rag_engine = request.app.state.rag
+            rag_engine._proxy.upsert(
+                ids=[f"meeting__{rid2}"],
+                documents=[f"Meeting recording: {auto_title}\n\n{transcript[:6000]}"],
+                metadatas=[{
+                    "email_id": f"meeting__{rid2}",
+                    "source_type": "meeting",
+                    "subject": f"Meeting: {auto_title}",
+                    "sender": "meeting", "date": "",
+                    "meeting_id": str(rid2), "meeting_title": auto_title,
+                }],
+            )
         except Exception:
             pass
 

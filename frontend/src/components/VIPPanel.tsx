@@ -267,6 +267,13 @@ function VIPDetail({
   )
 }
 
+interface DecayAlert {
+  vip_id: number; name: string; email_addr: string
+  days_since_last: number; last_contact: string
+  recent_30d: number; prior_30d: number
+  severity: 'high' | 'medium'; reasons: string[]
+}
+
 // ── VIP List View ─────────────────────────────────────────────────────────────
 
 export function VIPPanel() {
@@ -278,6 +285,8 @@ export function VIPPanel() {
   const [newNote, setNewNote] = useState('')
   const [saving, setSaving] = useState(false)
   const [selected, setSelected] = useState<VIP | null>(null)
+  const [decayAlerts, setDecayAlerts] = useState<DecayAlert[]>([])
+  const [alertsExpanded, setAlertsExpanded] = useState(true)
 
   const load = () => {
     setLoading(true)
@@ -285,6 +294,9 @@ export function VIPPanel() {
   }
 
   useEffect(() => { load() }, [])
+  useEffect(() => {
+    api.getDecayAlerts().then(r => setDecayAlerts(r.alerts)).catch(() => {})
+  }, [])
 
   if (selected) {
     return (
@@ -340,6 +352,65 @@ export function VIPPanel() {
       )}
 
       <div className="flex-1 overflow-y-auto">
+        {/* Relationship Decay Alerts */}
+        {decayAlerts.length > 0 && (
+          <div className="mx-3 mt-3 mb-1 rounded-xl border border-amber-200 bg-amber-50 overflow-hidden">
+            <button
+              onClick={() => setAlertsExpanded(v => !v)}
+              className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-amber-100/60 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-amber-600 text-sm">⚠</span>
+                <span className="text-xs font-semibold text-amber-800">
+                  {decayAlerts.length} relationship{decayAlerts.length !== 1 ? 's' : ''} need{decayAlerts.length === 1 ? 's' : ''} attention
+                </span>
+              </div>
+              <span className="text-xs text-amber-500">{alertsExpanded ? '▲' : '▼'}</span>
+            </button>
+
+            {alertsExpanded && (
+              <div className="border-t border-amber-200 divide-y divide-amber-100">
+                {decayAlerts.map(alert => {
+                  const badgeClass = alert.severity === 'high'
+                    ? 'bg-red-100 text-red-700'
+                    : 'bg-amber-100 text-amber-700'
+                  const vipObj = vips.find(v => v.id === alert.vip_id) ?? null
+                  return (
+                    <div key={alert.vip_id} className="px-3 py-2.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-xs font-semibold text-gray-800 truncate">
+                              {alert.name}
+                            </span>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 ${badgeClass}`}>
+                              {alert.days_since_last}d silent
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-gray-500 truncate mt-0.5">{alert.email_addr}</p>
+                          <ul className="mt-1 space-y-0.5">
+                            {alert.reasons.map((r, i) => (
+                              <li key={i} className="text-[10px] text-amber-700 leading-tight">• {r}</li>
+                            ))}
+                          </ul>
+                        </div>
+                        {vipObj && (
+                          <button
+                            onClick={() => setSelected(vipObj)}
+                            className="flex-shrink-0 text-[10px] font-medium text-accent border border-accent/30 rounded-lg px-2 py-1 hover:bg-accent hover:text-white transition-colors"
+                          >
+                            View emails
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
         {loading && (
           <div className="flex justify-center py-12">
             <Spinner size="md" />

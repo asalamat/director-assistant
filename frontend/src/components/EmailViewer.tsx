@@ -6,6 +6,35 @@ import { EmailHeader } from './email/EmailHeader'
 import { EmailCompose } from './email/EmailCompose'
 import { EmailTools } from './email/EmailTools'
 
+function splitBodyAndQuotes(body: string): { main: string; quoted: string | null } {
+  const lines = body.split('\n')
+  const quoteStartPatterns = [
+    /^>{1}/,
+    /^-{3,}\s*(Original|Forwarded)/i,
+    /^On .{10,} wrote:/,
+    /^_{3,}$/,
+    /^From:\s+.+@/i,
+  ]
+
+  let quoteStart = -1
+  for (let i = 0; i < lines.length; i++) {
+    if (quoteStartPatterns.some(p => p.test(lines[i].trim()))) {
+      const nextFew = lines.slice(i, i + 3)
+      const quotyCount = nextFew.filter(l => l.trim().startsWith('>') || l.trim() === '' || /^(From|To|Sent|Subject):/i.test(l)).length
+      if (quotyCount >= 2 || lines[i].trim().startsWith('>')) {
+        quoteStart = i
+        break
+      }
+    }
+  }
+
+  if (quoteStart <= 2) return { main: body, quoted: null }
+
+  const main = lines.slice(0, quoteStart).join('\n').trimEnd()
+  const quoted = lines.slice(quoteStart).join('\n')
+  return { main, quoted }
+}
+
 interface Props {
   email: EmailMessage | null
   loading: boolean
@@ -27,6 +56,7 @@ export function EmailViewer({ email, loading, fetchError, onAnalyze, analyzing, 
   const [draftCommitments, setDraftCommitments] = useState<string[]>([])
   const [translation, setTranslation] = useState<string | null>(null)
   const [translating, setTranslating] = useState(false)
+  const [showQuoted, setShowQuoted] = useState(false)
 
   useEffect(() => {
     setShowCompose(false)
@@ -36,6 +66,7 @@ export function EmailViewer({ email, loading, fetchError, onAnalyze, analyzing, 
     setSendTimeSuggestion(null)
     setDraftCommitments([])
     setTranslation(null)
+    setShowQuoted(false)
   }, [email?.id])
 
   const handleReplyClick = () => {
@@ -128,9 +159,31 @@ export function EmailViewer({ email, loading, fetchError, onAnalyze, analyzing, 
             dangerouslySetInnerHTML={{ __html: email.body_html }}
           />
         ) : (
-          <pre className="whitespace-pre-wrap font-sans text-sm text-gray-800 leading-loose">
-            {email.body || '(empty)'}
-          </pre>
+          (() => {
+            const { main, quoted } = splitBodyAndQuotes(email.body || '')
+            return (
+              <>
+                <div className="whitespace-pre-wrap break-words text-sm text-gray-800 leading-relaxed">
+                  {main || '(empty)'}
+                </div>
+                {quoted && (
+                  <div className="mt-3">
+                    <button
+                      onClick={() => setShowQuoted(v => !v)}
+                      className="text-xs text-gray-400 hover:text-accent border border-gray-200 rounded px-2 py-0.5 transition-colors"
+                    >
+                      {showQuoted ? '▲ Hide quoted text' : '▼ Show quoted text'}
+                    </button>
+                    {showQuoted && (
+                      <div className="mt-2 pl-3 border-l-2 border-gray-200 text-xs text-gray-500 whitespace-pre-wrap leading-relaxed opacity-80">
+                        {quoted}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            )
+          })()
         )}
       </div>
 

@@ -672,6 +672,12 @@ export const api = {
   }> {
     return request(`/vip/${id}/health`)
   },
+  getDecayAlerts(): Promise<{
+    alerts: { vip_id: number; name: string; email_addr: string; days_since_last: number; last_contact: string; recent_30d: number; prior_30d: number; severity: 'high'|'medium'; reasons: string[] }[]
+    total: number
+  }> {
+    return request('/vip/decay-alerts')
+  },
 
   // Chase Queue (follow-up drafts)
   generateChaseDraft(emailId: string): Promise<{ draft: string; subject: string; to: string; email_id: string }> {

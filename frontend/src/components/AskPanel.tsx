@@ -47,6 +47,23 @@ interface DocsAnswer {
   sources: { filename: string; file_type: string }[]
 }
 
+function Highlight({ text, query }: { text: string; query: string }) {
+  if (!query.trim()) return <>{text}</>
+  const terms = query.trim().split(/\s+/).filter(t => t.length > 2).slice(0, 5)
+  if (!terms.length) return <>{text}</>
+  const pattern = new RegExp(`(${terms.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'gi')
+  const parts = text.split(pattern)
+  return (
+    <>
+      {parts.map((part, i) =>
+        pattern.test(part)
+          ? <mark key={i} className="bg-yellow-200 text-yellow-900 rounded px-0.5 not-italic">{part}</mark>
+          : <span key={i}>{part}</span>
+      )}
+    </>
+  )
+}
+
 const SUGGESTIONS = [
   'Who sent me the most emails this month?',
   'Are there any unresolved action items?',
@@ -507,7 +524,7 @@ export function AskPanel({ initialQuery, onClear }: { initialQuery?: string; onC
                         </p>
                       )}
                       {r.text && (
-                        <p className="text-xs text-gray-500 mt-1.5 line-clamp-2">{r.text}</p>
+                        <p className="text-xs text-gray-500 mt-1.5 line-clamp-2"><Highlight text={r.text} query={topicQuery} /></p>
                       )}
                     </div>
                   ))}
@@ -587,7 +604,7 @@ export function AskPanel({ initialQuery, onClear }: { initialQuery?: string; onC
                         </p>
                       )}
                       {r.preview && (
-                        <p className="text-xs text-gray-500 mt-1.5 line-clamp-2">{r.preview}</p>
+                        <p className="text-xs text-gray-500 mt-1.5 line-clamp-2"><Highlight text={r.preview} query={nlQuery} /></p>
                       )}
                     </div>
                   ))}
