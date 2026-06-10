@@ -3,6 +3,7 @@ import type { EmailMessage } from '../../types'
 import { ContactCard } from '../ContactCard'
 import { Button } from '../ui'
 import { api } from '../../api/client'
+import { EmailNotifyButton } from '../EmailNotifyButton'
 
 export interface EmailHeaderProps {
   email: EmailMessage
@@ -155,6 +156,7 @@ export function EmailHeader({
           >
             {translating ? <><span className="animate-spin inline-block">⟳</span> Translating…</> : '🌐 Translate'}
           </button>
+          <EmailNotifyButton emailId={email.id} />
           <Button variant="primary" size="sm" loading={analyzing} onClick={onAnalyze}>{analyzing ? 'Analyzing…' : '✦ AI Analysis'}</Button>
           {onAsk && (
             <button

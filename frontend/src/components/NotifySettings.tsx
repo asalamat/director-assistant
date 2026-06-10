@@ -39,14 +39,37 @@ export function NotifySettings() {
 
   const testSlack = async () => {
     setTestingSlack(true); setSlackTest(null)
-    const r = await fetch('/api/notify/test-slack', { method: 'POST' }).then(r => r.json()).catch(e => ({ ok: false, error: e.message }))
-    setSlackTest(r); setTestingSlack(false)
+    // Save the URL first so the backend can read it
+    await api.saveConfig({ slack_webhook_url: slackUrl } as any).catch(() => {})
+    try {
+      const res = await fetch('/api/notify/test-slack', { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setSlackTest({ ok: false, error: data.detail || `HTTP ${res.status}` })
+      } else {
+        setSlackTest({ ok: data.ok ?? true, error: data.error || undefined })
+      }
+    } catch (e: any) {
+      setSlackTest({ ok: false, error: e.message || 'Network error' })
+    }
+    setTestingSlack(false)
   }
 
   const testTeams = async () => {
     setTestingTeams(true); setTeamsTest(null)
-    const r = await fetch('/api/notify/test-teams', { method: 'POST' }).then(r => r.json()).catch(e => ({ ok: false, error: e.message }))
-    setTeamsTest(r); setTestingTeams(false)
+    await api.saveConfig({ teams_webhook_url: teamsUrl } as any).catch(() => {})
+    try {
+      const res = await fetch('/api/notify/test-teams', { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setTeamsTest({ ok: false, error: data.detail || `HTTP ${res.status}` })
+      } else {
+        setTeamsTest({ ok: data.ok ?? true, error: data.error || undefined })
+      }
+    } catch (e: any) {
+      setTeamsTest({ ok: false, error: e.message || 'Network error' })
+    }
+    setTestingTeams(false)
   }
 
   return (
