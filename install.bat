@@ -43,17 +43,40 @@ echo [OK]    Python %PY_VER% found
 
 :: ── 2. Check Node.js ────────────────────────────────────────
 echo [2/7] Checking Node.js...
+
+:: Try PATH first
 where node >nul 2>&1
-if errorlevel 1 (
-    echo.
-    echo [ERROR] Node.js not found!
-    echo.
-    echo   Please install Node.js 18 or higher:
-    echo   https://nodejs.org/en/download
-    echo.
-    pause
-    exit /b 1
+if not errorlevel 1 goto NODE_FOUND
+
+:: Node.js installed but PATH not refreshed — check common locations
+set NODE_PATHS=^
+    "%ProgramFiles%\nodejs\node.exe" ^
+    "%ProgramFiles(x86)%\nodejs\node.exe" ^
+    "%LOCALAPPDATA%\Programs\nodejs\node.exe" ^
+    "%APPDATA%\nvm\current\node.exe"
+
+for %%P in (%NODE_PATHS%) do (
+    if exist %%P (
+        :: Add its folder to PATH for this session
+        for %%D in (%%P) do set "PATH=%%~dpD;%PATH%"
+        goto NODE_FOUND
+    )
 )
+
+:: Still not found
+echo.
+echo [ERROR] Node.js not found!
+echo.
+echo   Please install Node.js 18 or higher:
+echo   https://nodejs.org/en/download
+echo.
+echo   After installing, CLOSE this window and run install.bat again.
+echo   (Windows needs a fresh cmd session to detect new PATH entries)
+echo.
+pause
+exit /b 1
+
+:NODE_FOUND
 for /f "tokens=1" %%v in ('node --version 2^>^&1') do set NODE_VER=%%v
 echo [OK]    Node.js %NODE_VER% found
 
