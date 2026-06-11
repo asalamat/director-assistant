@@ -26,15 +26,39 @@ set "INSTALL_DIR=%~dp0director-assistant"
 
 :: ── 1. Check Git ─────────────────────────────────────────────
 echo [1/8] Checking Git...
+set "GIT_CMD=git"
+
 where git >nul 2>&1
-if errorlevel 1 (
-    echo.
-    echo [ERROR] Git not found!
-    echo   Install from: https://git-scm.com/download/win
-    echo   Then re-run this installer.
-    echo.
-    pause & exit /b 1
+if not errorlevel 1 goto GIT_OK
+
+:: Search common Git install locations
+for %%D in (
+    "%ProgramFiles%\Git\cmd"
+    "%ProgramFiles(x86)%\Git\cmd"
+    "%LOCALAPPDATA%\Programs\Git\cmd"
+    "%ProgramFiles%\Git\bin"
+) do (
+    if exist "%%~D\git.exe" (
+        set "PATH=%%~D;%PATH%"
+        set "GIT_CMD=%%~D\git.exe"
+        goto GIT_OK
+    )
 )
+
+echo.
+echo [ERROR] Git not found!
+echo.
+echo   OPTION A: Close this window, install Git, open a NEW window, run again.
+echo   Install from: https://git-scm.com/download/win
+echo.
+echo   OPTION B: Download the repo manually as a ZIP instead:
+echo   1. Go to https://github.com/asalamat/director-assistant
+echo   2. Click Code ^> Download ZIP
+echo   3. Extract it and run install.bat from inside the extracted folder
+echo.
+pause & exit /b 1
+
+:GIT_OK
 for /f "tokens=3" %%v in ('git --version 2^>^&1') do set GIT_VER=%%v
 echo [OK]    Git %GIT_VER% found
 
@@ -107,10 +131,10 @@ echo [4/8] Setting up repository...
 if exist "%INSTALL_DIR%\.git" (
     echo [OK]    Repository already exists — pulling latest...
     cd /d "%INSTALL_DIR%"
-    git pull --quiet
+    "%GIT_CMD%" pull --quiet
 ) else (
     echo        Cloning from GitHub (this takes ~1 minute)...
-    git clone https://github.com/asalamat/director-assistant.git "%INSTALL_DIR%"
+    "%GIT_CMD%" clone https://github.com/asalamat/director-assistant.git "%INSTALL_DIR%"
     if errorlevel 1 (
         echo [ERROR] Clone failed. Check your internet connection.
         pause & exit /b 1
