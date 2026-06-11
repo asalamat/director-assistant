@@ -479,6 +479,13 @@ async def adjust_tone(request: Request):
         "shorter": "Rewrite this text to be significantly shorter while keeping all key information.",
         "friendlier": "Rewrite this text to be warmer and more friendly.",
         "direct": "Rewrite this text to be more direct and assertive, cutting any unnecessary words.",
+        "improve": (
+            "You are helping someone improve their email reply. "
+            "Keep their exact opinion, stance, and intent — do NOT change what they are saying or agreeing to. "
+            "Only fix grammar, clarity, and professionalism. "
+            "If they are declining or disagreeing, keep that disagreement intact. "
+            "Return ONLY the improved text."
+        ),
     }
     instruction = TONE_PROMPTS.get(tone, TONE_PROMPTS["formal"])
     advisor = request.app.state.advisor

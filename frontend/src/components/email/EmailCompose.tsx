@@ -306,6 +306,19 @@ export function EmailCompose({
             className="w-full text-sm border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent resize-none bg-white"
           />
 
+          {/* Improve my draft button — rewrites while keeping user's intent */}
+          <div className="flex items-center gap-2 mb-1">
+            <button
+              onClick={() => handleAdjustTone('improve')}
+              disabled={adjustingTone || !replyBody.trim()}
+              title="AI rewrites your draft — keeps your opinion/disagreement, fixes grammar and clarity"
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-accent/10 text-accent border border-accent/30 rounded-lg hover:bg-accent/20 disabled:opacity-40 transition-colors font-medium"
+            >
+              {adjustingTone ? <><span className="animate-spin inline-block text-[10px]">⟳</span> Improving…</> : '✦ Improve my draft'}
+            </button>
+            <span className="text-[10px] text-gray-400">Keeps your intent · fixes grammar & clarity</span>
+          </div>
+
           {/* Tone + dictation toolbar */}
           <div className="flex gap-1.5 flex-wrap">
             <span className="text-[10px] text-gray-400 self-center mr-1">Adjust tone:</span>

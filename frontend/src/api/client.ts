@@ -585,7 +585,7 @@ export const api = {
   },
 
   // Tone adjuster
-  adjustTone(text: string, tone: 'formal' | 'casual' | 'shorter' | 'friendlier' | 'direct'): Promise<{ result: string }> {
+  adjustTone(text: string, tone: 'formal' | 'casual' | 'shorter' | 'friendlier' | 'direct' | 'improve'): Promise<{ result: string }> {
     return request('/emails/adjust-tone', { method: 'POST', body: JSON.stringify({ text, tone }) })
   },
 
