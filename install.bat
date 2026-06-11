@@ -39,14 +39,31 @@ if not errorlevel 1 (
     goto PYTHON_FOUND
 )
 
-:: Search common install locations
+:: Search common install locations (handles Python 3.11 through 3.14+)
 set "PYTHON_CMD="
-for /d %%D in (
-    "%LOCALAPPDATA%\Programs\Python\Python3*"
-    "%ProgramFiles%\Python3*"
-    "%ProgramFiles(x86)%\Python3*"
-    "%APPDATA%\Python\Python3*"
-) do (
+
+for /d %%D in ("%LOCALAPPDATA%\Programs\Python\Python3*") do (
+    if exist "%%D\python.exe" (
+        set "PATH=%%D;%%D\Scripts;%PATH%"
+        set "PYTHON_CMD=%%D\python.exe"
+        goto PYTHON_FOUND
+    )
+)
+for /d %%D in ("%ProgramFiles%\Python3*") do (
+    if exist "%%D\python.exe" (
+        set "PATH=%%D;%%D\Scripts;%PATH%"
+        set "PYTHON_CMD=%%D\python.exe"
+        goto PYTHON_FOUND
+    )
+)
+for /d %%D in ("%ProgramFiles(x86)%\Python3*") do (
+    if exist "%%D\python.exe" (
+        set "PATH=%%D;%%D\Scripts;%PATH%"
+        set "PYTHON_CMD=%%D\python.exe"
+        goto PYTHON_FOUND
+    )
+)
+for /d %%D in ("%LOCALAPPDATA%\Programs\Python\Python3*") do (
     if exist "%%D\python.exe" (
         set "PATH=%%D;%%D\Scripts;%PATH%"
         set "PYTHON_CMD=%%D\python.exe"
@@ -136,10 +153,16 @@ if exist ".venv\Scripts\activate.bat" (
 :: ── 4. Install Python dependencies ──────────────────────────
 echo [4/7] Installing Python dependencies (this may take 2-3 minutes)...
 call "%BACKEND%\.venv\Scripts\activate.bat"
-pip install -r "%BACKEND%\requirements.txt" --quiet --disable-pip-version-check
+pip install -r "%BACKEND%\requirements.txt" --disable-pip-version-check
 if errorlevel 1 (
+    echo.
     echo [ERROR] Failed to install Python dependencies.
-    echo         Try running: pip install -r backend\requirements.txt
+    echo.
+    echo   If you see a build error for hnswlib or chromadb:
+    echo   Python 3.14 may not have pre-built wheels yet.
+    echo   Try installing Python 3.11 or 3.12 from https://python.org
+    echo   (multiple Python versions can coexist on Windows)
+    echo.
     pause
     exit /b 1
 )
