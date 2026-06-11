@@ -9,7 +9,7 @@ from fastapi.responses import StreamingResponse
 router = APIRouter(prefix="/api/voice", tags=["voice"])
 
 
-@router.post("/read/{email_id}")
+@router.get("/read/{email_id}")
 async def read_email(email_id: str, request: Request):
     """Stream email body as audio via ElevenLabs TTS."""
     from routers.config import load_app_config
