@@ -1,6 +1,6 @@
 @echo off
 :: ============================================================
-:: Director Assistant — Windows Installer
+:: Director Assistant - Windows Installer
 :: ============================================================
 :: Download this file and double-click it.
 :: It will clone the repo and set everything up automatically.
@@ -13,11 +13,14 @@
 :: ============================================================
 
 setlocal enabledelayedexpansion
-title Director Assistant — Installer
+title Director Assistant - Installer
+
+:: Pre-define PF86 here to avoid ) in %ProgramFiles(x86)% breaking if-blocks
+set "PF86=%ProgramFiles(x86)%"
 
 echo.
 echo ============================================================
-echo   Director Assistant — Windows Installer
+echo   Director Assistant - Windows Installer
 echo ============================================================
 echo.
 
@@ -105,7 +108,6 @@ echo [OK]    Python %PY_VER% found (using: %PYTHON_CMD%)
 echo [3/8] Checking Node.js...
 where node >nul 2>&1
 if errorlevel 1 (
-    set "PF86=%ProgramFiles(x86)%"
     if exist "%ProgramFiles%\nodejs\node.exe"          ( set "PATH=%ProgramFiles%\nodejs;%PATH%"          & goto NODE_OK )
     if exist "%PF86%\nodejs\node.exe"                  ( set "PATH=%PF86%\nodejs;%PATH%"                  & goto NODE_OK )
     if exist "%LOCALAPPDATA%\Programs\nodejs\node.exe" ( set "PATH=%LOCALAPPDATA%\Programs\nodejs;%PATH%" & goto NODE_OK )
@@ -122,7 +124,7 @@ echo [OK]    Node.js %NODE_VER% found
 :: ── 4. Clone or update repo ───────────────────────────────────
 echo [4/8] Setting up repository...
 if exist "%INSTALL_DIR%\.git" (
-    echo [OK]    Repository already exists — pulling latest...
+    echo [OK]    Repository already exists - pulling latest...
     cd /d "%INSTALL_DIR%"
     "%GIT_CMD%" pull --quiet
 ) else (
