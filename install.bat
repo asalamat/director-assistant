@@ -31,19 +31,13 @@ set "GIT_CMD=git"
 where git >nul 2>&1
 if not errorlevel 1 goto GIT_OK
 
-:: Search common Git install locations
-for %%D in (
-    "%ProgramFiles%\Git\cmd"
-    "%ProgramFiles(x86)%\Git\cmd"
-    "%LOCALAPPDATA%\Programs\Git\cmd"
-    "%ProgramFiles%\Git\bin"
-) do (
-    if exist "%%~D\git.exe" (
-        set "PATH=%%~D;%PATH%"
-        set "GIT_CMD=%%~D\git.exe"
-        goto GIT_OK
-    )
-)
+:: Search common Git install locations (avoid () in paths inside for blocks)
+set "PF86=%ProgramFiles(x86)%"
+if exist "%ProgramFiles%\Git\cmd\git.exe"    ( set "PATH=%ProgramFiles%\Git\cmd;%PATH%"    & goto GIT_OK )
+if exist "%PF86%\Git\cmd\git.exe"            ( set "PATH=%PF86%\Git\cmd;%PATH%"            & goto GIT_OK )
+if exist "%LOCALAPPDATA%\Programs\Git\cmd\git.exe" ( set "PATH=%LOCALAPPDATA%\Programs\Git\cmd;%PATH%" & goto GIT_OK )
+if exist "%ProgramFiles%\Git\bin\git.exe"    ( set "PATH=%ProgramFiles%\Git\bin;%PATH%"    & goto GIT_OK )
+if exist "%PF86%\Git\bin\git.exe"            ( set "PATH=%PF86%\Git\bin;%PATH%"            & goto GIT_OK )
 
 echo.
 echo [ERROR] Git not found!
@@ -111,11 +105,10 @@ echo [OK]    Python %PY_VER% found (using: %PYTHON_CMD%)
 echo [3/8] Checking Node.js...
 where node >nul 2>&1
 if errorlevel 1 (
-    for %%P in (
-        "%ProgramFiles%\nodejs\node.exe"
-        "%ProgramFiles(x86)%\nodejs\node.exe"
-        "%LOCALAPPDATA%\Programs\nodejs\node.exe"
-    ) do if exist %%P ( for %%D in (%%P) do set "PATH=%%~dpD;%PATH%" & goto NODE_OK )
+    set "PF86=%ProgramFiles(x86)%"
+    if exist "%ProgramFiles%\nodejs\node.exe"          ( set "PATH=%ProgramFiles%\nodejs;%PATH%"          & goto NODE_OK )
+    if exist "%PF86%\nodejs\node.exe"                  ( set "PATH=%PF86%\nodejs;%PATH%"                  & goto NODE_OK )
+    if exist "%LOCALAPPDATA%\Programs\nodejs\node.exe" ( set "PATH=%LOCALAPPDATA%\Programs\nodejs;%PATH%" & goto NODE_OK )
     echo.
     echo [ERROR] Node.js not found! Install from https://nodejs.org
     echo   Then close this window and run install.bat again.
