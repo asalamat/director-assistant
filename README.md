@@ -2,7 +2,7 @@
 
 > **Your AI-powered executive email intelligence platform.** Connects to Gmail, Microsoft 365, Yahoo, or any IMAP mailbox and uses Claude AI to help you triage faster, never miss a commitment, and stay on top of every relationship that matters.
 
-**Current version: 3.25.4** · [Releases](https://github.com/asalamat/director-assistant/releases) · MIT License
+**Current version: 3.26.1** · [Releases](https://github.com/asalamat/director-assistant/releases) · MIT License
 
 ---
 
@@ -342,11 +342,22 @@ Outputs `dist/DirectorAssistant-mac-3.15.3.zip` and `dist/DirectorAssistant-win-
 - **Email Coaching** — Knowledge → 🎯 Coaching → AI analyzes your last 30 days of sent emails, surfaces strengths and 3-5 actionable communication tips
 - **Contract/Invoice Extraction** — email viewer → 💰 Extract → AI pulls amounts, dates, vendors, parties from financial emails; one-click CSV download
 
-### Slack & Teams Integration (v3.25.1–3.25.4)
+### Slack & Teams Integration (v3.25)
 - **Share → button** in every email toolbar — push any email to Slack or Teams with one click
 - **Settings → 🔗 Integrations → Slack & Teams** — paste incoming webhook URL, set VIP/urgent auto-post, send test message
-- Integration settings persist correctly across page reloads
-- Fixed HTTP 500 when sharing emails with datetime date fields
+
+### Email Productivity (v3.26)
+- **📎 Attachment names** — filenames detected in email bodies shown as chips below the email text
+- **⏳ Undo Send** — 5-second countdown with "Undo" button after clicking Send; cancels before SMTP delivery
+- **💾 Draft auto-save** — compose drafts saved to localStorage every 30s; restored when you re-open the compose window
+- **✍️ Email signatures** — signature manager in the compose window; create/delete named signatures, auto-insert default; access via "+ Add signature" in compose
+- **🔊 Read aloud** — email viewer toolbar → 🔊 Read streams ElevenLabs TTS audio; add API key in Settings → App Settings → ElevenLabs
+- **📋 Email rules/filters** — Settings → 🔗 Integrations → Email Rules; auto-label/archive/mark-read by sender, subject, or body content; applied to every new email on arrival
+- **🗄️ ChromaDB backup** — the backup zip now includes the RAG vector database, not just SQLite
+- **🔍 Smart folders** — pinned searches appear as clickable folder tabs in the inbox folder bar
+- **Overnight triage config** — Settings → 🔗 Integrations → Overnight Triage Agent: enable + hour picker
+- **Delegation on forward** — amber banner appears after forwarding an email, prompting you to track the delegation
+- **Template merge fields** — Templates now support `{{name}}`, `{{email}}`, `{{company}}`, `{{subject}}`, `{{date}}` — substituted from the email context when inserting
 
 ---
 
