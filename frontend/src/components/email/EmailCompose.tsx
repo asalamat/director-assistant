@@ -298,6 +298,7 @@ export function EmailCompose({
               className="flex-1 text-sm border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent bg-white" />
           </div>
           <textarea
+            spellCheck
             value={replyBody}
             onChange={e => setReplyBody(e.target.value)}
             placeholder="Write your reply…"
