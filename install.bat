@@ -1,138 +1,128 @@
 @echo off
 :: ============================================================
-:: Director Assistant — Windows First-Time Installer
+:: Director Assistant — Windows Installer
 :: ============================================================
-:: Run this ONCE after cloning the repo.
-:: It installs all dependencies, builds the frontend,
-:: then launches the app.
+:: Download this file and double-click it.
+:: It will clone the repo and set everything up automatically.
 ::
-:: Requirements (install manually first):
-::   - Python 3.11+  https://python.org      (check "Add to PATH")
-::   - Node.js 18+   https://nodejs.org
-::   - Git            https://git-scm.com
+:: Prerequisites (install BEFORE running this):
+::   1. Python 3.11–3.13  https://python.org/downloads
+::      Check "Add Python to PATH" during install
+::   2. Node.js 18+        https://nodejs.org
+::   3. Git                https://git-scm.com/download/win
 :: ============================================================
 
 setlocal enabledelayedexpansion
-set ROOT=%~dp0
-set BACKEND=%ROOT%backend
-set FRONTEND=%ROOT%frontend
+title Director Assistant — Installer
 
 echo.
 echo ============================================================
-echo   Director Assistant — First-Time Setup for Windows 11
+echo   Director Assistant — Windows Installer
 echo ============================================================
 echo.
 
-:: ── 1. Check Python ─────────────────────────────────────────
-echo [1/7] Checking Python...
+:: Where to install (next to this .bat file)
+set "INSTALL_DIR=%~dp0director-assistant"
 
-:: Try python in PATH first
-where python >nul 2>&1
-if not errorlevel 1 goto PYTHON_FOUND
-
-:: Try Windows py launcher (installed even without PATH option)
-where py >nul 2>&1
-if not errorlevel 1 (
-    :: Create a python alias for this session
-    doskey python=py $*
-    set "PYTHON_CMD=py"
-    goto PYTHON_FOUND
+:: ── 1. Check Git ─────────────────────────────────────────────
+echo [1/8] Checking Git...
+where git >nul 2>&1
+if errorlevel 1 (
+    echo.
+    echo [ERROR] Git not found!
+    echo   Install from: https://git-scm.com/download/win
+    echo   Then re-run this installer.
+    echo.
+    pause & exit /b 1
 )
+for /f "tokens=3" %%v in ('git --version 2^>^&1') do set GIT_VER=%%v
+echo [OK]    Git %GIT_VER% found
 
-:: Search common install locations (handles Python 3.11 through 3.14+)
+:: ── 2. Check Python ──────────────────────────────────────────
+echo [2/8] Checking Python...
 set "PYTHON_CMD="
 
-for /d %%D in ("%LOCALAPPDATA%\Programs\Python\Python3*") do (
-    if exist "%%D\python.exe" (
-        set "PATH=%%D;%%D\Scripts;%PATH%"
-        set "PYTHON_CMD=%%D\python.exe"
-        goto PYTHON_FOUND
+:: Try py launcher first (most reliable on Windows)
+where py >nul 2>&1
+if not errorlevel 1 (
+    set "PYTHON_CMD=py"
+    goto PYTHON_OK
+)
+
+:: Try python in PATH
+where python >nul 2>&1
+if not errorlevel 1 (
+    :: Make sure it's not the Windows Store stub
+    python --version >nul 2>&1
+    if not errorlevel 1 (
+        set "PYTHON_CMD=python"
+        goto PYTHON_OK
     )
+)
+
+:: Search common install paths
+for /d %%D in ("%LOCALAPPDATA%\Programs\Python\Python3*") do (
+    if exist "%%D\python.exe" ( set "PYTHON_CMD=%%D\python.exe" & set "PATH=%%D;%%D\Scripts;%PATH%" & goto PYTHON_OK )
 )
 for /d %%D in ("%ProgramFiles%\Python3*") do (
-    if exist "%%D\python.exe" (
-        set "PATH=%%D;%%D\Scripts;%PATH%"
-        set "PYTHON_CMD=%%D\python.exe"
-        goto PYTHON_FOUND
-    )
+    if exist "%%D\python.exe" ( set "PYTHON_CMD=%%D\python.exe" & set "PATH=%%D;%%D\Scripts;%PATH%" & goto PYTHON_OK )
 )
 for /d %%D in ("%ProgramFiles(x86)%\Python3*") do (
-    if exist "%%D\python.exe" (
-        set "PATH=%%D;%%D\Scripts;%PATH%"
-        set "PYTHON_CMD=%%D\python.exe"
-        goto PYTHON_FOUND
-    )
-)
-for /d %%D in ("%LOCALAPPDATA%\Programs\Python\Python3*") do (
-    if exist "%%D\python.exe" (
-        set "PATH=%%D;%%D\Scripts;%PATH%"
-        set "PYTHON_CMD=%%D\python.exe"
-        goto PYTHON_FOUND
-    )
+    if exist "%%D\python.exe" ( set "PYTHON_CMD=%%D\python.exe" & set "PATH=%%D;%%D\Scripts;%PATH%" & goto PYTHON_OK )
 )
 
-:: Still not found
 echo.
 echo [ERROR] Python not found!
+echo   Install Python 3.11 or 3.12 from https://python.org/downloads
+echo   IMPORTANT: Check "Add Python to PATH" during installation.
+echo   Then close this window and run install.bat again.
 echo.
-echo   Please install Python 3.11 or higher:
-echo   https://python.org/downloads
-echo.
-echo   During installation, check:
-echo     [x] Add Python to PATH
-echo     [x] Install launcher for all users
-echo.
-echo   After installing, CLOSE this window and run install.bat again.
-echo.
-pause
-exit /b 1
+pause & exit /b 1
 
-:PYTHON_FOUND
-if not defined PYTHON_CMD set "PYTHON_CMD=python"
-for /f "tokens=2" %%v in ('"%PYTHON_CMD%" --version 2^>^&1') do set PY_VER=%%v
-echo [OK]    Python %PY_VER% found
+:PYTHON_OK
+for /f %%v in ('"%PYTHON_CMD%" -c "import sys; print(sys.version.split()[0])" 2^>^&1') do set PY_VER=%%v
+echo [OK]    Python %PY_VER% found (using: %PYTHON_CMD%)
 
-:: ── 2. Check Node.js ────────────────────────────────────────
-echo [2/7] Checking Node.js...
-
-:: Try PATH first
+:: ── 3. Check Node.js ─────────────────────────────────────────
+echo [3/8] Checking Node.js...
 where node >nul 2>&1
-if not errorlevel 1 goto NODE_FOUND
-
-:: Node.js installed but PATH not refreshed — check common locations
-set NODE_PATHS=^
-    "%ProgramFiles%\nodejs\node.exe" ^
-    "%ProgramFiles(x86)%\nodejs\node.exe" ^
-    "%LOCALAPPDATA%\Programs\nodejs\node.exe" ^
-    "%APPDATA%\nvm\current\node.exe"
-
-for %%P in (%NODE_PATHS%) do (
-    if exist %%P (
-        :: Add its folder to PATH for this session
-        for %%D in (%%P) do set "PATH=%%~dpD;%PATH%"
-        goto NODE_FOUND
-    )
+if errorlevel 1 (
+    for %%P in (
+        "%ProgramFiles%\nodejs\node.exe"
+        "%ProgramFiles(x86)%\nodejs\node.exe"
+        "%LOCALAPPDATA%\Programs\nodejs\node.exe"
+    ) do if exist %%P ( for %%D in (%%P) do set "PATH=%%~dpD;%PATH%" & goto NODE_OK )
+    echo.
+    echo [ERROR] Node.js not found! Install from https://nodejs.org
+    echo   Then close this window and run install.bat again.
+    echo.
+    pause & exit /b 1
 )
-
-:: Still not found
-echo.
-echo [ERROR] Node.js not found!
-echo.
-echo   Please install Node.js 18 or higher:
-echo   https://nodejs.org/en/download
-echo.
-echo   After installing, CLOSE this window and run install.bat again.
-echo   (Windows needs a fresh cmd session to detect new PATH entries)
-echo.
-pause
-exit /b 1
-
-:NODE_FOUND
-for /f "tokens=1" %%v in ('node --version 2^>^&1') do set NODE_VER=%%v
+:NODE_OK
+for /f %%v in ('node --version 2^>^&1') do set NODE_VER=%%v
 echo [OK]    Node.js %NODE_VER% found
 
-:: ── 3. Create Python virtual environment ────────────────────
-echo [3/7] Creating Python virtual environment...
+:: ── 4. Clone or update repo ───────────────────────────────────
+echo [4/8] Setting up repository...
+if exist "%INSTALL_DIR%\.git" (
+    echo [OK]    Repository already exists — pulling latest...
+    cd /d "%INSTALL_DIR%"
+    git pull --quiet
+) else (
+    echo        Cloning from GitHub (this takes ~1 minute)...
+    git clone https://github.com/asalamat/director-assistant.git "%INSTALL_DIR%"
+    if errorlevel 1 (
+        echo [ERROR] Clone failed. Check your internet connection.
+        pause & exit /b 1
+    )
+    echo [OK]    Repository cloned
+)
+
+set "BACKEND=%INSTALL_DIR%\backend"
+set "FRONTEND=%INSTALL_DIR%\frontend"
+
+:: ── 5. Create virtual environment ─────────────────────────────
+echo [5/8] Creating Python virtual environment...
 cd /d "%BACKEND%"
 if exist ".venv\Scripts\activate.bat" (
     echo [OK]    Virtual environment already exists
@@ -141,90 +131,71 @@ if exist ".venv\Scripts\activate.bat" (
     if errorlevel 1 (
         echo.
         echo [ERROR] Failed to create virtual environment.
-        echo   Make sure Python 3.11+ is installed correctly.
-        echo   Try: python --version   (should show 3.11 or higher)
+        echo   If Python 3.14 is installed, try Python 3.11 or 3.12 instead.
+        echo   Multiple Python versions can coexist on Windows.
         echo.
-        pause
-        exit /b 1
+        pause & exit /b 1
     )
     echo [OK]    Virtual environment created
 )
 
-:: ── 4. Install Python dependencies ──────────────────────────
-echo [4/7] Installing Python dependencies (this may take 2-3 minutes)...
+:: ── 6. Install Python packages ────────────────────────────────
+echo [6/8] Installing Python packages (2-3 minutes)...
 call "%BACKEND%\.venv\Scripts\activate.bat"
 pip install -r "%BACKEND%\requirements.txt" --disable-pip-version-check
 if errorlevel 1 (
     echo.
-    echo [ERROR] Failed to install Python dependencies.
+    echo [ERROR] Package install failed.
+    echo   If you see a build error, Python 3.14 may lack pre-built wheels.
+    echo   Install Python 3.12 from python.org and run this again.
     echo.
-    echo   If you see a build error for hnswlib or chromadb:
-    echo   Python 3.14 may not have pre-built wheels yet.
-    echo   Try installing Python 3.11 or 3.12 from https://python.org
-    echo   (multiple Python versions can coexist on Windows)
-    echo.
-    pause
-    exit /b 1
+    pause & exit /b 1
 )
-echo [OK]    Python dependencies installed
+echo [OK]    Python packages installed
 
-:: ── 5. Install Node.js dependencies ─────────────────────────
-echo [5/7] Installing Node.js dependencies (this may take 1-2 minutes)...
+:: ── 7. Install + build frontend ───────────────────────────────
+echo [7/8] Building frontend...
 cd /d "%FRONTEND%"
 call npm install --silent
-if errorlevel 1 (
-    echo [ERROR] Failed to install Node.js dependencies.
-    pause
-    exit /b 1
-)
-echo [OK]    Node.js dependencies installed
-
-:: ── 6. Build the frontend ────────────────────────────────────
-echo [6/7] Building frontend...
+if errorlevel 1 ( echo [ERROR] npm install failed & pause & exit /b 1 )
 call npm run build
-if errorlevel 1 (
-    echo [ERROR] Frontend build failed.
-    pause
-    exit /b 1
-)
+if errorlevel 1 ( echo [ERROR] Frontend build failed & pause & exit /b 1 )
 if not exist "%BACKEND%\static" mkdir "%BACKEND%\static"
 xcopy /s /e /y "%FRONTEND%\dist\*" "%BACKEND%\static\" >nul
-echo [OK]    Frontend built and copied to backend/static
+echo [OK]    Frontend built
 
-:: ── 7. Create desktop shortcut ──────────────────────────────
-echo [7/7] Creating desktop shortcut...
-set SHORTCUT=%USERPROFILE%\Desktop\Director Assistant.bat
+:: ── 8. Create Desktop shortcut ────────────────────────────────
+echo [8/8] Creating Desktop shortcut...
+set "SHORTCUT=%USERPROFILE%\Desktop\Director Assistant.bat"
 (
     echo @echo off
-    echo cd /d "%ROOT%"
+    echo title Director Assistant
+    echo cd /d "%INSTALL_DIR%"
     echo call start.bat
 ) > "%SHORTCUT%"
-echo [OK]    Desktop shortcut created: "Director Assistant.bat"
+echo [OK]    Shortcut created on Desktop
 
-:: ── Done ─────────────────────────────────────────────────────
+:: ── Done ──────────────────────────────────────────────────────
 echo.
 echo ============================================================
-echo   Setup complete!
+echo   Installation complete!
 echo ============================================================
 echo.
-echo   Next steps:
+echo   App installed to: %INSTALL_DIR%
+echo   Desktop shortcut: Director Assistant.bat
+echo.
+echo   NEXT STEPS:
 echo   1. Double-click "Director Assistant.bat" on your Desktop
-echo      (or run: start.bat from this folder)
-echo.
 echo   2. Open http://localhost:8000 in your browser
-echo.
-echo   3. Go to Settings ^> App Settings and add your
-echo      Anthropic API key (get one free at console.anthropic.com)
-echo.
-echo   4. Go to Settings ^> Email Accounts and connect your
-echo      Gmail or Microsoft 365 account
+echo   3. Settings ^> App Settings ^> add Anthropic API key
+echo      (free at https://console.anthropic.com)
+echo   4. Settings ^> Email Accounts ^> connect Gmail or Microsoft 365
 echo.
 echo ============================================================
 echo.
-
 set /p LAUNCH="Launch Director Assistant now? (Y/N): "
-if /i "%LAUNCH%"=="Y" (
-    cd /d "%ROOT%"
+if /i "!LAUNCH!"=="Y" (
+    cd /d "%INSTALL_DIR%"
     call start.bat
 )
 
