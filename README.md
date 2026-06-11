@@ -2,7 +2,7 @@
 
 > **Your AI-powered executive email intelligence platform.** Connects to Gmail, Microsoft 365, Yahoo, or any IMAP mailbox and uses Claude AI to help you triage faster, never miss a commitment, and stay on top of every relationship that matters.
 
-**Current version: 3.26.1** · [Releases](https://github.com/asalamat/director-assistant/releases) · MIT License
+**Current version: 3.26.3** · [Releases](https://github.com/asalamat/director-assistant/releases) · MIT License
 
 ---
 
@@ -358,6 +358,8 @@ Outputs `dist/DirectorAssistant-mac-3.15.3.zip` and `dist/DirectorAssistant-win-
 - **Overnight triage config** — Settings → 🔗 Integrations → Overnight Triage Agent: enable + hour picker
 - **Delegation on forward** — amber banner appears after forwarding an email, prompting you to track the delegation
 - **Template merge fields** — Templates now support `{{name}}`, `{{email}}`, `{{company}}`, `{{subject}}`, `{{date}}` — substituted from the email context when inserting
+- **Spell check** — compose textarea has browser spell check enabled (red underlines + right-click to correct)
+- **✦ Improve my draft** — type your own reply (even disagreeing with AI), click "✦ Improve my draft" → AI fixes grammar and clarity **without changing your opinion or intent**; prominently placed above tone adjusters in compose
 
 ---
 
