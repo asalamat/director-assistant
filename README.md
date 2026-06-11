@@ -256,12 +256,33 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.director-assistant.a
 
 ---
 
-## Install — Windows
+## Install — Windows 11
 
-Download `DirectorAssistant-win-3.15.3.zip` from [Releases](https://github.com/asalamat/director-assistant/releases), extract it, then double-click:
+### Prerequisites (install once)
+1. **Python 3.11+** — [python.org/downloads](https://python.org/downloads) → ✅ check **"Add Python to PATH"**
+2. **Node.js 18+** — [nodejs.org](https://nodejs.org/en/download)
+3. **Git** — [git-scm.com](https://git-scm.com/download/win)
 
+### One-command install
+```bat
+git clone https://github.com/asalamat/director-assistant.git
+cd director-assistant
+install.bat
 ```
-DirectorAssistant\scripts\install-windows.bat
+
+`install.bat` automatically:
+- Creates a Python virtual environment
+- Installs all backend and frontend dependencies
+- Builds the frontend
+- Creates a **"Director Assistant.bat"** shortcut on your Desktop
+
+### Daily use
+Double-click **"Director Assistant.bat"** on your Desktop — opens at `http://localhost:8000`
+
+Or from the project folder:
+```bat
+start.bat          ← production mode
+start.bat dev      ← dev mode with hot-reload
 ```
 
 ---
