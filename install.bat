@@ -47,13 +47,22 @@ echo [OK]    Git !GIT_VER! found
 echo [2/8] Checking Python...
 set "PYTHON_CMD="
 
+:: Use py launcher to find the REAL python.exe path (avoids Store stub)
 where py >nul 2>&1
-if not errorlevel 1 set "PYTHON_CMD=py" & goto PYTHON_OK
+if not errorlevel 1 (
+    for /f "tokens=*" %%P in ('py -c "import sys; print(sys.executable)" 2^>^&1') do set "PYTHON_CMD=%%P"
+    if defined PYTHON_CMD goto PYTHON_OK
+)
 
+:: Try python directly (only if it's not the Store stub)
 where python >nul 2>&1
 if not errorlevel 1 (
-    python --version >nul 2>&1
-    if not errorlevel 1 set "PYTHON_CMD=python" & goto PYTHON_OK
+    for /f "tokens=*" %%P in ('python -c "import sys; print(sys.executable)" 2^>^&1') do set "PYTHON_CMD=%%P"
+    if defined PYTHON_CMD (
+        echo !PYTHON_CMD! | findstr /i "WindowsApps" >nul 2>&1
+        if errorlevel 1 goto PYTHON_OK
+        set "PYTHON_CMD="
+    )
 )
 
 for /d %%D in ("!LAPP!\Programs\Python\Python3*") do (
