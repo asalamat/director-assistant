@@ -25,20 +25,54 @@ echo.
 
 :: ── 1. Check Python ─────────────────────────────────────────
 echo [1/7] Checking Python...
+
+:: Try python in PATH first
 where python >nul 2>&1
-if errorlevel 1 (
-    echo.
-    echo [ERROR] Python not found!
-    echo.
-    echo   Please install Python 3.11 or higher:
-    echo   https://python.org/downloads
-    echo.
-    echo   IMPORTANT: Check "Add Python to PATH" during installation.
-    echo.
-    pause
-    exit /b 1
+if not errorlevel 1 goto PYTHON_FOUND
+
+:: Try Windows py launcher (installed even without PATH option)
+where py >nul 2>&1
+if not errorlevel 1 (
+    :: Create a python alias for this session
+    doskey python=py $*
+    set "PYTHON_CMD=py"
+    goto PYTHON_FOUND
 )
-for /f "tokens=2" %%v in ('python --version 2^>^&1') do set PY_VER=%%v
+
+:: Search common install locations
+set "PYTHON_CMD="
+for /d %%D in (
+    "%LOCALAPPDATA%\Programs\Python\Python3*"
+    "%ProgramFiles%\Python3*"
+    "%ProgramFiles(x86)%\Python3*"
+    "%APPDATA%\Python\Python3*"
+) do (
+    if exist "%%D\python.exe" (
+        set "PATH=%%D;%%D\Scripts;%PATH%"
+        set "PYTHON_CMD=%%D\python.exe"
+        goto PYTHON_FOUND
+    )
+)
+
+:: Still not found
+echo.
+echo [ERROR] Python not found!
+echo.
+echo   Please install Python 3.11 or higher:
+echo   https://python.org/downloads
+echo.
+echo   During installation, check:
+echo     [x] Add Python to PATH
+echo     [x] Install launcher for all users
+echo.
+echo   After installing, CLOSE this window and run install.bat again.
+echo.
+pause
+exit /b 1
+
+:PYTHON_FOUND
+if not defined PYTHON_CMD set "PYTHON_CMD=python"
+for /f "tokens=2" %%v in ('"%PYTHON_CMD%" --version 2^>^&1') do set PY_VER=%%v
 echo [OK]    Python %PY_VER% found
 
 :: ── 2. Check Node.js ────────────────────────────────────────
@@ -86,9 +120,13 @@ cd /d "%BACKEND%"
 if exist ".venv\Scripts\activate.bat" (
     echo [OK]    Virtual environment already exists
 ) else (
-    python -m venv .venv
+    "%PYTHON_CMD%" -m venv .venv
     if errorlevel 1 (
+        echo.
         echo [ERROR] Failed to create virtual environment.
+        echo   Make sure Python 3.11+ is installed correctly.
+        echo   Try: python --version   (should show 3.11 or higher)
+        echo.
         pause
         exit /b 1
     )
