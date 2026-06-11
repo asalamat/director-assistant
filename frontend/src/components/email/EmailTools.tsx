@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import type { EmailMessage, QuickReplies } from '../../types'
 import { api } from '../../api/client'
 
@@ -24,6 +24,8 @@ export function EmailTools({ email, translation, onClearTranslation, onOpenCompo
   const [analyzingAttach, setAnalyzingAttach] = useState(false)
   const [financialData, setFinancialData] = useState<any | null>(null)
   const [extractingFinancials, setExtractingFinancials] = useState(false)
+  const [playing, setPlaying] = useState(false)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
 
   const handleLoadReplies = async () => {
     if (loadingReplies) return
@@ -92,6 +94,19 @@ export function EmailTools({ email, translation, onClearTranslation, onOpenCompo
     a.click()
   }
 
+  const handleReadAloud = () => {
+    if (playing) {
+      audioRef.current?.pause()
+      setPlaying(false)
+      return
+    }
+    const audio = new Audio(api.readEmailAloud(email.id))
+    audio.onended = () => setPlaying(false)
+    audio.onerror = () => setPlaying(false)
+    audio.play().then(() => setPlaying(true)).catch(() => {})
+    audioRef.current = audio
+  }
+
   const handleQuickReplyClick = (body: string) => {
     const senderEmail = email.sender.match(/<([^>]+)>/)?.[1] || email.sender
     onOpenCompose(senderEmail, `Re: ${email.subject || ''}`, body)
@@ -144,6 +159,11 @@ export function EmailTools({ email, translation, onClearTranslation, onOpenCompo
           <button onClick={handleExtractFinancials} disabled={extractingFinancials}
             className="text-xs text-green-600 hover:underline flex items-center gap-1 disabled:opacity-50">
             {extractingFinancials ? <><span className="animate-spin inline-block">⟳</span> Extracting…</> : '💰 Extract'}
+          </button>
+          <button onClick={handleReadAloud}
+            title={playing ? 'Stop' : 'Read aloud (ElevenLabs)'}
+            className={`text-xs px-2 py-1 rounded border transition-colors ${playing ? 'border-red-200 bg-red-50 text-red-600' : 'border-gray-200 text-gray-500 hover:bg-gray-50 hover:border-accent'}`}>
+            {playing ? '⏹ Stop' : '🔊 Read'}
           </button>
         </div>
 

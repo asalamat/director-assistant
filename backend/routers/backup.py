@@ -14,6 +14,7 @@ router = APIRouter(prefix="/api/backup", tags=["backup"])
 
 _DB_PATH = Path.home() / ".director-assistant" / "emails.db"
 _CONFIG_PATH = Path.home() / ".director-assistant" / "app-config.json"
+_CHROMA_DIR = Path.home() / ".director-assistant" / "chroma"
 
 
 @router.get("/export")
@@ -27,6 +28,10 @@ async def export_backup(request: Request):
         zf.write(_DB_PATH, "emails.db")
         if _CONFIG_PATH.exists():
             zf.write(_CONFIG_PATH, "app-config.json")
+        if _CHROMA_DIR.exists():
+            for p in _CHROMA_DIR.rglob("*"):
+                if p.is_file() and p.stat().st_size < 50_000_000:  # skip huge files
+                    zf.write(p, f"chroma/{p.relative_to(_CHROMA_DIR)}")
     buf.seek(0)
 
     return StreamingResponse(
@@ -65,6 +70,14 @@ async def import_backup(request: Request, file: UploadFile = File(...)):
         if cfg_src.exists():
             shutil.copy2(cfg_src, _CONFIG_PATH)
 
+        if "chroma/" in names:
+            _CHROMA_DIR.mkdir(parents=True, exist_ok=True)
+            for name in names:
+                if name.startswith("chroma/"):
+                    target = _CHROMA_DIR / name[len("chroma/"):]
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    target.write_bytes(zf.read(name))
+
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
     except HTTPException:
@@ -82,11 +95,13 @@ async def import_backup(request: Request, file: UploadFile = File(...)):
 
 @router.get("/stats")
 async def backup_stats(request: Request):
-    """Return DB size and last modified time for the backup UI."""
+    """Return DB size, ChromaDB size and last modified time for the backup UI."""
     if not _DB_PATH.exists():
-        return {"db_size_mb": 0, "last_modified": None}
+        return {"db_size_mb": 0, "chroma_size_mb": 0, "last_modified": None}
     stat = _DB_PATH.stat()
+    chroma_size = sum(p.stat().st_size for p in _CHROMA_DIR.rglob("*") if p.is_file()) if _CHROMA_DIR.exists() else 0
     return {
         "db_size_mb": round(stat.st_size / 1_048_576, 1),
+        "chroma_size_mb": round(chroma_size / 1_048_576, 1),
         "last_modified": stat.st_mtime,
     }

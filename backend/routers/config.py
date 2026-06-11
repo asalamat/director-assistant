@@ -69,6 +69,12 @@ class AppConfigUpdate(BaseModel):
     report_email_enabled: Optional[bool] = None
     report_email_schedule: Optional[str] = None
     report_email_to: Optional[str] = None
+    # ElevenLabs TTS
+    elevenlabs_api_key: Optional[str] = None
+    elevenlabs_voice_id: Optional[str] = None
+    # Overnight triage agent
+    overnight_triage_enabled: Optional[bool] = None
+    overnight_triage_hour: Optional[int] = None
 
 
 @router.get("")
@@ -110,6 +116,10 @@ async def get_config():
         "jira_email": cfg.get("jira_email", ""),
         "jira_project_key": cfg.get("jira_project_key", ""),
         "notion_database_id": cfg.get("notion_database_id", ""),
+        "has_elevenlabs": bool(cfg.get("elevenlabs_api_key", "")),
+        "elevenlabs_voice_id": cfg.get("elevenlabs_voice_id", "21m00Tcm4TlvDq8ikWAM"),
+        "overnight_triage_enabled": cfg.get("overnight_triage_enabled", False),
+        "overnight_triage_hour": cfg.get("overnight_triage_hour", 23),
     }
 
 
@@ -154,6 +164,11 @@ async def update_config(update: AppConfigUpdate, request: Request):
         "todoist_api_token",
         "report_email_enabled", "report_email_to",
     ):
+        val = getattr(update, key, None)
+        if val is not None:
+            cfg[key] = val
+    for key in ("elevenlabs_api_key", "elevenlabs_voice_id",
+                 "overnight_triage_enabled", "overnight_triage_hour"):
         val = getattr(update, key, None)
         if val is not None:
             cfg[key] = val

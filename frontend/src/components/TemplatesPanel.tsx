@@ -4,9 +4,23 @@ import type { Template } from '../types'
 
 interface Props {
   onInsert?: (text: string) => void
+  email?: { sender?: string; subject?: string } | null
 }
 
-export function TemplatesPanel({ onInsert }: Props) {
+function applyMergeFields(template: string, email?: { sender?: string; subject?: string } | null): string {
+  if (!email) return template
+  const senderName = (email.sender || '').replace(/<[^>]+>/, '').trim().split(' ')[0] || 'there'
+  const senderEmail = (email.sender || '').match(/<([^>]+)>/)?.[1] || email.sender || ''
+  const company = senderEmail.split('@')[1]?.split('.')[0] || ''
+  return template
+    .replace(/\{\{name\}\}/gi, senderName)
+    .replace(/\{\{email\}\}/gi, senderEmail)
+    .replace(/\{\{company\}\}/gi, company)
+    .replace(/\{\{subject\}\}/gi, email.subject || '')
+    .replace(/\{\{date\}\}/gi, new Date().toLocaleDateString())
+}
+
+export function TemplatesPanel({ onInsert, email }: Props) {
   const [templates, setTemplates] = useState<Template[]>([])
   const [editing, setEditing] = useState<Template | null>(null)
   const [draft, setDraft] = useState<Template>({ name: '', body: '' })
@@ -65,10 +79,13 @@ export function TemplatesPanel({ onInsert }: Props) {
             <textarea
               value={draft.body}
               onChange={(e) => setDraft((d) => ({ ...d, body: e.target.value }))}
-              placeholder="Template body… Use {subject}, {sender}, {name}, {date} as variables"
+              placeholder="Template body… Use {{name}}, {{email}}, {{company}}, {{subject}}, {{date}} as merge fields"
               rows={5}
               className="w-full text-sm border border-gray-300 rounded px-2 py-1.5 resize-none focus:outline-none focus:ring-2 focus:ring-accent"
             />
+            <p className="text-[10px] text-gray-400">
+              Merge fields: <span className="font-mono">{'{{name}}'}</span> <span className="font-mono">{'{{email}}'}</span> <span className="font-mono">{'{{company}}'}</span> <span className="font-mono">{'{{subject}}'}</span> <span className="font-mono">{'{{date}}'}</span>
+            </p>
             <div className="flex gap-2">
               <button
                 onClick={save}
@@ -99,7 +116,7 @@ export function TemplatesPanel({ onInsert }: Props) {
               <div className="flex gap-1.5">
                 {onInsert && (
                   <button
-                    onClick={() => onInsert(t.body)}
+                    onClick={() => onInsert(applyMergeFields(t.body, email))}
                     className="text-xs text-accent hover:underline"
                   >
                     Use

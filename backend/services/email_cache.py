@@ -346,6 +346,30 @@ class EmailCache(EmailExtrasMixin, DocumentCacheMixin):
                     status      TEXT DEFAULT 'pending'
                 )
             """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS email_signatures (
+                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name       TEXT NOT NULL,
+                    content    TEXT NOT NULL,
+                    is_default INTEGER DEFAULT 0,
+                    account_id INTEGER DEFAULT 0,
+                    created_at TEXT DEFAULT (datetime('now'))
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS email_rules (
+                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name       TEXT NOT NULL,
+                    field      TEXT NOT NULL,
+                    condition  TEXT NOT NULL,
+                    value      TEXT NOT NULL,
+                    action     TEXT NOT NULL,
+                    label      TEXT DEFAULT '',
+                    enabled    INTEGER DEFAULT 1,
+                    priority   INTEGER DEFAULT 0,
+                    created_at TEXT DEFAULT (datetime('now'))
+                )
+            """)
             for col_def in ["account_id INTEGER DEFAULT 0", "server_id TEXT",
                              "followup_remind_at TEXT"]:
                 try:

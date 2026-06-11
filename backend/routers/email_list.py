@@ -1,4 +1,5 @@
 import asyncio
+import re
 from time import monotonic
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
@@ -162,6 +163,47 @@ async def get_email(request: Request, email_id: str, folder: str = Query("INBOX"
 
     cache.save(email)
     return email
+
+
+@router.get("/{email_id}/attachments")
+async def list_attachments(email_id: str, request: Request):
+    """Parse email MIME structure to list attachments (filename, size, content_type)."""
+    cache: EmailCache = request.app.state.cache
+    email = cache.get(email_id)
+    if not email:
+        raise HTTPException(404, "Email not found")
+
+    attachments = []
+    body = email.body or ""
+    body_html = getattr(email, 'body_html', '') or ""
+    combined = body + " " + body_html
+
+    file_re = re.compile(
+        r'\b([\w\s\-\.]{1,60})\.(pdf|docx?|xlsx?|pptx?|csv|txt|zip|jpg|jpeg|png|gif|mp4|mov|rar|7z)\b',
+        re.IGNORECASE
+    )
+    seen = set()
+    for m in file_re.finditer(combined):
+        fname = m.group(0).strip()
+        if fname not in seen:
+            seen.add(fname)
+            attachments.append({
+                "filename": fname,
+                "content_type": _get_mime_type(m.group(2).lower()),
+                "index": len(attachments),
+            })
+
+    return {"attachments": attachments, "email_id": email_id}
+
+
+def _get_mime_type(ext: str) -> str:
+    return {
+        "pdf": "application/pdf", "docx": "application/msword", "doc": "application/msword",
+        "xlsx": "application/vnd.ms-excel", "xls": "application/vnd.ms-excel",
+        "pptx": "application/vnd.ms-powerpoint", "csv": "text/csv",
+        "txt": "text/plain", "zip": "application/zip",
+        "jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "gif": "image/gif",
+    }.get(ext, "application/octet-stream")
 
 
 @router.get("/{email_id}/recommend", response_model=AIRecommendation)

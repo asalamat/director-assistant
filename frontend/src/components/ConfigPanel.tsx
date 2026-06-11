@@ -153,6 +153,7 @@ export function ConfigPanel({ onSaved }: Props) {
 
   const [anthropicKey, setAnthropicKey] = useState('')
   const [openaiKey, setOpenaiKey] = useState('')
+  const [elevenLabsKey, setElevenLabsKey] = useState('')
   const [msClientId, setMsClientId] = useState('')
   const [googleClientId, setGoogleClientId] = useState('')
   const [googleClientSecret, setGoogleClientSecret] = useState('')
@@ -279,12 +280,13 @@ export function ConfigPanel({ onSaved }: Props) {
       if (msClientId) payload.ms_client_id = msClientId
       if (googleClientId) payload.google_client_id = googleClientId
       if (googleClientSecret) payload.google_client_secret = googleClientSecret
+      if (elevenLabsKey) (payload as Record<string, unknown>).elevenlabs_api_key = elevenLabsKey
       payload.digest_schedule_enabled = digestEnabled
       payload.digest_schedule_time = digestTime
       payload.digest_schedule_email = digestEmail
       await api.saveConfig(payload)
       setSaveMsg('Saved')
-      setAnthropicKey(''); setOpenaiKey('')
+      setAnthropicKey(''); setOpenaiKey(''); setElevenLabsKey('')
       const updated = await api.getConfig()
       setConfig(updated)
       onSaved?.()
@@ -585,6 +587,20 @@ export function ConfigPanel({ onSaved }: Props) {
             <option key={lang} value={lang}>{lang}</option>
           ))}
         </select>
+      </div>
+
+      {/* ElevenLabs TTS */}
+      <div className="border border-gray-200 rounded-xl p-4 space-y-3">
+        <div>
+          <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 block">ElevenLabs API Key (TTS)</label>
+          <p className="text-xs text-gray-400 mb-2">Required for 🔊 Read Aloud. Get a key at <a href="https://elevenlabs.io" target="_blank" rel="noreferrer" className="text-accent underline">elevenlabs.io</a>.</p>
+          {config?.has_elevenlabs && !elevenLabsKey && (
+            <p className="text-xs text-green-700 bg-green-50 border border-green-200 rounded px-3 py-1.5 mb-2">Key configured — enter a new key to replace.</p>
+          )}
+          <input type="password" value={elevenLabsKey} onChange={e => setElevenLabsKey(e.target.value)}
+            placeholder={config?.has_elevenlabs ? 'Enter new key to replace…' : 'sk_…'}
+            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-accent" />
+        </div>
       </div>
 
       {/* Scheduled Email Digest */}

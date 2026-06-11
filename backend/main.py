@@ -54,6 +54,9 @@ from routers import webhooks as webhooks_router
 from routers import report_schedule as report_schedule_router
 from routers import delegations as delegations_router
 from routers import overnight as overnight_router
+from routers import email_rules as email_rules_router
+from routers import voice as voice_router
+from routers import signatures as signatures_router
 from routers.proactive import push_alert
 from services.intelligence_service import IntelligenceService
 from workers.background_tasks import (
@@ -325,6 +328,13 @@ async def _do_poll_cycle_inner(rag: RAGEngine, cache: EmailCache, app=None) -> t
                 except Exception:
                     pass
             asyncio.create_task(_label_new())
+            # Apply email rules to new emails
+            from routers.email_rules import apply_rules
+            for em in all_new_emails:
+                try:
+                    apply_rules(em, cache)
+                except Exception:
+                    pass
 
     _last_poll_new = new_total
     _last_poll_error = "; ".join(errors) if errors else ""
@@ -537,6 +547,9 @@ app.include_router(notify_router.router)
 app.include_router(backup_router.router)
 app.include_router(delegations_router.router)
 app.include_router(overnight_router.router)
+app.include_router(email_rules_router.router)
+app.include_router(voice_router.router)
+app.include_router(signatures_router.router)
 
 
 @app.get("/health")

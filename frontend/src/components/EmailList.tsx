@@ -273,8 +273,8 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
 
   return (
     <div className="flex flex-col h-full border-r border-gray-200 bg-white">
-      {/* Folder selector */}
-      {folderNames.length > 0 && (
+      {/* Folder selector + smart folders */}
+      {(folderNames.length > 0 || savedSearches.length > 0) && (
         <div className="flex gap-1 px-3 py-2 border-b border-gray-100 overflow-x-auto flex-shrink-0">
           {folderNames.map((f) => {
             const isInbox = f.toUpperCase() === 'INBOX'
@@ -301,6 +301,23 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
               </button>
             )
           })}
+          {savedSearches.length > 0 && (
+            <>
+              <div className="w-px bg-gray-200 mx-1 self-stretch flex-shrink-0" />
+              {savedSearches.map(s => (
+                <button key={s.id}
+                  onClick={() => runSaved(s)}
+                  className={`flex-shrink-0 flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium transition-colors ${
+                    query === s.query && currentFolder === s.folder
+                      ? 'bg-accent/10 text-accent border border-accent/20'
+                      : 'text-gray-500 hover:text-gray-800 hover:bg-gray-100 border border-transparent'
+                  }`}
+                >
+                  🔍 {s.name}
+                </button>
+              ))}
+            </>
+          )}
         </div>
       )}
 

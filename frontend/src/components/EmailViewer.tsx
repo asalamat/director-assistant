@@ -57,6 +57,8 @@ export function EmailViewer({ email, loading, fetchError, onAnalyze, analyzing, 
   const [translation, setTranslation] = useState<string | null>(null)
   const [translating, setTranslating] = useState(false)
   const [showQuoted, setShowQuoted] = useState(false)
+  const [attachments, setAttachments] = useState<{filename: string; content_type: string}[]>([])
+  const [showDelegatePrompt, setShowDelegatePrompt] = useState<{to: string; emailId: string; subject: string} | null>(null)
 
   useEffect(() => {
     setShowCompose(false)
@@ -67,6 +69,11 @@ export function EmailViewer({ email, loading, fetchError, onAnalyze, analyzing, 
     setDraftCommitments([])
     setTranslation(null)
     setShowQuoted(false)
+    setAttachments([])
+    setShowDelegatePrompt(null)
+    if (email?.id) {
+      api.listAttachments(email.id).then(r => setAttachments(r.attachments)).catch(() => setAttachments([]))
+    }
   }, [email?.id])
 
   const handleReplyClick = () => {
@@ -91,6 +98,7 @@ export function EmailViewer({ email, loading, fetchError, onAnalyze, analyzing, 
     setComposeInitialSubject(fwdSubject)
     setComposeInitialBody(fwdBody)
     setShowCompose(true)
+    setShowDelegatePrompt({ to: '', emailId: email.id, subject: email.subject || '' })
   }
 
   const handleOpenCompose = (to: string, subject: string, body = '') => {
@@ -197,6 +205,36 @@ export function EmailViewer({ email, loading, fetchError, onAnalyze, analyzing, 
           })()
         )}
       </div>
+
+      {attachments.length > 0 && (
+        <div className="px-6 py-2 border-t border-gray-100 flex flex-wrap gap-1.5 flex-shrink-0">
+          <span className="text-[10px] text-gray-400 self-center flex-shrink-0">📎</span>
+          {attachments.map((att, i) => (
+            <span key={i}
+              className="text-[10px] bg-gray-100 text-gray-600 rounded-full px-2.5 py-1 font-mono border border-gray-200 cursor-default"
+              title={`${att.content_type}`}
+            >
+              {att.filename}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {showDelegatePrompt && (
+        <div className="px-6 py-2 bg-amber-50 border-t border-amber-100 flex items-center gap-2 flex-shrink-0">
+          <span className="text-xs text-amber-700">Track this delegation?</span>
+          <input value={showDelegatePrompt.to} onChange={e => setShowDelegatePrompt(p => p ? {...p, to: e.target.value} : null)}
+            placeholder="delegated to (email)"
+            className="flex-1 text-xs border border-amber-200 rounded px-2 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-amber-400"/>
+          <button onClick={async () => {
+            if (showDelegatePrompt?.to) {
+              await api.createDelegation({ email_id: showDelegatePrompt.emailId, subject: showDelegatePrompt.subject, original_sender: email?.sender || '', delegated_to: showDelegatePrompt.to }).catch(() => {})
+            }
+            setShowDelegatePrompt(null)
+          }} className="text-xs bg-amber-500 text-white px-2 py-0.5 rounded hover:bg-amber-600">Track</button>
+          <button onClick={() => setShowDelegatePrompt(null)} className="text-xs text-gray-400 hover:text-gray-600">Skip</button>
+        </div>
+      )}
 
       <EmailTools
         email={email}

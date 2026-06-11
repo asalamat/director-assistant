@@ -160,6 +160,8 @@ export interface AppConfig {
   translation_language: string
   webhook_urls?: string[]
   webhook_events?: string[]
+  has_elevenlabs?: boolean
+  elevenlabs_voice_id?: string
 }
 
 export interface TriageEmail {

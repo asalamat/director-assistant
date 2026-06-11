@@ -85,6 +85,10 @@ export const api = {
     return request(`/emails/${encodeURIComponent(id)}?folder=${folder}`)
   },
 
+  listAttachments(emailId: string): Promise<{ attachments: { filename: string; content_type: string; index: number }[]; email_id: string }> {
+    return request(`/emails/${encodeURIComponent(emailId)}/attachments`)
+  },
+
   deleteEmail(id: string): Promise<{ deleted: string }> {
     return request(`/emails/${encodeURIComponent(id)}`, { method: 'DELETE' })
   },
@@ -821,6 +825,20 @@ export const api = {
   getOvernightDrafts(): Promise<{ drafts: any[]; count: number }> {
     return request('/overnight/drafts')
   },
+
+  // Signatures
+  getSignatures(): Promise<{ signatures: { id: number; name: string; content: string; is_default: number; account_id: number }[] }> {
+    return request('/signatures')
+  },
+  createSignature(data: { name: string; content: string; is_default: boolean; account_id?: number }): Promise<{ id: number; status: string }> {
+    return request('/signatures', { method: 'POST', body: JSON.stringify({ account_id: 0, ...data }) })
+  },
+  updateSignature(id: number, data: { name: string; content: string; is_default: boolean; account_id?: number }): Promise<{ status: string }> {
+    return request(`/signatures/${id}`, { method: 'PATCH', body: JSON.stringify({ account_id: 0, ...data }) })
+  },
+  deleteSignature(id: number): Promise<{ deleted: number }> {
+    return request(`/signatures/${id}`, { method: 'DELETE' })
+  },
   approveOvernightDraft(id: number): Promise<{ status: string }> {
     return request(`/overnight/drafts/${id}/approve`, { method: 'POST' })
   },
@@ -830,4 +848,17 @@ export const api = {
   runOvernightTriageNow(): Promise<{ queued: boolean }> {
     return request('/overnight/run-now', { method: 'POST' })
   },
+
+  // ElevenLabs TTS — returns a URL suitable for Audio src
+  readEmailAloud(emailId: string): string {
+    return `${BASE}/voice/read/${encodeURIComponent(emailId)}`
+  },
+
+  // Email Rules
+  getEmailRules(): Promise<{ rules: any[] }> { return request('/email-rules') },
+  createEmailRule(data: { name: string; field: string; condition: string; value: string; action: string; label?: string; priority?: number }): Promise<{ id: number }> {
+    return request('/email-rules', { method: 'POST', body: JSON.stringify(data) })
+  },
+  toggleEmailRule(id: number): Promise<void> { return request(`/email-rules/${id}/toggle`, { method: 'PATCH' }) },
+  deleteEmailRule(id: number): Promise<void> { return request(`/email-rules/${id}`, { method: 'DELETE' }) },
 }

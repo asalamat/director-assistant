@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import type { EmailMessage } from '../../types'
 import { api } from '../../api/client'
 
@@ -13,6 +13,8 @@ export interface EmailComposeProps {
   draftCommitments?: string[]
   onCommitmentsChange?: (commitments: string[]) => void
 }
+
+type Signature = { id: number; name: string; content: string; is_default: number; account_id: number }
 
 export function EmailCompose({
   email,
@@ -44,6 +46,22 @@ export function EmailCompose({
     unanswered_questions: string[]; commitments: string[]; suggestions: string[]; ready: boolean
   } | null>(null)
 
+  // Undo-send state
+  const [undoCountdown, setUndoCountdown] = useState<number | null>(null)
+  const pendingRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Draft auto-save state
+  const DRAFT_KEY = `draft_${email?.id || 'new'}`
+  const [draftSavedAt, setDraftSavedAt] = useState<number | null>(null)
+
+  // Signatures state
+  const [signatures, setSignatures] = useState<Signature[]>([])
+  const [selectedSigId, setSelectedSigId] = useState<number | null>(null)
+  const [showSigEditor, setShowSigEditor] = useState(false)
+  const [newSigName, setNewSigName] = useState('')
+  const [newSigContent, setNewSigContent] = useState('')
+  const [savingSig, setSavingSig] = useState(false)
+
   // Sync external initial values when the compose window opens
   const [lastInitialTo, setLastInitialTo] = useState(initialTo)
   if (initialTo !== lastInitialTo) {
@@ -56,14 +74,65 @@ export function EmailCompose({
     setReplyBody(initialBody)
     setSendMsg('')
     setReview(null)
+    setUndoCountdown(null)
+    setDraftSavedAt(null)
+    setSelectedSigId(null)
   }
 
-  const handleSend = async () => {
-    if (!replyTo.trim()) return
+  // Load signatures on open
+  useEffect(() => {
+    if (!show) return
+    api.getSignatures().then(({ signatures: sigs }) => {
+      setSignatures(sigs)
+      const def = sigs.find(s => s.is_default)
+      if (def) setSelectedSigId(def.id)
+    }).catch(() => {})
+  }, [show])
+
+  // Restore draft on open
+  useEffect(() => {
+    if (!show) return
+    const saved = localStorage.getItem(DRAFT_KEY)
+    if (saved) {
+      try {
+        const d = JSON.parse(saved)
+        if (d.body && !replyBody) setReplyBody(d.body)
+      } catch { /* ignore */ }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [show, DRAFT_KEY])
+
+  // Auto-save draft every 30 seconds
+  useEffect(() => {
+    if (!show) return
+    const save = () => {
+      if (replyBody.trim() || replySubject.trim()) {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify({ to: replyTo, subject: replySubject, body: replyBody }))
+        setDraftSavedAt(Date.now())
+      }
+    }
+    const id = setInterval(save, 30000)
+    return () => { clearInterval(id); save() }
+  }, [show, replyTo, replySubject, replyBody, DRAFT_KEY])
+
+  // Hide "Draft saved" indicator after 3 seconds
+  useEffect(() => {
+    if (draftSavedAt === null) return
+    const t = setTimeout(() => setDraftSavedAt(null), 3000)
+    return () => clearTimeout(t)
+  }, [draftSavedAt])
+
+  // Cleanup countdown on unmount
+  useEffect(() => {
+    return () => { if (pendingRef.current) clearTimeout(pendingRef.current) }
+  }, [])
+
+  const doSend = async () => {
     setSending(true)
     setSendMsg('')
     try {
       await api.sendEmail({ to: replyTo, subject: replySubject, body: replyBody, cc: replyCC || undefined, bcc: replyBCC || undefined })
+      localStorage.removeItem(DRAFT_KEY)
       setSendMsg('Sent!')
       setTimeout(() => { onClose(); setSendMsg(''); setReplyCC(''); setReplyBCC(''); setShowCcBcc(false) }, 1500)
     } catch (e: any) {
@@ -71,6 +140,25 @@ export function EmailCompose({
     } finally {
       setSending(false)
     }
+  }
+
+  const handleSend = () => {
+    if (!replyTo.trim() || undoCountdown !== null) return
+    const countdown = (n: number) => {
+      if (n <= 0) {
+        setUndoCountdown(null)
+        doSend()
+        return
+      }
+      setUndoCountdown(n)
+      pendingRef.current = setTimeout(() => countdown(n - 1), 1000)
+    }
+    countdown(5)
+  }
+
+  const cancelSend = () => {
+    if (pendingRef.current) clearTimeout(pendingRef.current)
+    setUndoCountdown(null)
   }
 
   const handleAdjustTone = async (tone: string) => {
@@ -134,6 +222,37 @@ export function EmailCompose({
     setAddingCommitment(null)
   }
 
+  const applySignature = (sigId: number | null) => {
+    setSelectedSigId(sigId)
+    if (sigId === null) return
+    const sig = signatures.find(s => s.id === sigId)
+    if (!sig) return
+    // Remove any previously appended signature (everything after \n\n--\n)
+    const body = replyBody.replace(/\n\n--\n[\s\S]*$/, '')
+    setReplyBody(body + '\n\n--\n' + sig.content)
+  }
+
+  const handleSaveSig = async () => {
+    if (!newSigName.trim() || !newSigContent.trim()) return
+    setSavingSig(true)
+    try {
+      await api.createSignature({ name: newSigName.trim(), content: newSigContent.trim(), is_default: false })
+      const { signatures: sigs } = await api.getSignatures()
+      setSignatures(sigs)
+      setNewSigName('')
+      setNewSigContent('')
+      setShowSigEditor(false)
+    } catch { /* silent */ } finally { setSavingSig(false) }
+  }
+
+  const handleDeleteSig = async (id: number) => {
+    try {
+      await api.deleteSignature(id)
+      setSignatures(prev => prev.filter(s => s.id !== id))
+      if (selectedSigId === id) setSelectedSigId(null)
+    } catch { /* silent */ }
+  }
+
   if (!show) return null
 
   return (
@@ -185,6 +304,8 @@ export function EmailCompose({
             rows={4}
             className="w-full text-sm border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent resize-none bg-white"
           />
+
+          {/* Tone + dictation toolbar */}
           <div className="flex gap-1.5 flex-wrap">
             <span className="text-[10px] text-gray-400 self-center mr-1">Adjust tone:</span>
             {(['formal', 'casual', 'shorter', 'friendlier', 'direct'] as const).map(t => (
@@ -215,6 +336,89 @@ export function EmailCompose({
               )}
             </button>
           </div>
+
+          {/* Signature selector */}
+          {signatures.length > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-gray-400 flex-shrink-0">Signature:</span>
+              <select
+                value={selectedSigId ?? ''}
+                onChange={e => applySignature(e.target.value ? Number(e.target.value) : null)}
+                className="text-[11px] border border-gray-200 rounded px-1.5 py-0.5 bg-white text-gray-600 focus:outline-none focus:ring-1 focus:ring-accent"
+              >
+                <option value="">None</option>
+                {signatures.map(s => (
+                  <option key={s.id} value={s.id}>{s.name}{s.is_default ? ' (default)' : ''}</option>
+                ))}
+              </select>
+              <button
+                onClick={() => setShowSigEditor(v => !v)}
+                className="text-[10px] text-accent hover:underline flex-shrink-0"
+              >
+                Manage
+              </button>
+            </div>
+          )}
+          {signatures.length === 0 && (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setShowSigEditor(v => !v)}
+                className="text-[10px] text-accent hover:underline"
+              >
+                + Add signature
+              </button>
+            </div>
+          )}
+
+          {/* Inline signature editor */}
+          {showSigEditor && (
+            <div className="border border-gray-200 rounded-lg p-3 bg-white space-y-2">
+              <p className="text-[11px] font-medium text-gray-600">Signatures</p>
+              {signatures.map(s => (
+                <div key={s.id} className="flex items-center justify-between text-[11px] text-gray-600 border-b border-gray-100 pb-1">
+                  <span className="font-medium">{s.name}</span>
+                  <button onClick={() => handleDeleteSig(s.id)} className="text-red-400 hover:text-red-600 text-[10px]">Delete</button>
+                </div>
+              ))}
+              <div className="space-y-1 pt-1">
+                <input
+                  value={newSigName}
+                  onChange={e => setNewSigName(e.target.value)}
+                  placeholder="Signature name"
+                  className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent bg-white"
+                />
+                <textarea
+                  value={newSigContent}
+                  onChange={e => setNewSigContent(e.target.value)}
+                  placeholder="Signature content"
+                  rows={2}
+                  className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent resize-none bg-white"
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleSaveSig}
+                    disabled={savingSig || !newSigName.trim() || !newSigContent.trim()}
+                    className="text-[10px] px-2 py-1 bg-accent text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {savingSig ? 'Saving…' : 'Save'}
+                  </button>
+                  <button
+                    onClick={() => { setShowSigEditor(false); setNewSigName(''); setNewSigContent('') }}
+                    className="text-[10px] px-2 py-1 border border-gray-200 rounded text-gray-500 hover:bg-gray-50"
+                  >
+                    Done
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Draft saved indicator */}
+          {draftSavedAt !== null && (
+            <p className="text-[10px] text-gray-400">Draft saved</p>
+          )}
+
+          {/* Send controls */}
           <div className="flex items-center gap-2 justify-end">
             {sendMsg && (
               <span className={`text-xs ${sendMsg === 'Sent!' ? 'text-green-600' : 'text-red-500'}`}>{sendMsg}</span>
@@ -226,15 +430,27 @@ export function EmailCompose({
             >
               {reviewing ? <><span className="animate-spin inline-block text-[10px]">⟳</span> Reviewing…</> : '🔍 Review'}
             </button>
-            <button
-              onClick={handleSend}
-              disabled={sending || !replyTo.trim()}
-              className={`flex items-center gap-1.5 text-white text-xs px-3 py-1.5 rounded-lg disabled:opacity-60 transition-colors ${
-                review?.ready ? 'bg-green-600 hover:bg-green-700' : 'bg-accent hover:bg-blue-700'
-              }`}
-            >
-              {sending ? <><span className="animate-spin inline-block">⟳</span> Sending…</> : review?.ready ? '✓ Send' : 'Send'}
-            </button>
+            {undoCountdown !== null ? (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500">Sending in {undoCountdown}s…</span>
+                <button
+                  onClick={cancelSend}
+                  className="text-xs px-2 py-1 border border-gray-300 rounded text-gray-600 hover:bg-gray-100 transition-colors"
+                >
+                  Undo
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={handleSend}
+                disabled={sending || !replyTo.trim()}
+                className={`flex items-center gap-1.5 text-white text-xs px-3 py-1.5 rounded-lg disabled:opacity-60 transition-colors ${
+                  review?.ready ? 'bg-green-600 hover:bg-green-700' : 'bg-accent hover:bg-blue-700'
+                }`}
+              >
+                {sending ? <><span className="animate-spin inline-block">⟳</span> Sending…</> : review?.ready ? '✓ Send' : 'Send'}
+              </button>
+            )}
           </div>
 
           {/* Pre-send review panel */}
