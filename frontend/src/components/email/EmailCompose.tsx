@@ -55,6 +55,10 @@ export function EmailCompose({
   const DRAFT_KEY = `draft_${email?.id || 'new'}`
   const [draftSavedAt, setDraftSavedAt] = useState<number | null>(null)
 
+  // From-account state
+  const [accounts, setAccounts] = useState<{id: number; username: string; provider: string}[]>([])
+  const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null)
+
   // Signatures state
   const [signatures, setSignatures] = useState<Signature[]>([])
   const [selectedSigId, setSelectedSigId] = useState<number | null>(null)
@@ -89,9 +93,13 @@ export function EmailCompose({
     }
   }, [show, initialBody])
 
-  // Load signatures on open
+  // Load accounts + signatures on open
   useEffect(() => {
     if (!show) return
+    api.getAccounts().then(accs => {
+      setAccounts(accs)
+      if (accs.length === 1) setSelectedAccountId(accs[0].id)
+    }).catch(() => {})
     api.getSignatures().then(({ signatures: sigs }) => {
       setSignatures(sigs)
       const def = sigs.find(s => s.is_default)
@@ -142,7 +150,7 @@ export function EmailCompose({
     setSending(true)
     setSendMsg('')
     try {
-      await api.sendEmail({ to: replyTo, subject: replySubject, body, cc: replyCC || undefined, bcc: replyBCC || undefined, is_html: true })
+      await api.sendEmail({ to: replyTo, subject: replySubject, body, cc: replyCC || undefined, bcc: replyBCC || undefined, is_html: true, account_id: selectedAccountId ?? undefined })
       localStorage.removeItem(DRAFT_KEY)
       setSendMsg('Sent!')
       setTimeout(() => {
@@ -285,6 +293,21 @@ export function EmailCompose({
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xs">Cancel</button>
         </div>
         <div className="space-y-2">
+          {accounts.length > 1 && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-400 w-12 flex-shrink-0">From</span>
+              <select
+                value={selectedAccountId ?? ''}
+                onChange={e => setSelectedAccountId(e.target.value ? Number(e.target.value) : null)}
+                className="flex-1 text-sm border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent bg-white text-gray-700"
+              >
+                <option value="">Default account</option>
+                {accounts.map(a => (
+                  <option key={a.id} value={a.id}>{a.username}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="flex items-center gap-2">
             <span className="text-xs text-gray-400 w-12 flex-shrink-0">To</span>
             <input value={replyTo} onChange={e => setReplyTo(e.target.value)}
