@@ -2,7 +2,7 @@
 
 > **Your AI-powered executive email intelligence platform.** Connects to Gmail, Microsoft 365, Yahoo, or any IMAP mailbox and uses Claude AI to help you triage faster, never miss a commitment, and stay on top of every relationship that matters.
 
-**Current version: 3.27.0** · [Releases](https://github.com/asalamat/director-assistant/releases) · MIT License
+**Current version: 3.27.2** · [Releases](https://github.com/asalamat/director-assistant/releases) · MIT License
 
 ---
 
@@ -382,10 +382,11 @@ Outputs `dist/DirectorAssistant-mac-3.15.3.zip` and `dist/DirectorAssistant-win-
 - **Spell check** — compose textarea has browser spell check enabled (red underlines + right-click to correct)
 - **✦ Improve my draft** — type your own reply (even disagreeing with AI), click "✦ Improve my draft" → AI fixes grammar and clarity **without changing your opinion or intent**; prominently placed above tone adjusters in compose
 
-### Rich Text & Thread View (v3.27)
+### Rich Text, Thread View & Windows CI (v3.27)
 - **📝 Rich text compose** — formatting toolbar in the Reply window: Bold · Italic · Underline · Bullet list · Numbered list · Insert link · Clear formatting; emails send as HTML with plain-text fallback
 - **💬 Thread view** — all earlier messages in the same email thread appear as collapsed chips above the body; click any to expand and read the full message inline
-- **✦ Improve my draft** — carried forward: type your own reply, AI polishes it without changing your meaning
+- **Smart Draft/Quick Replies populate rich text editor** — fixed so AI-generated drafts correctly appear in the new HTML compose area
+- **Windows CI** — GitHub Actions workflow tests the full install on `windows-latest` on every push; dependency conflict fixed (`httpx>=0.27.2`)
 
 ---
 
