@@ -2,7 +2,7 @@
 
 > **Your AI-powered executive email intelligence platform.** Connects to Gmail, Microsoft 365, Yahoo, or any IMAP mailbox and uses Claude AI to help you triage faster, never miss a commitment, and stay on top of every relationship that matters.
 
-**Current version: 3.27.2** · [Releases](https://github.com/asalamat/director-assistant/releases) · MIT License
+**Current version: 3.27.4** · [Releases](https://github.com/asalamat/director-assistant/releases) · MIT License
 
 ---
 
@@ -387,6 +387,13 @@ Outputs `dist/DirectorAssistant-mac-3.15.3.zip` and `dist/DirectorAssistant-win-
 - **💬 Thread view** — all earlier messages in the same email thread appear as collapsed chips above the body; click any to expand and read the full message inline
 - **Smart Draft/Quick Replies populate rich text editor** — fixed so AI-generated drafts correctly appear in the new HTML compose area
 - **Windows CI** — GitHub Actions workflow tests the full install on `windows-latest` on every push; dependency conflict fixed (`httpx>=0.27.2`)
+- **From-account selector** — when multiple email accounts are connected, a "From" dropdown appears at the top of the compose window
+
+### Completeness Update (v3.27.4)
+- **🎙 2-hour meeting support** — recordings now split into 10-minute chunks server-side (uses pydub+ffmpeg when installed); frontend limit raised from 45 to 90 minutes; falls back gracefully without ffmpeg
+- **🖨 Print email** — print button (🖨) in the email toolbar calls `window.print()`
+- **ElevenLabs voice selection** — Settings → App Settings shows the current voice ID with a list of popular free voices to choose from
+- **Bundle code splitting** — React vendor chunk split separately; main bundle reduced from 588 kB to 448 kB (no more build warning)
 
 ---
 
