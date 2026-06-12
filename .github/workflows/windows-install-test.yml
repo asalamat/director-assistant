@@ -57,8 +57,9 @@ jobs:
       - name: Install Python dependencies
         shell: cmd
         run: |
-          call backend\.venv\Scripts\activate.bat
-          pip install -r backend\requirements.txt --disable-pip-version-check
+          :: Use venv pip directly (more reliable than activating)
+          backend\.venv\Scripts\pip.exe install --upgrade pip wheel setuptools --quiet
+          backend\.venv\Scripts\pip.exe install -r backend\requirements.txt --disable-pip-version-check
           if errorlevel 1 exit /b 1
           echo Python deps installed OK
 
@@ -92,9 +93,8 @@ jobs:
       - name: Start backend and verify it responds
         shell: cmd
         run: |
-          call backend\.venv\Scripts\activate.bat
           cd backend
-          start /b python -m uvicorn main:app --host 127.0.0.1 --port 8001 --log-level error
+          start /b .venv\Scripts\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8001 --log-level error
           echo Waiting for server to start...
           timeout /t 10 /nobreak >nul
           curl -s -f http://127.0.0.1:8001/api/connection/status
