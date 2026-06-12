@@ -81,6 +81,14 @@ export function EmailCompose({
     setSelectedSigId(null)
   }
 
+  // Sync initialBody to contenteditable after mount (handles Smart Draft + forward)
+  useEffect(() => {
+    if (show && contentRef.current && initialBody) {
+      contentRef.current.innerHTML = initialBody
+      setReplyBody(initialBody)
+    }
+  }, [show, initialBody])
+
   // Load signatures on open
   useEffect(() => {
     if (!show) return
