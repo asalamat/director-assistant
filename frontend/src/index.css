@@ -58,6 +58,13 @@ html, body, #root {
 
 .animate-pop          { animation: pop 0.35s cubic-bezier(0.34,1.56,0.64,1) both; }
 .animate-slide-up-in  { animation: slide-up-in 0.22s cubic-bezier(0.16,1,0.3,1) both; }
+
+/* ── Rich-text compose placeholder ──────────────────────────── */
+[contenteditable]:empty:before {
+  content: attr(data-placeholder);
+  color: #9ca3af;
+  pointer-events: none;
+}
 .animate-float        { animation: float 3s ease-in-out infinite; }
 .animate-blink        { animation: blink-cursor 0.75s step-end infinite; }
 

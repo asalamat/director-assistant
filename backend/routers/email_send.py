@@ -23,6 +23,7 @@ class SendRequest(BaseModel):
     account_id: int = 0
     cc: str = ""
     bcc: str = ""
+    is_html: bool = False
 
 
 class ComposeRequest(BaseModel):
@@ -72,18 +73,33 @@ def _smtp_send(acc, msg: MIMEMultipart):
 
 @router.post("/send")
 async def send_email(req: SendRequest, request: Request):
+    import re as _re
     cache = request.app.state.cache
     acc = _resolve_account(cache, req.account_id)
 
-    msg = MIMEMultipart()
-    msg["From"] = acc.username
-    msg["To"] = req.to
-    if req.cc:
-        msg["Cc"] = req.cc
-    if req.bcc:
-        msg["Bcc"] = req.bcc
-    msg["Subject"] = req.subject
-    msg.attach(MIMEText(req.body, "plain", "utf-8"))
+    if req.is_html:
+        msg = MIMEMultipart("alternative")
+        msg["From"] = acc.username
+        msg["To"] = req.to
+        if req.cc:
+            msg["Cc"] = req.cc
+        if req.bcc:
+            msg["Bcc"] = req.bcc
+        msg["Subject"] = req.subject
+        plain = _re.sub(r'<[^>]+>', ' ', req.body)
+        plain = _re.sub(r'\s+', ' ', plain).strip()
+        msg.attach(MIMEText(plain, "plain", "utf-8"))
+        msg.attach(MIMEText(req.body, "html", "utf-8"))
+    else:
+        msg = MIMEMultipart()
+        msg["From"] = acc.username
+        msg["To"] = req.to
+        if req.cc:
+            msg["Cc"] = req.cc
+        if req.bcc:
+            msg["Bcc"] = req.bcc
+        msg["Subject"] = req.subject
+        msg.attach(MIMEText(req.body, "plain", "utf-8"))
     _smtp_send(acc, msg)
     return {"status": "sent"}
 

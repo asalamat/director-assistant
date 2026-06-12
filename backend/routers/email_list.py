@@ -140,6 +140,42 @@ async def list_threads(
     return {"threads": threads, "total": len(threads)}
 
 
+@router.get("/{email_id}/thread")
+async def get_email_thread(email_id: str, request: Request):
+    """Return all emails in the same thread, ordered oldest first."""
+    from services.email_cache import EmailCache
+    cache: EmailCache = request.app.state.cache
+    email = cache.get(email_id)
+    if not email:
+        raise HTTPException(404, "Email not found")
+
+    if not email.thread_id:
+        return {"thread": [], "thread_id": None}
+
+    with cache._conn() as conn:
+        rows = conn.execute(
+            """SELECT id, subject, sender, date, body, is_read, folder
+               FROM emails
+               WHERE thread_id = ? AND id != ?
+               ORDER BY date ASC""",
+            (email.thread_id, email_id),
+        ).fetchall()
+
+    thread = [
+        {
+            "id": r["id"],
+            "subject": r["subject"] or "(no subject)",
+            "sender": r["sender"] or "",
+            "date": str(r["date"] or ""),
+            "body": (r["body"] or "")[:5000],
+            "is_read": bool(r["is_read"]),
+            "folder": r["folder"] or "INBOX",
+        }
+        for r in rows
+    ]
+    return {"thread": thread, "thread_id": email.thread_id, "total": len(thread)}
+
+
 @router.get("/{email_id}")
 async def get_email(request: Request, email_id: str, folder: str = Query("INBOX")):
     cache: EmailCache = request.app.state.cache

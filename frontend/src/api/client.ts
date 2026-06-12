@@ -85,6 +85,14 @@ export const api = {
     return request(`/emails/${encodeURIComponent(id)}?folder=${folder}`)
   },
 
+  getEmailThread(emailId: string): Promise<{
+    thread: { id: string; subject: string; sender: string; date: string; body: string; is_read: boolean }[]
+    thread_id: string | null
+    total: number
+  }> {
+    return request(`/emails/${encodeURIComponent(emailId)}/thread`)
+  },
+
   listAttachments(emailId: string): Promise<{ attachments: { filename: string; content_type: string; index: number }[]; email_id: string }> {
     return request(`/emails/${encodeURIComponent(emailId)}/attachments`)
   },
@@ -261,7 +269,7 @@ export const api = {
   },
 
   // Send email via SMTP
-  sendEmail(data: { to: string; subject: string; body: string; account_id?: number; cc?: string; bcc?: string }): Promise<{ status: string }> {
+  sendEmail(data: { to: string; subject: string; body: string; account_id?: number; cc?: string; bcc?: string; is_html?: boolean }): Promise<{ status: string }> {
     return request('/email/send', { method: 'POST', body: JSON.stringify(data) })
   },
 

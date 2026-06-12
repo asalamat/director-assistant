@@ -59,6 +59,8 @@ export function EmailViewer({ email, loading, fetchError, onAnalyze, analyzing, 
   const [showQuoted, setShowQuoted] = useState(false)
   const [attachments, setAttachments] = useState<{filename: string; content_type: string}[]>([])
   const [showDelegatePrompt, setShowDelegatePrompt] = useState<{to: string; emailId: string; subject: string} | null>(null)
+  const [thread, setThread] = useState<{id: string; subject: string; sender: string; date: string; body: string}[]>([])
+  const [expandedThreadIds, setExpandedThreadIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     setShowCompose(false)
@@ -71,8 +73,13 @@ export function EmailViewer({ email, loading, fetchError, onAnalyze, analyzing, 
     setShowQuoted(false)
     setAttachments([])
     setShowDelegatePrompt(null)
+    setThread([])
+    setExpandedThreadIds(new Set())
     if (email?.id) {
       api.listAttachments(email.id).then(r => setAttachments(r.attachments)).catch(() => setAttachments([]))
+      api.getEmailThread(email.id)
+        .then(r => setThread(r.thread))
+        .catch(() => setThread([]))
     }
   }, [email?.id])
 
@@ -169,6 +176,52 @@ export function EmailViewer({ email, loading, fetchError, onAnalyze, analyzing, 
         onTranslate={handleTranslate}
         translating={translating}
       />
+
+      {thread.length > 0 && (
+        <div className="px-6 pt-4 pb-0 space-y-1 flex-shrink-0">
+          <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wide mb-2">
+            {thread.length} earlier message{thread.length !== 1 ? 's' : ''} in this thread
+          </p>
+          {thread.map(t => {
+            const isExpanded = expandedThreadIds.has(t.id)
+            const senderName = t.sender.replace(/<[^>]+>/, '').trim().split(' ')[0] || t.sender
+            return (
+              <div key={t.id} className={`border rounded-xl transition-all ${isExpanded ? 'border-gray-200' : 'border-gray-100 hover:border-gray-200'}`}>
+                <button
+                  className="w-full flex items-center gap-3 px-3 py-2 text-left"
+                  onClick={() => {
+                    setExpandedThreadIds(prev => {
+                      const next = new Set(prev)
+                      isExpanded ? next.delete(t.id) : next.add(t.id)
+                      return next
+                    })
+                  }}
+                >
+                  <span className="w-6 h-6 rounded-full bg-accent/10 text-accent text-[10px] font-bold flex items-center justify-center flex-shrink-0">
+                    {senderName.charAt(0).toUpperCase()}
+                  </span>
+                  <span className="text-xs text-gray-700 font-medium flex-1 truncate">{senderName}</span>
+                  {!isExpanded && (
+                    <span className="text-xs text-gray-400 truncate max-w-[200px]">{t.body.slice(0, 60)}…</span>
+                  )}
+                  <span className="text-[10px] text-gray-400 flex-shrink-0">
+                    {t.date ? new Date(t.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : ''}
+                  </span>
+                  <span className="text-gray-400 text-xs flex-shrink-0">{isExpanded ? '▲' : '▼'}</span>
+                </button>
+                {isExpanded && (
+                  <div className="px-3 pb-3 border-t border-gray-100">
+                    <pre className="whitespace-pre-wrap font-sans text-sm text-gray-700 leading-relaxed max-h-48 overflow-y-auto mt-2">
+                      {t.body || '(empty)'}
+                    </pre>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+          <div className="border-t border-gray-100 mt-2" />
+        </div>
+      )}
 
       {/* Body */}
       <div className="flex-1 overflow-y-auto px-6 py-4">

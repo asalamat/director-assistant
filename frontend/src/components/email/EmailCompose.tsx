@@ -33,6 +33,7 @@ export function EmailCompose({
   const [showCcBcc, setShowCcBcc] = useState(false)
   const [replySubject, setReplySubject] = useState(initialSubject)
   const [replyBody, setReplyBody] = useState(initialBody)
+  const contentRef = useRef<HTMLDivElement>(null)
   const [sending, setSending] = useState(false)
   const [sendMsg, setSendMsg] = useState('')
   const [adjustingTone, setAdjustingTone] = useState(false)
@@ -72,6 +73,7 @@ export function EmailCompose({
     setShowCcBcc(false)
     setReplySubject(initialSubject)
     setReplyBody(initialBody)
+    if (contentRef.current) contentRef.current.innerHTML = initialBody
     setSendMsg('')
     setReview(null)
     setUndoCountdown(null)
@@ -128,13 +130,21 @@ export function EmailCompose({
   }, [])
 
   const doSend = async () => {
+    const body = contentRef.current?.innerHTML || replyBody
     setSending(true)
     setSendMsg('')
     try {
-      await api.sendEmail({ to: replyTo, subject: replySubject, body: replyBody, cc: replyCC || undefined, bcc: replyBCC || undefined })
+      await api.sendEmail({ to: replyTo, subject: replySubject, body, cc: replyCC || undefined, bcc: replyBCC || undefined, is_html: true })
       localStorage.removeItem(DRAFT_KEY)
       setSendMsg('Sent!')
-      setTimeout(() => { onClose(); setSendMsg(''); setReplyCC(''); setReplyBCC(''); setShowCcBcc(false) }, 1500)
+      setTimeout(() => {
+        onClose()
+        setSendMsg('')
+        setReplyCC('')
+        setReplyBCC('')
+        setShowCcBcc(false)
+        if (contentRef.current) contentRef.current.innerHTML = ''
+      }, 1500)
     } catch (e: any) {
       setSendMsg(e.message || 'Send failed')
     } finally {
@@ -166,7 +176,10 @@ export function EmailCompose({
     setAdjustingTone(true)
     try {
       const { result } = await api.adjustTone(replyBody, tone as any)
-      if (result) setReplyBody(result)
+      if (result) {
+        setReplyBody(result)
+        if (contentRef.current) contentRef.current.innerHTML = result
+      }
     } catch {} finally { setAdjustingTone(false) }
   }
 
@@ -297,13 +310,57 @@ export function EmailCompose({
             <input value={replySubject} onChange={e => setReplySubject(e.target.value)}
               className="flex-1 text-sm border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent bg-white" />
           </div>
-          <textarea
-            spellCheck
-            value={replyBody}
-            onChange={e => setReplyBody(e.target.value)}
-            placeholder="Write your reply…"
-            rows={4}
-            className="w-full text-sm border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent resize-none bg-white"
+          {/* Rich text toolbar */}
+          <div className="flex gap-0.5 px-1 py-1 border border-gray-200 rounded-t-lg bg-gray-50 flex-wrap">
+            {[
+              { cmd: 'bold',      icon: 'B', cls: 'font-bold' },
+              { cmd: 'italic',    icon: 'I', cls: 'italic' },
+              { cmd: 'underline', icon: 'U', cls: 'underline' },
+            ].map(({ cmd, icon, cls }) => (
+              <button key={cmd} type="button"
+                onMouseDown={e => { e.preventDefault(); document.execCommand(cmd, false) }}
+                className={`text-xs px-2 py-0.5 rounded hover:bg-gray-200 text-gray-600 ${cls}`}
+                title={cmd.charAt(0).toUpperCase() + cmd.slice(1)}>
+                {icon}
+              </button>
+            ))}
+            <div className="w-px bg-gray-300 mx-0.5 self-stretch" />
+            <button type="button"
+              onMouseDown={e => { e.preventDefault(); document.execCommand('insertUnorderedList', false) }}
+              className="text-xs px-2 py-0.5 rounded hover:bg-gray-200 text-gray-600" title="Bullet list">
+              ≡
+            </button>
+            <button type="button"
+              onMouseDown={e => { e.preventDefault(); document.execCommand('insertOrderedList', false) }}
+              className="text-xs px-2 py-0.5 rounded hover:bg-gray-200 text-gray-600" title="Numbered list">
+              1.
+            </button>
+            <div className="w-px bg-gray-300 mx-0.5 self-stretch" />
+            <button type="button"
+              onMouseDown={e => {
+                e.preventDefault()
+                const url = prompt('Enter URL:')
+                if (url) document.execCommand('createLink', false, url)
+              }}
+              className="text-xs px-2 py-0.5 rounded hover:bg-gray-200 text-gray-600" title="Insert link">
+              🔗
+            </button>
+            <button type="button"
+              onMouseDown={e => { e.preventDefault(); document.execCommand('removeFormat', false) }}
+              className="text-xs px-2 py-0.5 rounded hover:bg-gray-200 text-gray-600" title="Clear formatting">
+              ✕
+            </button>
+          </div>
+          <div
+            ref={contentRef}
+            contentEditable
+            suppressContentEditableWarning
+            onInput={() => {
+              if (contentRef.current) setReplyBody(contentRef.current.innerHTML)
+            }}
+            className="w-full min-h-[100px] text-sm border border-gray-200 border-t-0 rounded-b-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent bg-white overflow-y-auto"
+            style={{ maxHeight: '200px' }}
+            data-placeholder="Write your reply…"
           />
 
           {/* Improve my draft button — rewrites while keeping user's intent */}
