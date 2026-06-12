@@ -1,11 +1,67 @@
 """Meeting intelligence — audio transcription and action extraction."""
 
+import contextlib
 import json
 import os
 import tempfile
 from fastapi import APIRouter, HTTPException, Request, UploadFile, File
 from pydantic import BaseModel
 from typing import Optional
+
+MAX_WHISPER_BYTES = 24 * 1024 * 1024  # 24 MB safety margin
+
+
+async def _transcribe_file(oai_client, file_path: str) -> str:
+    """Transcribe a single audio file via Whisper."""
+    with open(file_path, "rb") as f:
+        result = await oai_client.audio.transcriptions.create(
+            model="whisper-1",
+            file=f,
+            response_format="text",
+        )
+    return str(result).strip()
+
+
+async def _split_and_transcribe(oai_client, audio_path: str, suffix: str) -> str:
+    """Split large audio file into chunks and transcribe each."""
+    import shutil
+
+    # Check if ffmpeg/pydub available
+    if not shutil.which("ffmpeg"):
+        # No ffmpeg: just try sending the full file (may fail if truly >25 MB)
+        return await _transcribe_file(oai_client, audio_path)
+
+    try:
+        from pydub import AudioSegment
+        audio = AudioSegment.from_file(audio_path)
+
+        # Split into 10-minute segments
+        chunk_ms = 10 * 60 * 1000
+        chunks = []
+        for i in range(0, len(audio), chunk_ms):
+            chunk = audio[i:i + chunk_ms]
+            chunk_path = audio_path + f"_chunk{i}.mp3"
+            chunk.export(chunk_path, format="mp3", bitrate="64k")
+            chunks.append(chunk_path)
+
+        # Transcribe each chunk
+        transcripts = []
+        for cp in chunks:
+            try:
+                t = await _transcribe_file(oai_client, cp)
+                if t:
+                    transcripts.append(t)
+            except Exception:
+                pass
+            finally:
+                with contextlib.suppress(Exception):
+                    os.unlink(cp)
+
+        return " ".join(transcripts)
+
+    except ImportError:
+        # pydub not installed: send full file
+        return await _transcribe_file(oai_client, audio_path)
 
 router = APIRouter(prefix="/api/meeting", tags=["meeting"])
 
@@ -120,16 +176,15 @@ async def transcribe_meeting(request: Request, audio: UploadFile = File(...)):
             tmp_path = tmp.name
 
         from openai import AsyncOpenAI
+
+        # Check if file needs chunking
+        file_size = os.path.getsize(tmp_path)
         oai = AsyncOpenAI(api_key=openai_key)
 
-        # Transcribe with Whisper
-        with open(tmp_path, "rb") as f:
-            transcription = await oai.audio.transcriptions.create(
-                model="whisper-1",
-                file=f,
-                response_format="text",
-            )
-        transcript = str(transcription).strip()
+        if file_size > MAX_WHISPER_BYTES:
+            transcript = await _split_and_transcribe(oai, tmp_path, suffix)
+        else:
+            transcript = await _transcribe_file(oai, tmp_path)
         if not transcript:
             return {"transcript": "", "action_items": [], "draft_email": ""}
 

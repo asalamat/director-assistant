@@ -61,7 +61,7 @@ export function MeetingTab() {
     return () => { if (timerRef.current) clearInterval(timerRef.current) }
   }, [])
 
-  const MAX_SECS = 45 * 60  // 45 min limit (Whisper 25 MB at ~48kbps ≈ 62 min; use 45 for safety)
+  const MAX_SECS = 90 * 60  // 90 min — backend now chunks audio if >24 MB
 
   const start = async () => {
     try {

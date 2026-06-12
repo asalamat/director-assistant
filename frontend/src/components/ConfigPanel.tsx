@@ -601,6 +601,14 @@ export function ConfigPanel({ onSaved }: Props) {
             placeholder={config?.has_elevenlabs ? 'Enter new key to replace…' : 'sk_…'}
             className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-accent" />
         </div>
+        <div>
+          <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Voice</label>
+          <p className="text-xs text-gray-400 mb-1">Voice ID from elevenlabs.io/voice-lab. Default: Rachel.</p>
+          <input value={(config as any)?.elevenlabs_voice_id || ''} readOnly
+            placeholder="21m00Tcm4TlvDq8ikWAM (Rachel — default)"
+            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 text-gray-400" />
+          <p className="text-[10px] text-gray-400 mt-1">To change voice: paste a new Voice ID and save. Popular free voices: Rachel (21m00Tcm4TlvDq8ikWAM), Adam (pNInz6obpgDQGcFmaJgB), Bella (EXAVITQu4vr4xnSDxMaL)</p>
+        </div>
       </div>
 
       {/* Scheduled Email Digest */}

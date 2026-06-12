@@ -157,6 +157,11 @@ export function EmailHeader({
             {translating ? <><span className="animate-spin inline-block">⟳</span> Translating…</> : '🌐 Translate'}
           </button>
           <EmailNotifyButton emailId={email.id} />
+          <button
+            onClick={() => window.print()}
+            title="Print email"
+            className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+          >🖨</button>
           <Button variant="primary" size="sm" loading={analyzing} onClick={onAnalyze}>{analyzing ? 'Analyzing…' : '✦ AI Analysis'}</Button>
           {onAsk && (
             <button
