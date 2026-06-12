@@ -2,17 +2,19 @@ name: Test Windows Install
 
 on:
   push:
+    branches: [main]
     paths:
       - 'install.bat'
       - 'start.bat'
       - 'backend/requirements.txt'
       - 'frontend/package.json'
-  workflow_dispatch:
+      - '.github/workflows/windows-install-test.yml'
+  workflow_dispatch:   # Allow manual trigger from GitHub Actions tab
 
 jobs:
   test-windows-install:
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
 
     steps:
       - name: Checkout repository
@@ -27,41 +29,93 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Verify prerequisites
-        run: |
-          python --version
-          node --version
-          git --version
         shell: cmd
-
-      - name: Run install.bat (non-interactive)
         run: |
-          :: Set INSTALL_DIR to avoid cloning (we already have the repo)
-          set INSTALL_DIR=%GITHUB_WORKSPACE%
-          set BACKEND=%INSTALL_DIR%\backend
-          set FRONTEND=%INSTALL_DIR%\frontend
+          echo Checking Python...
+          python --version
+          python -c "import sys; print('Python OK:', sys.executable)"
 
-          :: Create venv
-          python -m venv backend\.venv
+          echo Checking Node...
+          node --version
+          npm --version
+
+          echo Checking Git...
+          git --version
+
+      - name: Create Python venv
+        shell: cmd
+        run: |
+          cd backend
+          python -m venv .venv
+          if errorlevel 1 exit /b 1
+          echo Venv created OK
+
+      - name: Install Python dependencies
+        shell: cmd
+        run: |
           call backend\.venv\Scripts\activate.bat
           pip install -r backend\requirements.txt --disable-pip-version-check
+          if errorlevel 1 exit /b 1
+          echo Python deps installed OK
 
-          :: Build frontend
-          cd frontend
-          call npm install --silent
-          call npm run build
-          if not exist ..\backend\static mkdir ..\backend\static
-          xcopy /s /e /y dist\* ..\backend\static\ >nul
-          echo [OK] Install steps completed
+      - name: Install Node dependencies
         shell: cmd
+        run: |
+          cd frontend
+          npm ci --silent
+          if errorlevel 1 exit /b 1
+          echo Node deps installed OK
 
-      - name: Verify backend starts
+      - name: Build frontend
+        shell: cmd
+        run: |
+          cd frontend
+          npm run build
+          if errorlevel 1 exit /b 1
+          if not exist dist\index.html (
+            echo ERROR: dist\index.html not found
+            exit /b 1
+          )
+          echo Frontend built OK
+
+      - name: Copy frontend to backend static
+        shell: cmd
+        run: |
+          if not exist backend\static mkdir backend\static
+          xcopy /s /e /y frontend\dist\* backend\static\ >nul
+          echo Static files copied OK
+
+      - name: Start backend and verify it responds
+        shell: cmd
         run: |
           call backend\.venv\Scripts\activate.bat
           cd backend
-          start /b python -m uvicorn main:app --port 8001
-          timeout /t 8 /nobreak >nul
-          curl -s -o nul -w "%%{http_code}" http://localhost:8001/api/connection/status
+          start /b python -m uvicorn main:app --host 127.0.0.1 --port 8001 --log-level error
+          echo Waiting for server to start...
+          timeout /t 10 /nobreak >nul
+          curl -s -f http://127.0.0.1:8001/api/connection/status
+          if errorlevel 1 (
+            echo ERROR: Server did not respond
+            exit /b 1
+          )
+          echo Server is responding OK
+
+      - name: Run basic API health check
         shell: cmd
-        continue-on-error: true
+        run: |
+          curl -s -f http://127.0.0.1:8001/api/health/full?check_imap=false
+          echo Health check passed
+
+      - name: Summary
+        if: success()
+        shell: cmd
+        run: |
+          echo.
+          echo ============================================
+          echo   ALL TESTS PASSED
+          echo   Windows install is working correctly
+          echo ============================================
