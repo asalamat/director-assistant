@@ -389,6 +389,12 @@ Outputs `dist/DirectorAssistant-mac-3.15.3.zip` and `dist/DirectorAssistant-win-
 - **Windows CI** — GitHub Actions workflow tests the full install on `windows-latest` on every push; dependency conflict fixed (`httpx>=0.27.2`)
 - **From-account selector** — when multiple email accounts are connected, a "From" dropdown appears at the top of the compose window
 
+### RAG Visualization (v3.30)
+- **📊 RAG Stats** — Settings → 🔧 Data & Backup shows live index stats: emails indexed, docs indexed, vector chunks, ChromaDB size, embedding model (BAAI/bge-large-en-v1.5)
+- **🔍 Ask Transparency** — Ask panel now shows collapsible "Sources used (N)" under each answer; each source displays a relevance % progress bar + 2-line snippet; click a source to search for that email
+- **📍 Email Cluster Map** — Intelligence → Email Map: PCA-projected 2D scatter plot of all indexed emails; colored by folder (INBOX/Sent/Archive); hover for subject+sender tooltip; click to search; category filter dropdown; no external chart library (pure SVG)
+- **🕸 Knowledge Graph** — Intelligence → Knowledge Graph: force-directed SVG graph of people (top senders), topics (subject keywords), and projects; edges show co-occurrence relationships; click a person node to search their emails; pure React/SVG physics simulation (no D3 dependency)
+
 ### Email Rules & Filtering (v3.28.6–v3.28.9)
 - **🚫 Quick-rule from email** — click "🚫 Rule" in the email toolbar to instantly create a rule pre-filled with that email's sender or subject; choose delete / archive / mark read and save in one step
 - **Delete action** — Email Rules now support `delete` — matching emails are removed from SQLite + ChromaDB on arrival (no more marketing, carrier notifications, no-reply spam in your inbox)
