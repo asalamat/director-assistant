@@ -392,7 +392,7 @@ Outputs `dist/DirectorAssistant-mac-3.15.3.zip` and `dist/DirectorAssistant-win-
 ### RAG Visualization (v3.30)
 - **📊 RAG Stats** — Settings → 🔧 Data & Backup shows live index stats: emails indexed, docs indexed, vector chunks, ChromaDB size, embedding model (BAAI/bge-large-en-v1.5)
 - **🔍 Ask Transparency** — Ask panel now shows collapsible "Sources used (N)" under each answer; each source displays a relevance % progress bar + 2-line snippet; click a source to search for that email
-- **📍 Email Cluster Map** — Intelligence → Email Map: PCA-projected 2D scatter plot of all indexed emails; colored by folder (INBOX/Sent/Archive); hover for subject+sender tooltip; click to search; category filter dropdown; no external chart library (pure SVG)
+- **📍 Email Cluster Map** — Intelligence → Email Map: PCA-projected 2D scatter plot of all indexed emails (up to 1500); colored by AI-assigned category (newsletter/action/proposal/invoice/meeting); hover tooltip; click to search; **🏷 Classify emails** button bulk-classifies up to 300 random emails per click to populate colors; no external chart library (pure SVG)
 - **🕸 Knowledge Graph** — Intelligence → Knowledge Graph: force-directed SVG graph of people (top senders), topics (subject keywords), and projects; edges show co-occurrence relationships; click a person node to search their emails; pure React/SVG physics simulation (no D3 dependency)
 
 ### Email Rules & Filtering (v3.28.6–v3.28.9)
