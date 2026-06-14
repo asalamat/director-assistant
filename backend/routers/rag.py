@@ -81,10 +81,28 @@ async def get_embeddings_2d(request: Request):
     Response: [{id, x, y, subject, sender, category, date}]
     """
     rag = getattr(request.app.state, "rag", None)
+    cache = getattr(request.app.state, "cache", None)
     if rag is None:
         return {"points": [], "error": "RAG not available"}
 
     loop = asyncio.get_event_loop()
+
+    def _get_categories(email_ids: list) -> dict:
+        """Fetch AI-assigned categories from SQLite for a list of email IDs."""
+        if not cache or not email_ids:
+            return {}
+        try:
+            placeholders = ",".join("?" * len(email_ids))
+            with cache._conn() as conn:
+                rows = conn.execute(
+                    f"SELECT e.id, ec.category FROM emails e "
+                    f"LEFT JOIN email_categories ec ON ec.email_id = e.id "
+                    f"WHERE e.id IN ({placeholders})",
+                    email_ids,
+                ).fetchall()
+            return {r["id"]: (r["category"] or "other") for r in rows}
+        except Exception:
+            return {}
 
     def _project():
         try:
@@ -124,22 +142,27 @@ async def get_embeddings_2d(request: Request):
             logger.warning(f"[embeddings-2d] PCA failed: {exc}")
             return {"points": [], "error": f"PCA error: {exc}"}
 
-        points = []
+        # Build points list and collect email IDs for category lookup
+        raw_points = []
         for i, meta in enumerate(metadatas):
-            # Skip documents and contacts — only email chunks
             if meta.get("source_type", "email") != "email":
                 continue
             x = float(coords[i][0]) if coords.shape[1] > 0 else 0.0
             y = float(coords[i][1]) if coords.shape[1] > 1 else 0.0
-            points.append({
+            raw_points.append({
                 "id": meta.get("email_id", ""),
                 "x": x,
                 "y": y,
                 "subject": meta.get("subject", ""),
                 "sender": meta.get("sender", ""),
-                "category": meta.get("category", ""),
                 "date": meta.get("date", ""),
             })
+
+        # Fetch AI-assigned categories from SQLite
+        email_ids = [p["id"] for p in raw_points if p["id"]]
+        cat_map = _get_categories(email_ids)
+
+        points = [{**p, "category": cat_map.get(p["id"], "other")} for p in raw_points]
 
         return {"points": points}
 
