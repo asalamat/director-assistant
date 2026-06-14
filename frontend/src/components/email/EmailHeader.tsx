@@ -17,6 +17,7 @@ export interface EmailHeaderProps {
   onForwardClick: () => void
   onTranslate: () => void
   translating: boolean
+  onArchive?: () => void
 }
 
 function formatDateFull(dateStr: string | null): string {
@@ -29,7 +30,7 @@ function formatDateFull(dateStr: string | null): string {
 
 export function EmailHeader({
   email, analyzing, onAnalyze, onDelete, onSnooze, onAsk, onSearch,
-  onReplyClick, onForwardClick, onTranslate, translating,
+  onReplyClick, onForwardClick, onTranslate, translating, onArchive,
 }: EmailHeaderProps) {
   const [deleting, setDeleting] = useState(false)
   const [showSnooze, setShowSnooze] = useState(false)
@@ -311,6 +312,13 @@ export function EmailHeader({
             </a>
           )}
 
+          {onArchive && (
+            <button
+              onClick={onArchive}
+              title="Archive email (move to Archive folder)"
+              className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+            >📦 Archive</button>
+          )}
           <Button variant="danger" size="sm" loading={deleting} onClick={handleDelete}>Delete</Button>
         </div>
       </div>

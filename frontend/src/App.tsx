@@ -217,6 +217,12 @@ export default function App() {
         if (emails[next]) handleSelect(emails[next])
       }
       if (e.key === 'a' && selectedEmail) handleAnalyze()
+      if (e.key === 'e' && selectedEmail) {
+        api.moveEmail(selectedEmail.id, 'Archive').then(() => {
+          removeEmail(selectedEmail.id)
+          clearSelectedEmail()
+        }).catch(() => {})
+      }
       if (e.key === 'Escape') clearSelectedEmail()
     }
     window.addEventListener('keydown', onKey)

@@ -59,6 +59,10 @@ export function EmailCompose({
   const [accounts, setAccounts] = useState<{id: number; username: string; provider: string}[]>([])
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null)
 
+  // Snippets state
+  const [snippets, setSnippets] = useState<{id: number; name: string; content: string}[]>([])
+  const [showSnippets, setShowSnippets] = useState(false)
+
   // Signatures state
   const [signatures, setSignatures] = useState<Signature[]>([])
   const [selectedSigId, setSelectedSigId] = useState<number | null>(null)
@@ -105,6 +109,7 @@ export function EmailCompose({
       const def = sigs.find(s => s.is_default)
       if (def) setSelectedSigId(def.id)
     }).catch(() => {})
+    api.getSnippets().then(r => setSnippets(r.snippets)).catch(() => {})
   }, [show])
 
   // Restore draft on open
@@ -282,6 +287,17 @@ export function EmailCompose({
     } catch { /* silent */ }
   }
 
+  const insertSnippet = (content: string) => {
+    setShowSnippets(false)
+    if (contentRef.current) {
+      contentRef.current.focus()
+      document.execCommand('insertText', false, content)
+      setReplyBody(contentRef.current.innerHTML)
+    } else {
+      setReplyBody(prev => prev ? prev + '\n' + content : content)
+    }
+  }
+
   if (!show) return null
 
   return (
@@ -437,6 +453,34 @@ export function EmailCompose({
                 </>
               )}
             </button>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowSnippets(v => !v)}
+                disabled={adjustingTone}
+                className="text-[10px] px-2 py-0.5 border border-gray-200 rounded-full hover:bg-gray-100 text-gray-500"
+                title="Insert a canned response"
+              >
+                Snippets
+              </button>
+              {showSnippets && snippets.length > 0 && (
+                <div className="absolute bottom-full left-0 mb-1 z-20 bg-white border border-gray-200 rounded-lg shadow-lg min-w-[200px] max-h-48 overflow-y-auto"
+                  onMouseLeave={() => setShowSnippets(false)}>
+                  {snippets.map(s => (
+                    <button key={s.id} onClick={() => insertSnippet(s.content)}
+                      className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 border-b border-gray-50 last:border-0">
+                      <p className="font-medium">{s.name}</p>
+                      <p className="text-gray-400 truncate">{s.content.slice(0, 50)}…</p>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {showSnippets && snippets.length === 0 && (
+                <div className="absolute bottom-full left-0 mb-1 z-20 bg-white border border-gray-200 rounded-lg shadow-sm p-3 text-xs text-gray-400 min-w-[180px]">
+                  No snippets yet. Create them in Settings → App Settings.
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Signature selector */}

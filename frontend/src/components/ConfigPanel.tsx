@@ -154,6 +154,7 @@ export function ConfigPanel({ onSaved }: Props) {
   const [anthropicKey, setAnthropicKey] = useState('')
   const [openaiKey, setOpenaiKey] = useState('')
   const [elevenLabsKey, setElevenLabsKey] = useState('')
+  const [elevenLabsVoiceId, setElevenLabsVoiceId] = useState('')
   const [msClientId, setMsClientId] = useState('')
   const [googleClientId, setGoogleClientId] = useState('')
   const [googleClientSecret, setGoogleClientSecret] = useState('')
@@ -240,6 +241,7 @@ export function ConfigPanel({ onSaved }: Props) {
       setDigestEnabled(cfg.digest_schedule_enabled ?? false)
       setDigestTime(cfg.digest_schedule_time ?? '08:00')
       setDigestEmail(cfg.digest_schedule_email ?? '')
+      setElevenLabsVoiceId((cfg as any).elevenlabs_voice_id || '')
     }).catch(() => {})
   }, [])
 
@@ -281,12 +283,13 @@ export function ConfigPanel({ onSaved }: Props) {
       if (googleClientId) payload.google_client_id = googleClientId
       if (googleClientSecret) payload.google_client_secret = googleClientSecret
       if (elevenLabsKey) (payload as Record<string, unknown>).elevenlabs_api_key = elevenLabsKey
+      if (elevenLabsVoiceId.trim()) (payload as Record<string, unknown>).elevenlabs_voice_id = elevenLabsVoiceId.trim()
       payload.digest_schedule_enabled = digestEnabled
       payload.digest_schedule_time = digestTime
       payload.digest_schedule_email = digestEmail
       await api.saveConfig(payload)
       setSaveMsg('Saved')
-      setAnthropicKey(''); setOpenaiKey(''); setElevenLabsKey('')
+      setAnthropicKey(''); setOpenaiKey(''); setElevenLabsKey(''); setElevenLabsVoiceId('')
       const updated = await api.getConfig()
       setConfig(updated)
       onSaved?.()
@@ -602,12 +605,12 @@ export function ConfigPanel({ onSaved }: Props) {
             className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-accent" />
         </div>
         <div>
-          <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Voice</label>
-          <p className="text-xs text-gray-400 mb-1">Voice ID from elevenlabs.io/voice-lab. Default: Rachel.</p>
-          <input value={(config as any)?.elevenlabs_voice_id || ''} readOnly
-            placeholder="21m00Tcm4TlvDq8ikWAM (Rachel — default)"
-            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 text-gray-400" />
-          <p className="text-[10px] text-gray-400 mt-1">To change voice: paste a new Voice ID and save. Popular free voices: Rachel (21m00Tcm4TlvDq8ikWAM), Adam (pNInz6obpgDQGcFmaJgB), Bella (EXAVITQu4vr4xnSDxMaL)</p>
+          <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Voice ID</label>
+          <p className="text-xs text-gray-400 mb-1">Get voice IDs from elevenlabs.io/voice-lab. Leave blank to keep current.</p>
+          <input value={elevenLabsVoiceId} onChange={e => setElevenLabsVoiceId(e.target.value)}
+            placeholder={`Current: ${(config as any)?.elevenlabs_voice_id || '21m00Tcm4TlvDq8ikWAM (Rachel)'}`}
+            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-accent" />
+          <p className="text-[10px] text-gray-400 mt-1">Popular: Rachel=21m00Tcm4TlvDq8ikWAM · Adam=pNInz6obpgDQGcFmaJgB · Bella=EXAVITQu4vr4xnSDxMaL</p>
         </div>
       </div>
 
@@ -707,6 +710,68 @@ export function ConfigPanel({ onSaved }: Props) {
             {saveMsg}
           </span>
         )}
+      </div>
+
+      {/* Canned Responses / Snippets */}
+      <div className="border border-gray-200 rounded-xl p-4 space-y-3">
+        <div>
+          <h2 className="text-sm font-semibold text-gray-800">Canned Responses</h2>
+          <p className="text-xs text-gray-500 mt-0.5">Quick-insert text blocks in compose. Click "Snippets" in the Reply window.</p>
+        </div>
+        <SnippetsManager />
+      </div>
+    </div>
+  )
+}
+
+function SnippetsManager() {
+  const [snippets, setSnippets] = useState<{id: number; name: string; content: string}[]>([])
+  const [name, setName] = useState('')
+  const [content, setContent] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    api.getSnippets().then(r => setSnippets(r.snippets)).catch(() => {})
+  }, [])
+
+  const save = async () => {
+    if (!name.trim() || !content.trim()) return
+    setSaving(true)
+    await api.createSnippet({ name: name.trim(), content: content.trim() }).catch(() => {})
+    const r = await api.getSnippets().catch(() => ({ snippets: [] }))
+    setSnippets(r.snippets)
+    setName(''); setContent('')
+    setSaving(false)
+  }
+
+  const del = async (id: number) => {
+    await api.deleteSnippet(id).catch(() => {})
+    setSnippets(prev => prev.filter(s => s.id !== id))
+  }
+
+  return (
+    <div className="space-y-2">
+      {snippets.map(s => (
+        <div key={s.id} className="flex items-start gap-2 border border-gray-100 rounded-lg p-2.5">
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-medium text-gray-700">{s.name}</p>
+            <p className="text-xs text-gray-400 truncate">{s.content.slice(0, 60)}{s.content.length > 60 ? '…' : ''}</p>
+          </div>
+          <button onClick={() => del(s.id)} className="text-gray-300 hover:text-red-400 text-xs flex-shrink-0">✕</button>
+        </div>
+      ))}
+      <div className="space-y-1.5 pt-1">
+        <input value={name} onChange={e => setName(e.target.value)}
+          placeholder="Name (e.g. 'Thanks')"
+          className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent" />
+        <textarea value={content} onChange={e => setContent(e.target.value)}
+          placeholder="Content (e.g. 'Thank you for your email, I will follow up shortly.')"
+          rows={2}
+          className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent resize-none" />
+        <button onClick={save} disabled={saving || !name.trim() || !content.trim()}
+          className="text-xs bg-accent text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+          {saving ? 'Saving…' : '+ Add Snippet'}
+        </button>
       </div>
     </div>
   )

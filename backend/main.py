@@ -57,6 +57,7 @@ from routers import overnight as overnight_router
 from routers import email_rules as email_rules_router
 from routers import voice as voice_router
 from routers import signatures as signatures_router
+from routers import snippets as snippets_router
 from routers.proactive import push_alert
 from services.intelligence_service import IntelligenceService
 from workers.background_tasks import (
@@ -550,6 +551,7 @@ app.include_router(overnight_router.router)
 app.include_router(email_rules_router.router)
 app.include_router(voice_router.router)
 app.include_router(signatures_router.router)
+app.include_router(snippets_router.router)
 
 
 @app.get("/health")

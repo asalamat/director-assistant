@@ -370,6 +370,15 @@ class EmailCache(EmailExtrasMixin, DocumentCacheMixin):
                     created_at TEXT DEFAULT (datetime('now'))
                 )
             """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS snippets (
+                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name       TEXT NOT NULL,
+                    content    TEXT NOT NULL,
+                    shortcut   TEXT DEFAULT '',
+                    created_at TEXT DEFAULT (datetime('now'))
+                )
+            """)
             for col_def in ["account_id INTEGER DEFAULT 0", "server_id TEXT",
                              "followup_remind_at TEXT"]:
                 try:

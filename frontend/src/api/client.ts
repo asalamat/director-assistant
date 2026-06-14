@@ -834,6 +834,17 @@ export const api = {
     return request('/overnight/drafts')
   },
 
+  // Snippets
+  getSnippets(): Promise<{ snippets: {id: number; name: string; content: string; shortcut: string}[] }> {
+    return request('/snippets')
+  },
+  createSnippet(data: {name: string; content: string; shortcut?: string}): Promise<{id: number}> {
+    return request('/snippets', { method: 'POST', body: JSON.stringify(data) })
+  },
+  deleteSnippet(id: number): Promise<void> {
+    return request(`/snippets/${id}`, { method: 'DELETE' })
+  },
+
   // Signatures
   getSignatures(): Promise<{ signatures: { id: number; name: string; content: string; is_default: number; account_id: number }[] }> {
     return request('/signatures')
@@ -860,6 +871,13 @@ export const api = {
   // ElevenLabs TTS — returns a URL suitable for Audio src
   readEmailAloud(emailId: string): string {
     return `${BASE}/voice/read/${encodeURIComponent(emailId)}`
+  },
+
+  moveEmail(emailId: string, folder: string): Promise<{ status: string }> {
+    return request(`/emails/${encodeURIComponent(emailId)}/move`, {
+      method: 'POST',
+      body: JSON.stringify({ folder })
+    })
   },
 
   // Email Rules

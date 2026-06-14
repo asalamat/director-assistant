@@ -121,6 +121,14 @@ export function EmailViewer({ email, loading, fetchError, onAnalyze, analyzing, 
     }
   }
 
+  const handleArchive = async () => {
+    if (!email) return
+    try {
+      await api.moveEmail(email.id, 'Archive')
+      onDelete(email.id)
+    } catch { /* silent */ }
+  }
+
   const handleTranslate = async () => {
     if (!email || translating) return
     setTranslating(true)
@@ -175,6 +183,7 @@ export function EmailViewer({ email, loading, fetchError, onAnalyze, analyzing, 
         onForwardClick={handleForward}
         onTranslate={handleTranslate}
         translating={translating}
+        onArchive={handleArchive}
       />
 
       {thread.length > 0 && (

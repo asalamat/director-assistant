@@ -468,3 +468,19 @@ async def delete_email(request: Request, email_id: str):
     rag.remove_email(email_id)
     if not found:
         raise HTTPException(404, "Email not found")
+
+
+class MoveEmailRequest(BaseModel):
+    folder: str
+
+
+@router.post("/{email_id}/move")
+async def move_email(email_id: str, req: MoveEmailRequest, request: Request):
+    """Move an email to a different folder (locally in cache + optionally on IMAP)."""
+    cache: EmailCache = request.app.state.cache
+    email = cache.get(email_id)
+    if not email:
+        raise HTTPException(404, "Email not found")
+    with cache._conn() as conn:
+        conn.execute("UPDATE emails SET folder = ? WHERE id = ?", (req.folder, email_id))
+    return {"status": "moved", "folder": req.folder}
