@@ -318,7 +318,7 @@ export function ActionBoard() {
                     f.done
                       ? 'bg-gray-50 border-gray-100 opacity-60'
                       : overdue
-                      ? 'bg-red-50 border-red-300'
+                      ? 'bg-white border-l-4 border-red-500'
                       : 'bg-white border-gray-200'
                   }`}
                 >
@@ -330,11 +330,11 @@ export function ActionBoard() {
                       className="mt-0.5 accent-accent"
                     />
                     <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-medium ${f.done ? 'line-through text-gray-400' : overdue ? 'text-red-900' : 'text-gray-800'}`}>
+                      <p className={`text-sm font-medium ${f.done ? 'line-through text-gray-400' : 'text-gray-800'}`}>
                         {f.subject || '(no subject)'}
                       </p>
-                      <p className={`text-xs ${overdue ? 'text-red-700' : 'text-gray-500'}`}>{f.sender}</p>
-                      {f.note && <p className="text-xs text-gray-600 mt-0.5">{f.note}</p>}
+                      <p className="text-xs text-gray-600">{f.sender}</p>
+                      {f.note && <p className="text-xs text-gray-700 mt-0.5">{f.note}</p>}
                       <p className={`text-xs mt-1 font-semibold ${overdue ? 'text-red-700' : 'text-gray-500'}`}>
                         {overdue ? '⚠ Overdue · ' : 'Due · '}
                         {formatDate(f.due_date)}
