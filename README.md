@@ -373,7 +373,7 @@ Outputs `dist/DirectorAssistant-mac-3.15.3.zip` and `dist/DirectorAssistant-win-
 - **💾 Draft auto-save** — compose drafts saved to localStorage every 30s; restored when you re-open the compose window
 - **✍️ Email signatures** — signature manager in the compose window; create/delete named signatures, auto-insert default; access via "+ Add signature" in compose
 - **🔊 Read aloud** — email viewer toolbar → 🔊 Read streams ElevenLabs TTS audio; add API key in Settings → App Settings → ElevenLabs
-- **📋 Email rules/filters** — Settings → 🔗 Integrations → Email Rules; auto-label/archive/mark-read by sender, subject, or body content; applied to every new email on arrival
+- **📋 Email rules/filters** — Settings → 🛡️ Rules & Filters; auto-label/archive/mark-read/**delete** by sender, subject, or body; applied on arrival + run manually with ▶ Run Now
 - **🗄️ ChromaDB backup** — the backup zip now includes the RAG vector database, not just SQLite
 - **🔍 Smart folders** — pinned searches appear as clickable folder tabs in the inbox folder bar
 - **Overnight triage config** — Settings → 🔗 Integrations → Overnight Triage Agent: enable + hour picker
@@ -389,7 +389,23 @@ Outputs `dist/DirectorAssistant-mac-3.15.3.zip` and `dist/DirectorAssistant-win-
 - **Windows CI** — GitHub Actions workflow tests the full install on `windows-latest` on every push; dependency conflict fixed (`httpx>=0.27.2`)
 - **From-account selector** — when multiple email accounts are connected, a "From" dropdown appears at the top of the compose window
 
-### Polish & UX (v3.28)
+### Email Rules & Filtering (v3.28.6–v3.28.9)
+- **🚫 Quick-rule from email** — click "🚫 Rule" in the email toolbar to instantly create a rule pre-filled with that email's sender or subject; choose delete / archive / mark read and save in one step
+- **Delete action** — Email Rules now support `delete` — matching emails are removed from SQLite + ChromaDB on arrival (no more marketing, carrier notifications, no-reply spam in your inbox)
+- **▶ Run Now** — apply all enabled rules to your existing inbox in one click (up to 2000 emails); shows stats: deleted / labeled / archived / marked read; also removes deleted emails from the RAG vector index
+- Email Rules moved to dedicated **Settings → 🛡️ Rules & Filters** section
+
+### Settings Redesign (v3.29.0)
+- **Two-column layout** — left sidebar nav replaces 3 cramped horizontal tabs; wider `max-w-3xl` card
+- **6 focused sections**: 📧 Accounts · 📁 Documents · ⚙️ App Settings · 🛡️ Rules & Filters · 🔗 Integrations · 🔧 Data & Backup
+- Each section does one thing; Danger Zone and Updates moved to dedicated Data section
+- Settings.tsx: 1026 → 436 lines (AddAccountForm extracted to own file)
+
+### Compose UX Fixes (v3.29.1–v3.29.2)
+- **Floating compose panel** — reply compose now overlays the email body (Gmail-style absolute positioning) instead of pushing it up; email remains fully scrollable while composing
+- **Send button always visible** — compose has sticky header (Reply/Cancel) + scrollable fields + sticky footer (🔍 Review + Send); Send can never be clipped off-screen
+
+### Polish & UX (v3.28.0–v3.28.5)
 - **📦 Archive email** — Archive button in toolbar; press `e` key shortcut; moves to Archive folder
 - **💬 Canned responses/snippets** — pre-saved text blocks insertable from compose; manage in Settings → App Settings → Canned Responses
 - **ElevenLabs voice picker** — voice ID is now editable in Settings (with popular voice list); was read-only
