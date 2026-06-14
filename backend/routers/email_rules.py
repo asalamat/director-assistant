@@ -75,6 +75,7 @@ async def delete_rule(rule_id: int, request: Request):
 async def run_all_rules(request: Request):
     """Apply all enabled rules to every email in the inbox."""
     cache = request.app.state.cache
+    rag = getattr(request.app.state, "rag", None)
     with cache._conn() as conn:
         emails = conn.execute(
             "SELECT id, sender, subject, body FROM emails ORDER BY date DESC LIMIT 2000"
@@ -126,6 +127,11 @@ async def run_all_rules(request: Request):
             elif action == "delete":
                 with cache._conn() as conn:
                     conn.execute("DELETE FROM emails WHERE id=?", (email_id,))
+                if rag:
+                    try:
+                        rag.remove_email(email_id)
+                    except Exception:
+                        pass
                 deleted += 1
             if action == "delete":
                 break  # email gone, skip remaining rules
