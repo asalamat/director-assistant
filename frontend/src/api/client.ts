@@ -415,6 +415,13 @@ export const api = {
   }> {
     return request('/intelligence/contact-hints')
   },
+  getRagKnowledgeGraph(): Promise<{
+    nodes: { id: string; label: string; type: 'person' | 'topic' | 'project'; count: number }[]
+    edges: { source: string; target: string; weight: number }[]
+    error?: string
+  }> {
+    return request('/intelligence/knowledge-graph')
+  },
   transcribeMeeting(audio: Blob): Promise<{ transcript: string; action_items: string[]; draft_email: string }> {
     const form = new FormData()
     form.append('audio', audio, 'meeting.webm')
@@ -881,6 +888,19 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ folder })
     })
+  },
+
+  // RAG Stats
+  getRagStats(): Promise<{ count: number; collection_size_mb: number; last_indexed: string; embedding_model: string; status: string }> {
+    return request('/rag/stats')
+  },
+
+  // RAG Embeddings 2D projection
+  getRagEmbeddings2d(): Promise<{
+    points: { id: string; x: number; y: number; subject: string; sender: string; category: string; date: string }[]
+    error?: string
+  }> {
+    return request('/rag/embeddings-2d')
   },
 
   // Email Rules

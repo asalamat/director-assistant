@@ -6,13 +6,13 @@ import { Analytics } from './Analytics'
 import { TemplatesPanel } from './TemplatesPanel'
 import { ProjectsPanel } from './ProjectsPanel'
 import { PSTImport } from './PSTImport'
-import { BriefingTab, PeopleTab, LoopsTab, ProjectsTab, TimelineTab } from './IntelligenceTabs'
+import { BriefingTab, PeopleTab, LoopsTab, ProjectsTab, TimelineTab, EmbeddingMap, KnowledgeGraph } from './IntelligenceTabs'
 import { MeetingTab } from './intelligence/MeetingTab'
 import { CRMTab } from './intelligence/CRMTab'
 import { BoardReportTab } from './intelligence/BoardReportTab'
 import { CoachingTab } from './intelligence/CoachingTab'
 
-type SubTab = 'briefing' | 'people' | 'loops' | 'ai-projects' | 'timeline' | 'weekly' | 'chase' | 'analytics' | 'templates' | 'projects' | 'pst' | 'meetings' | 'crm' | 'board' | 'coaching'
+type SubTab = 'briefing' | 'people' | 'loops' | 'ai-projects' | 'timeline' | 'email-map' | 'kg' | 'weekly' | 'chase' | 'analytics' | 'templates' | 'projects' | 'pst' | 'meetings' | 'crm' | 'board' | 'coaching'
 
 const SUB_TABS: { id: SubTab; label: string; icon: string; group?: string }[] = [
   // Intelligence
@@ -21,6 +21,8 @@ const SUB_TABS: { id: SubTab; label: string; icon: string; group?: string }[] = 
   { id: 'loops',       label: 'Open Loops',  icon: '🔄', group: 'intel' },
   { id: 'ai-projects', label: 'AI Clusters', icon: '🗂', group: 'intel' },
   { id: 'timeline',    label: 'Timeline',    icon: '📅', group: 'intel' },
+  { id: 'email-map',   label: 'Email Map',   icon: '🗺', group: 'intel' },
+  { id: 'kg',          label: 'Knowledge Graph', icon: '🕸', group: 'intel' },
   // Tools
   { id: 'weekly',      label: 'Weekly Brief', icon: '📊', group: 'tools' },
   { id: 'chase',       label: 'Chase Queue',  icon: '⏰', group: 'tools' },
@@ -90,6 +92,8 @@ export function IntelligencePanel() {
         {activeTab === 'loops'       && <LoopsTab />}
         {activeTab === 'ai-projects' && <ProjectsTab onSelectCluster={handleSelectCluster} />}
         {activeTab === 'timeline'    && <TimelineTab initialQuery={timelineQuery} />}
+        {activeTab === 'email-map'   && <div className="h-full overflow-hidden"><EmbeddingMap onSearch={q => { setTimelineQuery(q); setActiveTab('timeline') }} /></div>}
+        {activeTab === 'kg'          && <div className="h-full overflow-hidden"><KnowledgeGraph onSearchPerson={name => { setTimelineQuery(name); setActiveTab('timeline') }} /></div>}
         {activeTab === 'weekly'      && <WeeklyBriefPanel />}
         {activeTab === 'chase'       && <ChaseQueue />}
         {activeTab === 'projects'    && <ProjectsPanel />}

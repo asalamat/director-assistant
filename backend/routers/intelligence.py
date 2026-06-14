@@ -365,3 +365,4 @@ Return JSON:
         data = {"tips": [f"Analysis error: {exc}"], "strengths": [], "stats": {}}
 
     return data
+

@@ -12,6 +12,8 @@ interface Source {
   file_type?: string
   contact_email?: string
   contact_name?: string
+  relevance_pct?: number
+  snippet?: string
 }
 
 interface Message {
@@ -79,6 +81,7 @@ export function AskPanel({ initialQuery, onClear }: { initialQuery?: string; onC
   const [showHistory, setShowHistory] = useState(false)
   const [historyList, setHistoryList] = useState<AskHistoryEntry[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
+  const [openSourcesIdx, setOpenSourcesIdx] = useState<Set<number>>(new Set())
 
   // Topic search state
   const [topicQuery, setTopicQuery] = useState('')
@@ -216,6 +219,7 @@ export function AskPanel({ initialQuery, onClear }: { initialQuery?: string; onC
   const clearChat = () => {
     setMessages([])
     setHistory([])
+    setOpenSourcesIdx(new Set())
   }
 
   const handleTopicSearch = async () => {
@@ -363,53 +367,104 @@ export function AskPanel({ initialQuery, onClear }: { initialQuery?: string; onC
                       )}
                     </div>
                     {msg.sources && msg.sources.length > 0 && (
-                      <div className="mt-2 space-y-1">
-                        <p className="text-xs text-gray-400 px-1">Sources</p>
-                        {msg.sources.map((src) => {
-                          const label = src.source_type === 'contact'
-                            ? (src.contact_name || src.contact_email || 'Contact')
-                            : src.source_type === 'document'
-                              ? (src.subject || src.filename || 'Document')
-                              : src.subject
-                          return (
-                            <div key={src.email_id} className={`border rounded-lg px-3 py-1.5 ${
-                              src.source_type === 'document'
-                                ? 'bg-amber-50 border-amber-200'
-                                : src.source_type === 'contact'
-                                  ? 'bg-emerald-950/20 border-emerald-800/30'
-                                  : 'bg-white border-gray-200'
-                            }`}>
-                              {src.source_type === 'document' ? (
-                                <>
-                                  <p className="text-xs font-medium text-amber-800 truncate">{label}</p>
-                                  <p className="text-xs text-amber-500 uppercase">{src.file_type} file</p>
-                                </>
-                              ) : src.source_type === 'contact' ? (
-                                <>
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-emerald-900/40 text-emerald-300 border border-emerald-700/40">
-                                      Contact
-                                    </span>
-                                    <p className="text-xs font-medium text-emerald-200 truncate">{label}</p>
+                      <div className="mt-2">
+                        <button
+                          onClick={() => setOpenSourcesIdx(prev => {
+                            const next = new Set(prev)
+                            next.has(i) ? next.delete(i) : next.add(i)
+                            return next
+                          })}
+                          className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors px-1 py-0.5 rounded group"
+                        >
+                          <svg
+                            className={`w-3 h-3 transition-transform ${openSourcesIdx.has(i) ? 'rotate-90' : ''}`}
+                            viewBox="0 0 20 20" fill="currentColor"
+                          >
+                            <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                          </svg>
+                          Sources used ({msg.sources.length})
+                        </button>
+                        {openSourcesIdx.has(i) && (
+                          <div className="mt-1.5 space-y-1.5">
+                            {msg.sources.map((src) => {
+                              const label = src.source_type === 'contact'
+                                ? (src.contact_name || src.contact_email || 'Contact')
+                                : src.source_type === 'document'
+                                  ? (src.subject || src.filename || 'Document')
+                                  : src.subject || '(no subject)'
+
+                              const relevance = src.relevance_pct ?? null
+                              const badgeColor = relevance !== null && relevance >= 70
+                                ? 'bg-green-100 text-green-700'
+                                : relevance !== null && relevance >= 40
+                                  ? 'bg-yellow-100 text-yellow-700'
+                                  : 'bg-gray-100 text-gray-500'
+
+                              const handleSourceClick = () => {
+                                if (src.source_type === 'email' || !src.source_type) {
+                                  setInput(`subject:"${src.subject || ''}" from:"${src.sender || ''}"`)
+                                  setMode('smart-search')
+                                  setNlQuery(`subject:"${src.subject || ''}" from:"${src.sender || ''}"`)
+                                }
+                              }
+
+                              return (
+                                <div
+                                  key={src.email_id}
+                                  onClick={handleSourceClick}
+                                  className={`border rounded-lg px-3 py-2 transition-colors ${
+                                    src.source_type === 'document'
+                                      ? 'bg-amber-50 border-amber-200'
+                                      : src.source_type === 'contact'
+                                        ? 'bg-emerald-950/20 border-emerald-800/30'
+                                        : 'bg-gray-50 border-gray-200 hover:border-accent hover:bg-white cursor-pointer'
+                                  }`}
+                                >
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="min-w-0 flex-1">
+                                      {src.source_type === 'document' ? (
+                                        <>
+                                          <p className="text-xs font-medium text-amber-800 truncate">{label}</p>
+                                          <p className="text-xs text-amber-500 uppercase mt-0.5">{src.file_type} file</p>
+                                        </>
+                                      ) : src.source_type === 'contact' ? (
+                                        <>
+                                          <div className="flex items-center gap-1.5">
+                                            <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-emerald-900/40 text-emerald-300 border border-emerald-700/40 shrink-0">
+                                              Contact
+                                            </span>
+                                            <p className="text-xs font-medium text-emerald-200 truncate">{label}</p>
+                                          </div>
+                                          {src.contact_email && (
+                                            <p className="text-xs text-emerald-400/70 truncate mt-0.5">{src.contact_email}</p>
+                                          )}
+                                        </>
+                                      ) : (
+                                        <>
+                                          <p className="text-xs font-medium text-gray-700 truncate">{label}</p>
+                                          <p className="text-xs text-gray-400 truncate mt-0.5">{src.sender}</p>
+                                          {src.date && (
+                                            <p className="text-xs text-gray-300 mt-0.5">
+                                              {new Date(src.date).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
+                                            </p>
+                                          )}
+                                          {src.snippet && (
+                                            <p className="text-xs text-gray-400 mt-1 line-clamp-2 leading-relaxed">{src.snippet}</p>
+                                          )}
+                                        </>
+                                      )}
+                                    </div>
+                                    {relevance !== null && (
+                                      <span className={`shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${badgeColor}`}>
+                                        {relevance}%
+                                      </span>
+                                    )}
                                   </div>
-                                  {src.contact_email && (
-                                    <p className="text-xs text-emerald-400/70 truncate mt-0.5">{src.contact_email}</p>
-                                  )}
-                                </>
-                              ) : (
-                                <>
-                                  <p className="text-xs font-medium text-gray-700 truncate">{label}</p>
-                                  <p className="text-xs text-gray-400 truncate">{src.sender}</p>
-                                  {src.date && (
-                                    <p className="text-xs text-gray-300">
-                                      {new Date(src.date).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
-                                    </p>
-                                  )}
-                                </>
-                              )}
-                            </div>
-                          )
-                        })}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

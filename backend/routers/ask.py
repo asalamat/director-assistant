@@ -226,13 +226,23 @@ async def ask_db(req: AskRequest, request: Request):
             yield f"data: {json.dumps({'type': 'token', 'text': f'Error generating answer: {e}'})}\n\n"
 
         sources = []
-        for r in results[:5]:
+        for r in results[:8]:
+            # Convert cosine distance (0=identical, 1=orthogonal) to relevance %
+            distance = r.get("_distance", 0.5)
+            relevance_pct = round(max(0.0, min(1.0, 1.0 - distance)) * 100)
+
+            # Extract a short snippet from the result text
+            raw_text = r.get("text", "")
+            snippet = raw_text.replace("\n", " ").strip()[:180] if raw_text else ""
+
             src: dict = {
                 "email_id": r["email_id"],
                 "source_type": r.get("source_type", "email"),
                 "subject": r.get("subject", ""),
                 "sender": r.get("sender", ""),
                 "date": r.get("date", ""),
+                "relevance_pct": relevance_pct,
+                "snippet": snippet,
             }
             if r.get("source_type") == "document":
                 src["filename"] = r.get("filename", "")

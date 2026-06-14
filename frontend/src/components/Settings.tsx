@@ -59,6 +59,7 @@ export function Settings({ onConnected, initialTab }: Props) {
   const [clearMsg, setClearMsg] = useState('')
   const [clearFromDate, setClearFromDate] = useState('')
   const [updateStatus, setUpdateStatus] = useState<{ checking?: boolean; msg?: string; available?: boolean; latest?: string }>({})
+  const [ragStats, setRagStats] = useState<{ count: number; collection_size_mb: number; last_indexed: string; embedding_model: string; status: string } | null>(null)
 
   const loadAccounts = async () => {
     try { setAccounts(await api.getAccounts()) } catch { setAccounts([]) }
@@ -69,6 +70,12 @@ export function Settings({ onConnected, initialTab }: Props) {
     api.getDocumentFolders().then(r => setDocFolders(r.folders || [])).catch(() => {})
     api.listDocuments().then(r => setDocCount(r.total)).catch(() => {})
   }, [])
+
+  useEffect(() => {
+    if (section === 'data') {
+      api.getRagStats().then(setRagStats).catch(() => {})
+    }
+  }, [section])
 
   const handleIngest = async (id: number | 'all') => {
     setIngestingId(id)
@@ -297,6 +304,41 @@ export function Settings({ onConnected, initialTab }: Props) {
           {section === 'data' && (
             <div className="space-y-6">
               <SectionHeader title="Data & Backup" desc="Backup your database, check for updates, and manage the data lifecycle." />
+
+              <section>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">RAG Index</p>
+                {ragStats ? (
+                  <div className="border border-gray-200 rounded-xl p-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-500">Status</span>
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                        ragStats.status === 'ready' ? 'bg-green-100 text-green-700' :
+                        ragStats.status === 'indexing' ? 'bg-amber-100 text-amber-700' :
+                        ragStats.status === 'empty' ? 'bg-gray-100 text-gray-500' :
+                        'bg-red-100 text-red-600'
+                      }`}>{ragStats.status}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-500">Documents indexed</span>
+                      <span className="text-xs font-medium text-gray-800">{ragStats.count.toLocaleString()}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-500">Index size</span>
+                      <span className="text-xs font-medium text-gray-800">~{ragStats.collection_size_mb} MB</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-500">Last indexed</span>
+                      <span className="text-xs font-medium text-gray-800">{ragStats.last_indexed || 'N/A'}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-500">Model</span>
+                      <span className="text-xs font-mono text-gray-600">{ragStats.embedding_model}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="border border-gray-200 rounded-xl p-4 text-center text-xs text-gray-400">Loading index stats…</div>
+                )}
+              </section>
 
               <section>
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Backup</p>
