@@ -2,7 +2,7 @@
 
 > **Your AI-powered executive email intelligence platform.** Connects to Gmail, Microsoft 365, Yahoo, or any IMAP mailbox and uses Claude AI to help you triage faster, never miss a commitment, and stay on top of every relationship that matters.
 
-**Current version: 3.27.4** · [Releases](https://github.com/asalamat/director-assistant/releases) · MIT License
+**Current version: 3.28.5** · [Releases](https://github.com/asalamat/director-assistant/releases) · MIT License
 
 ---
 
@@ -388,6 +388,16 @@ Outputs `dist/DirectorAssistant-mac-3.15.3.zip` and `dist/DirectorAssistant-win-
 - **Smart Draft/Quick Replies populate rich text editor** — fixed so AI-generated drafts correctly appear in the new HTML compose area
 - **Windows CI** — GitHub Actions workflow tests the full install on `windows-latest` on every push; dependency conflict fixed (`httpx>=0.27.2`)
 - **From-account selector** — when multiple email accounts are connected, a "From" dropdown appears at the top of the compose window
+
+### Polish & UX (v3.28)
+- **📦 Archive email** — Archive button in toolbar; press `e` key shortcut; moves to Archive folder
+- **💬 Canned responses/snippets** — pre-saved text blocks insertable from compose; manage in Settings → App Settings → Canned Responses
+- **ElevenLabs voice picker** — voice ID is now editable in Settings (with popular voice list); was read-only
+- **From-account selector** — when multiple accounts connected, a "From" dropdown appears at top of compose
+- **Compact email toolbar** — primary actions (Reply/Fwd/AI) + icon-only group for secondary (Translate/Archive/Share/Print/Ask)
+- **Auto-refresh after actions** — email list refreshes within 1 second of open/delete/snooze/archive; emails marked as read on open
+- **Executive Summary readability** — Role Briefing summary now shows dark text on white (was blue-on-blue, hard to read)
+- **Overdue follow-ups** — white background with red left border accent; all text in standard dark gray on white
 
 ### Completeness Update (v3.27.4)
 - **🎙 2-hour meeting support** — recordings now split into 10-minute chunks server-side (uses pydub+ffmpeg when installed); frontend limit raised from 45 to 90 minutes; falls back gracefully without ffmpeg
