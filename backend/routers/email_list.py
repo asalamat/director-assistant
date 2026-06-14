@@ -397,14 +397,14 @@ async def auto_label(email_id: str, request: Request):
 
 @router.post("/classify-batch")
 async def classify_batch(request: Request):
-    """Classify up to 100 emails that have no AI category yet."""
+    """Classify up to 300 emails spread across the full inbox (random sample)."""
     cache: EmailCache = request.app.state.cache
     classifier = request.app.state.classifier
     with cache._conn() as conn:
         rows = conn.execute(
             "SELECT e.id, e.subject, e.sender, e.body FROM emails e "
             "LEFT JOIN email_categories ec ON ec.email_id = e.id "
-            "WHERE ec.category IS NULL ORDER BY e.date DESC LIMIT 100"
+            "WHERE ec.category IS NULL ORDER BY RANDOM() LIMIT 300"
         ).fetchall()
     classified = 0
     for row in rows:

@@ -70,7 +70,7 @@ async def get_rag_stats(request: Request):
     return await loop.run_in_executor(None, _collect)
 
 
-MAX_POINTS = 500
+MAX_POINTS = 1500
 
 
 @router.get("/embeddings-2d")
