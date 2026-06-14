@@ -97,12 +97,12 @@ async def get_embeddings_2d(request: Request):
             logger.warning(f"[embeddings-2d] proxy.get failed: {exc}")
             result = None
 
-        if result is None or not result.get("embeddings"):
-            # Proxy may not support embeddings — return empty gracefully
-            return {"points": [], "error": "Embeddings not available (worker may still be loading)"}
+        embeddings = (result or {}).get("embeddings")
+        metadatas = (result or {}).get("metadatas") or []
 
-        embeddings = result["embeddings"]
-        metadatas = result["metadatas"] or []
+        # embeddings may be a numpy array — check with len() not bool()
+        if embeddings is None or len(embeddings) == 0:
+            return {"points": [], "error": "Embeddings not available (worker may still be loading)"}
 
         if len(embeddings) < 2:
             return {"points": [], "error": "Not enough indexed emails for projection"}
