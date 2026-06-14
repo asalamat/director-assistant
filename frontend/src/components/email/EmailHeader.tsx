@@ -131,51 +131,37 @@ export function EmailHeader({
 
   return (
     <div className="px-6 py-4 border-b border-gray-100">
-      <div className="flex items-start justify-between gap-4">
-        <h2 className="text-lg font-semibold text-gray-900 flex-1">{email.subject || '(no subject)'}</h2>
-        <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
-          <Button
-            variant="secondary"
-            size="sm"
-            icon={<svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M7.707 3.293a1 1 0 010 1.414L5.414 7H11a7 7 0 017 7v2a1 1 0 11-2 0v-2a5 5 0 00-5-5H5.414l2.293 2.293a1 1 0 11-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd"/>
-            </svg>}
-            onClick={onReplyClick}
-          >Reply</Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            icon={<svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M12.293 3.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L14.586 9H9a5 5 0 00-5 5v2a1 1 0 11-2 0v-2a7 7 0 017-7h5.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd"/>
-            </svg>}
-            onClick={onForwardClick}
-          >Forward</Button>
-          <button
-            onClick={onTranslate}
-            disabled={translating}
-            className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 px-2 py-1.5 rounded-lg hover:bg-indigo-50 transition-colors disabled:opacity-50"
-          >
-            {translating ? <><span className="animate-spin inline-block">⟳</span> Translating…</> : '🌐 Translate'}
-          </button>
-          <EmailNotifyButton emailId={email.id} />
-          <button
-            onClick={() => window.print()}
-            title="Print email"
-            className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
-          >🖨</button>
-          <Button variant="primary" size="sm" loading={analyzing} onClick={onAnalyze}>{analyzing ? 'Analyzing…' : '✦ AI Analysis'}</Button>
-          {onAsk && (
-            <button
-              onClick={onAsk}
-              title="Ask AI about this email"
-              className="flex items-center gap-1 text-xs text-gray-500 hover:text-accent px-2 py-1.5 rounded-lg hover:bg-blue-50 transition-colors"
-            >
-              <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7z" clipRule="evenodd" />
-              </svg>
-              <span>Ask</span>
+      <div className="flex items-start justify-between gap-2">
+        <h2 className="text-base font-semibold text-gray-900 flex-1 leading-tight pt-0.5">{email.subject || '(no subject)'}</h2>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {/* Primary actions */}
+          <Button variant="secondary" size="sm" onClick={onReplyClick}>↩ Reply</Button>
+          <Button variant="secondary" size="sm" onClick={onForwardClick}>↪ Fwd</Button>
+          <Button variant="primary" size="sm" loading={analyzing} onClick={onAnalyze}>
+            {analyzing ? '…' : '✦ AI'}
+          </Button>
+          {/* Secondary icon-only actions */}
+          <div className="flex items-center gap-0.5 ml-1 border-l border-gray-200 pl-1">
+            {onAsk && (
+              <button onClick={onAsk} title="Ask AI" className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-accent transition-colors">
+                <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7z" clipRule="evenodd" />
+                </svg>
+              </button>
+            )}
+            <button onClick={onTranslate} disabled={translating} title="Translate" className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-indigo-600 transition-colors disabled:opacity-40">
+              {translating ? <span className="animate-spin inline-block text-[10px]">⟳</span> : <span className="text-sm leading-none">🌐</span>}
             </button>
-          )}
+            {onArchive && (
+              <button onClick={onArchive} title="Archive (e)" className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">
+                <span className="text-sm leading-none">📦</span>
+              </button>
+            )}
+            <EmailNotifyButton emailId={email.id} />
+            <button onClick={() => window.print()} title="Print" className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">
+              <span className="text-sm leading-none">🖨</span>
+            </button>
+          </div>
           {onSnooze && (
             <>
               <button
