@@ -56,27 +56,39 @@ function normalize(values: number[], padLow: number, padHigh: number): number[] 
 }
 
 export function EmbeddingMap({ onSearch }: { onSearch?: (subject: string) => void }) {
-  const [points, setPoints]     = useState<MapPoint[]>([])
-  const [loading, setLoading]   = useState(true)
-  const [error, setError]       = useState<string | null>(null)
-  const [tooltip, setTooltip]   = useState<TooltipState>({ visible: false, x: 0, y: 0, point: null })
-  const [filter, setFilter]     = useState<string>('all')
-  const svgRef                  = useRef<SVGSVGElement>(null)
+  const [points, setPoints]         = useState<MapPoint[]>([])
+  const [loading, setLoading]       = useState(true)
+  const [error, setError]           = useState<string | null>(null)
+  const [tooltip, setTooltip]       = useState<TooltipState>({ visible: false, x: 0, y: 0, point: null })
+  const [filter, setFilter]         = useState<string>('all')
+  const [classifying, setClassifying] = useState(false)
+  const [classifyMsg, setClassifyMsg] = useState('')
+  const svgRef                      = useRef<SVGSVGElement>(null)
 
-  useEffect(() => {
+  const loadMap = () => {
     setLoading(true)
     setError(null)
     api.getRagEmbeddings2d()
       .then(res => {
-        if (res.error && !res.points?.length) {
-          setError(res.error)
-        } else {
-          setPoints(res.points || [])
-        }
+        if (res.error && !res.points?.length) setError(res.error)
+        else setPoints(res.points || [])
       })
       .catch(err => setError(err.message || 'Failed to load map'))
       .finally(() => setLoading(false))
-  }, [])
+  }
+
+  useEffect(() => { loadMap() }, [])
+
+  const handleClassify = async () => {
+    setClassifying(true)
+    setClassifyMsg('')
+    try {
+      const r = await api.classifyBatch()
+      setClassifyMsg(`Classified ${r.classified} emails`)
+      setTimeout(() => { setClassifyMsg(''); loadMap() }, 1500)
+    } catch { setClassifyMsg('Failed') }
+    finally { setClassifying(false) }
+  }
 
   // Project raw PCA coords to SVG space
   const rawX = points.map(p => p.x)
@@ -153,17 +165,28 @@ export function EmbeddingMap({ onSearch }: { onSearch?: (subject: string) => voi
           <h2 className="text-sm font-semibold text-gray-800">Email Cluster Map</h2>
           <p className="text-[11px] text-gray-400">{points.length} emails projected to 2D via PCA</p>
         </div>
-        {/* Category filter */}
-        <select
-          value={filter}
-          onChange={e => setFilter(e.target.value)}
-          className="text-xs border border-gray-200 rounded px-2 py-1 text-gray-600 bg-white"
-        >
-          <option value="all">All categories</option>
-          {presentCategories.map(c => (
-            <option key={c} value={c}>{CATEGORY_LABELS[c] ?? c}</option>
-          ))}
-        </select>
+        <div className="flex items-center gap-2">
+          {/* Category filter */}
+          <select
+            value={filter}
+            onChange={e => setFilter(e.target.value)}
+            className="text-xs border border-gray-200 rounded px-2 py-1 text-gray-600 bg-white"
+          >
+            <option value="all">All categories</option>
+            {presentCategories.map(c => (
+              <option key={c} value={c}>{CATEGORY_LABELS[c] ?? c}</option>
+            ))}
+          </select>
+          <button
+            onClick={handleClassify}
+            disabled={classifying}
+            title="AI-classify unclassified emails to add color coding"
+            className="text-xs border border-gray-200 text-gray-600 px-2.5 py-1 rounded hover:bg-gray-50 disabled:opacity-50 transition-colors"
+          >
+            {classifying ? '⟳ Classifying…' : '🏷 Classify emails'}
+          </button>
+          {classifyMsg && <span className="text-xs text-green-600">{classifyMsg}</span>}
+        </div>
       </div>
 
       {/* SVG map */}

@@ -395,6 +395,30 @@ async def auto_label(email_id: str, request: Request):
     return {"email_id": email_id, "label": cat}
 
 
+@router.post("/classify-batch")
+async def classify_batch(request: Request):
+    """Classify up to 100 emails that have no AI category yet."""
+    cache: EmailCache = request.app.state.cache
+    classifier = request.app.state.classifier
+    with cache._conn() as conn:
+        rows = conn.execute(
+            "SELECT e.id, e.subject, e.sender, e.body FROM emails e "
+            "LEFT JOIN email_categories ec ON ec.email_id = e.id "
+            "WHERE ec.category IS NULL ORDER BY e.date DESC LIMIT 100"
+        ).fetchall()
+    classified = 0
+    for row in rows:
+        try:
+            cat = await classifier.classify(
+                row["id"], row["subject"] or "", row["sender"] or "", (row["body"] or "")[:200]
+            )
+            cache.set_category(row["id"], cat)
+            classified += 1
+        except Exception:
+            continue
+    return {"classified": classified, "total_unclassified": len(rows)}
+
+
 @router.post("/import-by-subject")
 async def import_by_subject(request: Request, body: dict):
     """Search all IMAP folders for emails matching a subject string and ingest them."""

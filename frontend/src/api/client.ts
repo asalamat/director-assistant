@@ -902,6 +902,9 @@ export const api = {
   }> {
     return request('/rag/embeddings-2d')
   },
+  classifyBatch(): Promise<{ classified: number; total_unclassified: number }> {
+    return request('/emails/classify-batch', { method: 'POST' })
+  },
 
   // Email Rules
   getEmailRules(): Promise<{ rules: any[] }> { return request('/email-rules') },
