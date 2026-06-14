@@ -83,9 +83,16 @@ export function BriefingTab() {
       )}
 
       {summary && (
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-5">
-          <h3 className="text-sm font-semibold text-blue-800 mb-3">Executive Summary</h3>
-          <div className="text-sm text-blue-900 whitespace-pre-line leading-relaxed">{summary}</div>
+        <div className="bg-white border border-blue-300 border-l-4 rounded-xl p-5">
+          <h3 className="text-sm font-bold text-blue-700 mb-3 flex items-center gap-2">
+            <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-600 text-[10px] flex items-center justify-center flex-shrink-0">AI</span>
+            Executive Summary
+          </h3>
+          <div className="space-y-2">
+            {summary.split(/\n\n+/).map((para, i) => (
+              <p key={i} className="text-sm text-gray-800 leading-7">{para.trim()}</p>
+            ))}
+          </div>
         </div>
       )}
 
