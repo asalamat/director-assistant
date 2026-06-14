@@ -5,7 +5,7 @@ import type { EmailCategory } from '../types'
 
 const FIELDS = ['sender', 'subject', 'body'] as const
 const CONDITIONS = ['contains', 'equals', 'starts_with', 'ends_with'] as const
-const ACTIONS = ['label', 'archive', 'mark_read'] as const
+const ACTIONS = ['label', 'archive', 'mark_read', 'delete'] as const
 const CATEGORIES = Object.keys(CATEGORY_LABELS) as EmailCategory[]
 
 export function EmailRulesPanel() {
@@ -47,7 +47,7 @@ export function EmailRulesPanel() {
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-semibold text-gray-800">Email Rules</p>
-          <p className="text-xs text-gray-400">Auto-label, archive, or mark read based on sender/subject/body</p>
+          <p className="text-xs text-gray-400">Auto-label, archive, mark read, or delete based on sender/subject/body</p>
         </div>
         <button
           onClick={() => setShowForm(v => !v)}
@@ -129,11 +129,14 @@ export function EmailRulesPanel() {
       )}
 
       {rules.map(r => (
-        <div key={r.id} className={`border rounded-xl p-3 flex items-center gap-2 ${r.enabled ? 'border-gray-200' : 'border-gray-100 opacity-60'}`}>
+        <div key={r.id} className={`border rounded-xl p-3 flex items-center gap-2 ${r.enabled ? (r.action === 'delete' ? 'border-red-200 bg-red-50/30' : 'border-gray-200') : 'border-gray-100 opacity-60'}`}>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-gray-800 truncate">{r.name}</p>
             <p className="text-xs text-gray-400">
-              When {r.field} {r.condition.replace('_', ' ')} &ldquo;{r.value}&rdquo; &rarr; {r.action.replace('_', ' ')}{r.label ? ` as ${r.label}` : ''}
+              When {r.field} {r.condition.replace('_', ' ')} &ldquo;{r.value}&rdquo; &rarr;{' '}
+              <span className={r.action === 'delete' ? 'text-red-600 font-medium' : ''}>
+                {r.action.replace('_', ' ')}{r.label ? ` as ${r.label}` : ''}
+              </span>
             </p>
           </div>
           <button

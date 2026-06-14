@@ -7,7 +7,7 @@ router = APIRouter(prefix="/api/email-rules", tags=["email-rules"])
 
 VALID_FIELDS = {"sender", "subject", "body"}
 VALID_CONDITIONS = {"contains", "equals", "starts_with", "ends_with"}
-VALID_ACTIONS = {"label", "archive", "mark_read"}
+VALID_ACTIONS = {"label", "archive", "mark_read", "delete"}
 
 
 class RuleCreate(BaseModel):
@@ -108,3 +108,7 @@ def apply_rules(email, cache) -> None:
         elif action == "archive":
             with cache._conn() as conn:
                 conn.execute("UPDATE emails SET folder='Archive' WHERE id=?", (email.id,))
+        elif action == "delete":
+            with cache._conn() as conn:
+                conn.execute("DELETE FROM emails WHERE id=?", (email.id,))
+            return  # stop processing rules for deleted email
