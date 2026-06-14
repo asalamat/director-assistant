@@ -302,13 +302,15 @@ export function EmailCompose({
 
   return (
     <>
-      {/* Reply composer */}
-      <div className="border-t border-gray-200 bg-gray-50 px-6 py-4 flex-shrink-0 animate-slide-up-in">
-        <div className="flex items-center justify-between mb-3">
+      {/* Reply composer — sticky header + scrollable body + sticky footer */}
+      <div className="border-t border-gray-200 bg-gray-50 flex-shrink-0 animate-slide-up-in flex flex-col" style={{ maxHeight: '55vh' }}>
+        {/* sticky title bar */}
+        <div className="px-6 pt-3 pb-2 flex items-center justify-between flex-shrink-0 border-b border-gray-100">
           <h3 className="text-sm font-medium text-gray-700">Reply</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xs">Cancel</button>
         </div>
-        <div className="space-y-2">
+        {/* scrollable fields */}
+        <div className="px-6 py-3 overflow-y-auto flex-1 space-y-2">
           {accounts.length > 1 && (
             <div className="flex items-center gap-2">
               <span className="text-xs text-gray-400 w-12 flex-shrink-0">From</span>
@@ -564,41 +566,6 @@ export function EmailCompose({
             <p className="text-[10px] text-gray-400">Draft saved</p>
           )}
 
-          {/* Send controls */}
-          <div className="flex items-center gap-2 justify-end">
-            {sendMsg && (
-              <span className={`text-xs ${sendMsg === 'Sent!' ? 'text-green-600' : 'text-red-500'}`}>{sendMsg}</span>
-            )}
-            <button
-              onClick={handleReview}
-              disabled={reviewing || !replyBody.trim()}
-              className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-600 disabled:opacity-50 transition-colors"
-            >
-              {reviewing ? <><span className="animate-spin inline-block text-[10px]">⟳</span> Reviewing…</> : '🔍 Review'}
-            </button>
-            {undoCountdown !== null ? (
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500">Sending in {undoCountdown}s…</span>
-                <button
-                  onClick={cancelSend}
-                  className="text-xs px-2 py-1 border border-gray-300 rounded text-gray-600 hover:bg-gray-100 transition-colors"
-                >
-                  Undo
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={handleSend}
-                disabled={sending || !replyTo.trim()}
-                className={`flex items-center gap-1.5 text-white text-xs px-3 py-1.5 rounded-lg disabled:opacity-60 transition-colors ${
-                  review?.ready ? 'bg-green-600 hover:bg-green-700' : 'bg-accent hover:bg-blue-700'
-                }`}
-              >
-                {sending ? <><span className="animate-spin inline-block">⟳</span> Sending…</> : review?.ready ? '✓ Send' : 'Send'}
-              </button>
-            )}
-          </div>
-
           {/* Pre-send review panel */}
           {review && (
             <div className={`rounded-lg border p-3 text-xs space-y-2 ${
@@ -641,6 +608,36 @@ export function EmailCompose({
                 </div>
               )}
             </div>
+          )}
+        </div>
+
+        {/* Sticky send footer — always visible */}
+        <div className="px-6 py-3 border-t border-gray-100 bg-gray-50 flex items-center gap-2 justify-end flex-shrink-0">
+          {sendMsg && (
+            <span className={`text-xs ${sendMsg === 'Sent!' ? 'text-green-600' : 'text-red-500'}`}>{sendMsg}</span>
+          )}
+          <button
+            onClick={handleReview}
+            disabled={reviewing || !replyBody.trim()}
+            className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-600 disabled:opacity-50 transition-colors"
+          >
+            {reviewing ? <><span className="animate-spin inline-block text-[10px]">⟳</span> Reviewing…</> : '🔍 Review'}
+          </button>
+          {undoCountdown !== null ? (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500">Sending in {undoCountdown}s…</span>
+              <button onClick={cancelSend} className="text-xs px-2 py-1 border border-gray-300 rounded text-gray-600 hover:bg-gray-100">Undo</button>
+            </div>
+          ) : (
+            <button
+              onClick={handleSend}
+              disabled={sending || !replyTo.trim()}
+              className={`flex items-center gap-1.5 text-white text-xs px-4 py-1.5 rounded-lg font-medium disabled:opacity-60 transition-colors ${
+                review?.ready ? 'bg-green-600 hover:bg-green-700' : 'bg-accent hover:bg-blue-700'
+              }`}
+            >
+              {sending ? <><span className="animate-spin inline-block">⟳</span> Sending…</> : review?.ready ? '✓ Send' : 'Send ↑'}
+            </button>
           )}
         </div>
       </div>
