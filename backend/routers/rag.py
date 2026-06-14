@@ -1,9 +1,7 @@
-"""RAG statistics, embeddings, and knowledge graph endpoints."""
+"""RAG statistics and embeddings endpoints."""
 
 import asyncio
 import logging
-import re
-from collections import Counter
 from pathlib import Path
 from fastapi import APIRouter, Request
 
@@ -146,86 +144,3 @@ async def get_embeddings_2d(request: Request):
         return {"points": points}
 
     return await loop.run_in_executor(None, _project)
-
-
-_STOPWORDS = {
-    "re", "fwd", "fw", "the", "a", "an", "is", "for", "to", "of", "in", "on",
-    "and", "or", "with", "at", "by", "this", "that", "are", "from", "your",
-    "you", "we", "our", "my", "has", "have", "be", "it", "as", "was", "will",
-    "about", "up", "out", "not", "do", "its", "so", "can", "new", "just",
-}
-
-_SENDER_RE = re.compile(r"^(?:.*<)?([^<>]+@[^<>]+?)>?$")
-
-
-@router.get("/knowledge-graph")
-async def get_knowledge_graph(request: Request):
-    """
-    Extract people + topics from RAG metadata and return a force-graph structure.
-    Nodes: person (top senders) + topic (common subject terms).
-    Edges: sender ↔ topic co-occurrence.
-    """
-    rag = getattr(request.app.state, "rag", None)
-    if rag is None:
-        return {"nodes": [], "edges": [], "total_nodes": 0, "total_edges": 0}
-
-    loop = asyncio.get_event_loop()
-
-    def _build():
-        try:
-            result = rag._proxy.get(include=["metadatas"])
-        except Exception:
-            return {"nodes": [], "edges": [], "total_nodes": 0, "total_edges": 0}
-
-        metadatas = [m for m in (result.get("metadatas") or []) if m.get("source_type", "email") == "email"]
-
-        # ── people nodes ──────────────────────────────────────────────────────
-        sender_count: Counter = Counter()
-        email_map: dict = {}  # display → raw sender string
-        for m in metadatas:
-            raw = m.get("sender", "") or ""
-            match = _SENDER_RE.match(raw.strip())
-            addr = match.group(1).lower().strip() if match else raw.lower().strip()
-            if "@" in addr:
-                sender_count[addr] += 1
-                email_map[addr] = addr
-
-        top_senders = [s for s, _ in sender_count.most_common(25)]
-
-        # ── topic nodes ───────────────────────────────────────────────────────
-        word_count: Counter = Counter()
-        sender_subjects: dict = {s: [] for s in top_senders}
-
-        for m in metadatas:
-            subj = (m.get("subject") or "").lower()
-            words = [w for w in re.split(r"[\s\-_/|:,\.!?]+", subj) if len(w) > 3 and w not in _STOPWORDS]
-            word_count.update(words)
-            raw = m.get("sender", "") or ""
-            match = _SENDER_RE.match(raw.strip())
-            addr = match.group(1).lower().strip() if match else raw.lower().strip()
-            if addr in sender_subjects:
-                sender_subjects[addr].extend(words)
-
-        top_topics = [w for w, _ in word_count.most_common(20)]
-
-        # ── build graph ───────────────────────────────────────────────────────
-        nodes = []
-        for s in top_senders:
-            nodes.append({"id": f"p:{s}", "label": s.split("@")[0], "type": "person",
-                          "count": sender_count[s], "email": s})
-        for t in top_topics:
-            nodes.append({"id": f"t:{t}", "label": t, "type": "topic", "count": word_count[t]})
-
-        edge_weights: Counter = Counter()
-        for s in top_senders:
-            topic_hits = Counter(w for w in sender_subjects[s] if w in top_topics)
-            for topic, cnt in topic_hits.most_common(5):
-                edge_weights[(f"p:{s}", f"t:{topic}")] += cnt
-
-        edges = [{"source": src, "target": tgt, "weight": w}
-                 for (src, tgt), w in edge_weights.most_common(80)]
-
-        return {"nodes": nodes, "edges": edges,
-                "total_nodes": len(nodes), "total_edges": len(edges)}
-
-    return await loop.run_in_executor(None, _build)
