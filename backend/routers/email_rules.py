@@ -112,19 +112,21 @@ async def run_all_rules(request: Request):
                 continue
 
             action = rule["action"]
-            with cache._conn() as conn:
-                if action == "label" and rule["label"]:
-                    conn.execute("UPDATE emails SET category=? WHERE id=?", (rule["label"], email_id))
-                    labeled += 1
-                elif action == "mark_read":
+            if action == "label" and rule["label"]:
+                cache.set_category(email_id, rule["label"])
+                labeled += 1
+            elif action == "mark_read":
+                with cache._conn() as conn:
                     conn.execute("UPDATE emails SET is_read=1 WHERE id=?", (email_id,))
-                    marked += 1
-                elif action == "archive":
+                marked += 1
+            elif action == "archive":
+                with cache._conn() as conn:
                     conn.execute("UPDATE emails SET folder='Archive' WHERE id=?", (email_id,))
-                    archived += 1
-                elif action == "delete":
+                archived += 1
+            elif action == "delete":
+                with cache._conn() as conn:
                     conn.execute("DELETE FROM emails WHERE id=?", (email_id,))
-                    deleted += 1
+                deleted += 1
             if action == "delete":
                 break  # email gone, skip remaining rules
 
