@@ -88,21 +88,27 @@ async def get_embeddings_2d(request: Request):
     loop = asyncio.get_event_loop()
 
     def _get_categories(email_ids: list) -> dict:
-        """Fetch AI-assigned categories from SQLite for a list of email IDs."""
+        """Fetch AI-assigned categories from SQLite, batching to stay under SQLite's 999-variable limit."""
         if not cache or not email_ids:
             return {}
+        result: dict = {}
         try:
-            placeholders = ",".join("?" * len(email_ids))
+            BATCH = 500
             with cache._conn() as conn:
-                rows = conn.execute(
-                    f"SELECT e.id, ec.category FROM emails e "
-                    f"LEFT JOIN email_categories ec ON ec.email_id = e.id "
-                    f"WHERE e.id IN ({placeholders})",
-                    email_ids,
-                ).fetchall()
-            return {r["id"]: (r["category"] or "other") for r in rows}
+                for i in range(0, len(email_ids), BATCH):
+                    batch = email_ids[i:i + BATCH]
+                    placeholders = ",".join("?" * len(batch))
+                    rows = conn.execute(
+                        f"SELECT e.id, ec.category FROM emails e "
+                        f"LEFT JOIN email_categories ec ON ec.email_id = e.id "
+                        f"WHERE e.id IN ({placeholders})",
+                        batch,
+                    ).fetchall()
+                    for r in rows:
+                        result[r["id"]] = r["category"] or "other"
         except Exception:
-            return {}
+            pass
+        return result
 
     def _project():
         try:
