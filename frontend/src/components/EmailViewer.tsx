@@ -170,7 +170,7 @@ export function EmailViewer({ email, loading, fetchError, onAnalyze, analyzing, 
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-white overflow-hidden">
+    <div className="flex-1 flex flex-col bg-white overflow-hidden relative">
       <EmailHeader
         email={email}
         analyzing={analyzing}

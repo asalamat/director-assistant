@@ -302,12 +302,12 @@ export function EmailCompose({
 
   return (
     <>
-      {/* Reply composer — sticky header + scrollable body + sticky footer */}
-      <div className="border-t border-gray-200 bg-gray-50 flex-shrink-0 animate-slide-up-in flex flex-col" style={{ maxHeight: '55vh' }}>
+      {/* Reply composer — floats over email body, does not push content up */}
+      <div className="absolute bottom-0 left-0 right-0 z-20 border-t border-gray-200 bg-white/95 backdrop-blur-sm shadow-2xl animate-slide-up-in flex flex-col" style={{ maxHeight: '52vh' }}>
         {/* sticky title bar */}
-        <div className="px-6 pt-3 pb-2 flex items-center justify-between flex-shrink-0 border-b border-gray-100">
-          <h3 className="text-sm font-medium text-gray-700">Reply</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xs">Cancel</button>
+        <div className="px-6 pt-3 pb-2 flex items-center justify-between flex-shrink-0 border-b border-gray-100 bg-white">
+          <h3 className="text-sm font-semibold text-gray-800">↩ Reply</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xs px-2 py-1 rounded hover:bg-gray-100">✕ Cancel</button>
         </div>
         {/* scrollable fields */}
         <div className="px-6 py-3 overflow-y-auto flex-1 space-y-2">
@@ -611,8 +611,24 @@ export function EmailCompose({
           )}
         </div>
 
+        {/* Draft commitments (inside overlay) */}
+        {draftCommitments.length > 0 && (
+          <div className="px-6 py-2 bg-amber-50 border-t border-amber-100 flex-shrink-0">
+            <p className="text-xs font-medium text-amber-700 mb-1">Commitments detected — add to action board?</p>
+            <div className="flex flex-wrap gap-1.5">
+              {draftCommitments.map((c, i) => (
+                <button key={i} onClick={() => handleAddCommitment(c)} disabled={addingCommitment === c}
+                  className="text-xs bg-white border border-amber-200 rounded-full px-2.5 py-1 hover:bg-amber-100 text-amber-800 flex items-center gap-1">
+                  {addingCommitment === c ? '…' : '+'} {c}
+                </button>
+              ))}
+              <button onClick={() => onCommitmentsChange?.([])} className="text-xs text-gray-300 hover:text-gray-500 self-center ml-1">dismiss</button>
+            </div>
+          </div>
+        )}
+
         {/* Sticky send footer — always visible */}
-        <div className="px-6 py-3 border-t border-gray-100 bg-gray-50 flex items-center gap-2 justify-end flex-shrink-0">
+        <div className="px-6 py-3 border-t border-gray-100 bg-white flex items-center gap-2 justify-end flex-shrink-0">
           {sendMsg && (
             <span className={`text-xs ${sendMsg === 'Sent!' ? 'text-green-600' : 'text-red-500'}`}>{sendMsg}</span>
           )}
@@ -642,21 +658,6 @@ export function EmailCompose({
         </div>
       </div>
 
-      {/* Draft commitments */}
-      {draftCommitments.length > 0 && (
-        <div className="px-6 py-2 bg-amber-50 border-t border-amber-100 flex-shrink-0">
-          <p className="text-xs font-medium text-amber-700 mb-1">Commitments detected in draft — add to action board?</p>
-          <div className="flex flex-wrap gap-1.5">
-            {draftCommitments.map((c, i) => (
-              <button key={i} onClick={() => handleAddCommitment(c)} disabled={addingCommitment === c}
-                className="text-xs bg-white border border-amber-200 rounded-full px-2.5 py-1 hover:bg-amber-100 text-amber-800 flex items-center gap-1">
-                {addingCommitment === c ? '…' : '+'} {c}
-              </button>
-            ))}
-            <button onClick={() => onCommitmentsChange?.([])} className="text-xs text-gray-300 hover:text-gray-500 self-center ml-1">dismiss</button>
-          </div>
-        </div>
-      )}
     </>
   )
 }
