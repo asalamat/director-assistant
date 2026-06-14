@@ -484,3 +484,12 @@ async def move_email(email_id: str, req: MoveEmailRequest, request: Request):
     with cache._conn() as conn:
         conn.execute("UPDATE emails SET folder = ? WHERE id = ?", (req.folder, email_id))
     return {"status": "moved", "folder": req.folder}
+
+
+@router.post("/{email_id}/read")
+async def mark_email_read(email_id: str, request: Request):
+    """Mark an email as read in the local cache."""
+    cache: EmailCache = request.app.state.cache
+    with cache._conn() as conn:
+        conn.execute("UPDATE emails SET is_read = 1 WHERE id = ?", (email_id,))
+    return {"status": "read", "email_id": email_id}

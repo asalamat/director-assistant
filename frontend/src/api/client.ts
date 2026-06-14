@@ -873,6 +873,9 @@ export const api = {
     return `${BASE}/voice/read/${encodeURIComponent(emailId)}`
   },
 
+  markEmailRead(emailId: string): Promise<{ status: string }> {
+    return request(`/emails/${encodeURIComponent(emailId)}/read`, { method: 'POST' })
+  },
   moveEmail(emailId: string, folder: string): Promise<{ status: string }> {
     return request(`/emails/${encodeURIComponent(emailId)}/move`, {
       method: 'POST',

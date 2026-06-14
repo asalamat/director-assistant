@@ -221,6 +221,7 @@ export default function App() {
         api.moveEmail(selectedEmail.id, 'Archive').then(() => {
           removeEmail(selectedEmail.id)
           clearSelectedEmail()
+          setTimeout(() => mergeRefresh(), 800)
         }).catch(() => {})
       }
       if (e.key === 'Escape') clearSelectedEmail()
@@ -239,6 +240,11 @@ export default function App() {
   const handleSelect = (summary: EmailSummary) => {
     selectEmail(summary)
     setActiveTab('inbox')
+    // Mark as read + refresh list so bold/unread indicator clears
+    if (!summary.is_read) {
+      api.markEmailRead(summary.id).catch(() => {})
+    }
+    setTimeout(() => mergeRefresh(), 1000)
   }
 
   const handleAnalyze = () => {
@@ -269,6 +275,7 @@ export default function App() {
     try {
       await api.deleteEmail(emailId)
       removeEmail(emailId)
+      setTimeout(() => mergeRefresh(), 800)
     } catch (e) {
       console.error('Delete failed:', e)
     }
@@ -278,6 +285,7 @@ export default function App() {
     try {
       await api.snoozeEmail(emailId, wakeDate)
       removeEmail(emailId)
+      setTimeout(() => mergeRefresh(), 800)
     } catch { /* ignore */ }
   }
 
