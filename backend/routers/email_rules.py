@@ -71,6 +71,66 @@ async def delete_rule(rule_id: int, request: Request):
     return {"deleted": rule_id}
 
 
+@router.post("/run")
+async def run_all_rules(request: Request):
+    """Apply all enabled rules to every email in the inbox."""
+    cache = request.app.state.cache
+    with cache._conn() as conn:
+        emails = conn.execute(
+            "SELECT id, sender, subject, body FROM emails ORDER BY date DESC LIMIT 2000"
+        ).fetchall()
+        rules = conn.execute(
+            "SELECT * FROM email_rules WHERE enabled=1 ORDER BY priority DESC"
+        ).fetchall()
+
+    deleted = 0
+    labeled = 0
+    archived = 0
+    marked = 0
+
+    for row in emails:
+        email_id = row["id"]
+        for rule in rules:
+            field = rule["field"]
+            val = ""
+            if field == "sender":
+                val = (row["sender"] or "").lower()
+            elif field == "subject":
+                val = (row["subject"] or "").lower()
+            elif field == "body":
+                val = ((row["body"] or "")[:1000]).lower()
+
+            check = rule["value"].lower()
+            cond = rule["condition"]
+            matched = (
+                (cond == "contains" and check in val) or
+                (cond == "equals" and val == check) or
+                (cond == "starts_with" and val.startswith(check)) or
+                (cond == "ends_with" and val.endswith(check))
+            )
+            if not matched:
+                continue
+
+            action = rule["action"]
+            with cache._conn() as conn:
+                if action == "label" and rule["label"]:
+                    conn.execute("UPDATE emails SET category=? WHERE id=?", (rule["label"], email_id))
+                    labeled += 1
+                elif action == "mark_read":
+                    conn.execute("UPDATE emails SET is_read=1 WHERE id=?", (email_id,))
+                    marked += 1
+                elif action == "archive":
+                    conn.execute("UPDATE emails SET folder='Archive' WHERE id=?", (email_id,))
+                    archived += 1
+                elif action == "delete":
+                    conn.execute("DELETE FROM emails WHERE id=?", (email_id,))
+                    deleted += 1
+            if action == "delete":
+                break  # email gone, skip remaining rules
+
+    return {"status": "done", "deleted": deleted, "labeled": labeled, "archived": archived, "marked": marked}
+
+
 def apply_rules(email, cache) -> None:
     """Apply all enabled rules to an email. Called during poll."""
     with cache._conn() as conn:

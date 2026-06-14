@@ -890,4 +890,7 @@ export const api = {
   },
   toggleEmailRule(id: number): Promise<void> { return request(`/email-rules/${id}/toggle`, { method: 'PATCH' }) },
   deleteEmailRule(id: number): Promise<void> { return request(`/email-rules/${id}`, { method: 'DELETE' }) },
+  runEmailRules(): Promise<{ status: string; deleted: number; labeled: number; archived: number; marked: number }> {
+    return request('/email-rules/run', { method: 'POST' })
+  },
 }

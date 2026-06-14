@@ -13,6 +13,7 @@ export function EmailRulesPanel() {
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ name: '', field: 'sender', condition: 'contains', value: '', action: 'label', label: 'proposal', priority: 0 })
   const [saving, setSaving] = useState(false)
+  const [running, setRunning] = useState(false)
   const [msg, setMsg] = useState('')
 
   const load = () => api.getEmailRules().then(r => setRules(r.rules)).catch(() => {})
@@ -32,6 +33,17 @@ export function EmailRulesPanel() {
     setSaving(false)
   }
 
+  const runAll = async () => {
+    setRunning(true)
+    try {
+      const r = await api.runEmailRules()
+      setMsg(`Done — deleted: ${r.deleted}, labeled: ${r.labeled}, archived: ${r.archived}, marked read: ${r.marked}`)
+      setTimeout(() => setMsg(''), 6000)
+      load()
+    } catch (e: any) { setMsg(`Error: ${e.message}`) }
+    setRunning(false)
+  }
+
   const del = async (id: number) => {
     await api.deleteEmailRule(id)
     setRules(prev => prev.filter(r => r.id !== id))
@@ -49,12 +61,22 @@ export function EmailRulesPanel() {
           <p className="text-sm font-semibold text-gray-800">Email Rules</p>
           <p className="text-xs text-gray-400">Auto-label, archive, mark read, or delete based on sender/subject/body</p>
         </div>
-        <button
-          onClick={() => setShowForm(v => !v)}
-          className="text-xs bg-accent text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          + New Rule
-        </button>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={runAll}
+            disabled={running}
+            title="Apply all enabled rules to your existing inbox now"
+            className="text-xs border border-gray-200 text-gray-600 px-3 py-1.5 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+          >
+            {running ? '⟳ Running…' : '▶ Run Now'}
+          </button>
+          <button
+            onClick={() => setShowForm(v => !v)}
+            className="text-xs bg-accent text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            + New Rule
+          </button>
+        </div>
       </div>
 
       {msg && (

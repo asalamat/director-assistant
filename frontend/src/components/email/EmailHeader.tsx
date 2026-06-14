@@ -18,6 +18,7 @@ export interface EmailHeaderProps {
   onTranslate: () => void
   translating: boolean
   onArchive?: () => void
+  onRuleAdded?: () => void
 }
 
 function formatDateFull(dateStr: string | null): string {
@@ -30,7 +31,7 @@ function formatDateFull(dateStr: string | null): string {
 
 export function EmailHeader({
   email, analyzing, onAnalyze, onDelete, onSnooze, onAsk, onSearch,
-  onReplyClick, onForwardClick, onTranslate, translating, onArchive,
+  onReplyClick, onForwardClick, onTranslate, translating, onArchive, onRuleAdded,
 }: EmailHeaderProps) {
   const [deleting, setDeleting] = useState(false)
   const [showSnooze, setShowSnooze] = useState(false)
@@ -48,6 +49,12 @@ export function EmailHeader({
   const [creatingEvent, setCreatingEvent] = useState(false)
   const [eventMsg, setEventMsg] = useState('')
   const [unsubUrl, setUnsubUrl] = useState<string | null | undefined>(undefined)
+  const [showRuleModal, setShowRuleModal] = useState(false)
+  const [ruleField, setRuleField] = useState<'sender' | 'subject'>('sender')
+  const [ruleAction, setRuleAction] = useState<'delete' | 'archive' | 'mark_read'>('delete')
+  const [ruleValue, setRuleValue] = useState('')
+  const [ruleSaving, setRuleSaving] = useState(false)
+  const [ruleMsg, setRuleMsg] = useState('')
   const [emailProjects, setEmailProjects] = useState<{id: number; name: string; status: string}[]>([])
   const [allProjects, setAllProjects] = useState<{id: number; name: string; status: string}[]>([])
   const [showProjectLinker, setShowProjectLinker] = useState(false)
@@ -64,6 +71,11 @@ export function EmailHeader({
     setUnsubUrl(undefined)
     setEmailProjects([])
     setShowProjectLinker(false)
+    setShowRuleModal(false)
+    setRuleMsg('')
+    setRuleField('sender')
+    setRuleAction('delete')
+    setRuleValue(email.sender || '')
 
     const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1)
     setEventTitle(email.subject || '')
@@ -110,6 +122,20 @@ export function EmailHeader({
     }
   }
 
+  const handleSaveRule = async () => {
+    if (!ruleValue.trim()) return
+    setRuleSaving(true)
+    try {
+      const senderDomain = email.sender?.includes('@') ? email.sender.split('@')[1] : email.sender
+      const name = `Block: ${ruleField === 'sender' ? (senderDomain || ruleValue) : ruleValue}`
+      await api.createEmailRule({ name, field: ruleField, condition: 'contains', value: ruleValue, action: ruleAction, priority: 10 })
+      setRuleMsg('Rule created!')
+      onRuleAdded?.()
+      setTimeout(() => { setShowRuleModal(false); setRuleMsg('') }, 1500)
+    } catch (e: any) { setRuleMsg(`Error: ${e.message}`) }
+    setRuleSaving(false)
+  }
+
   const handleCreateEvent = async () => {
     setCreatingEvent(true); setEventMsg('')
     try {
@@ -140,6 +166,15 @@ export function EmailHeader({
           <Button variant="primary" size="sm" loading={analyzing} onClick={onAnalyze}>
             {analyzing ? '…' : '✦ AI'}
           </Button>
+          {/* Block / Add to Rule */}
+          <button
+            onClick={() => { setRuleValue(ruleField === 'sender' ? (email.sender || '') : (email.subject || '')); setShowRuleModal(s => !s) }}
+            title="Add a rule based on this email"
+            className="flex items-center gap-1 text-xs text-gray-500 hover:text-red-600 px-2 py-1.5 rounded-lg hover:bg-red-50 transition-colors"
+          >
+            <span>🚫</span>
+            <span>Rule</span>
+          </button>
           {/* Secondary icon-only actions */}
           <div className="flex items-center gap-0.5 ml-1 border-l border-gray-200 pl-1">
             {onAsk && (
@@ -370,6 +405,50 @@ export function EmailHeader({
                 {creatingEvent ? '⟳ Creating…' : 'Create in Calendar'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Rule Modal */}
+      {showRuleModal && (
+        <div className="mt-3 border border-red-200 bg-red-50/40 rounded-xl p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-semibold text-gray-800">🚫 Add Email Rule</p>
+            <button onClick={() => setShowRuleModal(false)} className="text-gray-400 hover:text-gray-600 text-xs">✕</button>
+          </div>
+          <div className="flex gap-2 flex-wrap items-center">
+            <span className="text-xs text-gray-500">When</span>
+            <select value={ruleField} onChange={e => {
+              const f = e.target.value as 'sender' | 'subject'
+              setRuleField(f)
+              setRuleValue(f === 'sender' ? (email.sender || '') : (email.subject || ''))
+            }} className="text-sm border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none">
+              <option value="sender">sender</option>
+              <option value="subject">subject</option>
+            </select>
+            <span className="text-xs text-gray-500">contains</span>
+            <input
+              value={ruleValue}
+              onChange={e => setRuleValue(e.target.value)}
+              className="flex-1 min-w-0 text-sm border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-red-400 bg-white"
+            />
+          </div>
+          <div className="flex gap-2 flex-wrap items-center">
+            <span className="text-xs text-gray-500">Then</span>
+            <select value={ruleAction} onChange={e => setRuleAction(e.target.value as typeof ruleAction)}
+              className="text-sm border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none">
+              <option value="delete">delete</option>
+              <option value="archive">archive</option>
+              <option value="mark_read">mark read</option>
+            </select>
+          </div>
+          <div className="flex items-center gap-2 justify-end">
+            {ruleMsg && <span className={`text-xs ${ruleMsg.startsWith('Error') ? 'text-red-600' : 'text-green-600'}`}>{ruleMsg}</span>}
+            <button onClick={() => setShowRuleModal(false)} className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1">Cancel</button>
+            <button onClick={handleSaveRule} disabled={ruleSaving || !ruleValue.trim()}
+              className="text-xs bg-red-600 text-white px-3 py-1.5 rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors">
+              {ruleSaving ? 'Saving…' : 'Save Rule'}
+            </button>
           </div>
         </div>
       )}
