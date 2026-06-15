@@ -128,13 +128,14 @@ function InboxEmail() {
         <FeatureRow label="Folder bar" desc="All IMAP folders shown at top — Inbox highlighted in indigo. Click any folder to switch." />
         <FeatureRow label="Unread filter" desc="Click the 'N unread' badge in the toolbar to show all unread emails across all folders. Click again to return." />
         <FeatureRow label="Priority labels" desc="Emails auto-tagged urgent, action, or finance based on keywords in subject and preview." />
-        <FeatureRow label="Hover preview" desc="Hover over any email for 600ms to see a 1-sentence AI summary without opening it." />
+        <FeatureRow label="AI preview" desc="A 1-sentence AI summary automatically appears below each email subject as emails enter the viewport. Generated once and cached." />
         <FeatureRow label="New badge" desc="Green 'New' pill on emails received in the last 4 hours that are still unread." />
         <FeatureRow label="Read-time" desc="~Nm read-time estimate on each email so you can triage by effort." />
         <FeatureRow label="Thread depth" desc="↩ N indicator shows reply-chain depth on threaded emails." />
         <FeatureRow label="Smart sort" desc="Sort by date, sender, or subject (asc/desc), or switch to AI urgency ranking with the Priority button." />
         <FeatureRow label="Pinned searches" desc="Click 📌 while searching to save a query as a persistent smart folder." />
-        <FeatureRow label="Bulk select" desc="Checkbox appears on hover — select multiple emails to bulk delete, snooze, or generate AI drafts for all." />
+        <FeatureRow label="Bulk select" desc="Checkbox appears on hover — select multiple emails to bulk Archive, Mark Read, Delete, or Snooze. 'Select all N' link selects the full visible list." />
+        <FeatureRow label="⚡ Filters" desc="Click the Filters button beside the search bar to expand date range, sender, category, has-attachment, and unread-only filters. Active filters show as removable chips." />
         <FeatureRow label="Auto-poll" desc="New emails checked every 60 seconds automatically. Click Refresh for an immediate check." />
       </div>
 
@@ -398,6 +399,7 @@ function KnowledgeSection() {
         <Li>Total emails sent and received, first and last contact dates, recent subjects</Li>
         <Li><strong>📞 Phone numbers</strong> — auto-populated from email signatures, Microsoft 365 Contacts, and indexed documents; shown as clickable tel: chips</Li>
         <Li><strong>★ / ☆ VIP star</strong> — filled amber star = VIP contact (amber row highlight); outline star = not VIP. Click to toggle. Changes sync instantly to the VIP tab.</Li>
+        <Li><strong>90-day activity heatmap</strong> — click any contact's name to expand a GitHub-style calendar grid showing email frequency over the last 90 days (green scale: light = occasional, dark = frequent)</Li>
       </UL>
       <P>Sort by <strong>Relevance</strong>, <strong>Volume</strong>, or <strong>Recency</strong>. Search by name or email.</P>
       <H3>Contact Import, Export &amp; Cleanup</H3>
@@ -422,13 +424,37 @@ function KnowledgeSection() {
       <P>Each item has an urgency badge (high / medium / low). Filter by type — buttons show live counts including dismissed items. Mark items as resolved with the ✓ button; restore them from the Dismissed section.</P>
 
       <H3>Projects (AI Clusters)</H3>
-      <P>AI automatically groups your emails into 6–12 topic clusters representing ongoing projects or recurring threads. Each cluster shows:</P>
+      <P>AI automatically groups your emails into 6–12 topic clusters representing ongoing projects or recurring threads. Click <strong>"✦ Generate Clusters"</strong> to run — no briefing required. Each cluster shows:</P>
       <UL>
         <Li>Status: Active / Dormant / Resolved</Li>
         <Li>Email count and last activity date</Li>
         <Li>Top keywords</Li>
       </UL>
-      <P>Click any cluster to jump to its Timeline view.</P>
+      <P>Click any cluster to jump to its Timeline view. Use <strong>↺ Regenerate</strong> to refresh after new emails arrive.</P>
+
+      <H3>Email Cluster Map</H3>
+      <P>Intelligence → 📍 Email Map — a 2D scatter plot of up to 1500 indexed emails projected by semantic similarity (PCA). Emails with similar content cluster together.</P>
+      <UL>
+        <Li><strong>Colors</strong> — dots colored by AI-assigned category (Proposal=blue, Invoice=amber, Meeting=teal, etc.). Click <strong>🏷 Classify emails</strong> to AI-label unclassified emails and populate colors.</Li>
+        <Li><strong>Zoom + pan</strong> — scroll wheel to zoom (0.3×–8×), drag to pan, <strong>Reset zoom</strong> button appears when transformed</Li>
+        <Li><strong>Hover</strong> — tooltip shows subject + sender; click a dot to search for that email</Li>
+        <Li><strong>✦ Explain cluster</strong> — Shift+click multiple dots to select them, then click <strong>"✦ Explain N selected"</strong> to stream an AI explanation of what those emails have in common</Li>
+      </UL>
+
+      <H3>Knowledge Graph</H3>
+      <P>Intelligence → 🕸 Knowledge Graph — force-directed graph of people (top senders), topics (common subject keywords), and projects extracted from your email corpus.</P>
+      <UL>
+        <Li>Node size = email volume; person nodes=blue, topic nodes=amber, project nodes=green</Li>
+        <Li>Edge colors: person↔person=blue, person↔topic=gray</Li>
+        <Li>Click a person node to search their emails; click <strong>↺ Refresh</strong> to re-fetch the graph</Li>
+      </UL>
+
+      <H3>Open Loops &amp; Forgot to Reply</H3>
+      <P>Intelligence → Loops has two views toggled at the top:</P>
+      <UL>
+        <Li><strong>Loops</strong> — AI-detected unresolved commitments, awaiting items, and deadlines</Li>
+        <Li><strong>Forgot</strong> — emails you opened (read) but never replied to in the last 30 days; excludes newsletters and emails you already sent a reply to. Click <strong>Reply</strong> to compose; <strong>Dismiss</strong> to suppress permanently.</Li>
+      </UL>
 
       <H3>Topic Timeline</H3>
       <P>Search any keyword or topic to see all related emails in chronological order — oldest to newest. Useful for reconstructing how a situation evolved: "what happened with the contract renewal?" or "how did the hiring process unfold?"</P>

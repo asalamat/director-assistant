@@ -389,6 +389,20 @@ Outputs `dist/DirectorAssistant-mac-3.15.3.zip` and `dist/DirectorAssistant-win-
 - **Windows CI** — GitHub Actions workflow tests the full install on `windows-latest` on every push; dependency conflict fixed (`httpx>=0.27.2`)
 - **From-account selector** — when multiple email accounts are connected, a "From" dropdown appears at the top of the compose window
 
+### Productivity Features (v3.32)
+- **Bulk email actions** — hover any email to see a checkbox; select multiple then use the toolbar: **Archive all**, **Mark Read**, **Delete**, or **Snooze**; "Select all N" link available
+- **Advanced search filters** — click **⚡ Filters** beside the search bar to expand: from/to date pickers, sender filter, category dropdown, has attachment, unread only; active filters shown as removable chips
+- **AI email preview** — 1-sentence AI summary auto-loads below each email subject (lazy, via IntersectionObserver); cached in SQLite so each email is only summarized once
+- **📬 Forgot to Reply** — Intelligence → Loops → **Forgot** tab: emails you opened but never replied to (last 30 days); Reply button opens compose, Dismiss suppresses permanently
+- **Contact heatmap** — Intelligence → People → click any contact to expand a 90-day GitHub-style activity grid (13 weeks × 7 days, green scale)
+- **Email mood timeline** — Intelligence → Analytics → "Urgency Timeline": SVG line chart of daily urgency score (green/amber/red), hover crosshair shows date/score/count
+
+### RAG Visualization (v3.30–v3.31)
+- **Email Map zoom + pan** — Intelligence → Email Map: mouse-wheel to zoom (0.3×–8×), drag to pan, reset button, zoom % indicator
+- **✦ Explain cluster** — Shift+click dots to multi-select → "✦ Explain N selected" streams AI explanation of what those emails have in common
+- **Knowledge Graph** — refresh button, nodes sized by email count, 600-iteration physics, edges colored by type (person↔person=blue, person↔topic=gray)
+- **AI Clusters generate** — Intelligence → 🗂 AI Clusters → "✦ Generate Clusters" button (no briefing required); ↺ Regenerate to refresh
+
 ### RAG Visualization (v3.30)
 - **📊 RAG Stats** — Settings → 🔧 Data & Backup shows live index stats: emails indexed, docs indexed, vector chunks, ChromaDB size, embedding model (BAAI/bge-large-en-v1.5)
 - **🔍 Ask Transparency** — Ask panel now shows collapsible "Sources used (N)" under each answer; each source displays a relevance % progress bar + 2-line snippet; click a source to search for that email
