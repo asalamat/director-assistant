@@ -28,6 +28,17 @@ async def get_clusters(request: Request):
     return {"clusters": clusters}
 
 
+@router.post("/clusters/generate")
+async def generate_clusters(request: Request):
+    """Force-regenerate clusters by clearing cache then running AI analysis."""
+    svc = getattr(request.app.state, "intelligence", None)
+    if not svc:
+        return {"clusters": [], "error": "Intelligence service not available"}
+    svc.invalidate_cache()
+    clusters = await svc.get_clusters()
+    return {"clusters": clusters}
+
+
 @router.get("/timeline")
 async def get_timeline(request: Request, q: str = "", limit: int = 60):
     svc = getattr(request.app.state, "intelligence", None)

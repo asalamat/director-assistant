@@ -372,6 +372,9 @@ export const api = {
   getClusters(): Promise<{ clusters: import('../types').Cluster[] }> {
     return request('/intelligence/clusters')
   },
+  generateClusters(): Promise<{ clusters: import('../types').Cluster[] }> {
+    return request('/intelligence/clusters/generate', { method: 'POST' })
+  },
   getTimeline(q: string, limit = 60): Promise<{ events: import('../types').TimelineEvent[] }> {
     return request(`/intelligence/timeline?q=${encodeURIComponent(q)}&limit=${limit}`)
   },
