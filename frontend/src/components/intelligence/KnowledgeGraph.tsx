@@ -33,8 +33,18 @@ const NODE_LEGEND: { type: NodeType; label: string }[] = [
   { type: 'project', label: 'Project' },
 ]
 
+// Edge color by relationship type
+function edgeColor(
+  sourceType: NodeType | undefined,
+  targetType: NodeType | undefined,
+): string {
+  if (sourceType === 'person' && targetType === 'person') return '#93c5fd' // blue
+  if (sourceType === 'person' || targetType === 'person') return '#d1d5db' // gray (person↔topic/project)
+  return '#6ee7b7' // green (topic↔project or topic↔topic)
+}
+
 function nodeRadius(count: number): number {
-  return Math.max(10, Math.min(28, Math.sqrt(count + 1) * 3.5))
+  return Math.max(6, Math.min(24, 6 + Math.sqrt(count || 1) * 1.8))
 }
 
 export function KnowledgeGraph({ onSearchPerson }: { onSearchPerson?: (name: string) => void }) {
@@ -43,6 +53,7 @@ export function KnowledgeGraph({ onSearchPerson }: { onSearchPerson?: (name: str
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [tooltip, setTooltip] = useState<{ x: number; y: number; node: GraphNode } | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
 
   const svgRef = useRef<SVGSVGElement>(null)
   const nodesRef = useRef<GraphNode[]>([])
@@ -52,9 +63,11 @@ export function KnowledgeGraph({ onSearchPerson }: { onSearchPerson?: (name: str
   const W = 800
   const H = 540
 
-  // Fetch data
-  useEffect(() => {
-    setLoading(true)
+  // Fetch graph data — callable on mount and from Refresh button
+  const loadGraph = useCallback((isRefresh = false) => {
+    if (isRefresh) setRefreshing(true)
+    else setLoading(true)
+    setError('')
     api.getRagKnowledgeGraph()
       .then(data => {
         if (data.error && !data.nodes.length) {
@@ -64,13 +77,22 @@ export function KnowledgeGraph({ onSearchPerson }: { onSearchPerson?: (name: str
           setRawEdges(data.edges)
         }
       })
-      .catch(e => setError(e.message))
-      .finally(() => setLoading(false))
+      .catch((e: Error) => setError(e.message))
+      .finally(() => {
+        setLoading(false)
+        setRefreshing(false)
+      })
   }, [])
 
-  // Initialise physics nodes
+  // Initial fetch
+  useEffect(() => {
+    loadGraph(false)
+  }, [loadGraph])
+
+  // Initialise physics nodes whenever data changes
   useEffect(() => {
     if (!rawNodes.length) return
+    cancelAnimationFrame(rafRef.current)
     nodesRef.current = rawNodes.map((n, i) => {
       const angle = (i / rawNodes.length) * Math.PI * 2
       const r = 160 + Math.random() * 60
@@ -89,15 +111,7 @@ export function KnowledgeGraph({ onSearchPerson }: { onSearchPerson?: (name: str
 
   const startSimulation = useCallback(() => {
     let iteration = 0
-    const maxIter = 300
-
-    const edgeMap: Record<string, string[]> = {}
-    for (const e of rawEdges) {
-      edgeMap[e.source] = edgeMap[e.source] || []
-      edgeMap[e.source].push(e.target)
-      edgeMap[e.target] = edgeMap[e.target] || []
-      edgeMap[e.target].push(e.source)
-    }
+    const maxIter = 600 // doubled from 300 for longer settling
 
     const edgeWeightMap: Record<string, number> = {}
     for (const e of rawEdges) {
@@ -109,7 +123,7 @@ export function KnowledgeGraph({ onSearchPerson }: { onSearchPerson?: (name: str
       const nodes = nodesRef.current
       if (!nodes.length) return
 
-      const alpha = Math.max(0.01, 1 - iteration / maxIter)
+      const alpha = Math.max(0.005, 1 - iteration / maxIter)
       const REPEL = 1800
       const ATTRACT = 0.04
       const CENTER = 0.006
@@ -153,7 +167,7 @@ export function KnowledgeGraph({ onSearchPerson }: { onSearchPerson?: (name: str
         b.vy -= fy
       }
 
-      // Gravity toward center
+      // Gravity toward center + dampen + clamp
       for (const n of nodes) {
         n.vx += (W / 2 - n.x) * CENTER * alpha
         n.vy += (H / 2 - n.y) * CENTER * alpha
@@ -161,7 +175,6 @@ export function KnowledgeGraph({ onSearchPerson }: { onSearchPerson?: (name: str
         n.vy *= DAMPEN
         n.x += n.vx
         n.y += n.vy
-        // Clamp to canvas
         const pad = nodeRadius(n.count) + 8
         n.x = Math.max(pad, Math.min(W - pad, n.x))
         n.y = Math.max(pad, Math.min(H - pad, n.y))
@@ -191,8 +204,14 @@ export function KnowledgeGraph({ onSearchPerson }: { onSearchPerson?: (name: str
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-full text-red-400 text-sm">
-        {error}
+      <div className="flex flex-col items-center justify-center h-full gap-2 text-red-400 text-sm">
+        <span>{error}</span>
+        <button
+          onClick={() => loadGraph(true)}
+          className="px-3 py-1 text-xs bg-white border border-gray-200 rounded hover:bg-gray-50 text-gray-600"
+        >
+          &#8635; Retry
+        </button>
       </div>
     )
   }
@@ -200,7 +219,7 @@ export function KnowledgeGraph({ onSearchPerson }: { onSearchPerson?: (name: str
   if (!rawNodes.length) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-2 text-gray-400 text-sm">
-        <span className="text-3xl">🕸</span>
+        <span className="text-3xl">&#128376;</span>
         <span>No graph data yet. Import emails to populate the knowledge graph.</span>
       </div>
     )
@@ -210,11 +229,21 @@ export function KnowledgeGraph({ onSearchPerson }: { onSearchPerson?: (name: str
     <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-gray-100 flex-shrink-0">
-        <div>
+        <div className="flex items-center gap-3">
           <span className="text-sm font-semibold text-gray-700">Knowledge Graph</span>
-          <span className="ml-2 text-xs text-gray-400">
-            {nodes.length} nodes · {rawEdges.length} edges
+          <span className="text-xs text-gray-400">
+            {nodes.length} nodes &middot; {rawEdges.length} edges
           </span>
+          {/* Refresh button */}
+          <button
+            onClick={() => loadGraph(true)}
+            disabled={refreshing}
+            className="flex items-center gap-1 px-2 py-0.5 text-xs bg-white border border-gray-200 rounded hover:bg-gray-50 text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+            title="Re-fetch graph data and restart simulation"
+          >
+            <span className={refreshing ? 'animate-spin inline-block' : ''}>&#8635;</span>
+            {refreshing ? 'Refreshing…' : 'Refresh'}
+          </button>
         </div>
         {/* Legend */}
         <div className="flex items-center gap-3">
@@ -238,17 +267,18 @@ export function KnowledgeGraph({ onSearchPerson }: { onSearchPerson?: (name: str
           className="w-full h-full"
           style={{ cursor: 'default' }}
         >
-          {/* Edges */}
+          {/* Edges — colored by relationship type */}
           {rawEdges.map((e, i) => {
             const a = nodeById[e.source]
             const b = nodeById[e.target]
             if (!a || !b) return null
+            const color = edgeColor(a.type, b.type)
             return (
               <line
                 key={i}
                 x1={a.x} y1={a.y}
                 x2={b.x} y2={b.y}
-                stroke="#d1d5db"
+                stroke={color}
                 strokeWidth={Math.min(3, e.weight * 0.8 + 0.5)}
                 strokeOpacity={Math.min(0.8, 0.2 + e.weight * 0.15)}
               />
@@ -259,6 +289,9 @@ export function KnowledgeGraph({ onSearchPerson }: { onSearchPerson?: (name: str
           {nodes.map(n => {
             const r = nodeRadius(n.count)
             const col = NODE_COLOR[n.type]
+            // Show label inside circle for large nodes, below for medium, hide for tiny
+            const showLabel = r >= 10
+            const labelInside = r >= 16
             return (
               <g
                 key={n.id}
@@ -285,15 +318,29 @@ export function KnowledgeGraph({ onSearchPerson }: { onSearchPerson?: (name: str
                   stroke={col.stroke}
                   strokeWidth="1.5"
                 />
-                <text
-                  x={n.x} y={n.y + r + 10}
-                  textAnchor="middle"
-                  fontSize="8"
-                  fill="#6b7280"
-                  className="select-none pointer-events-none"
-                >
-                  {n.label.length > 14 ? n.label.slice(0, 13) + '…' : n.label}
-                </text>
+                {showLabel && labelInside && (
+                  <text
+                    x={n.x} y={n.y + 3}
+                    textAnchor="middle"
+                    fontSize="7"
+                    fontWeight="600"
+                    fill={col.text}
+                    className="select-none pointer-events-none"
+                  >
+                    {n.label.length > 10 ? n.label.slice(0, 9) + '…' : n.label}
+                  </text>
+                )}
+                {showLabel && !labelInside && (
+                  <text
+                    x={n.x} y={n.y + r + 10}
+                    textAnchor="middle"
+                    fontSize="7"
+                    fill="#6b7280"
+                    className="select-none pointer-events-none"
+                  >
+                    {n.label.length > 14 ? n.label.slice(0, 13) + '…' : n.label}
+                  </text>
+                )}
               </g>
             )
           })}

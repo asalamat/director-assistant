@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { api } from '../../api/client'
-import type { EmailCategory } from '../../types'
 
 interface MapPoint {
   id: string
@@ -41,11 +40,28 @@ const SVG_W = 700
 const SVG_H = 480
 const PAD   = 32
 
+const ZOOM_IN_FACTOR  = 1.15
+const ZOOM_OUT_FACTOR = 0.87
+const MIN_SCALE = 0.3
+const MAX_SCALE = 8
+
 interface TooltipState {
   visible: boolean
   x: number
   y: number
   point: MapPoint | null
+}
+
+interface Transform {
+  x: number
+  y: number
+  scale: number
+}
+
+const IDENTITY_TRANSFORM: Transform = { x: 0, y: 0, scale: 1 }
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max)
 }
 
 function normalize(values: number[], padLow: number, padHigh: number): number[] {
@@ -63,7 +79,19 @@ export function EmbeddingMap({ onSearch }: { onSearch?: (subject: string) => voi
   const [filter, setFilter]         = useState<string>('all')
   const [classifying, setClassifying] = useState(false)
   const [classifyMsg, setClassifyMsg] = useState('')
-  const svgRef                      = useRef<SVGSVGElement>(null)
+  const [selected, setSelected]       = useState<Set<string>>(new Set())
+  const [explanation, setExplanation] = useState('')
+  const [explaining, setExplaining]   = useState(false)
+  const explainAbortRef               = useRef<AbortController | null>(null)
+
+  // Zoom + pan state
+  const [transform, setTransform]   = useState<Transform>(IDENTITY_TRANSFORM)
+  const [dragging, setDragging]     = useState(false)
+  const dragStart = useRef<{ clientX: number; clientY: number; tx: number; ty: number } | null>(null)
+
+  const svgRef = useRef<SVGSVGElement>(null)
+
+  const isTransformed = transform.x !== 0 || transform.y !== 0 || transform.scale !== 1
 
   const loadMap = () => {
     setLoading(true)
@@ -109,10 +137,42 @@ export function EmbeddingMap({ onSearch }: { onSearch?: (subject: string) => voi
   // Unique categories in the dataset for the legend/filter
   const presentCategories = Array.from(new Set(points.map(p => p.category || 'other')))
 
-  function handleDotClick(p: MapPoint) {
-    if (onSearch) onSearch(p.subject)
+  function handleDotClick(e: React.MouseEvent, p: MapPoint) {
+    e.stopPropagation()
+    if (e.shiftKey) {
+      setSelected(prev => {
+        const next = new Set(prev)
+        if (next.has(p.id)) next.delete(p.id)
+        else next.add(p.id)
+        return next
+      })
+    } else {
+      if (onSearch) onSearch(p.subject)
+    }
   }
 
+  function clearSelection() {
+    setSelected(new Set())
+    setExplanation('')
+    explainAbortRef.current?.abort()
+  }
+
+  function handleExplain() {
+    if (selected.size < 2) return
+    explainAbortRef.current?.abort()
+    setExplanation('')
+    setExplaining(true)
+    explainAbortRef.current = api.streamExplainCluster(
+      Array.from(selected),
+      (text) => setExplanation(prev => prev + text),
+      () => setExplaining(false),
+    )
+  }
+
+  const selectedCount = useMemo(() => selected.size, [selected])
+
+  // Tooltip: mouse coords in client space; we show the tooltip overlay at client coords
+  // (tooltip is positioned in the parent div, not inside the SVG transform group)
   function handleMouseEnter(e: React.MouseEvent<SVGCircleElement>, p: typeof projected[0]) {
     const svg = svgRef.current
     if (!svg) return
@@ -125,9 +185,61 @@ export function EmbeddingMap({ onSearch }: { onSearch?: (subject: string) => voi
     })
   }
 
-  function handleMouseLeave() {
+  function handleMouseLeaveCircle() {
     setTooltip(t => ({ ...t, visible: false }))
   }
+
+  // Wheel zoom: zoom centered on the SVG viewport (not the cursor — keeps it simple)
+  const handleWheel = useCallback((e: React.WheelEvent<SVGSVGElement>) => {
+    e.preventDefault()
+    const factor = e.deltaY < 0 ? ZOOM_IN_FACTOR : ZOOM_OUT_FACTOR
+    setTransform(t => ({
+      ...t,
+      scale: clamp(t.scale * factor, MIN_SCALE, MAX_SCALE),
+    }))
+  }, [])
+
+  // Drag-to-pan
+  const handleMouseDown = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+    // Only initiate pan on left button, and not if a circle was the target
+    if (e.button !== 0) return
+    e.preventDefault()
+    dragStart.current = {
+      clientX: e.clientX,
+      clientY: e.clientY,
+      tx: transform.x,
+      ty: transform.y,
+    }
+    setDragging(true)
+  }, [transform.x, transform.y])
+
+  const handleMouseMove = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+    if (!dragStart.current) return
+    const dx = e.clientX - dragStart.current.clientX
+    const dy = e.clientY - dragStart.current.clientY
+    setTransform(t => ({
+      ...t,
+      x: dragStart.current!.tx + dx,
+      y: dragStart.current!.ty + dy,
+    }))
+    // Hide tooltip while panning
+    setTooltip(prev => ({ ...prev, visible: false }))
+  }, [])
+
+  const handleMouseUp = useCallback(() => {
+    dragStart.current = null
+    setDragging(false)
+  }, [])
+
+  const handleMouseLeave = useCallback(() => {
+    dragStart.current = null
+    setDragging(false)
+    setTooltip(prev => ({ ...prev, visible: false }))
+  }, [])
+
+  const resetZoom = useCallback(() => {
+    setTransform(IDENTITY_TRANSFORM)
+  }, [])
 
   if (loading) {
     return (
@@ -165,7 +277,39 @@ export function EmbeddingMap({ onSearch }: { onSearch?: (subject: string) => voi
           <h2 className="text-sm font-semibold text-gray-800">Email Cluster Map</h2>
           <p className="text-[11px] text-gray-400">{points.length} emails projected to 2D via PCA</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          {/* Selection controls */}
+          {selectedCount > 0 && (
+            <>
+              <span className="text-xs font-medium text-accent-600 bg-accent-50 border border-accent-200 px-2 py-0.5 rounded-full">
+                {selectedCount} selected
+              </span>
+              <button
+                onClick={handleExplain}
+                disabled={explaining || selectedCount < 2}
+                className="text-xs bg-accent-500 text-white px-2.5 py-1 rounded hover:bg-accent-600 disabled:opacity-50 transition-colors"
+              >
+                {explaining ? '⟳ Explaining…' : '✦ Explain cluster'}
+              </button>
+              <button
+                onClick={clearSelection}
+                title="Clear selection"
+                className="text-xs text-gray-400 hover:text-gray-700 px-1.5 py-1 rounded hover:bg-gray-100 transition-colors"
+              >
+                ✕
+              </button>
+            </>
+          )}
+          {/* Reset zoom button — only shown when transformed */}
+          {isTransformed && (
+            <button
+              onClick={resetZoom}
+              title="Reset zoom and pan"
+              className="text-xs border border-gray-200 text-gray-600 px-2.5 py-1 rounded hover:bg-gray-50 transition-colors"
+            >
+              ⊙ Reset zoom
+            </button>
+          )}
           {/* Category filter */}
           <select
             value={filter}
@@ -195,9 +339,18 @@ export function EmbeddingMap({ onSearch }: { onSearch?: (subject: string) => voi
           ref={svgRef}
           viewBox={`0 0 ${SVG_W} ${SVG_H}`}
           className="w-full h-full"
-          style={{ display: 'block' }}
+          style={{
+            display: 'block',
+            cursor: dragging ? 'grabbing' : 'grab',
+            userSelect: 'none',
+          }}
+          onWheel={handleWheel}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseLeave}
         >
-          {/* Faint grid */}
+          {/* Faint grid — outside the transform group so it stays anchored */}
           {[0.25, 0.5, 0.75].map(f => (
             <g key={f}>
               <line
@@ -213,29 +366,32 @@ export function EmbeddingMap({ onSearch }: { onSearch?: (subject: string) => voi
             </g>
           ))}
 
-          {/* Dots */}
-          {visible.map(p => {
-            const color = CATEGORY_COLORS[p.category] ?? DEFAULT_COLOR
-            return (
-              <circle
-                key={p.id}
-                cx={p.sx}
-                cy={p.sy}
-                r={5}
-                fill={color}
-                fillOpacity={0.75}
-                stroke="white"
-                strokeWidth={1}
-                style={{ cursor: onSearch ? 'pointer' : 'default' }}
-                onClick={() => handleDotClick(p)}
-                onMouseEnter={e => handleMouseEnter(e, p)}
-                onMouseLeave={handleMouseLeave}
-              />
-            )
-          })}
+          {/* Zoom + pan group — all dots live inside this */}
+          <g transform={`translate(${transform.x}, ${transform.y}) scale(${transform.scale})`}>
+            {visible.map(p => {
+              const color = CATEGORY_COLORS[p.category] ?? DEFAULT_COLOR
+              const isSel = selected.has(p.id)
+              return (
+                <circle
+                  key={p.id}
+                  cx={p.sx}
+                  cy={p.sy}
+                  r={isSel ? 7 : 5}
+                  fill={color}
+                  fillOpacity={isSel ? 1 : 0.75}
+                  stroke={isSel ? '#1d4ed8' : 'white'}
+                  strokeWidth={isSel ? 2 : 1}
+                  style={{ cursor: 'pointer' }}
+                  onClick={e => handleDotClick(e, p)}
+                  onMouseEnter={e => handleMouseEnter(e, p)}
+                  onMouseLeave={handleMouseLeaveCircle}
+                />
+              )
+            })}
+          </g>
         </svg>
 
-        {/* Tooltip */}
+        {/* Tooltip — positioned in client/container space, unaffected by SVG transform */}
         {tooltip.visible && tooltip.point && (
           <div
             className="absolute z-10 pointer-events-none bg-white border border-gray-200 rounded-lg shadow-lg px-3 py-2 max-w-[220px]"
@@ -257,12 +413,20 @@ export function EmbeddingMap({ onSearch }: { onSearch?: (subject: string) => voi
                 {CATEGORY_LABELS[tooltip.point.category] ?? tooltip.point.category}
               </p>
             )}
-            {onSearch && (
-              <p className="text-[10px] text-accent-500 mt-1">Click to search</p>
-            )}
+            <p className="text-[10px] text-gray-400 mt-1">
+              {onSearch ? 'Click to search' : ''} · Shift+click to select
+            </p>
           </div>
         )}
       </div>
+
+      {/* Explain cluster panel */}
+      {explanation && (
+        <div className="px-4 py-3 border-t border-accent-100 bg-accent-50 flex-shrink-0 max-h-32 overflow-y-auto">
+          <p className="text-[11px] font-semibold text-accent-700 mb-1">✦ Cluster Analysis</p>
+          <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">{explanation}</p>
+        </div>
+      )}
 
       {/* Legend */}
       <div className="flex flex-wrap gap-x-3 gap-y-1 px-4 py-2 border-t border-gray-100 flex-shrink-0">
@@ -279,6 +443,11 @@ export function EmbeddingMap({ onSearch }: { onSearch?: (subject: string) => voi
             {CATEGORY_LABELS[c] ?? c}
           </button>
         ))}
+        {isTransformed && (
+          <span className="text-[10px] text-gray-400 ml-auto">
+            {Math.round(transform.scale * 100)}% zoom
+          </span>
+        )}
       </div>
     </div>
   )

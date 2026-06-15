@@ -906,6 +906,44 @@ export const api = {
     return request('/emails/classify-batch', { method: 'POST' })
   },
 
+  // Explain cluster (streaming)
+  streamExplainCluster(
+    emailIds: string[],
+    onToken: (text: string) => void,
+    onDone: () => void,
+    question?: string,
+  ): AbortController {
+    const ctrl = new AbortController()
+    fetch(`${BASE}/ask/explain-cluster`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email_ids: emailIds, question }),
+      signal: ctrl.signal,
+    }).then(async (res) => {
+      if (!res.body) { onDone(); return }
+      const reader = res.body.getReader()
+      const dec = new TextDecoder()
+      let buf = ''
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buf += dec.decode(value, { stream: true })
+        const lines = buf.split('\n')
+        buf = lines.pop() ?? ''
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          try {
+            const evt = JSON.parse(line.slice(6))
+            if (evt.type === 'token') onToken(evt.text)
+            else if (evt.type === 'done') onDone()
+          } catch { /* ignore */ }
+        }
+      }
+      onDone()
+    }).catch(() => onDone())
+    return ctrl
+  },
+
   // Email Rules
   getEmailRules(): Promise<{ rules: any[] }> { return request('/email-rules') },
   createEmailRule(data: { name: string; field: string; condition: string; value: string; action: string; label?: string; priority?: number }): Promise<{ id: number }> {

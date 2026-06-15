@@ -269,6 +269,75 @@ async def ask_db(req: AskRequest, request: Request):
     )
 
 
+class ExplainClusterRequest(BaseModel):
+    email_ids: List[str]
+    question: Optional[str] = None
+
+    @field_validator("email_ids")
+    @classmethod
+    def validate_ids(cls, v: List[str]) -> List[str]:
+        if len(v) < 2:
+            raise ValueError("Select at least 2 emails")
+        if len(v) > 50:
+            raise ValueError("Too many emails selected (max 50)")
+        return v
+
+
+@router.post("/explain-cluster")
+async def explain_cluster(req: ExplainClusterRequest, request: Request):
+    """Stream an AI explanation of what a user-selected set of emails have in common."""
+    cache = request.app.state.cache
+    ai = request.app.state.advisor.ai
+
+    loop = asyncio.get_event_loop()
+
+    def _fetch_emails():
+        rows = []
+        for eid in req.email_ids[:50]:
+            msg = cache.get(eid)
+            if msg:
+                rows.append(msg)
+        return rows
+
+    async def generate():
+        emails = await loop.run_in_executor(None, _fetch_emails)
+        if len(emails) < 2:
+            yield 'data: {"type":"token","text":"Could not find the selected emails."}\n\n'
+            yield 'data: {"type":"done"}\n\n'
+            return
+
+        lines = "\n".join(
+            f"- Subject: {e.subject or '(no subject)'}  |  From: {e.sender}  |  Preview: {(e.body or '')[:200].replace(chr(10),' ')}"
+            for e in emails
+        )
+        extra = f"\n\nSpecific question: {req.question}" if req.question else ""
+        prompt = (
+            f"The user selected {len(emails)} emails from their inbox. "
+            f"Analyze what they have in common — shared topics, senders, urgency, or themes. "
+            f"Be concise and insightful (2-4 sentences).{extra}\n\nEMAILS:\n{lines}"
+        )
+
+        try:
+            async with ai.messages.stream(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=400,
+                system="You are an expert email analyst. Identify patterns and commonalities in emails.",
+                messages=[{"role": "user", "content": prompt}],
+            ) as stream:
+                async for text in stream.text_stream:
+                    yield f"data: {json.dumps({'type': 'token', 'text': text})}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'token', 'text': f'Error: {e}'})}\n\n"
+
+        yield 'data: {"type":"done"}\n\n'
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
 @router.post("/docs-only")
 async def ask_docs(request: Request):
     """Answer a question using only the document knowledge base (not email history)."""
