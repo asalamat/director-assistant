@@ -619,6 +619,7 @@ export default function App() {
                 onlyUnread={onlyUnread}
                 activeCategory={(currentParams as any).category ?? null}
                 onCategoryChange={(cat) => refresh({ category: cat ?? undefined } as any)}
+                onFilterChange={(filters) => refresh(filters as any)}
               />
             </div>
 

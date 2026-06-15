@@ -133,6 +133,7 @@ function ForgotReplyTab({ onOpenCompose }: { onOpenCompose?: (to: string, subjec
 }
 
 export function LoopsTab() {
+  const [view, setView] = useState<'loops' | 'forgot'>('loops')
   const [loops, setLoops] = useState<OpenLoop[]>([])
   const [loading, setLoading] = useState(false)
   const [loaded, setLoaded] = useState(false)
@@ -206,26 +207,61 @@ export function LoopsTab() {
 
   const typeIcon = (t: string) => t === 'commitment' ? '📌' : t === 'awaiting' ? '⏳' : '⚡'
 
-  if (!loaded && !loading) {
+  const tabBar = (
+    <div className="flex gap-1 px-4 pt-3 pb-1 border-b border-gray-100 flex-shrink-0">
+      <button
+        onClick={() => setView('loops')}
+        className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${view === 'loops' ? 'bg-accent text-white' : 'text-gray-500 hover:bg-gray-100'}`}
+      >
+        Open Loops
+      </button>
+      <button
+        onClick={() => setView('forgot')}
+        className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${view === 'forgot' ? 'bg-accent text-white' : 'text-gray-500 hover:bg-gray-100'}`}
+      >
+        Forgot to Reply
+      </button>
+    </div>
+  )
+
+  if (view === 'forgot') {
     return (
-      <div className="flex flex-col items-center justify-center h-full gap-4 py-16">
-        <div className="text-4xl">🔄</div>
-        <div className="text-center">
-          <p className="text-sm text-gray-600 font-medium">Scan for open commitments</p>
-          <p className="text-xs text-gray-400 mt-1">AI will scan your recent emails for unresolved items, awaited responses, and deadlines.</p>
-        </div>
-        <button onClick={load} className="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-blue-700 transition-colors">
-          Scan emails
-        </button>
+      <div className="flex flex-col h-full">
+        {tabBar}
+        <ForgotReplyTab />
       </div>
     )
   }
 
-  if (loading) return <div className="flex justify-center py-16"><div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" /></div>
+  if (!loaded && !loading) {
+    return (
+      <div className="flex flex-col h-full">
+        {tabBar}
+        <div className="flex flex-col items-center justify-center flex-1 gap-4 py-16">
+          <div className="text-4xl">🔄</div>
+          <div className="text-center">
+            <p className="text-sm text-gray-600 font-medium">Scan for open commitments</p>
+            <p className="text-xs text-gray-400 mt-1">AI will scan your recent emails for unresolved items, awaited responses, and deadlines.</p>
+          </div>
+          <button onClick={load} className="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-blue-700 transition-colors">
+            Scan emails
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (loading) return (
+    <div className="flex flex-col h-full">
+      {tabBar}
+      <div className="flex justify-center py-16"><div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" /></div>
+    </div>
+  )
 
   return (
     <div className="flex flex-col h-full">
-      <div className="px-4 pt-4 pb-2 flex items-center justify-between flex-shrink-0">
+      {tabBar}
+      <div className="px-4 pt-3 pb-2 flex items-center justify-between flex-shrink-0">
         <div className="flex gap-1 flex-wrap">
           {(['all', 'commitment', 'awaiting', 'deadline'] as const).map(f => {
             const activeCount = f === 'all' ? active.length : active.filter(l => l.type === f).length

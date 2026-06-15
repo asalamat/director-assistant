@@ -20,6 +20,15 @@ function addToHistory(q: string) {
 
 interface BulkDraft { email_id: string; subject: string; to: string; draft: string }
 
+interface FilterState {
+  from_date?: string
+  to_date?: string
+  sender_filter?: string
+  category?: string | undefined
+  has_attachment?: boolean
+  only_unread?: boolean
+}
+
 interface Props {
   emails: EmailSummary[]
   selectedId: string | null
@@ -43,6 +52,7 @@ interface Props {
   onlyUnread?: boolean
   activeCategory?: string | null
   onCategoryChange?: (cat: string | null) => void
+  onFilterChange?: (filters: FilterState) => void
 }
 
 function isNewEmail(dateStr: string | null): boolean {
@@ -97,7 +107,7 @@ function replyDepth(subject: string): number {
   return depth
 }
 
-export function EmailList({ emails, selectedId, loading, hasMore, total, folders, currentFolder, onSelect, onLoadMore, onSearch, onSort, onFolderChange, onBulkDelete, onBulkSnooze, onBulkArchive, onBulkMarkRead, onOpenCompose, sortBy, sortOrder, onlyUnread, activeCategory, onCategoryChange }: Props) {
+export function EmailList({ emails, selectedId, loading, hasMore, total, folders, currentFolder, onSelect, onLoadMore, onSearch, onSort, onFolderChange, onBulkDelete, onBulkSnooze, onBulkArchive, onBulkMarkRead, onOpenCompose, sortBy, sortOrder, onlyUnread, activeCategory, onCategoryChange, onFilterChange }: Props) {
   const [query, setQuery] = useState('')
   const [savedSearches, setSavedSearches] = useState<{ id: number; name: string; query: string; folder: string }[]>([])
   const [history, setHistory] = useState<string[]>(loadHistory)
@@ -118,6 +128,13 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
   const [hoverTimer, setHoverTimer] = useState<ReturnType<typeof setTimeout> | null>(null)
   const [priorityEmails, setPriorityEmails] = useState<any[] | null>(null)
   const [loadingPriority, setLoadingPriority] = useState(false)
+  const [showFilterPanel, setShowFilterPanel] = useState(false)
+  const [filterFromDate, setFilterFromDate] = useState('')
+  const [filterToDate, setFilterToDate] = useState('')
+  const [filterSender, setFilterSender] = useState('')
+  const [filterCategory, setFilterCategory] = useState('')
+  const [filterHasAttachment, setFilterHasAttachment] = useState(false)
+  const [filterUnreadOnly, setFilterUnreadOnly] = useState(false)
   const [aiPreviews, setAiPreviews] = useState<Record<string, string>>({})
   const fetchedPreviewIds = useRef<Set<string>>(new Set())
   const previewObserverRef = useRef<IntersectionObserver | null>(null)
@@ -293,6 +310,32 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
     } catch { /* silent */ } finally { setLoadingPriority(false) }
   }
 
+  const activeFilterCount = [
+    filterFromDate, filterToDate, filterSender, filterCategory,
+    filterHasAttachment ? 'att' : '', filterUnreadOnly ? 'unread' : '',
+  ].filter(Boolean).length
+
+  const applyFilters = () => {
+    const filters: FilterState = {}
+    if (filterFromDate) filters.from_date = filterFromDate
+    if (filterToDate) filters.to_date = filterToDate
+    if (filterSender.trim()) filters.sender_filter = filterSender.trim()
+    if (filterCategory) filters.category = filterCategory
+    if (filterHasAttachment) filters.has_attachment = true
+    if (filterUnreadOnly) filters.only_unread = true
+    onFilterChange?.(filters)
+  }
+
+  const clearFilters = () => {
+    setFilterFromDate('')
+    setFilterToDate('')
+    setFilterSender('')
+    setFilterCategory('')
+    setFilterHasAttachment(false)
+    setFilterUnreadOnly(false)
+    onFilterChange?.({})
+  }
+
   const SortBtn = ({ field, label }: { field: SortBy; label: string }) => (
     <button
       onClick={() => toggleSort(field)}
@@ -391,6 +434,26 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
               📌
             </button>
           )}
+          {onFilterChange && (
+            <button
+              type="button"
+              onClick={() => setShowFilterPanel(v => !v)}
+              title="Advanced filters"
+              className={`flex items-center gap-1 text-xs px-2 py-1 rounded-lg border transition-all flex-shrink-0 ${
+                showFilterPanel || activeFilterCount > 0
+                  ? 'bg-accent-50 border-accent-300 text-accent-700'
+                  : 'border-gray-200 text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+              }`}
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L13 10.414V15a1 1 0 01-.553.894l-4 2A1 1 0 017 17v-6.586L3.293 6.707A1 1 0 013 6V3z" clipRule="evenodd"/>
+              </svg>
+              Filters
+              {activeFilterCount > 0 && (
+                <span className="bg-accent-500 text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">{activeFilterCount}</span>
+              )}
+            </button>
+          )}
           {showHistory && history.length > 0 && (
             <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1">
               {history.map((h, i) => (
@@ -412,6 +475,155 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
             </div>
           )}
         </form>
+        {/* Advanced filter panel */}
+        {onFilterChange && showFilterPanel && (
+          <div className="border border-accent-100 rounded-lg p-2.5 bg-accent-50/40 space-y-2">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wider block mb-0.5">From date</label>
+                <input
+                  type="date"
+                  value={filterFromDate}
+                  onChange={e => setFilterFromDate(e.target.value)}
+                  className="w-full text-[11px] border border-gray-200 rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent bg-white"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wider block mb-0.5">To date</label>
+                <input
+                  type="date"
+                  value={filterToDate}
+                  onChange={e => setFilterToDate(e.target.value)}
+                  className="w-full text-[11px] border border-gray-200 rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent bg-white"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wider block mb-0.5">Sender contains</label>
+              <input
+                type="text"
+                value={filterSender}
+                onChange={e => setFilterSender(e.target.value)}
+                placeholder="e.g. john@example.com"
+                className="w-full text-[11px] border border-gray-200 rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent bg-white"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wider block mb-0.5">Category</label>
+              <select
+                value={filterCategory}
+                onChange={e => setFilterCategory(e.target.value)}
+                className="w-full text-[11px] border border-gray-200 rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent bg-white"
+              >
+                <option value="">All categories</option>
+                <option value="proposal">Proposal</option>
+                <option value="contract">Contract</option>
+                <option value="invoice">Invoice</option>
+                <option value="meeting">Meeting</option>
+                <option value="action_required">Action Required</option>
+                <option value="fyi">FYI</option>
+                <option value="newsletter">Newsletter</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-4">
+              <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={filterHasAttachment}
+                  onChange={e => setFilterHasAttachment(e.target.checked)}
+                  className="w-3.5 h-3.5 accent-accent-500"
+                />
+                <span className="text-[11px] text-gray-600">Has attachment</span>
+              </label>
+              <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={filterUnreadOnly}
+                  onChange={e => setFilterUnreadOnly(e.target.checked)}
+                  className="w-3.5 h-3.5 accent-accent-500"
+                />
+                <span className="text-[11px] text-gray-600">Unread only</span>
+              </label>
+            </div>
+            <div className="flex gap-2 pt-0.5">
+              <button
+                type="button"
+                onClick={applyFilters}
+                className="flex-1 text-xs bg-accent-500 text-white py-1 rounded-md hover:bg-accent-600 transition-colors font-medium"
+              >
+                Apply
+              </button>
+              {activeFilterCount > 0 && (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="text-xs px-3 py-1 rounded-md border border-gray-200 text-gray-500 hover:bg-gray-100 transition-colors"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+        {/* Active filter chips */}
+        {onFilterChange && activeFilterCount > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {filterFromDate && (
+              <span className="flex items-center gap-1 text-[10px] bg-accent-100 text-accent-700 rounded-full px-2 py-0.5">
+                From: {filterFromDate}
+                <button onClick={() => {
+                  setFilterFromDate('')
+                  onFilterChange({ ...(filterToDate ? { to_date: filterToDate } : {}), ...(filterSender.trim() ? { sender_filter: filterSender } : {}), ...(filterCategory ? { category: filterCategory } : {}), ...(filterHasAttachment ? { has_attachment: true } : {}), ...(filterUnreadOnly ? { only_unread: true } : {}) })
+                }} className="hover:text-red-500 font-bold">✕</button>
+              </span>
+            )}
+            {filterToDate && (
+              <span className="flex items-center gap-1 text-[10px] bg-accent-100 text-accent-700 rounded-full px-2 py-0.5">
+                To: {filterToDate}
+                <button onClick={() => {
+                  setFilterToDate('')
+                  onFilterChange({ ...(filterFromDate ? { from_date: filterFromDate } : {}), ...(filterSender.trim() ? { sender_filter: filterSender } : {}), ...(filterCategory ? { category: filterCategory } : {}), ...(filterHasAttachment ? { has_attachment: true } : {}), ...(filterUnreadOnly ? { only_unread: true } : {}) })
+                }} className="hover:text-red-500 font-bold">✕</button>
+              </span>
+            )}
+            {filterSender && (
+              <span className="flex items-center gap-1 text-[10px] bg-accent-100 text-accent-700 rounded-full px-2 py-0.5">
+                Sender: {filterSender}
+                <button onClick={() => {
+                  setFilterSender('')
+                  onFilterChange({ ...(filterFromDate ? { from_date: filterFromDate } : {}), ...(filterToDate ? { to_date: filterToDate } : {}), ...(filterCategory ? { category: filterCategory } : {}), ...(filterHasAttachment ? { has_attachment: true } : {}), ...(filterUnreadOnly ? { only_unread: true } : {}) })
+                }} className="hover:text-red-500 font-bold">✕</button>
+              </span>
+            )}
+            {filterCategory && (
+              <span className="flex items-center gap-1 text-[10px] bg-accent-100 text-accent-700 rounded-full px-2 py-0.5">
+                {CATEGORY_LABELS[filterCategory as import('../types').EmailCategory]?.text ?? filterCategory}
+                <button onClick={() => {
+                  setFilterCategory('')
+                  onFilterChange({ ...(filterFromDate ? { from_date: filterFromDate } : {}), ...(filterToDate ? { to_date: filterToDate } : {}), ...(filterSender.trim() ? { sender_filter: filterSender } : {}), ...(filterHasAttachment ? { has_attachment: true } : {}), ...(filterUnreadOnly ? { only_unread: true } : {}) })
+                }} className="hover:text-red-500 font-bold">✕</button>
+              </span>
+            )}
+            {filterHasAttachment && (
+              <span className="flex items-center gap-1 text-[10px] bg-accent-100 text-accent-700 rounded-full px-2 py-0.5">
+                Has attachment
+                <button onClick={() => {
+                  setFilterHasAttachment(false)
+                  onFilterChange({ ...(filterFromDate ? { from_date: filterFromDate } : {}), ...(filterToDate ? { to_date: filterToDate } : {}), ...(filterSender.trim() ? { sender_filter: filterSender } : {}), ...(filterCategory ? { category: filterCategory } : {}), ...(filterUnreadOnly ? { only_unread: true } : {}) })
+                }} className="hover:text-red-500 font-bold">✕</button>
+              </span>
+            )}
+            {filterUnreadOnly && (
+              <span className="flex items-center gap-1 text-[10px] bg-accent-100 text-accent-700 rounded-full px-2 py-0.5">
+                Unread only
+                <button onClick={() => {
+                  setFilterUnreadOnly(false)
+                  onFilterChange({ ...(filterFromDate ? { from_date: filterFromDate } : {}), ...(filterToDate ? { to_date: filterToDate } : {}), ...(filterSender.trim() ? { sender_filter: filterSender } : {}), ...(filterCategory ? { category: filterCategory } : {}), ...(filterHasAttachment ? { has_attachment: true } : {}) })
+                }} className="hover:text-red-500 font-bold">✕</button>
+              </span>
+            )}
+          </div>
+        )}
         {/* Saved searches */}
         {savedSearches.length > 0 && (
           <div className="flex flex-wrap gap-1">
