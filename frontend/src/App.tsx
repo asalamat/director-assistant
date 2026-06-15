@@ -81,6 +81,35 @@ const TABS: { id: Tab; label: string }[] = [
 
 export default function App() {
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('theme') === 'dark')
+  const [listWidth, setListWidth] = useState(() => {
+    const stored = localStorage.getItem('listWidth')
+    return stored ? Math.max(220, Math.min(600, Number(stored))) : 340
+  })
+  const resizingRef = useRef(false)
+  const replyTriggerRef = useRef<(() => void) | null>(null)
+  const forwardTriggerRef = useRef<(() => void) | null>(null)
+
+  useEffect(() => {
+    localStorage.setItem('listWidth', String(listWidth))
+  }, [listWidth])
+
+  const handleResizeStart = (e: React.MouseEvent) => {
+    resizingRef.current = true
+    const startX = e.clientX
+    const startW = listWidth
+    const onMove = (ev: MouseEvent) => {
+      if (!resizingRef.current) return
+      const newW = Math.max(220, Math.min(600, startW + ev.clientX - startX))
+      setListWidth(newW)
+    }
+    const onUp = () => {
+      resizingRef.current = false
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
 
   useEffect(() => {
     const root = document.documentElement
@@ -160,6 +189,21 @@ export default function App() {
     api.setDockBadge(unreadCount).catch(() => {})
   }, [unreadCount])
 
+  // Browser tab title — show unread count when tab is in background
+  useEffect(() => {
+    const base = 'Director Assistant'
+    const updateTitle = () => {
+      if (document.visibilityState === 'visible') {
+        document.title = base
+      } else {
+        document.title = unreadCount > 0 ? `Director (${unreadCount})` : base
+      }
+    }
+    document.title = unreadCount > 0 ? `Director (${unreadCount})` : base
+    document.addEventListener('visibilitychange', updateTitle)
+    return () => document.removeEventListener('visibilitychange', updateTitle)
+  }, [unreadCount])
+
   // Browser notification permission
   useEffect(() => {
     if ('Notification' in window && Notification.permission === 'default') {
@@ -224,6 +268,8 @@ export default function App() {
           setTimeout(() => mergeRefresh(), 800)
         }).catch(() => {})
       }
+      if (e.key === 'r' && selectedEmail) replyTriggerRef.current?.()
+      if (e.key === 'f' && selectedEmail) forwardTriggerRef.current?.()
       if (e.key === 'Escape') clearSelectedEmail()
     }
     window.addEventListener('keydown', onKey)
@@ -571,7 +617,7 @@ export default function App() {
         <div className="flex-1 flex overflow-hidden min-w-0">
           {activeTab === 'inbox' && (
           <>
-            <div className="w-72 flex-shrink-0 flex flex-col border-r border-gray-100 dark:border-gray-700 dark:bg-gray-900">
+            <div className="flex-shrink-0 flex flex-col border-r border-gray-100 dark:border-gray-700 dark:bg-gray-900" style={{ width: listWidth }}>
               {accounts.length > 1 && (
                 <div className="flex flex-wrap gap-1 px-2 pt-2 pb-1 border-b border-gray-100">
                   <button
@@ -623,6 +669,13 @@ export default function App() {
               />
             </div>
 
+            {/* Drag handle */}
+            <div
+              className="w-1.5 flex-shrink-0 cursor-col-resize bg-gray-100 hover:bg-accent/30 dark:bg-gray-700 transition-colors"
+              onMouseDown={handleResizeStart}
+              title="Drag to resize"
+            />
+
             <EmailViewer
               email={email}
               loading={emailLoading}
@@ -633,6 +686,8 @@ export default function App() {
               onSnooze={handleSnooze}
               onAsk={handleAskAboutEmail}
               onSearch={(q) => refresh({ q })}
+              replyTriggerRef={replyTriggerRef}
+              forwardTriggerRef={forwardTriggerRef}
             />
 
             <AIPanel rec={rec} loading={recLoading} error={recError} email={email} />

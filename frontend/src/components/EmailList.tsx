@@ -72,6 +72,15 @@ function formatDate(dateStr: string | null): string {
 }
 
 
+function ageBadge(date: string | null): { label: string; cls: string } | null {
+  if (!date) return null
+  const days = Math.floor((Date.now() - new Date(date).getTime()) / 86400000)
+  if (days >= 30) return { label: '30d+', cls: 'bg-red-100 text-red-600' }
+  if (days >= 14) return { label: '14d', cls: 'bg-orange-100 text-orange-600' }
+  if (days >= 7)  return { label: '7d',  cls: 'bg-amber-100 text-amber-600' }
+  return null
+}
+
 function priorityLabel(subject: string, preview: string): { text: string; cls: string } | null {
   const hay = `${subject} ${preview}`.toLowerCase()
   if (/\burgent\b|\basap\b|\bimmediately\b|\bdeadline\b/.test(hay))
@@ -890,6 +899,14 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
                           ~{Math.max(1, Math.round((email.preview.split(' ').length * 5) / 200))}m
                         </span>
                       )}
+                      {currentFolder.toUpperCase() === 'INBOX' && (() => {
+                        const age = ageBadge(email.date)
+                        return age ? (
+                          <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full flex-shrink-0 ${age.cls}`}>
+                            {age.label}
+                          </span>
+                        ) : null
+                      })()}
                       <span className="text-xs text-gray-400">{formatDate(email.date)}</span>
                     </span>
                   </div>

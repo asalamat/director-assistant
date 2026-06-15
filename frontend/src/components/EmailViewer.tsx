@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import type { EmailMessage } from '../types'
 import { EmptyState, Spinner } from './ui'
 import { api } from '../api/client'
@@ -45,9 +45,11 @@ interface Props {
   onSnooze?: (emailId: string, wakeDate: string) => void
   onAsk?: () => void
   onSearch?: (q: string) => void
+  replyTriggerRef?: React.MutableRefObject<(() => void) | null>
+  forwardTriggerRef?: React.MutableRefObject<(() => void) | null>
 }
 
-export function EmailViewer({ email, loading, fetchError, onAnalyze, analyzing, onDelete, onSnooze, onAsk, onSearch }: Props) {
+export function EmailViewer({ email, loading, fetchError, onAnalyze, analyzing, onDelete, onSnooze, onAsk, onSearch, replyTriggerRef, forwardTriggerRef }: Props) {
   const [showCompose, setShowCompose] = useState(false)
   const [composeInitialTo, setComposeInitialTo] = useState('')
   const [composeInitialSubject, setComposeInitialSubject] = useState('')
@@ -61,6 +63,8 @@ export function EmailViewer({ email, loading, fetchError, onAnalyze, analyzing, 
   const [showDelegatePrompt, setShowDelegatePrompt] = useState<{to: string; emailId: string; subject: string} | null>(null)
   const [thread, setThread] = useState<{id: string; subject: string; sender: string; date: string; body: string}[]>([])
   const [expandedThreadIds, setExpandedThreadIds] = useState<Set<string>>(new Set())
+  const [threadSummary, setThreadSummary] = useState<{summary: string; key_points: string[]; outcome: string; message_count: number} | null>(null)
+  const [summarizingThread, setSummarizingThread] = useState(false)
 
   useEffect(() => {
     setShowCompose(false)
@@ -75,6 +79,8 @@ export function EmailViewer({ email, loading, fetchError, onAnalyze, analyzing, 
     setShowDelegatePrompt(null)
     setThread([])
     setExpandedThreadIds(new Set())
+    setThreadSummary(null)
+    setSummarizingThread(false)
     if (email?.id) {
       api.listAttachments(email.id).then(r => setAttachments(r.attachments)).catch(() => setAttachments([]))
       api.getEmailThread(email.id)
@@ -127,6 +133,26 @@ export function EmailViewer({ email, loading, fetchError, onAnalyze, analyzing, 
       await api.moveEmail(email.id, 'Archive')
       onDelete(email.id)
     } catch { /* silent */ }
+  }
+
+  // Wire keyboard shortcuts from App.tsx
+  useEffect(() => {
+    if (replyTriggerRef) replyTriggerRef.current = handleReplyClick
+    if (forwardTriggerRef) forwardTriggerRef.current = handleForward
+  })
+
+  const handleSummarizeThread = async () => {
+    if (!email || summarizingThread) return
+    setSummarizingThread(true)
+    setThreadSummary(null)
+    try {
+      const r = await api.summarizeThread(email.id)
+      setThreadSummary({ summary: r.summary, key_points: r.key_points, outcome: r.outcome, message_count: r.message_count })
+    } catch {
+      setThreadSummary({ summary: 'Could not summarize thread.', key_points: [], outcome: '', message_count: 0 })
+    } finally {
+      setSummarizingThread(false)
+    }
   }
 
   const handleTranslate = async () => {
@@ -188,9 +214,49 @@ export function EmailViewer({ email, loading, fetchError, onAnalyze, analyzing, 
 
       {thread.length > 0 && (
         <div className="px-6 pt-4 pb-0 space-y-1 flex-shrink-0">
-          <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wide mb-2">
-            {thread.length} earlier message{thread.length !== 1 ? 's' : ''} in this thread
-          </p>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wide">
+              {thread.length} earlier message{thread.length !== 1 ? 's' : ''} in this thread
+            </p>
+            <button
+              onClick={handleSummarizeThread}
+              disabled={summarizingThread}
+              className="text-[10px] font-medium text-accent hover:text-accent/80 border border-accent/30 hover:border-accent/60 rounded-full px-2.5 py-0.5 transition-colors disabled:opacity-50 flex items-center gap-1"
+            >
+              {summarizingThread ? <Spinner size="sm" /> : null}
+              {summarizingThread ? 'Summarizing…' : '✦ Summarize thread'}
+            </button>
+          </div>
+          {threadSummary && (
+            <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 mb-2 relative">
+              <button
+                onClick={() => setThreadSummary(null)}
+                className="absolute top-2 right-2.5 text-gray-400 hover:text-gray-600 text-sm leading-none"
+                aria-label="Dismiss summary"
+              >
+                ✕
+              </button>
+              <p className="text-[10px] text-blue-400 font-semibold uppercase tracking-wide mb-2">
+                Thread summary ({threadSummary.message_count} messages)
+              </p>
+              {threadSummary.summary && (
+                <p className="text-xs text-gray-700 mb-2 leading-relaxed">{threadSummary.summary}</p>
+              )}
+              {threadSummary.key_points.length > 0 && (
+                <ul className="space-y-1 mb-2">
+                  {threadSummary.key_points.map((pt, i) => (
+                    <li key={i} className="text-xs text-gray-700 flex gap-2">
+                      <span className="text-blue-400 flex-shrink-0">•</span>
+                      <span>{pt}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {threadSummary.outcome && (
+                <p className="text-[10px] text-gray-500 italic">{threadSummary.outcome}</p>
+              )}
+            </div>
+          )}
           {thread.map(t => {
             const isExpanded = expandedThreadIds.has(t.id)
             const senderName = t.sender.replace(/<[^>]+>/, '').trim().split(' ')[0] || t.sender
