@@ -389,6 +389,13 @@ Outputs `dist/DirectorAssistant-mac-3.15.3.zip` and `dist/DirectorAssistant-win-
 - **Windows CI** — GitHub Actions workflow tests the full install on `windows-latest` on every push; dependency conflict fixed (`httpx>=0.27.2`)
 - **From-account selector** — when multiple email accounts are connected, a "From" dropdown appears at the top of the compose window
 
+### UX Polish (v3.33)
+- **✦ Thread summary** — when an email is part of a thread, a "✦ Summarize thread" button appears; AI reads all messages and returns summary + key points + outcome in a dismissible card
+- **Keyboard shortcuts** — `r` to reply, `f` to forward (added to existing: `j`/`k` navigate list, `a` analyze, `e` archive, `Esc` deselect, `⌘N` compose)
+- **Tab unread count** — browser tab shows `Director (12)` when there are unread emails; resets when tab is focused
+- **Email aging badge** — unread emails in inbox older than 7 days show a `7d` / `14d` / `30d+` amber/red badge
+- **Resizable split pane** — drag the divider between email list and viewer to resize (220–520px); preference saved across sessions
+
 ### Productivity Features (v3.32)
 - **Bulk email actions** — hover any email to see a checkbox; select multiple then use the toolbar: **Archive all**, **Mark Read**, **Delete**, or **Snooze**; "Select all N" link available
 - **Advanced search filters** — click **⚡ Filters** beside the search bar to expand: from/to date pickers, sender filter, category dropdown, has attachment, unread only; active filters shown as removable chips

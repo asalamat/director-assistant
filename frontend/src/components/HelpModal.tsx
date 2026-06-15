@@ -622,7 +622,10 @@ function TipsSection() {
       <div className="space-y-2 mb-4">
         {[
           { key: 'j / k', desc: 'Navigate to next / previous email in the list' },
+          { key: 'r', desc: 'Reply to the selected email' },
+          { key: 'f', desc: 'Forward the selected email' },
           { key: 'a', desc: 'Run AI Analysis on the selected email' },
+          { key: 'e', desc: 'Archive the selected email' },
           { key: 'Esc', desc: 'Deselect / close the current email' },
           { key: '⌘ N', desc: 'Open the Compose window for a new email' },
         ].map(({ key, desc }) => (
