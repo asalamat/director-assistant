@@ -156,9 +156,9 @@ export function EmailHeader({
   }
 
   return (
-    <div className="px-6 py-4 border-b border-gray-100">
-      <div className="flex items-start justify-between gap-2">
-        <h2 className="text-base font-semibold text-gray-900 flex-1 leading-tight pt-0.5">{email.subject || '(no subject)'}</h2>
+    <div className="px-6 pt-3 pb-4 border-b border-gray-100">
+      {/* Action toolbar — full width, no wrapping */}
+      <div className="flex items-center gap-1 flex-wrap mb-2">
         <div className="flex items-center gap-1 flex-shrink-0">
           {/* Primary actions */}
           <Button variant="secondary" size="sm" onClick={onReplyClick}>↩ Reply</Button>
@@ -343,6 +343,9 @@ export function EmailHeader({
           <Button variant="danger" size="sm" loading={deleting} onClick={handleDelete}>Delete</Button>
         </div>
       </div>
+
+      {/* Subject — own line so it never wraps against the toolbar */}
+      <h2 className="text-base font-semibold text-gray-900 leading-snug mt-1 mb-2">{email.subject || '(no subject)'}</h2>
 
       {/* From / To / Date */}
       <div className="mt-2 space-y-1">
