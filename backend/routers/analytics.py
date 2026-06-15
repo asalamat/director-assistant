@@ -1,10 +1,23 @@
 import csv
 import io
 from collections import Counter
+from datetime import date, timedelta
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
+
+# Urgency score mapping by category
+_CATEGORY_SCORE: dict[str, float] = {
+    "action_required": 3.0,
+    "meeting": 3.0,
+    "proposal": 2.0,
+    "contract": 2.0,
+    "invoice": 2.0,
+    "fyi": 1.0,
+    "newsletter": 1.0,
+}
+_DEFAULT_SCORE = 1.5  # "other" / unknown
 
 
 @router.get("")
@@ -16,6 +29,65 @@ async def get_analytics(request: Request, days: int = 30):
         "folder_breakdown": cache.folder_breakdown(),
         "total_emails": cache.count(),
     }
+
+
+@router.get("/mood-timeline")
+async def mood_timeline(request: Request, days: int = 30):
+    """
+    Return average urgency/mood score per day over the last `days` days.
+    Score scale: 1 (low urgency) → 3 (high urgency).
+    Response: [{date, score, count, dominant_category}]
+    """
+    cache = request.app.state.cache
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+
+    with cache._conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT
+                substr(e.date, 1, 10) AS day,
+                ec.category,
+                COUNT(*)              AS cnt
+            FROM emails e
+            LEFT JOIN email_categories ec ON ec.email_id = e.id
+            WHERE e.date >= ?
+              AND substr(e.date, 1, 10) != ''
+            GROUP BY day, ec.category
+            ORDER BY day
+            """,
+            (cutoff,),
+        ).fetchall()
+
+    # Aggregate per day
+    day_data: dict[str, dict] = {}
+    for row in rows:
+        day = row["day"]
+        if not day:
+            continue
+        cat = row["category"] or "other"
+        cnt = row["cnt"]
+        score = _CATEGORY_SCORE.get(cat, _DEFAULT_SCORE)
+
+        if day not in day_data:
+            day_data[day] = {"total_score": 0.0, "total_count": 0, "cat_counts": {}}
+        day_data[day]["total_score"] += score * cnt
+        day_data[day]["total_count"] += cnt
+        day_data[day]["cat_counts"][cat] = day_data[day]["cat_counts"].get(cat, 0) + cnt
+
+    result = []
+    for day in sorted(day_data):
+        d = day_data[day]
+        total_count = d["total_count"]
+        avg_score = round(d["total_score"] / total_count, 2) if total_count else _DEFAULT_SCORE
+        dominant = max(d["cat_counts"], key=lambda c: d["cat_counts"][c]) if d["cat_counts"] else "other"
+        result.append({
+            "date": day,
+            "score": avg_score,
+            "count": total_count,
+            "dominant_category": dominant,
+        })
+
+    return result
 
 
 @router.get("/export.csv")

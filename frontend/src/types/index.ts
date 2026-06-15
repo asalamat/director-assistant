@@ -136,6 +136,14 @@ export interface WaitingEmail {
   days_waiting: number
 }
 
+export interface ForgotReplyEmail {
+  id: string
+  subject: string
+  sender: string
+  date: string
+  days_ago: number
+}
+
 export interface QuickReplies {
   short: string
   detailed: string

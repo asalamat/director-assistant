@@ -16,6 +16,7 @@ import type {
   EmailThread,
   AIProvider,
   AIProviderSave,
+  ForgotReplyEmail,
 } from '../types'
 
 const BASE = '/api'
@@ -59,9 +60,12 @@ export const api = {
     sort_by?: 'date' | 'sender' | 'subject'
     sort_order?: 'asc' | 'desc'
     from_date?: string
+    to_date?: string
     account_id?: number
     only_unread?: boolean
     category?: string
+    sender_filter?: string
+    has_attachment?: boolean
   }): Promise<{ emails: EmailSummary[]; total: number; has_more: boolean }> {
     const qs = new URLSearchParams()
     if (params.skip !== undefined) qs.set('skip', String(params.skip))
@@ -71,9 +75,12 @@ export const api = {
     if (params.sort_by) qs.set('sort_by', params.sort_by)
     if (params.sort_order) qs.set('sort_order', params.sort_order)
     if (params.from_date) qs.set('from_date', params.from_date)
+    if (params.to_date) qs.set('to_date', params.to_date)
     if (params.account_id !== undefined) qs.set('account_id', String(params.account_id))
     if (params.only_unread) qs.set('only_unread', 'true')
     if (params.category) qs.set('category', params.category)
+    if (params.sender_filter) qs.set('sender_filter', params.sender_filter)
+    if (params.has_attachment) qs.set('has_attachment', 'true')
     return request(`/emails/?${qs}`)
   },
 
@@ -99,6 +106,16 @@ export const api = {
 
   deleteEmail(id: string): Promise<{ deleted: string }> {
     return request(`/emails/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  },
+
+  bulkEmailAction(
+    action: 'archive' | 'delete' | 'mark_read',
+    emailIds: string[],
+  ): Promise<{ action: string; processed: number; ids: string[] }> {
+    return request('/emails/bulk-action', {
+      method: 'POST',
+      body: JSON.stringify({ action, email_ids: emailIds }),
+    })
   },
 
   importBySubject(subject: string): Promise<{ imported: { id: string; subject: string; sender: string; folder: string }[]; count: number; errors: string[] }> {
@@ -200,6 +217,10 @@ export const api = {
   // Analytics
   getAnalytics(days = 30): Promise<AnalyticsResponse> {
     return request(`/analytics?days=${days}`)
+  },
+
+  getMoodTimeline(days = 30): Promise<{ date: string; score: number; count: number; dominant_category: string }[]> {
+    return request(`/analytics/mood-timeline?days=${days}`)
   },
 
   // Sender stats
@@ -418,6 +439,9 @@ export const api = {
   }> {
     return request('/intelligence/contact-hints')
   },
+  getContactHeatmap(email: string): Promise<{ heatmap: { date: string; count: number }[] }> {
+    return request(`/intelligence/people/${encodeURIComponent(email)}/heatmap`)
+  },
   getRagKnowledgeGraph(): Promise<{
     nodes: { id: string; label: string; type: 'person' | 'topic' | 'project'; count: number }[]
     edges: { source: string; target: string; weight: number }[]
@@ -564,9 +588,30 @@ export const api = {
     return request(`/emails/${encodeURIComponent(emailId)}/one-line`)
   },
 
+  getEmailPreview(emailId: string): Promise<{ preview: string }> {
+    return request(`/emails/${encodeURIComponent(emailId)}/preview`)
+  },
+
   // Waiting for reply
   getWaitingReplies(days?: number): Promise<{ emails: import('../types').WaitingEmail[]; threshold_days: number }> {
     return request(`/followups/waiting${days ? `?days=${days}` : ''}`)
+  },
+
+  // Forgot to reply — read emails with no reply sent
+  getForgotReply(days?: number, limit?: number): Promise<{ emails: ForgotReplyEmail[]; total: number; days: number }> {
+    const qs = new URLSearchParams()
+    if (days) qs.set('days', String(days))
+    if (limit) qs.set('limit', String(limit))
+    const q = qs.toString()
+    return request(`/emails/forgot-reply${q ? '?' + q : ''}`)
+  },
+
+  // Dismiss a forgot-reply email by adding it to follow_ups with done=true
+  dismissForgotReply(emailId: string, subject: string, sender: string): Promise<{ id: number }> {
+    return request('/followups', {
+      method: 'POST',
+      body: JSON.stringify({ email_id: emailId, subject, sender, due_date: '', done: true }),
+    })
   },
 
   checkUpdate(): Promise<{ current: string; latest: string | null; update_available: boolean; error?: string }> {

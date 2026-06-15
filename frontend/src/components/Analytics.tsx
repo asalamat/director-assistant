@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { api } from '../api/client'
 import type { AnalyticsResponse } from '../types'
+import { MoodTimelineChart } from './intelligence/MoodTimelineChart'
 
 function Bar({ value, max, label }: { value: number; max: number; label: string }) {
   const pct = max > 0 ? (value / max) * 100 : 0
@@ -208,6 +209,16 @@ export function Analytics() {
               </div>
             </div>
           )}
+
+          {/* Mood / urgency timeline */}
+          <div>
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+              Urgency Timeline
+            </h3>
+            <div className="border border-gray-200 rounded-xl p-3">
+              <MoodTimelineChart days={days} />
+            </div>
+          </div>
 
           {/* Top senders */}
           {data.top_senders.length > 0 && (

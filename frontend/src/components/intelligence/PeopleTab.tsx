@@ -1,6 +1,101 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { api } from '../../api/client'
 import type { Person } from '../../types'
+
+// ─── Contact heatmap ────────────────────────────────────────────────────────
+
+type HeatDay = { date: string; count: number }
+
+function cellColor(count: number): string {
+  if (count === 0) return '#f3f4f6'   // gray-100
+  if (count === 1) return '#bbf7d0'   // green-200
+  if (count <= 3)  return '#4ade80'   // green-400
+  return '#16a34a'                    // green-600
+}
+
+function ContactHeatmap({ email }: { email: string }) {
+  const [days, setDays] = useState<HeatDay[] | null>(null)
+  const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    api.getContactHeatmap(email).then(r => {
+      if (!cancelled) setDays(r.heatmap)
+    }).catch(() => { if (!cancelled) setDays([]) })
+    return () => { cancelled = true }
+  }, [email])
+
+  const handleMouseEnter = useCallback((
+    e: React.MouseEvent<SVGRectElement>,
+    d: HeatDay,
+  ) => {
+    const rect = (e.target as SVGRectElement).getBoundingClientRect()
+    const label = d.count === 0
+      ? `No emails on ${d.date}`
+      : `${d.count} email${d.count !== 1 ? 's' : ''} on ${d.date}`
+    setTooltip({ text: label, x: rect.left + rect.width / 2, y: rect.top - 6 })
+  }, [])
+
+  const handleMouseLeave = useCallback(() => setTooltip(null), [])
+
+  if (days === null) return <div className="h-8 flex items-center ml-9"><span className="text-[10px] text-gray-300 italic">Loading…</span></div>
+  if (days.length === 0) return null
+
+  // Layout: 13 cols (weeks) × 7 rows (days), left-to-right, Sunday first
+  const CELL = 10
+  const GAP = 2
+  const COLS = 13
+  const ROWS = 7
+  const W = COLS * (CELL + GAP)
+  const H = ROWS * (CELL + GAP)
+
+  // Pad the start so the first day falls in the right weekday row
+  const firstDay = new Date(days[0].date + 'T00:00:00')
+  const startDow = firstDay.getDay() // 0=Sun … 6=Sat
+  const padded: (HeatDay | null)[] = [
+    ...Array(startDow).fill(null),
+    ...days,
+  ]
+
+  return (
+    <div className="ml-9 mt-1.5 relative select-none">
+      <svg
+        width={W}
+        height={H}
+        viewBox={`0 0 ${W} ${H}`}
+        style={{ maxWidth: 200, display: 'block' }}
+      >
+        {padded.map((d, idx) => {
+          if (!d) return null
+          const col = Math.floor(idx / ROWS)
+          const row = idx % ROWS
+          const x = col * (CELL + GAP)
+          const y = row * (CELL + GAP)
+          return (
+            <rect
+              key={d.date}
+              x={x} y={y}
+              width={CELL} height={CELL}
+              rx={2}
+              fill={cellColor(d.count)}
+              onMouseEnter={e => handleMouseEnter(e, d)}
+              onMouseLeave={handleMouseLeave}
+              style={{ cursor: 'default' }}
+            />
+          )
+        })}
+      </svg>
+      {tooltip && (
+        <div
+          className="fixed z-50 px-2 py-1 rounded text-[10px] bg-gray-800 text-white pointer-events-none whitespace-nowrap shadow"
+          style={{ left: tooltip.x, top: tooltip.y, transform: 'translate(-50%, -100%)' }}
+        >
+          {tooltip.text}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export function NetworkGraph({ people }: { people: Person[] }) {
   const W = 420, H = 260
@@ -71,6 +166,8 @@ export function PeopleTab() {
   const [dupeCount, setDupeCount] = useState<number | null>(null)
   const [hidden, setHidden] = useState<Set<string>>(new Set())
   const [showHidden, setShowHidden] = useState(false)
+  // Heatmap expanded contact
+  const [heatmapEmail, setHeatmapEmail] = useState<string | null>(null)
   // Edit state
   const [editEmail, setEditEmail] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
@@ -384,6 +481,7 @@ export function PeopleTab() {
             const isVIP = vipMap[p.email.toLowerCase()] !== undefined
             const isToggling = toggling === p.email.toLowerCase()
             const isEditing = editEmail === p.email.toLowerCase()
+            const isHeatmap = heatmapEmail === p.email.toLowerCase()
             return (
               <div key={p.email} className={`border rounded-xl transition-colors ${isVIP ? 'border-amber-200 bg-amber-50/40' : 'border-gray-100'} ${isEditing ? 'ring-2 ring-accent/30' : ''}`}>
                 <div className="flex items-start justify-between gap-2 p-3">
@@ -394,7 +492,11 @@ export function PeopleTab() {
                       </span>
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5">
-                          <p className="text-sm font-medium text-gray-800 truncate">{p.name}</p>
+                          <button
+                            onClick={() => setHeatmapEmail(isHeatmap ? null : p.email.toLowerCase())}
+                            title={isHeatmap ? 'Hide activity heatmap' : 'Show 90-day activity heatmap'}
+                            className="text-sm font-medium text-gray-800 truncate hover:text-accent transition-colors text-left"
+                          >{p.name}</button>
                           {isVIP && <span className="text-[10px] text-amber-500 font-semibold flex-shrink-0">VIP</span>}
                         </div>
                         <p className="text-xs text-gray-400 truncate">{p.email}</p>
@@ -420,6 +522,7 @@ export function PeopleTab() {
                         )}
                       </div>
                     )}
+                    {isHeatmap && <ContactHeatmap email={p.email} />}
                   </div>
                   <div className="flex items-start gap-2 flex-shrink-0">
                     <div className="text-right">

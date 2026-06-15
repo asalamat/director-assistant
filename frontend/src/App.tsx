@@ -290,8 +290,19 @@ export default function App() {
   }
 
   const handleBulkDelete = async (ids: string[]) => {
-    await Promise.all(ids.map(id => api.deleteEmail(id).catch(() => {})))
+    await api.bulkEmailAction('delete', ids).catch(() => {})
     ids.forEach(id => removeEmail(id))
+  }
+
+  const handleBulkArchive = async (ids: string[]) => {
+    await api.bulkEmailAction('archive', ids).catch(() => {})
+    ids.forEach(id => removeEmail(id))
+  }
+
+  const handleBulkMarkRead = async (ids: string[]) => {
+    await api.bulkEmailAction('mark_read', ids).catch(() => {})
+    // keep emails in list — just refresh to update read state
+    mergeRefresh()
   }
 
   const handleBulkSnooze = async (ids: string[], date: string) => {
@@ -600,6 +611,8 @@ export default function App() {
                   refresh({ folder: f, q: undefined, only_unread: undefined })
                 }}
                 onBulkDelete={handleBulkDelete}
+                onBulkArchive={handleBulkArchive}
+                onBulkMarkRead={handleBulkMarkRead}
                 onBulkSnooze={handleBulkSnooze}
                 sortBy={(currentParams.sort_by ?? 'date') as import('./hooks/useEmails').SortBy}
                 sortOrder={(currentParams.sort_order ?? 'desc') as import('./hooks/useEmails').SortOrder}

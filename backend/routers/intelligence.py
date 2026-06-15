@@ -235,6 +235,45 @@ async def get_contact_hints(request: Request):
     return {"hints": hints}
 
 
+@router.get("/people/{email}/heatmap")
+async def get_contact_heatmap(email: str, request: Request):
+    """Return daily email counts for a contact over the last 90 days."""
+    from datetime import datetime, timedelta, timezone
+    cache = getattr(request.app.state, "cache", None)
+    if not cache:
+        return {"heatmap": []}
+
+    end = datetime.now(timezone.utc).date()
+    start = end - timedelta(days=89)  # 90 days inclusive
+
+    try:
+        with cache._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT DATE(date) as day, COUNT(*) as cnt
+                FROM emails
+                WHERE LOWER(sender) = LOWER(?)
+                  AND DATE(date) >= ?
+                  AND DATE(date) <= ?
+                GROUP BY day
+                """,
+                (email, start.isoformat(), end.isoformat()),
+            ).fetchall()
+    except Exception:
+        return {"heatmap": []}
+
+    counts: dict[str, int] = {row["day"]: row["cnt"] for row in rows}
+
+    heatmap = []
+    day = start
+    while day <= end:
+        key = day.isoformat()
+        heatmap.append({"date": key, "count": counts.get(key, 0)})
+        day += timedelta(days=1)
+
+    return {"heatmap": heatmap}
+
+
 class MeetingPrepRequest(BaseModel):
     subject: str
     attendees: list[str] = []

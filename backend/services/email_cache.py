@@ -379,6 +379,13 @@ class EmailCache(EmailExtrasMixin, DocumentCacheMixin):
                     created_at TEXT DEFAULT (datetime('now'))
                 )
             """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS email_previews (
+                    email_id   TEXT PRIMARY KEY,
+                    preview    TEXT NOT NULL,
+                    created_at TEXT DEFAULT (datetime('now'))
+                )
+            """)
             for col_def in ["account_id INTEGER DEFAULT 0", "server_id TEXT",
                              "followup_remind_at TEXT"]:
                 try:
@@ -480,9 +487,12 @@ class EmailCache(EmailExtrasMixin, DocumentCacheMixin):
         sort_by: str = "date",
         sort_order: str = "desc",
         from_date: Optional[str] = None,
+        to_date: Optional[str] = None,
         account_id: Optional[int] = None,
         only_unread: bool = False,
         category: Optional[str] = None,
+        sender_filter: Optional[str] = None,
+        has_attachment: bool = False,
     ) -> tuple[list[EmailSummary], int]:
         col = self.SORT_COLS.get(sort_by, "date")
         direction = "ASC" if sort_order.lower() == "asc" else "DESC"
@@ -504,9 +514,26 @@ class EmailCache(EmailExtrasMixin, DocumentCacheMixin):
             where += " AND date >= ?"
             params.append(from_date)
 
+        if to_date:
+            where += " AND date <= ?"
+            params.append(to_date + "T23:59:59")
+
         if category:
             where += " AND id IN (SELECT email_id FROM email_categories WHERE category = ?)"
             params.append(category)
+
+        if sender_filter:
+            where += " AND LOWER(sender) LIKE ?"
+            params.append(f"%{sender_filter.lower()}%")
+
+        if has_attachment:
+            # Heuristic: body mentions common attachment keywords/extensions
+            where += (
+                " AND (LOWER(body) LIKE '%.pdf%' OR LOWER(body) LIKE '%.docx%'"
+                " OR LOWER(body) LIKE '%.xlsx%' OR LOWER(body) LIKE '%.zip%'"
+                " OR LOWER(body) LIKE '%.pptx%' OR LOWER(body) LIKE '%.csv%'"
+                " OR LOWER(body) LIKE '%attachment%' OR LOWER(body) LIKE '%attached%')"
+            )
 
         # Exclude snoozed emails whose wake date hasn't arrived yet
         where += " AND id NOT IN (SELECT email_id FROM email_snooze WHERE wake_date > date('now'))"

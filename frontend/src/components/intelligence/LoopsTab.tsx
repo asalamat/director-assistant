@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { api } from '../../api/client'
-import type { OpenLoop } from '../../types'
+import type { OpenLoop, ForgotReplyEmail } from '../../types'
 
 const DISMISSED_KEY = 'dismissed_loops'
 
@@ -15,6 +15,121 @@ function loadDismissed(): Set<string> {
 
 function saveDismissed(s: Set<string>) {
   localStorage.setItem(DISMISSED_KEY, JSON.stringify([...s]))
+}
+
+const DISMISSED_FORGOT_KEY = 'dismissed_forgot_reply'
+
+function loadDismissedForgot(): Set<string> {
+  try { return new Set(JSON.parse(localStorage.getItem(DISMISSED_FORGOT_KEY) || '[]')) }
+  catch { return new Set() }
+}
+
+function saveDismissedForgot(s: Set<string>) {
+  localStorage.setItem(DISMISSED_FORGOT_KEY, JSON.stringify([...s]))
+}
+
+function ForgotReplyTab({ onOpenCompose }: { onOpenCompose?: (to: string, subject: string, emailId: string) => void }) {
+  const [emails, setEmails] = useState<ForgotReplyEmail[]>([])
+  const [loading, setLoading] = useState(false)
+  const [loaded, setLoaded] = useState(false)
+  const [dismissed, setDismissed] = useState<Set<string>>(loadDismissedForgot)
+  const [dismissing, setDismissing] = useState<Set<string>>(new Set())
+
+  const load = useCallback(() => {
+    setLoading(true)
+    api.getForgotReply(30, 20)
+      .then(r => { setEmails(r.emails); setLoaded(true) })
+      .catch(() => setEmails([]))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const dismiss = async (email: ForgotReplyEmail) => {
+    const next = new Set(dismissed)
+    next.add(email.id)
+    setDismissed(next)
+    saveDismissedForgot(next)
+    setDismissing(prev => new Set([...prev, email.id]))
+    try {
+      await api.dismissForgotReply(email.id, email.subject, email.sender)
+    } catch {
+      // suppress — local dismiss is enough
+    } finally {
+      setDismissing(prev => { const s = new Set(prev); s.delete(email.id); return s })
+    }
+  }
+
+  const replyNow = (email: ForgotReplyEmail) => {
+    if (onOpenCompose) {
+      const reSubject = email.subject.toLowerCase().startsWith('re:') ? email.subject : `Re: ${email.subject}`
+      onOpenCompose(email.sender, reSubject, email.id)
+    }
+  }
+
+  const visible = emails.filter(e => !dismissed.has(e.id))
+
+  if (!loaded && !loading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-4 py-16">
+        <div className="text-4xl">📬</div>
+        <div className="text-center">
+          <p className="text-sm text-gray-600 font-medium">Find emails you forgot to reply to</p>
+          <p className="text-xs text-gray-400 mt-1">Scans your inbox for emails you opened but never answered.</p>
+        </div>
+        <button onClick={load} className="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-blue-700 transition-colors">
+          Scan now
+        </button>
+      </div>
+    )
+  }
+
+  if (loading) return <div className="flex justify-center py-16"><div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" /></div>
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="px-4 pt-3 pb-2 flex items-center justify-between flex-shrink-0">
+        <p className="text-xs text-gray-500">{visible.length} email{visible.length !== 1 ? 's' : ''} waiting for a reply</p>
+        <button onClick={load} className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1 rounded hover:bg-gray-100">Refresh</button>
+      </div>
+      <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-2">
+        {visible.length === 0 && (
+          <p className="text-sm text-gray-400 text-center py-8">No forgotten replies found</p>
+        )}
+        {visible.map(email => (
+          <div key={email.id} className="border border-amber-200 bg-amber-50 rounded-xl p-3">
+            <div className="flex items-start gap-2">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-800 truncate">{email.subject}</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-xs text-gray-500 truncate">{email.sender}</span>
+                  <span className="text-xs text-gray-400">&bull;</span>
+                  <span className="text-xs text-amber-700 font-medium">
+                    {email.days_ago === 0 ? 'today' : email.days_ago === 1 ? '1 day ago' : `${email.days_ago} days ago`}
+                  </span>
+                </div>
+              </div>
+              <div className="flex gap-1 flex-shrink-0">
+                <button
+                  onClick={() => replyNow(email)}
+                  title="Reply now"
+                  className="text-xs px-2 py-1 bg-accent text-white rounded hover:bg-blue-700 transition-colors"
+                >
+                  Reply
+                </button>
+                <button
+                  onClick={() => dismiss(email)}
+                  disabled={dismissing.has(email.id)}
+                  title="Dismiss"
+                  className="text-xs px-2 py-1 bg-gray-100 text-gray-500 rounded hover:bg-gray-200 transition-colors disabled:opacity-40"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 export function LoopsTab() {

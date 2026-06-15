@@ -30,9 +30,12 @@ async def list_emails(
     sort_by: str = Query("date", pattern="^(date|sender|subject)$"),
     sort_order: str = Query("desc", pattern="^(asc|desc)$"),
     from_date: Optional[str] = Query(None),
+    to_date: Optional[str] = Query(None),
     account_id: Optional[int] = Query(None),
     only_unread: bool = Query(False),
     category: Optional[str] = Query(None),
+    sender_filter: Optional[str] = Query(None),
+    has_attachment: bool = Query(False),
 ):
     cache: EmailCache = request.app.state.cache
     rag: RAGEngine = request.app.state.rag
@@ -63,7 +66,8 @@ async def list_emails(
         summaries, total = cache.list_emails(
             folder=folder, skip=skip, limit=limit,
             sort_by=sort_by, sort_order=sort_order, from_date=from_date,
-            account_id=account_id, only_unread=only_unread, category=category,
+            to_date=to_date, account_id=account_id, only_unread=only_unread,
+            category=category, sender_filter=sender_filter, has_attachment=has_attachment,
         )
         return EmailListResponse(
             emails=summaries,
@@ -97,6 +101,88 @@ async def list_emails(
         raise HTTPException(500, f"Failed to fetch emails: {e}")
 
     return EmailListResponse(emails=emails, total=total, has_more=(skip + limit) < total)
+
+
+@router.get("/forgot-reply")
+async def get_forgot_reply(request: Request, days: int = 30, limit: int = 20):
+    """Return INBOX emails that were read but never replied to.
+
+    Exclusions:
+    - Emails the user sent themselves (sender is one of the user's own accounts).
+    - Newsletters, fyi, and promotional categories.
+    - Emails already tracked in the follow_ups table.
+    """
+    cache: EmailCache = request.app.state.cache
+
+    with cache._conn() as conn:
+        # Collect user's own email addresses from accounts table
+        own_rows = conn.execute("SELECT email FROM accounts").fetchall()
+        own_emails = [r["email"].lower() for r in own_rows if r["email"]]
+
+        if own_emails:
+            own_placeholders = ",".join("?" * len(own_emails))
+            own_where = f"AND LOWER(e.sender) NOT IN ({own_placeholders})"
+            reply_where = f"AND LOWER(e2.sender) IN ({own_placeholders})"
+            own_params: list = own_emails
+        else:
+            own_where = ""
+            reply_where = "AND 1=0"
+            own_params = []
+
+        cutoff = f"datetime('now', '-{int(days)} days')"
+
+        rows = conn.execute(
+            f"""
+            SELECT e.id, e.subject, e.sender, e.date
+            FROM emails e
+            WHERE e.is_read = 1
+              AND e.folder = 'INBOX'
+              AND e.date >= {cutoff}
+              {own_where}
+              AND e.id NOT IN (
+                  SELECT ec.email_id FROM email_categories ec
+                  WHERE LOWER(ec.category) IN ('newsletter', 'fyi', 'promotional', 'notification')
+              )
+              AND e.id NOT IN (
+                  SELECT fu.email_id FROM follow_ups fu WHERE fu.email_id IS NOT NULL
+              )
+              AND (
+                  e.thread_id IS NULL
+                  OR e.thread_id NOT IN (
+                      SELECT e2.thread_id FROM emails e2
+                      WHERE e2.thread_id IS NOT NULL
+                        {reply_where}
+                  )
+              )
+            ORDER BY e.date DESC
+            LIMIT ?
+            """,
+            (*own_params, *own_params, min(limit, 50)),
+        ).fetchall()
+
+    from datetime import datetime, timezone
+
+    now = datetime.now(timezone.utc)
+    results = []
+    for r in rows:
+        date_str = str(r["date"] or "")
+        days_ago = 0
+        try:
+            parsed = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            days_ago = (now - parsed).days
+        except Exception:
+            pass
+        results.append({
+            "id": r["id"],
+            "subject": r["subject"] or "(no subject)",
+            "sender": r["sender"] or "",
+            "date": date_str,
+            "days_ago": days_ago,
+        })
+
+    return {"emails": results, "total": len(results), "days": days}
 
 
 @router.get("/folders")
@@ -325,6 +411,60 @@ async def get_unsubscribe_url(email_id: str, request: Request):
     return {"url": url}
 
 
+@router.get("/{email_id}/preview")
+async def get_email_preview(email_id: str, request: Request):
+    """Return a 1-sentence AI preview (max 100 chars) for inbox list display.
+    Result is cached in SQLite so it is only generated once per email.
+    Falls back to the first 100 chars of body if AI is unavailable.
+    """
+    cache: EmailCache = request.app.state.cache
+    advisor = request.app.state.advisor
+
+    # Return from cache if already generated
+    with cache._conn() as conn:
+        row = conn.execute(
+            "SELECT preview FROM email_previews WHERE email_id = ?", (email_id,)
+        ).fetchone()
+    if row:
+        return {"preview": row["preview"]}
+
+    email = cache.get(email_id)
+    if not email:
+        raise HTTPException(404, "Email not found")
+
+    body = (email.body or "").strip()[:800]
+    preview = ""
+
+    prompt = (
+        "Summarize this email in ONE sentence, max 100 characters. "
+        "Be specific about what the sender wants or says. No quotes.\n"
+        f"From: {email.sender}\nSubject: {email.subject}\n\n{body}"
+    )
+    ant = getattr(advisor.ai, "_anthropic", None)
+    try:
+        client = ant if ant else advisor.ai
+        resp = await client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=60,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        preview = resp.content[0].text.strip().rstrip(".")[:100]
+    except Exception:
+        pass
+
+    if not preview:
+        import re as _re
+        preview = _re.sub(r"\s+", " ", body)[:100]
+
+    with cache._conn() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO email_previews (email_id, preview) VALUES (?, ?)",
+            (email_id, preview),
+        )
+
+    return {"preview": preview}
+
+
 @router.get("/{email_id}/one-line")
 async def one_line_summary(email_id: str, request: Request):
     """Generate a single-sentence AI summary for inbox preview."""
@@ -517,3 +657,54 @@ async def mark_email_read(email_id: str, request: Request):
     with cache._conn() as conn:
         conn.execute("UPDATE emails SET is_read = 1 WHERE id = ?", (email_id,))
     return {"status": "read", "email_id": email_id}
+
+
+class BulkActionRequest(BaseModel):
+    action: str  # "archive" | "delete" | "mark_read"
+    email_ids: list[str]
+
+
+@router.post("/bulk-action")
+async def bulk_action(req: BulkActionRequest, request: Request):
+    """Perform a bulk action on up to 100 emails at once.
+
+    Actions:
+      archive   — move emails to 'Archive' folder in local cache
+      delete    — remove emails from cache and RAG index
+      mark_read — mark emails as read in local cache
+    """
+    if req.action not in ("archive", "delete", "mark_read"):
+        raise HTTPException(400, f"Unknown action: {req.action!r}")
+
+    ids = req.email_ids[:100]  # cap at 100
+    if not ids:
+        raise HTTPException(400, "email_ids must not be empty")
+
+    cache: EmailCache = request.app.state.cache
+    rag: RAGEngine = request.app.state.rag
+
+    processed: list[str] = []
+
+    if req.action == "mark_read":
+        with cache._conn() as conn:
+            for email_id in ids:
+                conn.execute("UPDATE emails SET is_read = 1 WHERE id = ?", (email_id,))
+                processed.append(email_id)
+
+    elif req.action == "archive":
+        with cache._conn() as conn:
+            for email_id in ids:
+                rows_affected = conn.execute(
+                    "UPDATE emails SET folder = 'Archive' WHERE id = ?", (email_id,)
+                ).rowcount
+                if rows_affected:
+                    processed.append(email_id)
+
+    elif req.action == "delete":
+        for email_id in ids:
+            found = cache.delete_email(email_id)
+            rag.remove_email(email_id)
+            if found:
+                processed.append(email_id)
+
+    return {"action": req.action, "processed": len(processed), "ids": processed}

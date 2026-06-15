@@ -32,6 +32,8 @@ interface Props {
   onFolderChange: (folder: string) => void
   onBulkDelete?: (ids: string[]) => void
   onBulkSnooze?: (ids: string[], date: string) => void
+  onBulkArchive?: (ids: string[]) => void
+  onBulkMarkRead?: (ids: string[]) => void
   onOpenCompose?: (opts: { to: string; subject: string; body: string }) => void
   sortBy: SortBy
   sortOrder: SortOrder
@@ -95,7 +97,7 @@ function replyDepth(subject: string): number {
   return depth
 }
 
-export function EmailList({ emails, selectedId, loading, hasMore, total, folders, currentFolder, onSelect, onLoadMore, onSearch, onSort, onFolderChange, onBulkDelete, onBulkSnooze, onOpenCompose, sortBy, sortOrder, onlyUnread, activeCategory, onCategoryChange }: Props) {
+export function EmailList({ emails, selectedId, loading, hasMore, total, folders, currentFolder, onSelect, onLoadMore, onSearch, onSort, onFolderChange, onBulkDelete, onBulkSnooze, onBulkArchive, onBulkMarkRead, onOpenCompose, sortBy, sortOrder, onlyUnread, activeCategory, onCategoryChange }: Props) {
   const [query, setQuery] = useState('')
   const [savedSearches, setSavedSearches] = useState<{ id: number; name: string; query: string; folder: string }[]>([])
   const [history, setHistory] = useState<string[]>(loadHistory)
@@ -116,6 +118,36 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
   const [hoverTimer, setHoverTimer] = useState<ReturnType<typeof setTimeout> | null>(null)
   const [priorityEmails, setPriorityEmails] = useState<any[] | null>(null)
   const [loadingPriority, setLoadingPriority] = useState(false)
+  const [aiPreviews, setAiPreviews] = useState<Record<string, string>>({})
+  const fetchedPreviewIds = useRef<Set<string>>(new Set())
+  const previewObserverRef = useRef<IntersectionObserver | null>(null)
+
+  // Lazily fetch AI preview when a row enters the viewport
+  const observeEmailRow = (el: HTMLDivElement | null, emailId: string) => {
+    if (!el) return
+    if (fetchedPreviewIds.current.has(emailId)) return
+    if (!previewObserverRef.current) {
+      previewObserverRef.current = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (!entry.isIntersecting) return
+            const id = (entry.target as HTMLElement).dataset.emailId
+            if (!id || fetchedPreviewIds.current.has(id)) return
+            fetchedPreviewIds.current.add(id)
+            previewObserverRef.current?.unobserve(entry.target)
+            api.getEmailPreview(id)
+              .then(({ preview }) => {
+                if (preview) setAiPreviews(prev => ({ ...prev, [id]: preview }))
+              })
+              .catch(() => {})
+          })
+        },
+        { rootMargin: '100px' },
+      )
+    }
+    el.dataset.emailId = emailId
+    previewObserverRef.current.observe(el)
+  }
 
   useEffect(() => {
     api.getSavedSearches().then(setSavedSearches).catch(() => {})
@@ -163,6 +195,18 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
     const ids = Array.from(selected)
     setSelected(new Set())
     onBulkDelete?.(ids)
+  }
+
+  const handleBulkArchive = async () => {
+    const ids = Array.from(selected)
+    setSelected(new Set())
+    onBulkArchive?.(ids)
+  }
+
+  const handleBulkMarkRead = async () => {
+    const ids = Array.from(selected)
+    setSelected(new Set())
+    onBulkMarkRead?.(ids)
   }
 
   const handleBulkSnooze = async () => {
@@ -395,6 +439,12 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
           <>
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs font-medium text-gray-700">{selected.size} selected</span>
+              {onBulkArchive && (
+                <button onClick={handleBulkArchive} className="text-xs text-indigo-600 hover:text-indigo-800 px-2 py-0.5 rounded hover:bg-indigo-50 transition-colors">Archive</button>
+              )}
+              {onBulkMarkRead && (
+                <button onClick={handleBulkMarkRead} className="text-xs text-green-600 hover:text-green-800 px-2 py-0.5 rounded hover:bg-green-50 transition-colors">Mark read</button>
+              )}
               {onBulkDelete && (
                 <button onClick={handleBulkDelete} className="text-xs text-red-500 hover:text-red-700 px-2 py-0.5 rounded hover:bg-red-50 transition-colors">Delete</button>
               )}
@@ -421,7 +471,7 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
                   {generatingBulk ? 'Drafting…' : 'Draft all'}
                 </button>
               )}
-              <button onClick={() => { setSelected(new Set()); setBulkDrafts(null) }} className="text-xs text-gray-400 hover:text-gray-600 ml-auto">Clear</button>
+              <button onClick={() => { setSelected(new Set()); setBulkDrafts(null) }} className="text-xs text-gray-400 hover:text-gray-600 ml-auto">Clear ✕</button>
             </div>
             {bulkDrafts !== null && (
               <div className="mt-2 space-y-2 max-h-64 overflow-y-auto">
@@ -561,6 +611,7 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
           return (
             <div
               key={email.id}
+              ref={(el) => observeEmailRow(el, email.id)}
               className="relative group border-b border-gray-50"
               onMouseEnter={() => {
                 setHoveredId(email.id)
@@ -649,7 +700,14 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
                       </span>
                     )}
                   </div>
-                  <div className="text-xs text-gray-400 mt-0.5 line-clamp-2 leading-relaxed">{email.preview && query.trim() ? <Highlight text={email.preview} query={query} /> : email.preview}</div>
+                  {/* AI 1-sentence preview — lazily loaded via IntersectionObserver */}
+                  {aiPreviews[email.id] ? (
+                    <div className="text-xs text-gray-400 mt-0.5 truncate italic leading-snug">
+                      {aiPreviews[email.id]}
+                    </div>
+                  ) : (
+                    <div className="text-xs text-gray-400 mt-0.5 line-clamp-2 leading-relaxed">{email.preview && query.trim() ? <Highlight text={email.preview} query={query} /> : email.preview}</div>
+                  )}
                 </div>
               </button>
 
