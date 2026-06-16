@@ -453,7 +453,11 @@ def _ensure_task_tables(conn):
         id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER NOT NULL,
         comment TEXT NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)""")
     # Budget columns — safe to run on every startup
-    for col, typedef in [("hourly_rate", "REAL DEFAULT 0"), ("budget_total", "REAL DEFAULT 0")]:
+    for col, typedef in [
+        ("hourly_rate", "REAL DEFAULT 0"),
+        ("budget_total", "REAL DEFAULT 0"),
+        ("progress", "INTEGER DEFAULT 0"),
+    ]:
         try:
             conn.execute(f"ALTER TABLE project_tasks ADD COLUMN {col} {typedef}")
         except Exception:
@@ -476,6 +480,7 @@ class TaskPatch(BaseModel):
     name: Optional[str] = None; assignee: Optional[str] = None
     priority: Optional[str] = None; status: Optional[str] = None
     depends_on: Optional[list] = None; hourly_rate: Optional[float] = None
+    progress: Optional[int] = None
 
 class CommentIn(BaseModel):
     comment: str
@@ -520,6 +525,7 @@ async def list_tasks(project_id: int, request: Request):
             """SELECT t.id, t.phase_name, t.name, t.assignee, t.duration_days, t.priority,
                       t.status, t.depends_on, t.created_at, t.updated_at,
                       COALESCE(t.hourly_rate, 0) as hourly_rate,
+                      COALESCE(t.progress, 0) as progress,
                       COUNT(c.id) as comment_count
                FROM project_tasks t LEFT JOIN project_task_comments c ON c.task_id = t.id
                WHERE t.project_id=? GROUP BY t.id ORDER BY t.phase_name, t.id""",

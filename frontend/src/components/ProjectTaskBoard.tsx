@@ -14,6 +14,7 @@ interface Task {
   depends_on: string[]
   comment_count: number
   hourly_rate?: number
+  progress?: number
 }
 
 interface TaskComment {
@@ -53,6 +54,7 @@ function TaskCard({ task, onUpdate, onDelete, projectId, onAssignEmail }: TaskCa
   const [priority, setPriority] = useState(task.priority)
   const [dependsOn, setDependsOn] = useState(task.depends_on.join(', '))
   const [hourlyRate, setHourlyRate] = useState(String(task.hourly_rate ?? 0))
+  const [progress, setProgress] = useState(task.progress ?? 0)
   const [saving, setSaving] = useState(false)
   const [showAssignPrompt, setShowAssignPrompt] = useState(false)
   const [savedAssignee, setSavedAssignee] = useState('')
@@ -82,6 +84,7 @@ function TaskCard({ task, onUpdate, onDelete, projectId, onAssignEmail }: TaskCa
       priority,
       depends_on: dependsOn.split(',').map(s => s.trim()).filter(Boolean),
       hourly_rate: parseFloat(hourlyRate) || 0,
+      progress,
     })
     setSaving(false)
     if (assignee.trim() && assignee.trim() !== task.assignee) {
@@ -119,6 +122,15 @@ function TaskCard({ task, onUpdate, onDelete, projectId, onAssignEmail }: TaskCa
           <div className="flex-1 min-w-0">
             <p className="text-xs font-medium text-gray-800 leading-snug">{task.name}</p>
             <p className="text-[10px] text-gray-400 mt-0.5 truncate">{task.phase_name} · {task.assignee || 'Unassigned'}</p>
+            {/* Mini progress bar */}
+            {(task.progress ?? 0) > 0 && (
+              <div className="mt-1.5 flex items-center gap-1.5">
+                <div className="flex-1 h-1 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="h-1 bg-accent rounded-full transition-all" style={{ width: `${task.progress ?? 0}%` }} />
+                </div>
+                <span className="text-[9px] text-gray-400 flex-shrink-0">{task.progress}%</span>
+              </div>
+            )}
           </div>
           {task.comment_count > 0 && (
             <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full flex-shrink-0">
@@ -157,6 +169,22 @@ function TaskCard({ task, onUpdate, onDelete, projectId, onAssignEmail }: TaskCa
               <p className="text-xs text-gray-600 px-2 py-1">
                 ${((parseFloat(hourlyRate) || 0) * (task.duration_days || 1) * 8).toLocaleString(undefined, { maximumFractionDigits: 0 })}
               </p>
+            </div>
+          </div>
+
+          {/* Progress slider */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Progress</label>
+              <span className="text-xs font-semibold text-accent">{progress}%</span>
+            </div>
+            <input
+              type="range" min="0" max="100" step="5" value={progress}
+              onChange={e => setProgress(Number(e.target.value))}
+              className="w-full h-1.5 rounded-full accent-accent cursor-pointer"
+            />
+            <div className="flex justify-between text-[9px] text-gray-300 mt-0.5">
+              <span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span>
             </div>
           </div>
 

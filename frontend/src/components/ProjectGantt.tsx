@@ -4,6 +4,7 @@ export interface GanttTask {
   id: number; name: string; phase_name: string
   status: string; duration_days: number
   assignee: string; depends_on?: string[]
+  progress?: number
 }
 
 interface GanttRow {
@@ -23,7 +24,10 @@ function phasePct(tasks: GanttTask[], ph: string) {
   const ts = tasks.filter(t => t.phase_name === ph)
   return ts.length ? Math.round(ts.filter(t => t.status === 'done').length / ts.length * 100) : 0
 }
-function taskPct(s: string) { return s === 'done' ? 100 : s === 'in_progress' ? 50 : 0 }
+function taskPct(t: GanttTask) {
+  if (t.progress !== undefined && t.progress > 0) return t.progress
+  return t.status === 'done' ? 100 : t.status === 'in_progress' ? 50 : 0
+}
 function total(tasks: GanttTask[]) { return tasks.reduce((s, t) => s + (t.duration_days || 1), 0) || 1 }
 function bx(off: number, tot: number) { return LW + (off / tot) * BA }
 function bw(d: number, tot: number) { return Math.max(2, (d / tot) * BA) }
@@ -36,7 +40,7 @@ function buildRows(tasks: GanttTask[]): GanttRow[] {
     const pts = tasks.filter(t => t.phase_name === ph)
     rows.push({ kind: 'phase', label: ph, durationDays: pts.reduce((s, t) => s + (t.duration_days || 1), 0), offset: off, pct: phasePct(tasks, ph) })
     for (const t of pts) {
-      rows.push({ kind: 'task', label: t.name, taskId: t.id, durationDays: t.duration_days || 1, offset: off, pct: taskPct(t.status), status: t.status, assignee: t.assignee, deps: t.depends_on })
+      rows.push({ kind: 'task', label: t.name, taskId: t.id, durationDays: t.duration_days || 1, offset: off, pct: taskPct(t), status: t.status, assignee: t.assignee, deps: t.depends_on })
       off += t.duration_days || 1
     }
   }
