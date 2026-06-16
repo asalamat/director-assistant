@@ -791,6 +791,12 @@ export const api = {
   getProjectsForEmail(emailId: string): Promise<{ projects: any[] }> {
     return request(`/projects/for-email/${encodeURIComponent(emailId)}`)
   },
+  generateProjectPlan(id: number): Promise<{ plan: any }> {
+    return request(`/projects/${id}/generate-plan`, { method: 'POST' })
+  },
+  getProjectPlan(id: number): Promise<{ plan: any }> {
+    return request(`/projects/${id}/plan`)
+  },
 
   // Send-Time Optimizer
   getBestSendTime(emailAddr: string): Promise<{ suggestion: string | null; best_day: string; best_hour_display: string; top_days: string[]; reason: string }> {
