@@ -6,10 +6,152 @@ import { useUIContext } from '../contexts/UIContext'
 
 interface Project { id: number; name: string; description: string; status: string; email_count: number; created_at: string }
 
+interface ProjectPlan {
+  summary: string
+  objectives: string[]
+  phases: Array<{
+    name: string; start_week: number; duration_weeks: number; milestone: string
+    tasks: Array<{ name: string; duration_days: number; assignee: string; priority: string }>
+  }>
+  risks: Array<{ description: string; impact: string; mitigation: string }>
+  estimated_duration_weeks: number
+}
+
 const STATUS_COLORS: Record<string, string> = {
   active:   'bg-green-100 text-green-700',
   paused:   'bg-amber-100 text-amber-700',
   resolved: 'bg-gray-100 text-gray-500',
+}
+
+const IMPACT_COLORS: Record<string, string> = {
+  high:   'bg-red-100 text-red-700',
+  medium: 'bg-amber-100 text-amber-700',
+  low:    'bg-green-100 text-green-700',
+}
+
+const PRIORITY_COLORS: Record<string, string> = {
+  high:   'bg-red-50 text-red-600',
+  medium: 'bg-amber-50 text-amber-600',
+  low:    'bg-gray-50 text-gray-500',
+}
+
+function buildPlanHTML(project: Project, plan: ProjectPlan): string {
+  const phases = plan.phases.map(ph => `
+    <h3 style="margin:16px 0 6px;font-size:14px;color:#1e293b">${ph.name} — Week ${ph.start_week}, ${ph.duration_weeks}w (${ph.milestone})</h3>
+    <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:8px">
+      <thead><tr style="background:#f1f5f9">
+        <th style="padding:4px 8px;text-align:left;border:1px solid #e2e8f0">Task</th>
+        <th style="padding:4px 8px;text-align:left;border:1px solid #e2e8f0">Days</th>
+        <th style="padding:4px 8px;text-align:left;border:1px solid #e2e8f0">Assignee</th>
+        <th style="padding:4px 8px;text-align:left;border:1px solid #e2e8f0">Priority</th>
+      </tr></thead>
+      <tbody>${ph.tasks.map(t => `<tr>
+        <td style="padding:4px 8px;border:1px solid #e2e8f0">${t.name}</td>
+        <td style="padding:4px 8px;border:1px solid #e2e8f0">${t.duration_days}</td>
+        <td style="padding:4px 8px;border:1px solid #e2e8f0">${t.assignee}</td>
+        <td style="padding:4px 8px;border:1px solid #e2e8f0">${t.priority}</td>
+      </tr>`).join('')}</tbody>
+    </table>`).join('')
+  const risks = plan.risks.map(r => `
+    <tr><td style="padding:4px 8px;border:1px solid #e2e8f0">${r.description}</td>
+    <td style="padding:4px 8px;border:1px solid #e2e8f0">${r.impact}</td>
+    <td style="padding:4px 8px;border:1px solid #e2e8f0">${r.mitigation}</td></tr>`).join('')
+  return `<!DOCTYPE html><html><head><title>${project.name} — Project Plan</title>
+  <style>body{font-family:system-ui,sans-serif;max-width:800px;margin:32px auto;color:#334155;font-size:13px}
+  h1{font-size:20px;margin-bottom:4px}h2{font-size:15px;margin:20px 0 8px;border-bottom:1px solid #e2e8f0;padding-bottom:4px}
+  ul{margin:4px 0 0 20px;padding:0}li{margin-bottom:2px}@media print{body{margin:0}}</style></head>
+  <body><h1>${project.name}</h1><p style="color:#64748b;font-size:12px">Estimated duration: ${plan.estimated_duration_weeks} weeks</p>
+  <h2>Summary</h2><p>${plan.summary}</p>
+  <h2>Objectives</h2><ul>${plan.objectives.map(o => `<li>${o}</li>`).join('')}</ul>
+  <h2>Phases &amp; Tasks</h2>${phases}
+  <h2>Risks</h2><table style="width:100%;border-collapse:collapse;font-size:12px">
+  <thead><tr style="background:#f1f5f9">
+    <th style="padding:4px 8px;text-align:left;border:1px solid #e2e8f0">Risk</th>
+    <th style="padding:4px 8px;text-align:left;border:1px solid #e2e8f0">Impact</th>
+    <th style="padding:4px 8px;text-align:left;border:1px solid #e2e8f0">Mitigation</th>
+  </tr></thead><tbody>${risks}</tbody></table>
+  </body></html>`
+}
+
+interface ProjectPlanViewProps { plan: ProjectPlan }
+
+function ProjectPlanView({ plan }: ProjectPlanViewProps) {
+  const [expandedPhase, setExpandedPhase] = useState<number | null>(null)
+  return (
+    <div className="mt-3 space-y-3">
+      <p className="text-xs text-gray-600 leading-relaxed">{plan.summary}</p>
+      {plan.objectives.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-gray-700 mb-1">Objectives</p>
+          <ul className="space-y-0.5 pl-3">
+            {plan.objectives.map((o, i) => (
+              <li key={i} className="text-xs text-gray-600 list-disc">{o}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      <div>
+        <p className="text-xs font-semibold text-gray-700 mb-1">Phases</p>
+        <div className="space-y-1">
+          {plan.phases.map((ph, i) => (
+            <div key={i} className="border border-gray-100 rounded-lg overflow-hidden">
+              <button className="w-full flex items-center justify-between px-3 py-2 bg-gray-50 hover:bg-gray-100 text-left transition-colors"
+                onClick={() => setExpandedPhase(expandedPhase === i ? null : i)}>
+                <span className="text-xs font-medium text-gray-800">{ph.name}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-gray-400">{ph.duration_weeks}w · {ph.tasks.length} tasks</span>
+                  <span className="text-[10px] text-gray-400">{expandedPhase === i ? '▲' : '▼'}</span>
+                </div>
+              </button>
+              {ph.milestone && <p className="px-3 py-1 text-[10px] text-accent bg-blue-50">{ph.milestone}</p>}
+              {expandedPhase === i && (
+                <table className="w-full text-xs">
+                  <thead><tr className="bg-gray-50">
+                    <th className="px-3 py-1.5 text-left text-[10px] text-gray-500 font-medium">Task</th>
+                    <th className="px-2 py-1.5 text-left text-[10px] text-gray-500 font-medium">Days</th>
+                    <th className="px-2 py-1.5 text-left text-[10px] text-gray-500 font-medium">Assignee</th>
+                    <th className="px-2 py-1.5 text-left text-[10px] text-gray-500 font-medium">Pri</th>
+                  </tr></thead>
+                  <tbody>{ph.tasks.map((t, j) => (
+                    <tr key={j} className="border-t border-gray-50">
+                      <td className="px-3 py-1.5 text-gray-700">{t.name}</td>
+                      <td className="px-2 py-1.5 text-gray-500">{t.duration_days}</td>
+                      <td className="px-2 py-1.5 text-gray-500 truncate max-w-[80px]">{t.assignee}</td>
+                      <td className="px-2 py-1.5">
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${PRIORITY_COLORS[t.priority.toLowerCase()] || PRIORITY_COLORS.low}`}>
+                          {t.priority}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+      {plan.risks.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-gray-700 mb-1">Risks</p>
+          <div className="space-y-1">
+            {plan.risks.map((r, i) => (
+              <div key={i} className="border border-gray-100 rounded-lg px-3 py-2">
+                <div className="flex items-start gap-2">
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium flex-shrink-0 mt-0.5 ${IMPACT_COLORS[r.impact.toLowerCase()] || IMPACT_COLORS.medium}`}>
+                    {r.impact}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-xs text-gray-700">{r.description}</p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">{r.mitigation}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 export function ProjectsPanel() {
@@ -30,6 +172,9 @@ export function ProjectsPanel() {
   const [projEmails, setProjEmails] = useState<any[]>([])
   const [emailsLoading, setEmailsLoading] = useState(false)
   const [filter, setFilter] = useState<'all' | 'active' | 'paused' | 'resolved'>('all')
+  const [plan, setPlan] = useState<ProjectPlan | null>(null)
+  const [planLoading, setPlanLoading] = useState(false)
+  const [planMsg, setPlanMsg] = useState('')
 
   const load = () => {
     setLoading(true)
@@ -50,9 +195,16 @@ export function ProjectsPanel() {
 
   const openProject = async (proj: Project) => {
     setSelected(proj)
+    setPlan(null)
+    setPlanMsg('')
     setEmailsLoading(true)
-    const r = await api.getProjectEmails(proj.id).catch(() => ({ emails: [] }))
-    setProjEmails(r.emails)
+    const [emailsRes, planRes] = await Promise.allSettled([
+      api.getProjectEmails(proj.id),
+      api.getProjectPlan(proj.id),
+    ])
+    if (emailsRes.status === 'fulfilled') setProjEmails(emailsRes.value.emails)
+    else setProjEmails([])
+    if (planRes.status === 'fulfilled' && planRes.value?.plan) setPlan(planRes.value.plan)
     setEmailsLoading(false)
   }
 
@@ -79,6 +231,39 @@ export function ProjectsPanel() {
     setProjects(prev => prev.map(p => p.id === selected.id ? { ...p, email_count: Math.max(0, p.email_count - 1) } : p))
   }
 
+  const handleGeneratePlan = async () => {
+    if (!selected) return
+    setPlanLoading(true)
+    setPlanMsg('')
+    try {
+      const res = await api.generateProjectPlan(selected.id)
+      if (res?.plan) { setPlan(res.plan); setPlanMsg('') }
+      else setPlanMsg('No plan returned.')
+    } catch (err: any) {
+      setPlanMsg(err?.message || 'Failed to generate plan.')
+    }
+    setPlanLoading(false)
+  }
+
+  const handleExportPDF = () => {
+    if (!plan || !selected) return
+    const html = buildPlanHTML(selected, plan)
+    const w = window.open('', '_blank')
+    w?.document.write(html)
+    w?.document.close()
+    w?.print()
+  }
+
+  const handleExportMSProject = async () => {
+    if (!selected) return
+    const res = await fetch(`/api/projects/${selected.id}/export/msproject`)
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `${selected.name}.xml`; a.click()
+    URL.revokeObjectURL(url)
+  }
+
   const filtered = filter === 'all' ? projects : projects.filter(p => p.status === filter)
 
   if (selected) {
@@ -97,7 +282,7 @@ export function ProjectsPanel() {
         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
           {emailsLoading && <div className="flex justify-center py-8"><Spinner size="md" /></div>}
           {!emailsLoading && projEmails.length === 0 && (
-            <div className="py-8">
+            <div className="py-4">
               <EmptyState icon="📎" title="No emails linked yet" description="Open an email and use the project linker to add emails here." />
             </div>
           )}
@@ -114,6 +299,30 @@ export function ProjectsPanel() {
                 title="Unlink from project">✕</button>
             </div>
           ))}
+
+          {/* AI Plan section */}
+          <div className="pt-2 border-t border-gray-100">
+            <div className="flex items-center gap-2 flex-wrap">
+              <button onClick={handleGeneratePlan} disabled={planLoading}
+                className="text-xs bg-accent text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                {planLoading ? '⟳ Generating…' : plan ? '↺ Regenerate Plan' : '✦ Generate AI Plan'}
+              </button>
+              {plan && (
+                <>
+                  <button onClick={handleExportPDF}
+                    className="text-xs border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50">
+                    📄 Export PDF
+                  </button>
+                  <button onClick={handleExportMSProject}
+                    className="text-xs border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50">
+                    📊 MS Project (.xml)
+                  </button>
+                </>
+              )}
+            </div>
+            {planMsg && <p className="text-xs text-red-500 mt-1">{planMsg}</p>}
+            {plan && <ProjectPlanView plan={plan} />}
+          </div>
         </div>
       </div>
     )
@@ -155,11 +364,7 @@ export function ProjectsPanel() {
         {loading && <div className="flex justify-center py-12"><Spinner size="md" /></div>}
         {!loading && filtered.length === 0 && (
           <div className="py-12">
-            <EmptyState
-              icon="📁"
-              title="No projects yet"
-              description="Create a project to link related emails together"
-            />
+            <EmptyState icon="📁" title="No projects yet" description="Create a project to link related emails together" />
           </div>
         )}
         {filtered.map(proj => (

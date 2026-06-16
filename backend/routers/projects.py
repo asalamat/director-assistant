@@ -13,48 +13,39 @@ router = APIRouter(prefix="/api/projects", tags=["projects"])
 
 
 def _ensure_plan_column(conn) -> None:
-    """Add plan_json column to projects table if it does not exist yet."""
     try:
         conn.execute("ALTER TABLE projects ADD COLUMN plan_json TEXT")
     except Exception:
-        pass  # column already exists
+        pass
 
 
 def _strip_json_fences(text: str) -> str:
-    """Remove markdown code fences that Claude sometimes wraps JSON in."""
     text = text.strip()
     text = re.sub(r"^```(?:json)?\s*", "", text)
-    text = re.sub(r"\s*```$", "", text)
-    return text.strip()
+    return re.sub(r"\s*```$", "", text).strip()
 
 
 def _build_msproject_xml(project_name: str, plan: dict) -> str:
-    """Build a minimal MSPDI XML string from the plan dict."""
     root = ET.Element("Project", xmlns="http://schemas.microsoft.com/project")
     ET.SubElement(root, "Name").text = project_name
     tasks_el = ET.SubElement(root, "Tasks")
-
     uid = 0
     for phase in plan.get("phases", []):
         uid += 1
-        phase_el = ET.SubElement(tasks_el, "Task")
-        ET.SubElement(phase_el, "UID").text = str(uid)
-        ET.SubElement(phase_el, "ID").text = str(uid)
-        ET.SubElement(phase_el, "Name").text = phase.get("name", "Phase")
-        ET.SubElement(phase_el, "Summary").text = "1"
-        dur_h = phase.get("duration_weeks", 1) * 5 * 8
-        ET.SubElement(phase_el, "Duration").text = f"PT{dur_h}H0M0S"
-
+        ph = ET.SubElement(tasks_el, "Task")
+        ET.SubElement(ph, "UID").text = str(uid)
+        ET.SubElement(ph, "ID").text = str(uid)
+        ET.SubElement(ph, "Name").text = phase.get("name", "Phase")
+        ET.SubElement(ph, "Summary").text = "1"
+        ET.SubElement(ph, "Duration").text = f"PT{phase.get('duration_weeks',1)*40}H0M0S"
         for task in phase.get("tasks", []):
             uid += 1
-            task_el = ET.SubElement(tasks_el, "Task")
-            ET.SubElement(task_el, "UID").text = str(uid)
-            ET.SubElement(task_el, "ID").text = str(uid)
-            ET.SubElement(task_el, "Name").text = task.get("name", "Task")
-            task_dur_h = task.get("duration_days", 1) * 8
-            ET.SubElement(task_el, "Duration").text = f"PT{task_dur_h}H0M0S"
-            ET.SubElement(task_el, "OutlineLevel").text = "1"
-
+            tk = ET.SubElement(tasks_el, "Task")
+            ET.SubElement(tk, "UID").text = str(uid)
+            ET.SubElement(tk, "ID").text = str(uid)
+            ET.SubElement(tk, "Name").text = task.get("name", "Task")
+            ET.SubElement(tk, "Duration").text = f"PT{task.get('duration_days',1)*8}H0M0S"
+            ET.SubElement(tk, "OutlineLevel").text = "1"
     return '<?xml version="1.0" encoding="UTF-8"?>\n' + ET.tostring(root, encoding="unicode")
 
 
@@ -124,12 +115,10 @@ async def get_project_emails(project_id: int, request: Request):
     with cache._conn() as conn:
         rows = conn.execute(
             """SELECT e.id, e.subject, e.sender, e.date, e.folder, e.is_read,
-                      pe.linked_at,
-                      SUBSTR(e.body, 1, 160) as preview
+                      pe.linked_at, SUBSTR(e.body, 1, 160) as preview
                FROM emails e
                JOIN project_emails pe ON pe.email_id = e.id
-               WHERE pe.project_id = ?
-               ORDER BY e.date DESC""",
+               WHERE pe.project_id = ? ORDER BY e.date DESC""",
             (project_id,)
         ).fetchall()
     return {"emails": [dict(r) for r in rows]}
@@ -165,7 +154,6 @@ async def unlink_email(project_id: int, email_id: str, request: Request):
 
 @router.get("/for-email/{email_id}")
 async def get_projects_for_email(email_id: str, request: Request):
-    """Return which projects this email is linked to."""
     cache = request.app.state.cache
     with cache._conn() as conn:
         rows = conn.execute(
@@ -179,11 +167,8 @@ async def get_projects_for_email(email_id: str, request: Request):
 
 @router.post("/{project_id}/generate-plan")
 async def generate_plan(project_id: int, request: Request):
-    """Generate an AI project plan from linked emails and store it."""
     cache = request.app.state.cache
-    advisor = request.app.state.advisor
-    ai = advisor.ai
-
+    ai = request.app.state.advisor.ai
     with cache._conn() as conn:
         _ensure_plan_column(conn)
         proj = conn.execute(
@@ -193,61 +178,51 @@ async def generate_plan(project_id: int, request: Request):
             raise HTTPException(404, "Project not found")
         email_rows = conn.execute(
             """SELECT e.subject, e.sender, e.date, SUBSTR(e.body, 1, 500) as snippet
-               FROM emails e
-               JOIN project_emails pe ON pe.email_id = e.id
-               WHERE pe.project_id = ?
-               ORDER BY e.date DESC LIMIT 20""",
+               FROM emails e JOIN project_emails pe ON pe.email_id = e.id
+               WHERE pe.project_id = ? ORDER BY e.date DESC LIMIT 20""",
             (project_id,)
         ).fetchall()
 
-    email_context = "\n".join(
-        f"- [{r['date']}] From: {r['sender']} | Subject: {r['subject']}\n  {r['snippet']}"
+    email_ctx = "\n".join(
+        f"- [{r['date']}] From: {r['sender']} | {r['subject']}\n  {r['snippet']}"
         for r in email_rows
     ) or "(no linked emails)"
 
     prompt = (
-        f"Project: {proj['name']}\n"
-        f"Description: {proj['description']}\n\n"
-        f"Linked emails:\n{email_context}\n\n"
-        "Based on this project and its emails, create a detailed project plan in JSON with:\n"
-        '{"summary": "str", "objectives": ["str"], '
-        '"phases": [{"name": "str", "start_week": 1, "duration_weeks": 2, '
-        '"tasks": [{"name": "str", "duration_days": 3, "assignee": "str", "priority": "high|medium|low"}], '
-        '"milestone": "str"}], '
-        '"risks": [{"description": "str", "impact": "high|medium|low", "mitigation": "str"}], '
-        '"estimated_duration_weeks": 8}\n'
-        "Return ONLY valid JSON."
+        f"Project: {proj['name']}\nDescription: {proj['description']}\n\n"
+        f"Linked emails:\n{email_ctx}\n\n"
+        "Create a detailed project plan in JSON:\n"
+        '{"summary":"str","objectives":["str"],'
+        '"phases":[{"name":"str","start_week":1,"duration_weeks":2,'
+        '"tasks":[{"name":"str","duration_days":3,"assignee":"str","priority":"high|medium|low"}],'
+        '"milestone":"str"}],'
+        '"risks":[{"description":"str","impact":"high|medium|low","mitigation":"str"}],'
+        '"estimated_duration_weeks":8}\nReturn ONLY valid JSON.'
     )
 
     try:
-        ant = getattr(ai, "_anthropic", None)
-        client = ant if ant else ai
+        client = getattr(ai, "_anthropic", None) or ai
         resp = await client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=2000,
+            model="claude-haiku-4-5-20251001", max_tokens=2000,
             messages=[{"role": "user", "content": prompt}]
         )
         raw = _strip_json_fences(resp.content[0].text)
         s, e = raw.find("{"), raw.rfind("}") + 1
         if s < 0:
-            raise ValueError("No JSON object found in AI response")
+            raise ValueError("No JSON object in AI response")
         plan = _json.loads(raw[s:e])
     except Exception as ex:
         raise HTTPException(502, f"AI plan generation failed: {ex}")
 
     with cache._conn() as conn:
         _ensure_plan_column(conn)
-        conn.execute(
-            "UPDATE projects SET plan_json=? WHERE id=?",
-            (_json.dumps(plan), project_id)
-        )
-
+        conn.execute("UPDATE projects SET plan_json=? WHERE id=?",
+                     (_json.dumps(plan), project_id))
     return {"plan": plan, "project_id": project_id}
 
 
 @router.get("/{project_id}/plan")
 async def get_plan(project_id: int, request: Request):
-    """Return the stored AI project plan, or {plan: null} if none exists."""
     cache = request.app.state.cache
     with cache._conn() as conn:
         _ensure_plan_column(conn)
@@ -256,14 +231,12 @@ async def get_plan(project_id: int, request: Request):
         ).fetchone()
     if not row:
         raise HTTPException(404, "Project not found")
-    plan_json = row["plan_json"]
-    plan = _json.loads(plan_json) if plan_json else None
+    plan = _json.loads(row["plan_json"]) if row["plan_json"] else None
     return {"plan": plan}
 
 
 @router.get("/{project_id}/export/msproject")
 async def export_msproject(project_id: int, request: Request):
-    """Export the stored project plan as a Microsoft Project XML (MSPDI) file."""
     cache = request.app.state.cache
     with cache._conn() as conn:
         _ensure_plan_column(conn)
@@ -277,21 +250,13 @@ async def export_msproject(project_id: int, request: Request):
 
     plan = _json.loads(row["plan_json"])
     xml_content = _build_msproject_xml(row["name"], plan)
-
-    tmp = tempfile.NamedTemporaryFile(
-        mode="w", suffix=".xml", delete=False, encoding="utf-8"
-    )
+    tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".xml", delete=False, encoding="utf-8")
     try:
         tmp.write(xml_content)
         tmp.flush()
         tmp.close()
         safe_name = re.sub(r"[^\w\-.]", "_", row["name"]) + ".xml"
-        return FileResponse(
-            path=tmp.name,
-            media_type="application/xml",
-            filename=safe_name,
-            background=None,
-        )
+        return FileResponse(path=tmp.name, media_type="application/xml", filename=safe_name)
     except Exception as ex:
         os.unlink(tmp.name)
         raise HTTPException(500, f"XML export failed: {ex}")
