@@ -10,6 +10,7 @@ import { ProjectDashboard } from './ProjectDashboard'
 import { ProjectMilestones } from './ProjectMilestones'
 import { ProjectBudget } from './ProjectBudget'
 import { ProjectBurndown } from './ProjectBurndown'
+import { ProjectTemplates } from './ProjectTemplates'
 
 interface Project { id: number; name: string; description: string; status: string; email_count: number; created_at: string }
 
@@ -193,6 +194,8 @@ export function ProjectsPanel() {
   const [weeklyLoading, setWeeklyLoading] = useState(false)
   const [showWeekly, setShowWeekly] = useState(false)
   const [recommendations, setRecommendations] = useState<{ health?: string } | null>(null)
+  const [savingTemplate, setSavingTemplate] = useState(false)
+  const [clientReportLoading, setClientReportLoading] = useState(false)
 
   const load = () => {
     setLoading(true)
@@ -355,6 +358,31 @@ export function ProjectsPanel() {
     setWeeklyLoading(false)
   }
 
+  const handleSaveAsTemplate = async () => {
+    if (!selected) return
+    setSavingTemplate(true)
+    try {
+      const res = await api.saveProjectAsTemplate(selected.id)
+      alert(`Template saved: "${res.name}" (${res.task_count} tasks)`)
+    } catch (err: any) {
+      alert(err?.message || 'Failed to save template')
+    }
+    setSavingTemplate(false)
+  }
+
+  const handleClientReport = async () => {
+    if (!selected) return
+    setClientReportLoading(true)
+    try {
+      const res = await api.getClientReport(selected.id)
+      const w = window.open('', '_blank')
+      w?.document.write(res.html)
+      w?.document.close()
+      w?.print()
+    } catch { /* silent */ }
+    setClientReportLoading(false)
+  }
+
   const filtered = filter === 'all' ? projects : projects.filter(p => p.status === filter)
 
   if (selected) {
@@ -369,6 +397,11 @@ export function ProjectsPanel() {
           <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[selected.status] || STATUS_COLORS.active}`}>
             {selected.status}
           </span>
+          <button onClick={handleSaveAsTemplate} disabled={savingTemplate}
+            className="text-[10px] border border-gray-200 px-2 py-1 rounded-lg hover:bg-gray-50 disabled:opacity-50 flex-shrink-0"
+            title="Save tasks as a reusable template">
+            {savingTemplate ? '…' : '💾 Template'}
+          </button>
         </div>
         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
           {/* Project Dashboard — stat tiles */}
@@ -460,6 +493,10 @@ export function ProjectsPanel() {
                 className="text-xs border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50 disabled:opacity-50">
                 {weeklyLoading ? '⟳ Drafting…' : '📅 Weekly Update'}
               </button>
+              <button onClick={handleClientReport} disabled={clientReportLoading}
+                className="text-xs border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50 disabled:opacity-50">
+                {clientReportLoading ? '⟳ Building…' : '📊 Client Report'}
+              </button>
             </div>
             {planMsg && <p className="text-xs text-red-500 mt-1">{planMsg}</p>}
             {plan && <ProjectPlanView plan={plan} />}
@@ -536,9 +573,17 @@ export function ProjectsPanel() {
       {showCreate && wizardStep === 'name' && (
         <div className="px-4 py-3 bg-blue-50 border-b border-blue-100 flex-shrink-0 space-y-2">
           <p className="text-xs font-semibold text-blue-700">Step 1 of 2 — Project Name</p>
+          <ProjectTemplates onCreated={(projId, projName) => {
+            resetWizard()
+            load()
+            const proj = { id: projId, name: projName, description: '', status: 'active', email_count: 0, created_at: '' }
+            setSelected(proj)
+            setProjEmails([])
+            setPlan(null)
+          }} />
           <input value={newName} onChange={e => setNewName(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && newName.trim() && advanceToWizardBrief()}
-            placeholder="e.g. Website Redesign, Q3 Sales Campaign…"
+            placeholder="e.g. Website Redesign, Q3 Sales Campaign… (or use template above)"
             className="w-full text-sm border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent bg-white" autoFocus />
           <div className="flex gap-2 justify-end">
             <button onClick={resetWizard} className="text-xs text-gray-500 px-2 py-1">Cancel</button>
