@@ -797,6 +797,18 @@ export const api = {
   getProjectPlan(id: number): Promise<{ plan: any }> {
     return request(`/projects/${id}/plan`)
   },
+  getProjectNotes(id: number): Promise<{ notes: { id: number; note: string; created_at: string }[] }> {
+    return request(`/projects/${id}/notes`)
+  },
+  addProjectNote(id: number, note: string): Promise<{ id: number; note: string }> {
+    return request(`/projects/${id}/notes`, { method: 'POST', body: JSON.stringify({ note }) })
+  },
+  deleteProjectNote(projectId: number, noteId: number): Promise<void> {
+    return request(`/projects/${projectId}/notes/${noteId}`, { method: 'DELETE' })
+  },
+  getProjectRecommendations(id: number): Promise<{ recommendations: any; note_count: number }> {
+    return request(`/projects/${id}/recommendations`, { method: 'POST' })
+  },
 
   // Send-Time Optimizer
   getBestSendTime(emailAddr: string): Promise<{ suggestion: string | null; best_day: string; best_hour_display: string; top_days: string[]; reason: string }> {

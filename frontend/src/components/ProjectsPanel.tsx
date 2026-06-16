@@ -3,6 +3,7 @@ import { api } from '../api/client'
 import { EmptyState, Spinner, Button } from './ui'
 import { useEmailContext } from '../contexts/EmailContext'
 import { useUIContext } from '../contexts/UIContext'
+import { ProjectNotes } from './ProjectNotes'
 
 interface Project { id: number; name: string; description: string; status: string; email_count: number; created_at: string }
 
@@ -399,6 +400,11 @@ export function ProjectsPanel() {
             </div>
             {planMsg && <p className="text-xs text-red-500 mt-1">{planMsg}</p>}
             {plan && <ProjectPlanView plan={plan} />}
+          </div>
+
+          {/* Progress notes + AI review */}
+          <div className="border-t border-gray-100 pt-4">
+            <ProjectNotes projectId={selected.id} />
           </div>
         </div>
       </div>

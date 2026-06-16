@@ -19,6 +19,15 @@ def _ensure_plan_column(conn) -> None:
         pass
 
 
+def _ensure_notes_table(conn) -> None:
+    conn.execute("""CREATE TABLE IF NOT EXISTS project_notes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_id INTEGER NOT NULL,
+        note TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )""")
+
+
 def _strip_json_fences(text: str) -> str:
     text = text.strip()
     text = re.sub(r"^```(?:json)?\s*", "", text)
@@ -285,3 +294,93 @@ async def export_msproject(project_id: int, request: Request):
     except Exception as ex:
         os.unlink(tmp.name)
         raise HTTPException(500, f"XML export failed: {ex}")
+
+
+class NoteIn(BaseModel):
+    note: str
+
+
+@router.get("/{project_id}/notes")
+async def get_notes(project_id: int, request: Request):
+    cache = request.app.state.cache
+    with cache._conn() as conn:
+        _ensure_notes_table(conn)
+        rows = conn.execute(
+            "SELECT id, note, created_at FROM project_notes WHERE project_id=? ORDER BY created_at ASC",
+            (project_id,)
+        ).fetchall()
+    return {"notes": [dict(r) for r in rows]}
+
+
+@router.post("/{project_id}/notes")
+async def add_note(project_id: int, body: NoteIn, request: Request):
+    cache = request.app.state.cache
+    if not body.note.strip():
+        raise HTTPException(400, "Note cannot be empty")
+    with cache._conn() as conn:
+        _ensure_notes_table(conn)
+        cur = conn.execute(
+            "INSERT INTO project_notes (project_id, note) VALUES (?,?)",
+            (project_id, body.note.strip())
+        )
+    return {"id": cur.lastrowid, "note": body.note.strip()}
+
+
+@router.delete("/{project_id}/notes/{note_id}")
+async def delete_note(project_id: int, note_id: int, request: Request):
+    cache = request.app.state.cache
+    with cache._conn() as conn:
+        conn.execute("DELETE FROM project_notes WHERE id=? AND project_id=?", (note_id, project_id))
+    return {"deleted": note_id}
+
+
+@router.post("/{project_id}/recommendations")
+async def get_recommendations(project_id: int, request: Request):
+    """AI reviews progress notes against the current plan and gives recommendations."""
+    cache = request.app.state.cache
+    ai = request.app.state.advisor.ai
+    with cache._conn() as conn:
+        _ensure_plan_column(conn)
+        _ensure_notes_table(conn)
+        proj = conn.execute("SELECT name, plan_json FROM projects WHERE id=?", (project_id,)).fetchone()
+        if not proj:
+            raise HTTPException(404, "Project not found")
+        notes = conn.execute(
+            "SELECT note, created_at FROM project_notes WHERE project_id=? ORDER BY created_at ASC",
+            (project_id,)
+        ).fetchall()
+
+    notes_text = "\n".join(f"[{r['created_at'][:10]}] {r['note']}" for r in notes) or "(no notes)"
+    plan_summary = ""
+    if proj["plan_json"]:
+        try:
+            p = _json.loads(proj["plan_json"])
+            phases = ", ".join(ph.get("name","") for ph in p.get("phases", []))
+            plan_summary = f"Plan summary: {p.get('summary','')}\nPhases: {phases}\nDuration: {p.get('estimated_duration_weeks')} weeks"
+        except Exception:
+            pass
+
+    prompt = (
+        f"Project: {proj['name']}\n{plan_summary}\n\n"
+        f"Progress notes from the team:\n{notes_text}\n\n"
+        "Based on these progress notes, provide:\n"
+        "1. What is on track (2-3 bullet points)\n"
+        "2. What needs attention or is at risk (2-3 bullets)\n"
+        "3. Specific recommendations to update the plan (2-3 actionable bullets)\n"
+        "4. Overall health: GREEN / AMBER / RED with a one-sentence reason\n\n"
+        'Return ONLY JSON: {"on_track":["str"],"at_risk":["str"],"recommendations":["str"],"health":"GREEN|AMBER|RED","health_reason":"str"}'
+    )
+
+    try:
+        client = getattr(ai, "_anthropic", None) or ai
+        resp = await client.messages.create(
+            model="claude-haiku-4-5-20251001", max_tokens=800,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        raw = _strip_json_fences(resp.content[0].text)
+        s, e = raw.find("{"), raw.rfind("}") + 1
+        result = _json.loads(raw[s:e]) if s >= 0 else {}
+    except Exception as ex:
+        raise HTTPException(502, f"AI recommendations failed: {ex}")
+
+    return {"recommendations": result, "note_count": len(notes)}
