@@ -401,7 +401,8 @@ Outputs `dist/DirectorAssistant-mac-3.15.3.zip` and `dist/DirectorAssistant-win-
 **Task Management (Kanban board):**
 - 4 columns: Not Started / In Progress / Done / Blocked
 - ⚡ Load from Plan populates board automatically from AI plan
-- Per-task: assignee, priority, hourly rate, dependencies, comments
+- Per-task: assignee, priority, **progress % slider (0–100)**, hourly rate, dependencies, comments
+- Mini progress bar visible on collapsed task cards; Gantt bars fill proportionally
 - Comments trigger AI suggestions for next steps
 - Email assignment: assign a task → draft assignment email in one click
 
