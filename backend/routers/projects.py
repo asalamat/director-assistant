@@ -168,6 +168,7 @@ async def get_projects_for_email(email_id: str, request: Request):
 @router.post("/{project_id}/generate-plan")
 async def generate_plan(project_id: int, request: Request):
     cache = request.app.state.cache
+    rag = getattr(request.app.state, "rag", None)
     ai = request.app.state.advisor.ai
     with cache._conn() as conn:
         _ensure_plan_column(conn)
@@ -177,7 +178,7 @@ async def generate_plan(project_id: int, request: Request):
         if not proj:
             raise HTTPException(404, "Project not found")
         email_rows = conn.execute(
-            """SELECT e.subject, e.sender, e.date, SUBSTR(e.body, 1, 500) as snippet
+            """SELECT e.subject, e.sender, e.date, SUBSTR(e.body, 1, 600) as snippet
                FROM emails e JOIN project_emails pe ON pe.email_id = e.id
                WHERE pe.project_id = ? ORDER BY e.date DESC LIMIT 20""",
             (project_id,)
@@ -188,10 +189,34 @@ async def generate_plan(project_id: int, request: Request):
         for r in email_rows
     ) or "(no linked emails)"
 
+    # Enrich with RAG: semantic search across ALL indexed emails + documents
+    rag_ctx = ""
+    if rag:
+        query = f"{proj['name']} {proj['description'] or ''}"
+        try:
+            results = rag.hybrid_search(query, n=12)
+            seen_ids = {r["email_id"] for r in email_rows} if email_rows else set()
+            rag_snippets = []
+            for r in results:
+                src_type = r.get("source_type", "email")
+                rid = r.get("email_id") or r.get("doc_id", "")
+                if rid in seen_ids:
+                    continue
+                seen_ids.add(rid)
+                if src_type == "document":
+                    rag_snippets.append(f"[DOC] {r.get('filename','')}: {(r.get('text') or '')[:300]}")
+                else:
+                    rag_snippets.append(f"[EMAIL] {r.get('date','')} {r.get('sender','')} | {r.get('subject','')}: {(r.get('text') or '')[:200]}")
+            if rag_snippets:
+                rag_ctx = "\n\nAdditional relevant content from knowledge base:\n" + "\n".join(rag_snippets[:8])
+        except Exception:
+            pass
+
     prompt = (
-        f"Project: {proj['name']}\nDescription: {proj['description']}\n\n"
-        f"Linked emails:\n{email_ctx}\n\n"
-        "Create a detailed project plan in JSON:\n"
+        f"Project: {proj['name']}\nProject Brief:\n{proj['description'] or '(no description)'}\n\n"
+        f"Directly linked emails:\n{email_ctx}"
+        f"{rag_ctx}\n\n"
+        "Using ALL the above context, create a comprehensive detailed project plan in JSON:\n"
         '{"summary":"str","objectives":["str"],'
         '"phases":[{"name":"str","start_week":1,"duration_weeks":2,'
         '"tasks":[{"name":"str","duration_days":3,"assignee":"str","priority":"high|medium|low"}],'

@@ -267,6 +267,16 @@ export function ProjectsPanel() {
     setProjects(prev => prev.map(p => p.id === selected.id ? { ...p, email_count: Math.max(0, p.email_count - 1) } : p))
   }
 
+  const [showDocPicker, setShowDocPicker] = useState(false)
+  const [indexedDocs, setIndexedDocs] = useState<{doc_id: string; filename: string; file_type: string}[]>([])
+  const [projDocIds, setProjDocIds] = useState<Set<string>>(new Set())
+
+  const openDocPicker = async () => {
+    setShowDocPicker(true)
+    const r = await api.listDocuments().catch(() => ({ documents: [] }))
+    setIndexedDocs(r.documents || [])
+  }
+
   const handleGeneratePlan = async () => {
     if (!selected) return
     setPlanLoading(true)
@@ -335,6 +345,37 @@ export function ProjectsPanel() {
                 title="Unlink from project">✕</button>
             </div>
           ))}
+
+          {/* Document linker */}
+          <div className="border border-dashed border-gray-200 rounded-xl p-3">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-semibold text-gray-500">📄 Documents</p>
+              <button onClick={openDocPicker} className="text-xs text-accent hover:underline">+ Link document</button>
+            </div>
+            {projDocIds.size === 0 && <p className="text-xs text-gray-400 italic">No documents linked — add indexed docs to enrich the AI plan</p>}
+            {Array.from(projDocIds).map(docId => {
+              const doc = indexedDocs.find(d => d.doc_id === docId)
+              return doc ? (
+                <div key={docId} className="flex items-center gap-2 py-1">
+                  <span className="text-xs text-gray-600 flex-1 truncate">📎 {doc.filename}</span>
+                  <button onClick={() => setProjDocIds(s => { const n = new Set(s); n.delete(docId); return n })}
+                    className="text-gray-300 hover:text-red-400 text-xs">✕</button>
+                </div>
+              ) : null
+            })}
+            {showDocPicker && (
+              <div className="mt-2 border border-gray-200 rounded-lg overflow-hidden max-h-48 overflow-y-auto">
+                {indexedDocs.length === 0 && <p className="text-xs text-gray-400 p-3">No indexed documents. Add folders in Settings → Documents.</p>}
+                {indexedDocs.map(doc => (
+                  <button key={doc.doc_id} onClick={() => { setProjDocIds(s => new Set([...s, doc.doc_id])); setShowDocPicker(false) }}
+                    className={`w-full text-left px-3 py-2 text-xs hover:bg-blue-50 border-b border-gray-50 last:border-0 flex items-center gap-2 ${projDocIds.has(doc.doc_id) ? 'text-accent font-medium' : 'text-gray-700'}`}>
+                    <span className="flex-1 truncate">📎 {doc.filename}</span>
+                    <span className="text-gray-400 flex-shrink-0">{doc.file_type}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* AI Plan section */}
           <div className="pt-2 border-t border-gray-100">
