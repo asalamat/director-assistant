@@ -349,33 +349,56 @@ function ContactsSection() {
 function ProjectsSection() {
   return (
     <div>
-      <H2>Email-to-Project Tracker</H2>
+      <H2>Project Management Suite</H2>
 
-      <H3>Overview <Tag color="purple">New</Tag></H3>
-      <P>Go to the <strong>Projects</strong> tab to organize emails into named deals, initiatives, or topics — so you can find everything related to a project in one place instead of searching through your inbox.</P>
+      <H3>Create a project (2-step wizard)</H3>
+      <Step n={1}>Click <strong>+ New</strong> → enter a project name → click <strong>Next →</strong></Step>
+      <Step n={2}>Fill the brief: Goal, Timeline, Stakeholders, Deliverables, Risks (fill what you know, skip the rest)</Step>
+      <Step n={3}>Click <strong>"✦ Create &amp; Generate Plan"</strong> — AI reads your brief + linked emails + all indexed documents to build a full project plan automatically</Step>
+      <P>Or pick <strong>Start from Template</strong> to reuse a previous project's task structure.</P>
 
-      <H3>Create a project</H3>
-      <Step n={1}>Click <strong>+ New</strong> in the Projects tab.</Step>
-      <Step n={2}>Enter a name (e.g. "Q3 Enterprise Deal — Acme Corp") and optional description.</Step>
-      <Step n={3}>The project is created with <strong>Active</strong> status.</Step>
-
-      <H3>Link emails to a project</H3>
-      <P><strong>From the email viewer:</strong> click the <strong>Project</strong> button in the header toolbar. A dropdown shows all your active projects — click one to link or unlink the email. The button changes to show how many projects the email is linked to.</P>
-      <P><strong>From the Projects tab:</strong> open a project to see all linked emails in chronological order.</P>
-
-      <H3>Project statuses</H3>
+      <H3>AI Project Plan</H3>
+      <P>The plan includes: summary, objectives, phases with task breakdown (name/days/assignee/priority), and risks. Use the buttons in the plan toolbar:</P>
       <UL>
-        <Li><strong>Active</strong> (green) — ongoing work</Li>
-        <Li><strong>Paused</strong> (amber) — temporarily on hold</Li>
-        <Li><strong>Resolved</strong> (gray) — completed or closed</Li>
+        <Li><strong>↺ Regenerate</strong> — refresh after adding more emails or notes</Li>
+        <Li><strong>📄 Export PDF</strong> — print-ready internal plan</Li>
+        <Li><strong>📊 MS Project (.xml)</strong> — opens in Microsoft Project</Li>
+        <Li><strong>📊 Client Report</strong> — clean executive status report for stakeholders</Li>
+        <Li><strong>📅 Weekly Update</strong> — AI 150-word digest ready to send</Li>
+        <Li><strong>💾 Template</strong> — save task structure for reuse on future projects</Li>
       </UL>
-      <P>Click the status badge on any project card to cycle through statuses.</P>
+
+      <H3>Task Board (Kanban)</H3>
+      <P>Click <strong>⚡ Load from Plan</strong> to populate tasks from the AI plan. 4 columns: Not Started / In Progress / Done / Blocked.</P>
+      <UL>
+        <Li>Click a task card to expand: edit assignee, priority, hourly rate, dependencies</Li>
+        <Li>Add comments → AI suggests 1-2 next actions as teal chips</Li>
+        <Li>Assigning a task shows "Send assignment email to X?" prompt — opens compose pre-filled</Li>
+        <Li>Add tasks manually with "+ Add Task" at the bottom of any column</Li>
+      </UL>
+
+      <H3>Project dashboard &amp; tracking</H3>
+      <UL>
+        <Li><strong>Dashboard</strong> — % complete ring, task breakdown bar, days remaining, health indicator (top of project)</Li>
+        <Li><strong>Milestones</strong> — date-tracked with countdown ("3 days"), overdue alerts (red), click to mark done</Li>
+        <Li><strong>Budget</strong> — set hourly rate per task; estimated cost = rate × days; variance vs budget total</Li>
+        <Li><strong>Burndown</strong> — ideal vs actual work-remaining lines over time</Li>
+        <Li><strong>Gantt chart</strong> — phase + task bars with status colors and dependency arrows</Li>
+      </UL>
+
+      <H3>Progress notes &amp; AI health review</H3>
+      <P>Add timestamped progress notes (updates, blockers, observations). Click <strong>✦ AI Review</strong> to get:</P>
+      <UL>
+        <Li>🟢/🟡/🔴 health status with reason</Li>
+        <Li>On Track bullets, At Risk bullets, specific Recommendations</Li>
+      </UL>
+
+      <H3>Link emails &amp; documents</H3>
+      <P><strong>From the email viewer:</strong> click the Project button in the toolbar to link/unlink emails.</P>
+      <P><strong>From the project detail:</strong> click "+ Link document" to attach any indexed document (Settings → Documents to index files). Linked documents are used by AI for plan generation and search.</P>
 
       <H3>Filter and browse</H3>
-      <P>Use the All / Active / Paused / Resolved filter bar at the top of the Projects tab. Each button shows a live count. Click any project to see its full email timeline. Click any email to open it in the inbox viewer.</P>
-
-      <H3>Tips</H3>
-      <Tip>Link emails as you read them — the Project button is right in the email toolbar. After a client call, quickly link all related emails from the last few days to keep the thread organized.</Tip>
+      <P>All / Active / Paused / Resolved filter bar at the top. Click any project card to open its detail view. Status badge cycles Active → Paused → Resolved on click.</P>
     </div>
   )
 }

@@ -389,6 +389,34 @@ Outputs `dist/DirectorAssistant-mac-3.15.3.zip` and `dist/DirectorAssistant-win-
 - **Windows CI** — GitHub Actions workflow tests the full install on `windows-latest` on every push; dependency conflict fixed (`httpx>=0.27.2`)
 - **From-account selector** — when multiple email accounts are connected, a "From" dropdown appears at the top of the compose window
 
+### Full Project Management Suite (v3.34–v3.36)
+
+**Project creation wizard:** Name → 5-field brief (Goal, Timeline, Stakeholders, Deliverables, Risks) → "✦ Create & Generate Plan" auto-builds a full AI plan using your brief + linked emails + RAG search across all indexed content
+
+**AI Project Plan:**
+- Structured plan: summary, objectives, phased task breakdown, risks with mitigations
+- ↺ Regenerate anytime · 📄 Export PDF · 📊 MS Project (.xml) · 📊 Client Report (executive stakeholder version)
+- Linked documents persist (Settings → Documents to index files first)
+
+**Task Management (Kanban board):**
+- 4 columns: Not Started / In Progress / Done / Blocked
+- ⚡ Load from Plan populates board automatically from AI plan
+- Per-task: assignee, priority, hourly rate, dependencies, comments
+- Comments trigger AI suggestions for next steps
+- Email assignment: assign a task → draft assignment email in one click
+
+**Project tracking:**
+- 📊 Dashboard: % complete ring, task breakdown, days remaining, health indicator
+- 🎯 Milestones: date-tracked with countdown/overdue alerts, click to mark done
+- 💰 Budget: estimated cost per task (rate × days), variance vs budget total
+- 📉 Burndown chart: ideal vs actual work-remaining lines
+- 📝 Progress notes + AI health review: GREEN/AMBER/RED status, on-track/at-risk/recommendations
+- 📅 Weekly update: AI 150-word digest ready to send to stakeholders
+
+**Templates & exports:**
+- 💾 Save project as template; start new projects from saved templates
+- 📄 Internal plan PDF · 📊 MS Project XML · 📊 Client PDF status report
+
 ### AI Project Planning (v3.34)
 - **✦ Generate AI Plan** — open any project → click "✦ Generate Plan": AI reads all linked emails + description and produces a full project plan: summary, objectives, phased task breakdown (with days/assignee/priority), risks with mitigation
 - **↺ Regenerate** — refresh the plan anytime (e.g. after linking more emails)
