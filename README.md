@@ -389,6 +389,12 @@ Outputs `dist/DirectorAssistant-mac-3.15.3.zip` and `dist/DirectorAssistant-win-
 - **Windows CI** — GitHub Actions workflow tests the full install on `windows-latest` on every push; dependency conflict fixed (`httpx>=0.27.2`)
 - **From-account selector** — when multiple email accounts are connected, a "From" dropdown appears at the top of the compose window
 
+### AI Project Planning (v3.34)
+- **✦ Generate AI Plan** — open any project → click "✦ Generate Plan": AI reads all linked emails + description and produces a full project plan: summary, objectives, phased task breakdown (with days/assignee/priority), risks with mitigation
+- **↺ Regenerate** — refresh the plan anytime (e.g. after linking more emails)
+- **📄 Export PDF** — opens a print-ready A4 document in a new tab → Print → Save as PDF
+- **📊 MS Project (.xml)** — downloads MSPDI-format XML that opens directly in Microsoft Project; phases become summary tasks, individual tasks become children with duration in hours
+
 ### UX Polish (v3.33)
 - **✦ Thread summary** — when an email is part of a thread, a "✦ Summarize thread" button appears; AI reads all messages and returns summary + key points + outcome in a dismissible card
 - **Keyboard shortcuts** — `r` to reply, `f` to forward (added to existing: `j`/`k` navigate list, `a` analyze, `e` archive, `Esc` deselect, `⌘N` compose)
