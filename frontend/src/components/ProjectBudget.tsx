@@ -55,7 +55,12 @@ export function ProjectBudget({ projectId }: Props) {
   }
 
   if (loading) return <div className="flex justify-center py-4"><Spinner size="sm" /></div>
-  if (!data) return null
+  if (!data) return (
+    <div className="pt-4 border-t border-gray-100">
+      <p className="text-xs font-semibold text-gray-700 mb-2">Budget</p>
+      <p className="text-xs text-gray-400 italic">Load tasks from plan first, then set hourly rates per task to enable budget tracking.</p>
+    </div>
+  )
 
   const { budget_total, estimated_cost, actual_cost_estimate, tasks_breakdown } = data
   const variance = budget_total - estimated_cost

@@ -506,12 +506,14 @@ export function ProjectsPanel() {
           <ProjectMilestones projectId={selected.id} />
 
           {/* Gantt chart */}
-          {ganttTasks.length > 0 && (
-            <div className="pt-2 border-t border-gray-100">
-              <p className="text-xs font-semibold text-gray-700 mb-2">Progress Diagram</p>
+          <div className="pt-2 border-t border-gray-100">
+            <p className="text-xs font-semibold text-gray-700 mb-2">Progress Diagram (Gantt)</p>
+            {ganttTasks.length === 0 ? (
+              <p className="text-xs text-gray-400 italic">Click <strong>⚡ Load from Plan</strong> in the Task Board below to populate tasks, then come back here to see the Gantt chart. Edit tasks in the Kanban board — the diagram updates automatically.</p>
+            ) : (
               <ProjectGantt tasks={ganttTasks} />
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Budget tracking */}
           <ProjectBudget projectId={selected.id} />
