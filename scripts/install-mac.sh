@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-# Director Assistant — macOS Installer  v2.9.3
+# Director Assistant — macOS Installer
 # ============================================================
 # Requirements: macOS 12+, Internet connection
 # Run with:  bash install-mac.sh
@@ -9,7 +9,8 @@
 set -e
 
 APP_NAME="Director Assistant"
-APP_VERSION="2.9.5"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+APP_VERSION=$(python3 -c "import json; print(json.load(open('$SCRIPT_DIR/../version.json'))['version'])" 2>/dev/null || echo "3.38.2")
 INSTALL_DIR="$HOME/Applications/DirectorAssistant"
 PYTHON_MIN="3.11"
 NODE_MIN="18"
