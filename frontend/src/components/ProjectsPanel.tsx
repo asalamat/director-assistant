@@ -511,7 +511,14 @@ export function ProjectsPanel() {
             {ganttTasks.length === 0 ? (
               <p className="text-xs text-gray-400 italic">Click <strong>⚡ Load from Plan</strong> in the Task Board below to populate tasks, then come back here to see the Gantt chart. Edit tasks in the Kanban board — the diagram updates automatically.</p>
             ) : (
-              <ProjectGantt tasks={ganttTasks} />
+              <ProjectGantt
+                tasks={ganttTasks}
+                onProgressChange={async (taskId, progress, status) => {
+                  if (!selected) return
+                  setGanttTasks(prev => prev.map(t => t.id === taskId ? { ...t, progress, status } : t))
+                  await api.updateProjectTask(selected.id, taskId, { progress, status }).catch(() => {})
+                }}
+              />
             )}
           </div>
 

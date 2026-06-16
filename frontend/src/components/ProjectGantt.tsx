@@ -14,9 +14,13 @@ interface GanttRow {
 }
 
 interface Tip { x: number; y: number; label: string; assignee: string; status: string }
+interface EditState { taskId: number; name: string; progress: number; status: string; x: number; y: number }
 
 const STATUS_FILL: Record<string, string> = {
   done: '#22c55e', in_progress: '#3b82f6', blocked: '#ef4444', not_started: '#d1d5db',
+}
+const STATUS_LABELS: Record<string, string> = {
+  not_started: 'Not Started', in_progress: 'In Progress', blocked: 'Blocked', done: 'Done',
 }
 const BH = 18, RP = 8, RS = BH + RP, LW = 140, BA = 340, PW = 42, VW = LW + BA + PW
 
@@ -47,8 +51,16 @@ function buildRows(tasks: GanttTask[]): GanttRow[] {
   return rows
 }
 
-export function ProjectGantt({ tasks }: { tasks: GanttTask[] }) {
+export function ProjectGantt({
+  tasks,
+  onProgressChange,
+}: {
+  tasks: GanttTask[]
+  onProgressChange?: (taskId: number, progress: number, status: string) => void
+}) {
   const [tip, setTip] = useState<Tip | null>(null)
+  const [editing, setEditing] = useState<EditState | null>(null)
+  const [localEdits, setLocalEdits] = useState<Record<number, { progress: number; status: string }>>({})
   const ref = useRef<SVGSVGElement>(null)
 
   if (!tasks.length) return (
@@ -64,15 +76,50 @@ export function ProjectGantt({ tasks }: { tasks: GanttTask[] }) {
   const cy = (i: number) => i * RS + BH / 2 + 6
 
   const showTip = (e: React.MouseEvent, r: GanttRow) => {
-    if (r.kind !== 'task') return
+    if (r.kind !== 'task' || editing) return
     const rect = ref.current?.getBoundingClientRect()
     if (!rect) return
     setTip({ x: e.clientX - rect.left, y: e.clientY - rect.top, label: r.label, assignee: r.assignee || '—', status: r.status || 'not_started' })
   }
 
+  const openEdit = (e: React.MouseEvent, r: GanttRow) => {
+    if (r.kind !== 'task' || r.taskId === undefined) return
+    e.stopPropagation()
+    setTip(null)
+    const local = localEdits[r.taskId]
+    setEditing({
+      taskId: r.taskId,
+      name: r.label,
+      progress: local?.progress ?? r.pct,
+      status: local?.status ?? (r.status || 'not_started'),
+      x: e.clientX,
+      y: e.clientY,
+    })
+  }
+
+  const applyEdit = (taskId: number, progress: number, status: string) => {
+    setLocalEdits(prev => ({ ...prev, [taskId]: { progress, status } }))
+    onProgressChange?.(taskId, progress, status)
+  }
+
+  const closeEdit = () => setEditing(null)
+
+  const rowPct = (r: GanttRow) =>
+    r.kind === 'task' && r.taskId !== undefined && localEdits[r.taskId]
+      ? localEdits[r.taskId].progress : r.pct
+
+  const rowSt = (r: GanttRow) =>
+    r.kind === 'task' && r.taskId !== undefined && localEdits[r.taskId]
+      ? localEdits[r.taskId].status : (r.status || 'not_started')
+
+  const vw = typeof window !== 'undefined' ? window.innerWidth : 800
+  const vh2 = typeof window !== 'undefined' ? window.innerHeight : 600
+
   return (
     <div className="relative overflow-x-auto">
-      <svg ref={ref} viewBox={`0 0 ${VW} ${vh}`} width="100%" style={{ display: 'block', minWidth: 380 }} onMouseLeave={() => setTip(null)}>
+      <p className="text-[10px] text-gray-400 mb-1.5">Click any task bar to edit progress</p>
+      <svg ref={ref} viewBox={`0 0 ${VW} ${vh}`} width="100%" style={{ display: 'block', minWidth: 380 }}
+        onMouseLeave={() => { if (!editing) setTip(null) }}>
         <defs>
           <marker id="garr" markerWidth="5" markerHeight="5" refX="3" refY="2.5" orient="auto">
             <path d="M0,0 L5,2.5 L0,5 Z" fill="#cbd5e1" />
@@ -83,17 +130,25 @@ export function ProjectGantt({ tasks }: { tasks: GanttTask[] }) {
           const y = i * RS + 6, mid = y + BH / 2
           const isP = r.kind === 'phase'
           const x = bx(r.offset, tot), w = bw(r.durationDays, tot)
-          const fill = isP ? '#94a3b8' : (STATUS_FILL[r.status || 'not_started'] || STATUS_FILL.not_started)
+          const pct = rowPct(r)
+          const st = rowSt(r)
+          const fill = isP ? '#94a3b8' : (STATUS_FILL[st] || STATUS_FILL.not_started)
+          const isEditing = !isP && r.taskId === editing?.taskId
           return (
-            <g key={i}>
+            <g key={i} onClick={e => openEdit(e, r)} style={{ cursor: isP ? 'default' : 'pointer' }}>
               <clipPath id={`lc${i}`}><rect x={0} y={y} width={LW - 4} height={BH} /></clipPath>
               <text x={isP ? 2 : 12} y={mid + 4} fontSize={isP ? 10 : 9} fontWeight={isP ? 700 : 400}
                 fill={isP ? '#1e293b' : '#475569'} clipPath={`url(#lc${i})`}>{r.label}</text>
-              <rect x={x} y={y + 2} width={w} height={BH - 4} rx={3} fill={isP ? '#e2e8f0' : '#f1f5f9'} />
-              <rect x={x} y={y + 2} width={Math.max(2, w * (r.pct / 100))} height={BH - 4} rx={3}
+              {/* track */}
+              <rect x={x} y={y + 2} width={w} height={BH - 4} rx={3}
+                fill={isP ? '#e2e8f0' : '#f1f5f9'}
+                stroke={isEditing ? '#3b82f6' : 'none'} strokeWidth={1.5} />
+              {/* fill */}
+              <rect x={x} y={y + 2} width={Math.max(2, w * (pct / 100))} height={BH - 4} rx={3}
                 fill={fill} opacity={isP ? 0.65 : 1}
                 onMouseMove={e => showTip(e, r)} onMouseLeave={() => setTip(null)} />
-              <text x={LW + BA + 4} y={mid + 4} fontSize={9} fill={isP ? '#1e293b' : '#64748b'} fontWeight={isP ? 600 : 400}>{r.pct}%</text>
+              <text x={LW + BA + 4} y={mid + 4} fontSize={9}
+                fill={isP ? '#1e293b' : '#64748b'} fontWeight={isP ? 600 : 400}>{pct}%</text>
             </g>
           )
         })}
@@ -120,6 +175,71 @@ export function ProjectGantt({ tasks }: { tasks: GanttTask[] }) {
           <p className="text-gray-300 mt-0.5">{tip.assignee}</p>
           <p className="text-gray-400 capitalize mt-0.5">{tip.status.replace(/_/g, ' ')}</p>
         </div>
+      )}
+
+      {editing && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={closeEdit} />
+          <div className="fixed z-50 bg-white border border-gray-200 rounded-xl shadow-xl p-4 w-64"
+            style={{
+              left: Math.min(editing.x + 8, vw - 280),
+              top: Math.min(editing.y + 8, vh2 - 190),
+            }}>
+            <div className="flex items-start justify-between mb-3">
+              <p className="text-xs font-semibold text-gray-700 leading-tight pr-2 flex-1 truncate">{editing.name}</p>
+              <button onClick={closeEdit} className="text-gray-300 hover:text-gray-600 flex-shrink-0 ml-1 text-sm leading-none">✕</button>
+            </div>
+
+            <div className="mb-4">
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[10px] text-gray-400 uppercase tracking-wide">Progress</label>
+                <span className="text-xs font-semibold text-blue-600">{editing.progress}%</span>
+              </div>
+              <input
+                type="range" min={0} max={100} step={5} value={editing.progress}
+                className="w-full accent-blue-500 cursor-pointer"
+                onChange={e => {
+                  const p = Number(e.target.value)
+                  setEditing(prev => prev ? { ...prev, progress: p } : null)
+                  if (editing) setLocalEdits(prev => ({ ...prev, [editing.taskId]: { progress: p, status: editing.status } }))
+                }}
+                onMouseUp={e => {
+                  const p = Number((e.target as HTMLInputElement).value)
+                  if (editing) applyEdit(editing.taskId, p, editing.status)
+                }}
+                onTouchEnd={e => {
+                  const p = Number((e.target as HTMLInputElement).value)
+                  if (editing) applyEdit(editing.taskId, p, editing.status)
+                }}
+              />
+              <div className="flex justify-between text-[9px] text-gray-300 -mt-0.5">
+                <span>0</span><span>50</span><span>100</span>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[10px] text-gray-400 uppercase tracking-wide block mb-1.5">Status</label>
+              <div className="grid grid-cols-2 gap-1">
+                {Object.entries(STATUS_LABELS).map(([val, label]) => {
+                  const active = editing.status === val
+                  const color = STATUS_FILL[val]
+                  return (
+                    <button key={val}
+                      onClick={() => {
+                        const p = val === 'done' ? 100 : val === 'not_started' ? 0 : editing.progress
+                        setEditing(prev => prev ? { ...prev, status: val, progress: p } : null)
+                        if (editing) applyEdit(editing.taskId, p, val)
+                      }}
+                      className={`text-[10px] px-2 py-1.5 rounded-lg border transition-all ${active ? 'border-transparent text-white font-medium' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}
+                      style={active ? { backgroundColor: color } : {}}>
+                      {label}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        </>
       )}
     </div>
   )
