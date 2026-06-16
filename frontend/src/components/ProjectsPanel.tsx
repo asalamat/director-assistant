@@ -419,10 +419,45 @@ export function ProjectsPanel() {
                   </button>
                 </>
               )}
+              <button onClick={handleWeeklyUpdate} disabled={weeklyLoading}
+                className="text-xs border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50 disabled:opacity-50">
+                {weeklyLoading ? '⟳ Drafting…' : '📅 Weekly Update'}
+              </button>
             </div>
             {planMsg && <p className="text-xs text-red-500 mt-1">{planMsg}</p>}
             {plan && <ProjectPlanView plan={plan} />}
           </div>
+
+          {/* Gantt chart */}
+          {ganttTasks.length > 0 && (
+            <div className="pt-2 border-t border-gray-100">
+              <p className="text-xs font-semibold text-gray-700 mb-2">Progress Diagram</p>
+              <ProjectGantt tasks={ganttTasks} />
+            </div>
+          )}
+
+          {/* Weekly Update modal */}
+          {showWeekly && weeklyUpdate && (
+            <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+              onClick={() => setShowWeekly(false)}>
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-5 space-y-3"
+                onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-gray-800">Weekly Update Draft</p>
+                  <button onClick={() => setShowWeekly(false)} className="text-gray-400 hover:text-gray-700 text-lg leading-none">✕</button>
+                </div>
+                <p className="text-sm font-medium text-gray-700 border-b border-gray-100 pb-2">{weeklyUpdate.subject}</p>
+                <pre className="text-xs text-gray-600 whitespace-pre-wrap leading-relaxed max-h-64 overflow-y-auto font-sans">
+                  {weeklyUpdate.body}
+                </pre>
+                <button
+                  onClick={() => navigator.clipboard.writeText(`${weeklyUpdate.subject}\n\n${weeklyUpdate.body}`)}
+                  className="w-full text-xs border border-gray-200 px-3 py-2 rounded-lg hover:bg-gray-50 text-gray-600">
+                  📋 Copy
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Progress notes + AI review */}
           <div className="border-t border-gray-100 pt-4">
