@@ -49,6 +49,32 @@ interface DocsAnswer {
   sources: { filename: string; file_type: string }[]
 }
 
+interface SavedSearch { id: string; name: string; query: string }
+
+function buildMarkdown(text: string, sources?: { subject?: string; sender?: string; date?: string; filename?: string }[]): string {
+  let md = text
+  if (sources && sources.length > 0) {
+    md += '\n\n---\n**Sources:**\n'
+    sources.forEach((s, i) => {
+      const label = s.filename ?? s.subject ?? '(no subject)'
+      const from = s.filename ? '' : (s.sender ? ` — ${s.sender}` : '')
+      const date = s.date ? ` (${s.date})` : ''
+      md += `${i + 1}. ${label}${from}${date}\n`
+    })
+  }
+  return md
+}
+
+function downloadMd(content: string) {
+  const blob = new Blob([content], { type: 'text/markdown' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `answer-${new Date().toISOString().slice(0, 10)}.md`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 function Highlight({ text, query }: { text: string; query: string }) {
   if (!query.trim()) return <>{text}</>
   const terms = query.trim().split(/\s+/).filter(t => t.length > 2).slice(0, 5)
@@ -96,14 +122,31 @@ export function AskPanel({ initialQuery, onClear }: { initialQuery?: string; onC
   const [nlFilters, setNlFilters] = useState<Record<string, string>>({})
   const [nlError, setNlError] = useState('')
 
+  // Saved/pinned searches state
+  const [savedSearches, setSavedSearches] = useState<SavedSearch[]>(() => {
+    try { return JSON.parse(localStorage.getItem('saved_searches') || '[]') }
+    catch { return [] }
+  })
+  const [showSaveInput, setShowSaveInput] = useState(false)
+  const [saveName, setSaveName] = useState('')
+
   // Docs Q&A state
   const [docsQuery, setDocsQuery] = useState('')
   const [loadingDocs, setLoadingDocs] = useState(false)
   const [docsAnswer, setDocsAnswer] = useState<DocsAnswer | null>(null)
   const [docsError, setDocsError] = useState('')
 
+  const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
+  const [docsAnswerCopied, setDocsAnswerCopied] = useState(false)
+
   const bottomRef = useRef<HTMLDivElement>(null)
   const lastInitial = useRef<string | undefined>(undefined)
+
+  const copyMsg = (i: number, text: string, sources?: Source[]) => {
+    navigator.clipboard.writeText(buildMarkdown(text, sources)).catch(() => {})
+    setCopiedIdx(i)
+    setTimeout(() => setCopiedIdx(null), 1500)
+  }
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -241,15 +284,30 @@ export function AskPanel({ initialQuery, onClear }: { initialQuery?: string; onC
     }
   }
 
-  const handleNlSearch = async () => {
-    const q = nlQuery.trim()
-    if (!q || nlLoading) return
+  const persistSaved = (list: SavedSearch[]) => {
+    setSavedSearches(list)
+    localStorage.setItem('saved_searches', JSON.stringify(list))
+  }
+
+  const saveSearch = () => {
+    if (!saveName.trim() || !nlQuery.trim()) return
+    const entry: SavedSearch = { id: Date.now().toString(), name: saveName.trim(), query: nlQuery.trim() }
+    persistSaved([...savedSearches, entry])
+    setShowSaveInput(false)
+    setSaveName('')
+  }
+
+  const removeSaved = (id: string) => persistSaved(savedSearches.filter(s => s.id !== id))
+
+  const handleNlSearchWith = async (q: string) => {
+    if (!q.trim() || nlLoading) return
     setNlLoading(true)
     setNlError('')
     setNlResults(null)
     setNlFilters({})
+    setShowSaveInput(false)
     try {
-      const res = await api.nlSearch(q)
+      const res = await api.nlSearch(q.trim())
       setNlResults(res.results)
       setNlFilters(res.filters || {})
       if (res.results.length === 0) setNlError('No emails matched your search.')
@@ -258,6 +316,10 @@ export function AskPanel({ initialQuery, onClear }: { initialQuery?: string; onC
     } finally {
       setNlLoading(false)
     }
+  }
+
+  const handleNlSearch = async () => {
+    await handleNlSearchWith(nlQuery)
   }
 
   const handleDocsAsk = async () => {
@@ -366,6 +428,22 @@ export function AskPanel({ initialQuery, onClear }: { initialQuery?: string; onC
                         <span className="inline-block text-gray-400 ml-0.5 align-middle animate-blink">▌</span>
                       )}
                     </div>
+                    {!msg.streaming && msg.role === 'assistant' && msg.text && (
+                      <div className="flex gap-2 mt-2">
+                        <button
+                          onClick={() => copyMsg(i, msg.text, msg.sources)}
+                          className="text-[10px] text-gray-400 hover:text-gray-600 px-2 py-1 rounded border border-gray-200 hover:border-gray-300 transition-colors flex items-center gap-1"
+                        >
+                          {copiedIdx === i ? '✓ Copied!' : '📋 Copy'}
+                        </button>
+                        <button
+                          onClick={() => downloadMd(buildMarkdown(msg.text, msg.sources))}
+                          className="text-[10px] text-gray-400 hover:text-gray-600 px-2 py-1 rounded border border-gray-200 hover:border-gray-300 transition-colors"
+                        >
+                          ↓ Download
+                        </button>
+                      </div>
+                    )}
                     {msg.sources && msg.sources.length > 0 && (
                       <div className="mt-2">
                         <button
@@ -593,6 +671,27 @@ export function AskPanel({ initialQuery, onClear }: { initialQuery?: string; onC
         {mode === 'smart-search' && (
           <div className="flex-1 flex flex-col overflow-hidden">
             <div className="px-4 pt-4 pb-3 border-b border-gray-100">
+              {savedSearches.length > 0 && (
+                <div className="mb-3">
+                  <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1.5">Pinned</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {savedSearches.map(s => (
+                      <div key={s.id} className="flex items-center gap-1 bg-blue-50 border border-blue-200 rounded-full px-2.5 py-1 group">
+                        <button
+                          onClick={() => { setNlQuery(s.query); handleNlSearchWith(s.query) }}
+                          className="text-xs text-blue-600 hover:text-blue-800"
+                        >
+                          🔖 {s.name}
+                        </button>
+                        <button
+                          onClick={() => removeSaved(s.id)}
+                          className="text-gray-300 hover:text-red-400 text-[10px] leading-none ml-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >×</button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               <p className="text-xs text-gray-400 mb-2">Describe what you're looking for in plain English</p>
               <div className="flex gap-2">
                 <input
@@ -663,6 +762,27 @@ export function AskPanel({ initialQuery, onClear }: { initialQuery?: string; onC
                       )}
                     </div>
                   ))}
+                  {!showSaveInput ? (
+                    <button
+                      onClick={() => { setShowSaveInput(true); setSaveName('') }}
+                      className="text-[10px] text-gray-400 hover:text-accent mt-2 flex items-center gap-1"
+                    >
+                      🔖 Save this search
+                    </button>
+                  ) : (
+                    <div className="mt-2 flex items-center gap-2">
+                      <input
+                        autoFocus
+                        value={saveName}
+                        onChange={e => setSaveName(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') saveSearch(); if (e.key === 'Escape') setShowSaveInput(false) }}
+                        placeholder="Search name…"
+                        className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400 flex-1 max-w-[140px]"
+                      />
+                      <button onClick={saveSearch} className="text-xs text-white bg-accent px-2.5 py-1 rounded-lg hover:bg-blue-700">Save</button>
+                      <button onClick={() => setShowSaveInput(false)} className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
+                    </div>
+                  )}
                 </>
               )}
             </div>
@@ -710,6 +830,24 @@ export function AskPanel({ initialQuery, onClear }: { initialQuery?: string; onC
               {docsAnswer && (
                 <div className="bg-blue-50 rounded-xl p-4 space-y-2">
                   <p className="text-sm text-gray-800 leading-relaxed">{docsAnswer.answer}</p>
+                  <div className="flex gap-2 mt-2">
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(buildMarkdown(docsAnswer.answer, docsAnswer.sources)).catch(() => {})
+                        setDocsAnswerCopied(true)
+                        setTimeout(() => setDocsAnswerCopied(false), 1500)
+                      }}
+                      className="text-[10px] text-gray-400 hover:text-gray-600 px-2 py-1 rounded border border-gray-200 hover:border-gray-300 transition-colors flex items-center gap-1"
+                    >
+                      {docsAnswerCopied ? '✓ Copied!' : '📋 Copy'}
+                    </button>
+                    <button
+                      onClick={() => downloadMd(buildMarkdown(docsAnswer.answer, docsAnswer.sources))}
+                      className="text-[10px] text-gray-400 hover:text-gray-600 px-2 py-1 rounded border border-gray-200 hover:border-gray-300 transition-colors"
+                    >
+                      ↓ Download
+                    </button>
+                  </div>
                   {docsAnswer.sources.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-2">
                       {docsAnswer.sources.map((s, i) => (

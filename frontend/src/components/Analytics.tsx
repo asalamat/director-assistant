@@ -110,15 +110,38 @@ function Sparkline({ data }: { data: { date: string; count: number }[] }) {
   )
 }
 
+function delta(current: number, previous: number): { pct: number; up: boolean } | null {
+  if (!previous) return null
+  const pct = Math.round(((current - previous) / previous) * 100)
+  return { pct: Math.abs(pct), up: pct >= 0 }
+}
+
+function DeltaBadge({ d }: { d: { pct: number; up: boolean } | null }) {
+  if (!d) return null
+  return (
+    <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
+      d.up ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+    }`}>
+      {d.up ? '↑' : '↓'} {d.pct}%
+    </span>
+  )
+}
+
 export function Analytics() {
   const [data, setData] = useState<AnalyticsResponse | null>(null)
+  const [prevData, setPrevData] = useState<AnalyticsResponse | null>(null)
   const [days, setDays] = useState(30)
   const [loading, setLoading] = useState(false)
 
   const load = async () => {
     setLoading(true)
     try {
-      setData(await api.getAnalytics(days))
+      const [cur, prev] = await Promise.all([
+        api.getAnalytics(days),
+        api.getAnalytics(days * 2),
+      ])
+      setData(cur)
+      setPrevData(prev)
     } finally {
       setLoading(false)
     }
@@ -127,6 +150,20 @@ export function Analytics() {
   useEffect(() => { load() }, [days])
 
   const maxSender = data ? Math.max(...data.top_senders.map((s) => s.count), 1) : 1
+
+  const prevTotal = prevData
+    ? prevData.daily_volume.slice(0, Math.floor(prevData.daily_volume.length / 2))
+        .reduce((s, d) => s + d.count, 0)
+    : 0
+  const currentAvg = data && data.daily_volume.length
+    ? Math.round(data.daily_volume.reduce((a, b) => a + b.count, 0) / data.daily_volume.length)
+    : 0
+  const prevAvg = prevData && prevData.daily_volume.length
+    ? Math.round(
+        prevData.daily_volume.slice(0, Math.floor(prevData.daily_volume.length / 2))
+          .reduce((s, d) => s + d.count, 0) / Math.floor(prevData.daily_volume.length / 2)
+      )
+    : 0
 
   return (
     <div className="flex-1 overflow-y-auto p-6 space-y-6">
@@ -170,6 +207,12 @@ export function Analytics() {
             <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-center">
               <p className="text-2xl font-bold text-blue-600">{data.total_emails.toLocaleString()}</p>
               <p className="text-xs text-blue-500">Total emails</p>
+              <div className="mt-1 flex flex-col items-center gap-0.5">
+                <DeltaBadge d={delta(data.total_emails, prevTotal)} />
+                {prevTotal > 0 && (
+                  <span className="text-[10px] text-gray-400">vs prev {days}d</span>
+                )}
+              </div>
             </div>
             <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 text-center">
               <p className="text-2xl font-bold text-gray-700">
@@ -180,14 +223,14 @@ export function Analytics() {
               <p className="text-xs text-gray-500">Folders</p>
             </div>
             <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 text-center">
-              <p className="text-2xl font-bold text-gray-700">
-                {data.daily_volume.length > 0
-                  ? Math.round(
-                      data.daily_volume.reduce((a, b) => a + b.count, 0) / data.daily_volume.length
-                    )
-                  : 0}
-              </p>
+              <p className="text-2xl font-bold text-gray-700">{currentAvg}</p>
               <p className="text-xs text-gray-500">Avg/day</p>
+              <div className="mt-1 flex flex-col items-center gap-0.5">
+                <DeltaBadge d={delta(currentAvg, prevAvg)} />
+                {prevAvg > 0 && (
+                  <span className="text-[10px] text-gray-400">vs prev {days}d</span>
+                )}
+              </div>
             </div>
           </div>
 

@@ -129,11 +129,12 @@ function InboxEmail() {
         <FeatureRow label="Unread filter" desc="Click the 'N unread' badge in the toolbar to show all unread emails across all folders. Click again to return." />
         <FeatureRow label="Priority labels" desc="Emails auto-tagged urgent, action, or finance based on keywords in subject and preview." />
         <FeatureRow label="AI preview" desc="A 1-sentence AI summary automatically appears below each email subject as emails enter the viewport. Generated once and cached." />
+        <FeatureRow label="Hover preview" desc="Hover over any email row to see an instant tooltip with sender, date, and body preview — no click needed." />
         <FeatureRow label="New badge" desc="Green 'New' pill on emails received in the last 4 hours that are still unread." />
         <FeatureRow label="Read-time" desc="~Nm read-time estimate on each email so you can triage by effort." />
         <FeatureRow label="Thread depth" desc="↩ N indicator shows reply-chain depth on threaded emails." />
         <FeatureRow label="Smart sort" desc="Sort by date, sender, or subject (asc/desc), or switch to AI urgency ranking with the Priority button." />
-        <FeatureRow label="Pinned searches" desc="Click 📌 while searching to save a query as a persistent smart folder." />
+        <FeatureRow label="Saved searches" desc="Click 📌 while searching to pin a query with a name. Saved searches appear as clickable chips in the search panel and as smart folders in the folder bar." />
         <FeatureRow label="Bulk select" desc="Checkbox appears on hover — select multiple emails to bulk Archive, Mark Read, Delete, or Snooze. 'Select all N' link selects the full visible list." />
         <FeatureRow label="⚡ Filters" desc="Click the Filters button beside the search bar to expand date range, sender, category, has-attachment, and unread-only filters. Active filters show as removable chips." />
         <FeatureRow label="Auto-poll" desc="New emails checked every 60 seconds automatically. Click Refresh for an immediate check." />
@@ -235,6 +236,9 @@ function AISection() {
         <Li>Click <strong>▶ Run now</strong> to trigger immediately for testing</Li>
       </UL>
 
+      <H3>Ask AI Export</H3>
+      <P>After any AI answer in the <strong>Ask</strong> tab, use the buttons below the response to <strong>Copy</strong> the text to your clipboard or <strong>↓ .md</strong> to download it as a Markdown file — useful for pasting into Notion, Confluence, or any document editor.</P>
+
       <H3>Budget Mode</H3>
       <P>Enable <strong>Budget Mode</strong> in App Settings to use Claude Haiku for routine tasks, keeping Sonnet for complex analysis. Reduces API costs by 10–20× while maintaining full capability.</P>
     </div>
@@ -259,6 +263,7 @@ function ExecutiveTools() {
         <Li><strong>Relationships to Nurture</strong> — contacts who may need attention</Li>
       </UL>
       <Note>The brief is cached for 1 hour. Click ↺ Refresh to force a new generation. Uses Claude Sonnet for depth.</Note>
+      <P><strong>Export:</strong> use <strong>📋 Copy</strong> to copy the full brief to your clipboard, or <strong>↓ .md</strong> to download it as a Markdown file.</P>
 
       <H3>Smart Daily Triage (Focus Tab)</H3>
       <P>Switch to <strong>Focus</strong> to see your top 7 priority unread emails, AI-scored using 7 signals:</P>
@@ -271,7 +276,7 @@ function ExecutiveTools() {
         <Li>Relationship health signals</Li>
         <Li>Deadline proximity</Li>
       </UL>
-      <P>Score badges <strong>!</strong> / <strong>!!</strong> / <strong>!!!</strong> and reason tags explain exactly why each email was flagged. Click any to jump directly to it. Refreshes every 5 minutes.</P>
+      <P>Score badges <strong>!</strong> / <strong>!!</strong> / <strong>!!!</strong> and reason tags explain exactly why each email was flagged. Hover the numeric score badge (e.g. <strong>8</strong>) to see a tooltip listing every scoring reason in detail. Click any to jump directly to it. Refreshes every 5 minutes.</P>
 
       <H3>Chase Queue (Follow-up Drafts) <Tag color="orange">New</Tag></H3>
       <P>Go to the <strong>Chase</strong> tab to see all emails you sent with no reply after 3+ days.</P>
@@ -294,6 +299,7 @@ function ExecutiveTools() {
         <Li><strong>Overdue badge</strong> — red count badge on the Actions tab for past-due items</Li>
         <Li><strong>Waiting for Reply</strong> — sent emails 3+ days old with no response</Li>
         <Li><strong>Scan sent mail</strong> — AI scans your sent mail and surfaces commitments you made</Li>
+        <Li><strong>Bulk actions</strong> — checkbox on each item; select multiple then use the toolbar to bulk mark done or bulk delete</Li>
         <Li><strong>CSV export</strong> — export all pending action items as a spreadsheet</Li>
         <Li><strong>Copy checklist</strong> — one-click copy of all items as a Markdown checklist</Li>
       </UL>
@@ -525,6 +531,9 @@ function KnowledgeSection() {
 
       <H3>🗓 Meeting Prep</H3>
       <P>In <strong>Knowledge → 🧭 Briefing</strong>, click <strong>🗓 Meeting Prep</strong>. Enter the meeting subject, attendee email addresses (comma-separated), and date. AI scans prior email history with those attendees and generates a 4-section prep brief: background, open items, talking points, and watch-outs.</P>
+
+      <H3>Analytics — Week-over-Week</H3>
+      <P>The <strong>Analytics</strong> section's Total and Avg/day cards show a delta badge (e.g. <Tag color="green">↑ 12%</Tag> or <Tag color="orange">↓ 8%</Tag>) comparing the current period to the previous one — giving instant visibility into whether email volume is trending up or down.</P>
     </div>
   )
 }
@@ -644,6 +653,8 @@ function TipsSection() {
       <H3>Keyboard shortcuts</H3>
       <div className="space-y-2 mb-4">
         {[
+          { key: '?', desc: 'Show / hide the keyboard shortcut overlay (this panel)' },
+          { key: '⌘ K / Ctrl K', desc: 'Open the command palette — type a section name and press Enter to jump' },
           { key: 'j / k', desc: 'Navigate to next / previous email in the list' },
           { key: 'r', desc: 'Reply to the selected email' },
           { key: 'f', desc: 'Forward the selected email' },

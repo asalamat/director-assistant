@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { api } from '../api/client'
 import type { TriageEmail } from '../types'
 import { useEmailContext } from '../contexts/EmailContext'
@@ -28,14 +28,37 @@ function saveSnoozed(data: Record<string, string>) {
   localStorage.setItem(SNOOZE_KEY, JSON.stringify(data))
 }
 
-function ScoreBadge({ score }: { score: number }) {
+function ScoreBadge({ score, reasons }: { score: number; reasons: string[] }) {
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
+  const ref = useRef<HTMLSpanElement>(null)
   const color =
     score >= 6 ? 'bg-red-500 text-white' :
     score >= 4 ? 'bg-orange-400 text-white' :
     'bg-yellow-400 text-gray-800'
+  const handleEnter = () => {
+    if (!reasons.length) return
+    const r = ref.current?.getBoundingClientRect()
+    if (r) setPos({ x: r.left, y: r.bottom + 6 })
+  }
   return (
-    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 ${color}`}>
-      {score >= 6 ? '!!!' : score >= 4 ? '!!' : '!'}
+    <span ref={ref} className="relative flex-shrink-0"
+      onMouseEnter={handleEnter} onMouseLeave={() => setPos(null)}>
+      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full cursor-help ${color}`}>
+        {score}
+      </span>
+      {pos && reasons.length > 0 && (
+        <div className="fixed z-[9999] bg-gray-900 text-white text-xs rounded-lg px-3 py-2 shadow-xl min-w-[180px] pointer-events-none"
+          style={{ left: Math.min(pos.x, window.innerWidth - 210), top: pos.y }}>
+          <p className="font-semibold mb-1 text-gray-200">Priority score: {score}</p>
+          <ul className="space-y-0.5">
+            {reasons.map(r => (
+              <li key={r} className="flex items-center gap-1.5 text-gray-300">
+                <span className="text-green-400">✓</span>{r}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </span>
   )
 }
@@ -166,7 +189,7 @@ export function TriagePanel() {
                 className="flex-1 min-w-0 text-left"
               >
                 <div className="flex items-center gap-2 mb-1">
-                  <ScoreBadge score={em.score} />
+                  <ScoreBadge score={em.score} reasons={em.reasons} />
                   <span className="text-sm font-medium text-gray-900 truncate group-hover:text-accent">
                     {em.subject}
                   </span>

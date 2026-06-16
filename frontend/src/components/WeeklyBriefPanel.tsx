@@ -25,6 +25,42 @@ interface Brief {
 
 interface SearchResult { email_id?: string; id?: string; subject: string; sender: string; date?: string; text?: string }
 
+// ── Export helpers ────────────────────────────────────────────────────────────
+
+function briefToMarkdown(brief: Brief): string {
+  const sections = [
+    { title: '🎯 Top Action Items', items: brief.action_items },
+    { title: '⏳ Waiting For', items: brief.waiting_for },
+    { title: '📋 Commitments Made', items: brief.commitments_made },
+    { title: '⚡ Upcoming Deadlines', items: brief.upcoming_deadlines },
+    { title: '✅ Decisions Made', items: brief.key_decisions },
+    { title: '🏆 Wins This Week', items: brief.wins },
+    { title: '🤝 Relationships to Nurture', items: brief.relationships_to_nurture },
+  ]
+  let md = `# Weekly Executive Brief\n${brief.period || ''}\n\n`
+  if (brief.summary) md += `## Overview\n${brief.summary}\n\n`
+  for (const { title, items } of sections) {
+    if (!items || items.length === 0) continue
+    md += `## ${title}\n`
+    items.forEach(item => {
+      md += `- ${item.text}\n`
+      if (item.emails?.length > 0) {
+        item.emails.forEach(e => { md += `  - 📧 ${e.subject} (${e.sender})\n` })
+      }
+    })
+    md += '\n'
+  }
+  return md
+}
+
+function downloadMd(content: string, filename: string) {
+  const blob = new Blob([content], { type: 'text/markdown' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = filename; a.click()
+  URL.revokeObjectURL(url)
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function fmtDate(d?: string | null) {
@@ -188,6 +224,7 @@ export function WeeklyBriefPanel() {
   const { setActiveTab } = useUIContext()
   const [brief, setBrief] = useState<Brief | null>(null)
   const [loading, setLoading] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   const generate = async (force = false) => {
     if (force) await api.clearWeeklyBriefCache().catch(() => {})
@@ -256,10 +293,31 @@ export function WeeklyBriefPanel() {
             <h2 className="text-sm font-semibold text-gray-800">Weekly Executive Brief</h2>
             <p className="text-xs text-gray-400 mt-0.5">{brief?.period || brief?.since}</p>
           </div>
-          <button onClick={() => generate(true)} title="Regenerate"
-            className="text-xs text-gray-400 hover:text-accent px-2 py-1 rounded hover:bg-blue-50 transition-colors flex items-center gap-1">
-            ↺ Refresh
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(briefToMarkdown(brief!)).catch(() => {})
+                setCopied(true)
+                setTimeout(() => setCopied(false), 1500)
+              }}
+              className="text-xs text-gray-400 hover:text-accent px-2 py-1 rounded hover:bg-blue-50 transition-colors flex items-center gap-1"
+            >
+              {copied ? '✓ Copied' : '📋 Copy'}
+            </button>
+            <button
+              onClick={() => {
+                const date = new Date().toISOString().slice(0, 10)
+                downloadMd(briefToMarkdown(brief!), `weekly-brief-${date}.md`)
+              }}
+              className="text-xs text-gray-400 hover:text-accent px-2 py-1 rounded hover:bg-blue-50 transition-colors"
+            >
+              ↓ .md
+            </button>
+            <button onClick={() => generate(true)} title="Regenerate"
+              className="text-xs text-gray-400 hover:text-accent px-2 py-1 rounded hover:bg-blue-50 transition-colors flex items-center gap-1">
+              ↺ Refresh
+            </button>
+          </div>
         </div>
 
         {/* Stats row */}

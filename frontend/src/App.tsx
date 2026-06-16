@@ -17,6 +17,8 @@ import { ToastContainer, addToast } from './components/Toast'
 import UpdatePopup from './components/UpdatePopup'
 import { ComposeModal } from './components/ComposeModal'
 import { VIPPanel } from './components/VIPPanel'
+import { ShortcutHelp } from './components/ShortcutHelp'
+import { CommandPalette } from './components/CommandPalette'
 import { useRecommendation } from './hooks/useEmails'
 import { useEmailContext } from './contexts/EmailContext'
 import { useUIContext, type Tab } from './contexts/UIContext'
@@ -751,6 +753,8 @@ export default function App() {
       <StatusBar />
       <ToastContainer />
       <UpdatePopup />
+      <ShortcutHelp />
+      <CommandPalette onNavigate={setActiveTab} />
     </div>
   )
 }

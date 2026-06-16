@@ -424,6 +424,18 @@ Outputs `dist/DirectorAssistant-mac-3.15.3.zip` and `dist/DirectorAssistant-win-
 - **📄 Export PDF** — opens a print-ready A4 document in a new tab → Print → Save as PDF
 - **📊 MS Project (.xml)** — downloads MSPDI-format XML that opens directly in Microsoft Project; phases become summary tasks, individual tasks become children with duration in hours
 
+### UX & Productivity (v3.36)
+- **Command palette** — `Cmd+K` / `Ctrl+K` opens a quick-jump overlay; type any section name and press Enter to navigate instantly
+- **Keyboard shortcut overlay** — press `?` anywhere (outside a text field) to see all keyboard shortcuts in a floating card
+- **Hover email preview** — hover any email row to see a tooltip with sender, date, and body preview; no click needed
+- **Unread count in tab title** — browser tab shows `Director (N)` while unread emails exist; clears when the tab is focused
+- **Saved searches** — click 📌 while searching to pin the query with a name; pinned searches appear as clickable chips in the search panel
+- **Bulk actions (Action Board)** — checkbox on each action item; select multiple then bulk mark done or bulk delete
+- **Score explanation tooltip** — priority score badge (e.g. `8`) in Focus/Triage now shows a hover tooltip listing all scoring reasons
+- **Ask AI export** — Copy or download any AI answer from the Ask tab as a Markdown `.md` file
+- **Weekly Brief export** — "📋 Copy" and "↓ .md" buttons export the full weekly brief as Markdown
+- **Analytics week-over-week** — delta % badges (↑ green / ↓ red) on Total and Avg/day cards in Analytics showing change vs the previous period
+
 ### UX Polish (v3.33)
 - **✦ Thread summary** — when an email is part of a thread, a "✦ Summarize thread" button appears; AI reads all messages and returns summary + key points + outcome in a dismissible card
 - **Keyboard shortcuts** — `r` to reply, `f` to forward (added to existing: `j`/`k` navigate list, `a` analyze, `e` archive, `Esc` deselect, `⌘N` compose)

@@ -28,6 +28,10 @@ export function ActionBoard() {
   const [waiting, setWaiting] = useState<WaitingEmail[]>([])
   const [loadingWaiting, setLoadingWaiting] = useState(false)
 
+  // Bulk selection state
+  const [selectedActions, setSelectedActions] = useState<Set<number>>(new Set())
+  const [selectedFollowUps, setSelectedFollowUps] = useState<Set<number>>(new Set())
+
   // Inline due-date editing state
   const [editingDueDateId, setEditingDueDateId] = useState<number | null>(null)
   const [editingDueDateVal, setEditingDueDateVal] = useState('')
@@ -94,6 +98,25 @@ export function ActionBoard() {
   const deleteFollowUp = async (id: number) => {
     await api.deleteFollowUp(id)
     setFollowUps((prev) => prev.filter((f) => f.id !== id))
+  }
+
+  // Bulk action handlers
+  const bulkMarkActionsDone = async () => {
+    await Promise.all([...selectedActions].map((id) => api.setActionDone(id, true)))
+    setSelectedActions(new Set())
+    reload()
+  }
+
+  const bulkMarkFollowUpsDone = async () => {
+    await Promise.all([...selectedFollowUps].map((id) => api.setFollowUpDone(id, true)))
+    setSelectedFollowUps(new Set())
+    reload()
+  }
+
+  const bulkDeleteFollowUps = async () => {
+    await Promise.all([...selectedFollowUps].map((id) => api.deleteFollowUp(id)))
+    setSelectedFollowUps(new Set())
+    reload()
   }
 
   const handleScanSent = async () => {
@@ -203,6 +226,41 @@ export function ActionBoard() {
         )}
         {!loading && !loadError && tab === 'actions' && (
           <>
+            {/* Bulk action bar — actions */}
+            {selectedActions.size > 0 && (
+              <div className="bg-blue-50 border border-blue-200 rounded-xl px-3 py-2 flex items-center gap-3 mb-2">
+                <label className="flex items-center gap-1.5 text-xs text-blue-700 font-medium cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selectedActions.size === actions.filter((a) => !a.done).length && actions.filter((a) => !a.done).length > 0}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedActions(new Set(actions.filter((a) => !a.done).map((a) => a.id)))
+                      } else {
+                        setSelectedActions(new Set())
+                      }
+                    }}
+                    className="accent-accent"
+                  />
+                  {selectedActions.size} selected
+                </label>
+                {!showDone && (
+                  <button
+                    onClick={bulkMarkActionsDone}
+                    className="text-xs px-2.5 py-1 bg-accent text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Mark done
+                  </button>
+                )}
+                <button
+                  onClick={() => setSelectedActions(new Set())}
+                  className="text-xs text-blue-500 hover:text-blue-700 transition-colors ml-auto"
+                >
+                  Clear
+                </button>
+              </div>
+            )}
+
             {/* Scan sent mail button */}
             <div className="flex items-center gap-2 mb-1">
               <button
@@ -282,8 +340,24 @@ export function ActionBoard() {
                   a.done ? 'bg-gray-50 border-gray-100 opacity-60' : 'bg-white border-gray-200'
                 }`}
               >
+                {!a.done && (
+                  <input
+                    type="checkbox"
+                    title="Select for bulk action"
+                    checked={selectedActions.has(a.id)}
+                    onChange={(e) => {
+                      setSelectedActions((prev) => {
+                        const next = new Set(prev)
+                        if (e.target.checked) { next.add(a.id) } else { next.delete(a.id) }
+                        return next
+                      })
+                    }}
+                    className="mt-0.5 accent-accent shrink-0"
+                  />
+                )}
                 <input
                   type="checkbox"
+                  title="Mark done"
                   checked={a.done}
                   onChange={(e) => toggleAction(a.id, e.target.checked)}
                   className="mt-0.5 accent-accent"
@@ -304,6 +378,47 @@ export function ActionBoard() {
 
         {!loading && !loadError && tab === 'followups' && (
           <>
+            {/* Bulk action bar — follow-ups */}
+            {selectedFollowUps.size > 0 && (
+              <div className="bg-blue-50 border border-blue-200 rounded-xl px-3 py-2 flex items-center gap-3 mb-2">
+                <label className="flex items-center gap-1.5 text-xs text-blue-700 font-medium cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selectedFollowUps.size === followUps.filter((f) => !f.done).length && followUps.filter((f) => !f.done).length > 0}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedFollowUps(new Set(followUps.filter((f) => !f.done).map((f) => f.id)))
+                      } else {
+                        setSelectedFollowUps(new Set())
+                      }
+                    }}
+                    className="accent-accent"
+                  />
+                  {selectedFollowUps.size} selected
+                </label>
+                {!showDone && (
+                  <button
+                    onClick={bulkMarkFollowUpsDone}
+                    className="text-xs px-2.5 py-1 bg-accent text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Mark done
+                  </button>
+                )}
+                <button
+                  onClick={bulkDeleteFollowUps}
+                  className="text-xs px-2.5 py-1 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                >
+                  Delete
+                </button>
+                <button
+                  onClick={() => setSelectedFollowUps(new Set())}
+                  className="text-xs text-blue-500 hover:text-blue-700 transition-colors ml-auto"
+                >
+                  Clear
+                </button>
+              </div>
+            )}
+
             {followUps.length === 0 && (
               <div className="py-8">
                 <EmptyState
@@ -327,8 +442,24 @@ export function ActionBoard() {
                   }`}
                 >
                   <div className="flex items-start gap-2">
+                    {!f.done && (
+                      <input
+                        type="checkbox"
+                        title="Select for bulk action"
+                        checked={selectedFollowUps.has(f.id)}
+                        onChange={(e) => {
+                          setSelectedFollowUps((prev) => {
+                            const next = new Set(prev)
+                            if (e.target.checked) { next.add(f.id) } else { next.delete(f.id) }
+                            return next
+                          })
+                        }}
+                        className="mt-0.5 accent-accent shrink-0"
+                      />
+                    )}
                     <input
                       type="checkbox"
+                      title="Mark done"
                       checked={f.done}
                       onChange={(e) => toggleFollowUp(f.id, e.target.checked)}
                       className="mt-0.5 accent-accent"

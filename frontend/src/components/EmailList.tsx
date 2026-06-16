@@ -131,6 +131,7 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
   const searchRef = useRef<HTMLInputElement>(null)
   const [hoverSummary, setHoverSummary] = useState<Record<string, string>>({})
   const [hoveredId, setHoveredId] = useState<string | null>(null)
+  const [hoverPos, setHoverPos] = useState({ x: 0, y: 0 })
   const [bulkDrafts, setBulkDrafts] = useState<BulkDraft[] | null>(null)
   const [generatingBulk, setGeneratingBulk] = useState(false)
   const [bulkCopiedIdx, setBulkCopiedIdx] = useState<number | null>(null)
@@ -178,6 +179,12 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
   useEffect(() => {
     api.getSavedSearches().then(setSavedSearches).catch(() => {})
   }, [])
+
+  useEffect(() => {
+    const unread = emails.filter(e => !e.is_read).length
+    document.title = unread > 0 ? `Director (${unread})` : 'Director'
+    return () => { document.title = 'Director' }
+  }, [emails])
 
   const pinSearch = async () => {
     if (!query.trim()) return
@@ -834,8 +841,9 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
               key={email.id}
               ref={(el) => observeEmailRow(el, email.id)}
               className="relative group border-b border-gray-50"
-              onMouseEnter={() => {
+              onMouseEnter={(e) => {
                 setHoveredId(email.id)
+                setHoverPos({ x: e.clientX, y: e.clientY })
                 if (!hoverSummary[email.id]) {
                   const timer = setTimeout(async () => {
                     try {
@@ -939,6 +947,22 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
                   )}
                 </div>
               </button>
+
+              {/* Hover preview tooltip */}
+              {hoveredId === email.id && !hoverSummary[email.id] && (
+                <div
+                  className="fixed z-50 bg-gray-900 text-white text-xs rounded-xl px-3 py-2.5 shadow-2xl pointer-events-none max-w-xs"
+                  style={{ left: Math.min(hoverPos.x + 12, window.innerWidth - 260), top: hoverPos.y - 10 }}
+                >
+                  <p className="font-medium truncate mb-0.5">{email.sender.replace(/<[^>]+>/, '').trim() || email.sender}</p>
+                  <p className="text-gray-400 mb-1">{formatDate(email.date)}</p>
+                  {email.preview && (
+                    <p className="text-gray-300 leading-relaxed line-clamp-3">
+                      {email.preview.slice(0, 140)}
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Hover AI summary tooltip */}
               {hoverSummary[email.id] && hoveredId === email.id && (
