@@ -8,7 +8,8 @@ router = APIRouter(prefix="/api/followups", tags=["followups"])
 
 
 class FollowUpPatch(BaseModel):
-    done: bool
+    done: Optional[bool] = None
+    due_date: Optional[str] = None
 
 
 @router.get("")
@@ -27,7 +28,12 @@ async def create_followup(f: FollowUp, request: Request):
 @router.patch("/{fid}")
 async def update_followup(fid: int, patch: FollowUpPatch, request: Request):
     cache = request.app.state.cache
-    if not cache.set_follow_up_done(fid, patch.done):
+    updated = False
+    if patch.done is not None:
+        updated = cache.set_follow_up_done(fid, patch.done) or updated
+    if patch.due_date is not None:
+        updated = cache.update_follow_up_due_date(fid, patch.due_date) or updated
+    if not updated:
         raise HTTPException(404, "Follow-up not found")
     return {"ok": True}
 

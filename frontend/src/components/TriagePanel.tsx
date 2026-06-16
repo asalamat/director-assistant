@@ -14,6 +14,20 @@ const REASON_COLORS: Record<string, string> = {
   'question asked':    'bg-yellow-100 text-yellow-700',
 }
 
+const SNOOZE_KEY = 'triage_snoozed'
+
+function loadSnoozed(): Record<string, string> {
+  try {
+    return JSON.parse(localStorage.getItem(SNOOZE_KEY) ?? '{}')
+  } catch {
+    return {}
+  }
+}
+
+function saveSnoozed(data: Record<string, string>) {
+  localStorage.setItem(SNOOZE_KEY, JSON.stringify(data))
+}
+
 function ScoreBadge({ score }: { score: number }) {
   const color =
     score >= 6 ? 'bg-red-500 text-white' :
@@ -37,6 +51,24 @@ export function TriagePanel() {
   const [emails, setEmails] = useState<TriageEmail[]>([])
   const [loading, setLoading] = useState(true)
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
+  const [snoozed, setSnoozed] = useState<Record<string, string>>(loadSnoozed)
+
+  const isSnoozed = useCallback((id: string): boolean => {
+    const until = snoozed[id]
+    return !!until && until > new Date().toISOString()
+  }, [snoozed])
+
+  function snooze(id: string, hours: number) {
+    const until = new Date(Date.now() + hours * 3600000).toISOString()
+    setSnoozed(prev => { const n = { ...prev, [id]: until }; saveSnoozed(n); return n })
+  }
+
+  function clearAllSnoozed() {
+    setSnoozed({})
+    saveSnoozed({})
+  }
+
+  const snoozedCount = emails.filter(em => isSnoozed(em.id)).length
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -57,6 +89,8 @@ export function TriagePanel() {
     return () => clearInterval(id)
   }, [load])
 
+  const visibleEmails = emails.filter(em => !isSnoozed(em.id))
+
   return (
     <div className="flex-1 overflow-y-auto p-6 max-w-2xl mx-auto w-full">
       <div className="flex items-center justify-between mb-5">
@@ -67,6 +101,18 @@ export function TriagePanel() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {snoozedCount > 0 && (
+            <span className="flex items-center gap-1 text-[10px] text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">
+              {snoozedCount} snoozed
+              <button
+                onClick={clearAllSnoozed}
+                className="ml-0.5 hover:text-amber-800 font-bold leading-none"
+                title="Clear all snoozed"
+              >
+                ×
+              </button>
+            </span>
+          )}
           {lastRefresh && (
             <span className="text-xs text-gray-400">
               {lastRefresh.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -91,24 +137,34 @@ export function TriagePanel() {
         </div>
       )}
 
-      {!loading && emails.length === 0 && (
+      {!loading && visibleEmails.length === 0 && (
         <div className="text-center py-16">
           <div className="text-3xl mb-3">🎉</div>
-          <p className="text-sm font-medium text-gray-700">Inbox zero! No urgent emails.</p>
-          <p className="text-xs text-gray-400 mt-1">All unread emails in the last 14 days are low priority.</p>
+          <p className="text-sm font-medium text-gray-700">
+            {emails.length > 0 && snoozedCount === emails.length
+              ? 'All emails snoozed!'
+              : 'Inbox zero! No urgent emails.'}
+          </p>
+          <p className="text-xs text-gray-400 mt-1">
+            {emails.length > 0 && snoozedCount === emails.length
+              ? `${snoozedCount} email${snoozedCount > 1 ? 's' : ''} snoozed.`
+              : 'All unread emails in the last 14 days are low priority.'}
+          </p>
         </div>
       )}
 
       <div className="space-y-3">
-        {emails.map((em, i) => (
-          <button
+        {visibleEmails.map((em, i) => (
+          <div
             key={em.id}
-            onClick={() => handleEmailSelect(em.id)}
-            className="w-full text-left bg-white border border-gray-200 rounded-xl p-4 hover:border-accent hover:shadow-sm transition-all group"
+            className="w-full text-left bg-white border border-gray-200 rounded-xl p-4 hover:border-accent hover:shadow-sm transition-all group relative"
           >
             <div className="flex items-start gap-3">
               <span className="text-xs text-gray-400 font-mono w-4 mt-0.5 flex-shrink-0">{i + 1}</span>
-              <div className="flex-1 min-w-0">
+              <button
+                onClick={() => handleEmailSelect(em.id)}
+                className="flex-1 min-w-0 text-left"
+              >
                 <div className="flex items-center gap-2 mb-1">
                   <ScoreBadge score={em.score} />
                   <span className="text-sm font-medium text-gray-900 truncate group-hover:text-accent">
@@ -133,15 +189,29 @@ export function TriagePanel() {
                     </span>
                   ))}
                 </div>
+              </button>
+
+              {/* Snooze buttons — visible on hover */}
+              <div className="hidden group-hover:flex flex-col items-end gap-1 flex-shrink-0 ml-1">
+                <span className="text-[10px] text-gray-400 mb-0.5">snooze</span>
+                {([['2h', 2], ['Tomorrow', 24], ['3 days', 72]] as [string, number][]).map(([label, hours]) => (
+                  <button
+                    key={label}
+                    onClick={(e) => { e.stopPropagation(); snooze(em.id, hours) }}
+                    className="text-[10px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 hover:border-amber-300 transition-colors whitespace-nowrap"
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
             </div>
-          </button>
+          </div>
         ))}
       </div>
 
-      {emails.length > 0 && (
+      {visibleEmails.length > 0 && (
         <p className="text-xs text-gray-400 text-center mt-6">
-          Showing {emails.length} highest-priority unread emails from the last 14 days.
+          Showing {visibleEmails.length} highest-priority unread emails from the last 14 days.
           Scores are based on urgency keywords, action items, sender frequency, and recency.
         </p>
       )}

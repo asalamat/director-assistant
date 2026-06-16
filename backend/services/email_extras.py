@@ -128,6 +128,11 @@ class EmailExtrasMixin:
             )
         return cur.rowcount > 0
 
+    def update_follow_up_due_date(self, fid: int, due_date: str) -> bool:
+        with self._conn() as conn:
+            cur = conn.execute("UPDATE follow_ups SET due_date = ? WHERE id = ?", (due_date, fid))
+        return cur.rowcount > 0
+
     def delete_follow_up(self, fid: int) -> bool:
         with self._conn() as conn:
             cur = conn.execute("DELETE FROM follow_ups WHERE id = ?", (fid,))

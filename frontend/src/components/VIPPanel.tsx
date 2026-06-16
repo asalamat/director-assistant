@@ -16,6 +16,22 @@ interface VIPEmail {
   folder: string; is_read: boolean; body?: string; recipients?: string
 }
 
+interface ReminderEntry {
+  remindAt: string
+  note: string
+}
+
+function loadReminders(): Record<number, ReminderEntry> {
+  try { return JSON.parse(localStorage.getItem('vip_reminders') || '{}') }
+  catch { return {} }
+}
+function saveReminders(m: Record<number, ReminderEntry>) {
+  localStorage.setItem('vip_reminders', JSON.stringify(m))
+}
+function isReminderDue(remindAt: string): boolean {
+  return new Date(remindAt) <= new Date()
+}
+
 function daysSince(dateStr: string | null): string {
   if (!dateStr) return 'never'
   const ms = Date.now() - new Date(dateStr).getTime()
@@ -274,6 +290,121 @@ interface DecayAlert {
   severity: 'high' | 'medium'; reasons: string[]
 }
 
+// ── Reminder Bell Button ──────────────────────────────────────────────────────
+
+function BellButton({
+  vipId,
+  reminder,
+  isOpen,
+  onClick,
+}: {
+  vipId: number
+  reminder: ReminderEntry | undefined
+  isOpen: boolean
+  onClick: (e: React.MouseEvent) => void
+}) {
+  const due = reminder && isReminderDue(reminder.remindAt)
+  const has = !!reminder
+
+  let colorClass = 'text-gray-300 opacity-0 group-hover:opacity-100'
+  if (due) colorClass = 'text-amber-500'
+  else if (has) colorClass = 'text-gray-400'
+
+  const title = due
+    ? `Reminder due: ${reminder!.note || 'Check in'}`
+    : has
+    ? `Reminder set for ${new Date(reminder!.remindAt).toLocaleDateString()}`
+    : 'Set reminder'
+
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      className={`text-base leading-none transition-all hover:scale-110 focus:outline-none ${colorClass} ${isOpen ? '!opacity-100 !text-accent' : ''}`}
+    >
+      🔔
+    </button>
+  )
+}
+
+// ── Reminder Inline Panel ─────────────────────────────────────────────────────
+
+function ReminderPanel({
+  vipId,
+  existing,
+  onSet,
+  onClear,
+  onCancel,
+}: {
+  vipId: number
+  existing: ReminderEntry | undefined
+  onSet: (days: number, note: string) => void
+  onClear: () => void
+  onCancel: () => void
+}) {
+  const [days, setDays] = useState(30)
+  const [note, setNote] = useState(existing?.note ?? '')
+
+  const quickDays = [7, 14, 30, 60]
+
+  return (
+    <div
+      className="mx-4 mb-2 mt-1 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs space-y-2"
+      onClick={e => e.stopPropagation()}
+    >
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <span className="text-gray-600 font-medium">Remind me in:</span>
+        {quickDays.map(d => (
+          <button
+            key={d}
+            onClick={() => setDays(d)}
+            className={`px-2 py-0.5 rounded-lg border transition-colors ${
+              days === d
+                ? 'bg-accent text-white border-accent'
+                : 'border-gray-200 text-gray-600 hover:border-accent hover:text-accent bg-white'
+            }`}
+          >
+            {d}d
+          </button>
+        ))}
+      </div>
+      <input
+        value={note}
+        onChange={e => setNote(e.target.value)}
+        placeholder="Note (optional)"
+        className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-accent bg-white"
+      />
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => onSet(days, note)}
+          className="px-3 py-1 bg-accent text-white rounded-lg hover:bg-accent/90 transition-colors font-medium"
+        >
+          Set Reminder
+        </button>
+        {existing && (
+          <button
+            onClick={onClear}
+            className="px-3 py-1 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
+          >
+            Clear
+          </button>
+        )}
+        <button
+          onClick={onCancel}
+          className="px-3 py-1 text-gray-400 hover:text-gray-600 transition-colors"
+        >
+          Cancel
+        </button>
+        {existing && (
+          <span className="ml-auto text-[10px] text-gray-400">
+            Due {new Date(existing.remindAt).toLocaleDateString()}
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── VIP List View ─────────────────────────────────────────────────────────────
 
 export function VIPPanel() {
@@ -287,6 +418,11 @@ export function VIPPanel() {
   const [selected, setSelected] = useState<VIP | null>(null)
   const [decayAlerts, setDecayAlerts] = useState<DecayAlert[]>([])
   const [alertsExpanded, setAlertsExpanded] = useState(true)
+
+  // Reminder state
+  const [reminders, setReminders] = useState<Record<number, ReminderEntry>>(loadReminders)
+  const [settingReminderId, setSettingReminderId] = useState<number | null>(null)
+  const [showDueOnly, setShowDueOnly] = useState(false)
 
   const load = () => {
     setLoading(true)
@@ -324,6 +460,31 @@ export function VIPPanel() {
     setVips(prev => prev.filter(v => v.id !== id))
   }
 
+  const setReminder = (vipId: number, days: number, note: string) => {
+    const remindAt = new Date(Date.now() + days * 86400000).toISOString()
+    const updated = { ...reminders, [vipId]: { remindAt, note } }
+    setReminders(updated)
+    saveReminders(updated)
+    setSettingReminderId(null)
+  }
+
+  const clearReminder = (vipId: number) => {
+    const updated = { ...reminders }
+    delete updated[vipId]
+    setReminders(updated)
+    saveReminders(updated)
+    setSettingReminderId(null)
+  }
+
+  const dueVipIds = vips
+    .filter(v => reminders[v.id] && isReminderDue(reminders[v.id].remindAt))
+    .map(v => v.id)
+  const dueCount = dueVipIds.length
+
+  const displayedVips = showDueOnly
+    ? vips.filter(v => dueVipIds.includes(v.id))
+    : vips
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
@@ -352,6 +513,21 @@ export function VIPPanel() {
       )}
 
       <div className="flex-1 overflow-y-auto">
+        {/* Due Reminders Banner */}
+        {dueCount > 0 && (
+          <div className="mx-3 mt-3 mb-1 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-between px-3 py-2">
+            <span className="text-xs font-semibold text-amber-800">
+              ⏰ {dueCount} VIP reminder{dueCount !== 1 ? 's' : ''} due
+            </span>
+            <button
+              onClick={() => setShowDueOnly(v => !v)}
+              className="text-xs font-medium text-amber-700 border border-amber-300 rounded-lg px-2.5 py-0.5 hover:bg-amber-100 transition-colors"
+            >
+              {showDueOnly ? 'Show all' : 'View'}
+            </button>
+          </div>
+        )}
+
         {/* Relationship Decay Alerts */}
         {decayAlerts.length > 0 && (
           <div className="mx-3 mt-3 mb-1 rounded-xl border border-amber-200 bg-amber-50 overflow-hidden">
@@ -427,43 +603,74 @@ export function VIPPanel() {
           </div>
         )}
 
-        {vips.map(vip => (
-          <div key={vip.id} onClick={() => setSelected(vip)}
-            className="px-4 py-3.5 border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-colors group">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-accent to-blue-600 flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
-                {initials(vip.name, vip.email_addr)}
+        {!loading && showDueOnly && displayedVips.length === 0 && (
+          <div className="py-8 text-center text-xs text-gray-400">No due reminders found.</div>
+        )}
+
+        {displayedVips.map(vip => {
+          const reminder = reminders[vip.id]
+          const isOpen = settingReminderId === vip.id
+          return (
+            <div key={vip.id}>
+              <div
+                onClick={() => setSelected(vip)}
+                className="px-4 py-3.5 border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-colors group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-accent to-blue-600 flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
+                    {initials(vip.name, vip.email_addr)}
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-medium text-gray-800">{vip.name || vip.email_addr}</p>
+                      {vip.awaiting_reply && (
+                        <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0">awaiting reply</span>
+                      )}
+                      {vip.unread > 0 && (
+                        <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0">{vip.unread} unread</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-400 truncate">{vip.name ? vip.email_addr : ''}</p>
+                    <div className="flex items-center gap-3 mt-1">
+                      <span className="text-[10px] text-gray-400">📥 {vip.emails_received} · {daysSince(vip.last_received)}</span>
+                      <span className="text-[10px] text-gray-400">📤 {vip.emails_sent_to} · {daysSince(vip.last_sent_to)}</span>
+                    </div>
+                    {vip.note && <p className="text-xs text-gray-400 mt-0.5 italic truncate">{vip.note}</p>}
+                  </div>
+
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <BellButton
+                      vipId={vip.id}
+                      reminder={reminder}
+                      isOpen={isOpen}
+                      onClick={e => {
+                        e.stopPropagation()
+                        setSettingReminderId(isOpen ? null : vip.id)
+                      }}
+                    />
+                    <svg className="w-4 h-4 text-gray-300 group-hover:text-accent transition-colors" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd"/>
+                    </svg>
+                    <span className="opacity-0 group-hover:opacity-100 transition-all">
+                      <Button variant="ghost" size="xs" onClick={e => remove(vip.id, e)} title="Remove from VIP">✕</Button>
+                    </span>
+                  </div>
+                </div>
               </div>
 
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-sm font-medium text-gray-800">{vip.name || vip.email_addr}</p>
-                  {vip.awaiting_reply && (
-                    <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0">awaiting reply</span>
-                  )}
-                  {vip.unread > 0 && (
-                    <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0">{vip.unread} unread</span>
-                  )}
-                </div>
-                <p className="text-xs text-gray-400 truncate">{vip.name ? vip.email_addr : ''}</p>
-                <div className="flex items-center gap-3 mt-1">
-                  <span className="text-[10px] text-gray-400">📥 {vip.emails_received} · {daysSince(vip.last_received)}</span>
-                  <span className="text-[10px] text-gray-400">📤 {vip.emails_sent_to} · {daysSince(vip.last_sent_to)}</span>
-                </div>
-                {vip.note && <p className="text-xs text-gray-400 mt-0.5 italic truncate">{vip.note}</p>}
-              </div>
-
-              <div className="flex items-center gap-1 flex-shrink-0">
-                <svg className="w-4 h-4 text-gray-300 group-hover:text-accent transition-colors" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd"/>
-                </svg>
-                <span className="opacity-0 group-hover:opacity-100 transition-all ml-1">
-                  <Button variant="ghost" size="xs" onClick={e => remove(vip.id, e)} title="Remove from VIP">✕</Button>
-                </span>
-              </div>
+              {isOpen && (
+                <ReminderPanel
+                  vipId={vip.id}
+                  existing={reminder}
+                  onSet={(days, note) => setReminder(vip.id, days, note)}
+                  onClear={() => clearReminder(vip.id)}
+                  onCancel={() => setSettingReminderId(null)}
+                />
+              )}
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )

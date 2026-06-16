@@ -28,6 +28,10 @@ export function ActionBoard() {
   const [waiting, setWaiting] = useState<WaitingEmail[]>([])
   const [loadingWaiting, setLoadingWaiting] = useState(false)
 
+  // Inline due-date editing state
+  const [editingDueDateId, setEditingDueDateId] = useState<number | null>(null)
+  const [editingDueDateVal, setEditingDueDateVal] = useState('')
+
   // Scan sent mail state
   const [scanningMail, setScanningMail] = useState(false)
   const [sentCommitments, setSentCommitments] = useState<SentCommitment[] | null>(null)
@@ -335,10 +339,51 @@ export function ActionBoard() {
                       </p>
                       <p className="text-xs text-gray-600">{f.sender}</p>
                       {f.note && <p className="text-xs text-gray-700 mt-0.5">{f.note}</p>}
-                      <p className={`text-xs mt-1 font-semibold ${overdue ? 'text-red-700' : 'text-gray-500'}`}>
-                        {overdue ? '⚠ Overdue · ' : 'Due · '}
-                        {formatDate(f.due_date)}
-                      </p>
+                      <div className="flex items-center gap-1 mt-1">
+                        {editingDueDateId === f.id ? (
+                          <input
+                            type="date"
+                            autoFocus
+                            value={editingDueDateVal}
+                            className="text-xs border border-accent rounded px-1 py-0.5 focus:outline-none"
+                            onChange={async (e) => {
+                              const newDate = e.target.value
+                              setEditingDueDateVal(newDate)
+                              if (newDate) {
+                                setFollowUps((prev) =>
+                                  prev.map((fu) => fu.id === f.id ? { ...fu, due_date: newDate } : fu)
+                                )
+                                try {
+                                  await api.updateFollowUpDueDate(f.id, newDate)
+                                } catch {
+                                  // optimistic update stays; backend error silently ignored
+                                }
+                              }
+                            }}
+                            onBlur={() => setEditingDueDateId(null)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') setEditingDueDateId(null) }}
+                          />
+                        ) : (
+                          <span
+                            className={`text-xs font-semibold flex items-center gap-1 group cursor-default ${overdue ? 'text-red-700' : 'text-gray-500'}`}
+                          >
+                            {overdue ? '⚠ Overdue · ' : 'Due · '}
+                            {formatDate(f.due_date)}
+                            <button
+                              onClick={() => {
+                                setEditingDueDateId(f.id)
+                                setEditingDueDateVal(f.due_date ? f.due_date.slice(0, 10) : '')
+                              }}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-accent ml-0.5"
+                              title="Edit due date"
+                            >
+                              <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
+                                <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                              </svg>
+                            </button>
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <button
                       onClick={() => deleteFollowUp(f.id)}

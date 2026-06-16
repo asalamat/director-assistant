@@ -188,6 +188,9 @@ export const api = {
   setFollowUpDone(id: number, done: boolean): Promise<void> {
     return request(`/followups/${id}`, { method: 'PATCH', body: JSON.stringify({ done }) })
   },
+  updateFollowUpDueDate(id: number, dueDate: string): Promise<void> {
+    return request(`/followups/${id}`, { method: 'PATCH', body: JSON.stringify({ due_date: dueDate }) })
+  },
   deleteFollowUp(id: number): Promise<void> {
     return request(`/followups/${id}`, { method: 'DELETE' })
   },
