@@ -207,18 +207,24 @@ Everything runs **locally on your machine**. Your emails never leave your device
 
 ## Install — macOS
 
-### 1. Download
-
-Go to the [Releases page](https://github.com/asalamat/director-assistant/releases) and download:
-
-```
-DirectorAssistant-mac-3.15.3.zip
-```
-
-### 2. Install
+### One-line install (recommended)
 
 ```bash
-unzip DirectorAssistant-mac-3.15.3.zip
+curl -sSL https://raw.githubusercontent.com/asalamat/director-assistant/main/scripts/install-mac.sh | bash
+```
+
+That's it — the script checks prerequisites, installs dependencies, builds the frontend, and starts the app.
+
+### Manual install (from ZIP)
+
+```bash
+# 1. Download the latest release
+curl -sSL https://api.github.com/repos/asalamat/director-assistant/releases/latest \
+  | python3 -c "import sys,json; print([a['browser_download_url'] for a in json.load(sys.stdin).get('assets',[]) if 'mac' in a['name']][0])" \
+  | xargs curl -L -o director-assistant-mac.zip
+
+# 2. Extract and install
+unzip director-assistant-mac.zip
 cd DirectorAssistant
 bash scripts/install-mac.sh
 ```
