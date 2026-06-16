@@ -8,13 +8,14 @@ interface Props {
   accounts: Account[]
   initialTo?: string
   initialSubject?: string
+  initialBody?: string
 }
 
-export function ComposeModal({ open, onClose, accounts, initialTo = '', initialSubject = '' }: Props) {
+export function ComposeModal({ open, onClose, accounts, initialTo = '', initialSubject = '', initialBody = '' }: Props) {
   const [to, setTo] = useState(initialTo)
   const [cc, setCc] = useState('')
   const [subject, setSubject] = useState(initialSubject)
-  const [body, setBody] = useState('')
+  const [body, setBody] = useState(initialBody)
   const [accountId, setAccountId] = useState<number>(accounts[0]?.id ?? 0)
   const [showCc, setShowCc] = useState(false)
   const [sending, setSending] = useState(false)
@@ -26,12 +27,12 @@ export function ComposeModal({ open, onClose, accounts, initialTo = '', initialS
       setTo(initialTo)
       setSubject(initialSubject)
       setCc('')
-      setBody('')
+      setBody(initialBody)
       setMsg('')
       setSending(false)
       setTimeout(() => toRef.current?.focus(), 50)
     }
-  }, [open, initialTo, initialSubject])
+  }, [open, initialTo, initialSubject, initialBody])
 
   useEffect(() => {
     if (!open) return

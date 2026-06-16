@@ -140,6 +140,7 @@ export default function App() {
 
   const {
     activeTab, setActiveTab, showCompose, setShowCompose,
+    composePrefill, openCompose,
     showSettings, setShowSettings, settingsInitialTab, setSettingsInitialTab,
     showHelp, setShowHelp, askContext, setAskContext,
   } = useUIContext()
@@ -741,8 +742,11 @@ export default function App() {
       {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
       <ComposeModal
         open={showCompose}
-        onClose={() => setShowCompose(false)}
+        onClose={() => { setShowCompose(false); openCompose() }}
         accounts={accounts as any}
+        initialTo={composePrefill.to ?? ''}
+        initialSubject={composePrefill.subject ?? ''}
+        initialBody={composePrefill.body ?? ''}
       />
       <StatusBar />
       <ToastContainer />

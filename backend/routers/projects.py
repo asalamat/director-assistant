@@ -161,6 +161,47 @@ async def unlink_email(project_id: int, email_id: str, request: Request):
     return {"unlinked": True}
 
 
+@router.get("/{project_id}/documents")
+async def list_project_documents(project_id: int, request: Request):
+    cache = request.app.state.cache
+    with cache._conn() as conn:
+        _ensure_doc_table(conn)
+        rows = conn.execute(
+            "SELECT doc_id, filename, linked_at FROM project_documents WHERE project_id=? ORDER BY linked_at",
+            (project_id,)
+        ).fetchall()
+    return {"documents": [dict(r) for r in rows]}
+
+
+@router.post("/{project_id}/documents")
+async def link_document(project_id: int, request: Request):
+    body = await request.json()
+    doc_id = body.get("doc_id", "").strip()
+    filename = body.get("filename", "").strip()
+    if not doc_id:
+        raise HTTPException(400, "doc_id required")
+    cache = request.app.state.cache
+    with cache._conn() as conn:
+        _ensure_doc_table(conn)
+        conn.execute(
+            "INSERT OR IGNORE INTO project_documents (project_id, doc_id, filename) VALUES (?,?,?)",
+            (project_id, doc_id, filename)
+        )
+    return {"linked": True}
+
+
+@router.delete("/{project_id}/documents/{doc_id:path}")
+async def unlink_document(project_id: int, doc_id: str, request: Request):
+    cache = request.app.state.cache
+    with cache._conn() as conn:
+        _ensure_doc_table(conn)
+        conn.execute(
+            "DELETE FROM project_documents WHERE project_id=? AND doc_id=?",
+            (project_id, doc_id)
+        )
+    return {"unlinked": True}
+
+
 @router.get("/for-email/{email_id}")
 async def get_projects_for_email(email_id: str, request: Request):
     cache = request.app.state.cache
@@ -388,6 +429,17 @@ async def get_recommendations(project_id: int, request: Request):
 
 # ─── Task Management ─────────────────────────────────────────────────────────
 
+def _ensure_doc_table(conn) -> None:
+    conn.execute("""CREATE TABLE IF NOT EXISTS project_documents (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_id INTEGER NOT NULL,
+        doc_id TEXT NOT NULL,
+        filename TEXT NOT NULL DEFAULT '',
+        linked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(project_id, doc_id)
+    )""")
+
+
 def _ensure_task_tables(conn):
     conn.execute("""CREATE TABLE IF NOT EXISTS project_tasks (
         id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL,
@@ -400,15 +452,30 @@ def _ensure_task_tables(conn):
     conn.execute("""CREATE TABLE IF NOT EXISTS project_task_comments (
         id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER NOT NULL,
         comment TEXT NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)""")
+    # Budget columns — safe to run on every startup
+    for col, typedef in [("hourly_rate", "REAL DEFAULT 0"), ("budget_total", "REAL DEFAULT 0")]:
+        try:
+            conn.execute(f"ALTER TABLE project_tasks ADD COLUMN {col} {typedef}")
+        except Exception:
+            pass
+
+
+def _ensure_budget_column(conn):
+    try:
+        conn.execute("ALTER TABLE projects ADD COLUMN budget_total REAL DEFAULT 0")
+    except Exception:
+        pass
+
 
 class TaskIn(BaseModel):
     phase_name: str = ""; name: str; assignee: str = ""
     duration_days: int = 1; priority: str = "medium"; depends_on: list = []
+    hourly_rate: float = 0.0
 
 class TaskPatch(BaseModel):
     name: Optional[str] = None; assignee: Optional[str] = None
     priority: Optional[str] = None; status: Optional[str] = None
-    depends_on: Optional[list] = None
+    depends_on: Optional[list] = None; hourly_rate: Optional[float] = None
 
 class CommentIn(BaseModel):
     comment: str
@@ -451,7 +518,9 @@ async def list_tasks(project_id: int, request: Request):
         _ensure_task_tables(conn)
         rows = conn.execute(
             """SELECT t.id, t.phase_name, t.name, t.assignee, t.duration_days, t.priority,
-                      t.status, t.depends_on, t.created_at, COUNT(c.id) as comment_count
+                      t.status, t.depends_on, t.created_at, t.updated_at,
+                      COALESCE(t.hourly_rate, 0) as hourly_rate,
+                      COUNT(c.id) as comment_count
                FROM project_tasks t LEFT JOIN project_task_comments c ON c.task_id = t.id
                WHERE t.project_id=? GROUP BY t.id ORDER BY t.phase_name, t.id""",
             (project_id,)).fetchall()
@@ -465,8 +534,9 @@ async def create_task(project_id: int, body: TaskIn, request: Request):
         if not conn.execute("SELECT id FROM projects WHERE id=?", (project_id,)).fetchone():
             raise HTTPException(404, "Project not found")
         cur = conn.execute(
-            "INSERT INTO project_tasks (project_id,phase_name,name,assignee,duration_days,priority,depends_on) VALUES (?,?,?,?,?,?,?)",
-            (project_id, body.phase_name, body.name.strip(), body.assignee, body.duration_days, body.priority, _json.dumps(body.depends_on)))
+            "INSERT INTO project_tasks (project_id,phase_name,name,assignee,duration_days,priority,depends_on,hourly_rate) VALUES (?,?,?,?,?,?,?,?)",
+            (project_id, body.phase_name, body.name.strip(), body.assignee, body.duration_days,
+             body.priority, _json.dumps(body.depends_on), body.hourly_rate))
     return {"id": cur.lastrowid}
 
 @router.patch("/{project_id}/tasks/{task_id}")
@@ -477,8 +547,70 @@ async def update_task(project_id: int, task_id: int, body: TaskPatch, request: R
     if "depends_on" in updates: updates["depends_on"] = _json.dumps(updates["depends_on"])
     set_clause = ", ".join(f"{k}=?" for k in updates) + ", updated_at=CURRENT_TIMESTAMP"
     with cache._conn() as conn:
+        _ensure_task_tables(conn)
         conn.execute(f"UPDATE project_tasks SET {set_clause} WHERE id=? AND project_id=?",
                      list(updates.values()) + [task_id, project_id])
+    return {"ok": True}
+
+
+class BudgetPatch(BaseModel):
+    budget_total: float
+
+
+@router.get("/{project_id}/budget")
+async def get_budget(project_id: int, request: Request):
+    cache = request.app.state.cache
+    with cache._conn() as conn:
+        _ensure_task_tables(conn)
+        _ensure_budget_column(conn)
+        proj = conn.execute(
+            "SELECT COALESCE(budget_total, 0) as budget_total FROM projects WHERE id=?",
+            (project_id,)).fetchone()
+        if not proj:
+            raise HTTPException(404, "Project not found")
+        tasks = conn.execute(
+            """SELECT id, phase_name, name, duration_days,
+                      COALESCE(hourly_rate, 0) as hourly_rate, status, updated_at
+               FROM project_tasks WHERE project_id=? ORDER BY phase_name, id""",
+            (project_id,)).fetchall()
+
+    budget_total = proj["budget_total"] or 0.0
+    tasks_breakdown = []
+    estimated_cost = 0.0
+    actual_cost = 0.0
+
+    for t in tasks:
+        cost = (t["duration_days"] or 1) * 8 * (t["hourly_rate"] or 0)
+        estimated_cost += cost
+        if t["status"] == "done":
+            actual_cost += cost
+        tasks_breakdown.append({
+            "id": t["id"],
+            "phase_name": t["phase_name"],
+            "name": t["name"],
+            "duration_days": t["duration_days"] or 1,
+            "hourly_rate": t["hourly_rate"] or 0,
+            "estimated_cost": cost,
+            "status": t["status"],
+        })
+
+    return {
+        "budget_total": budget_total,
+        "estimated_cost": estimated_cost,
+        "actual_cost_estimate": actual_cost,
+        "tasks_breakdown": tasks_breakdown,
+    }
+
+
+@router.patch("/{project_id}/budget")
+async def update_budget(project_id: int, body: BudgetPatch, request: Request):
+    cache = request.app.state.cache
+    with cache._conn() as conn:
+        _ensure_budget_column(conn)
+        if not conn.execute("SELECT id FROM projects WHERE id=?", (project_id,)).fetchone():
+            raise HTTPException(404, "Project not found")
+        conn.execute("UPDATE projects SET budget_total=? WHERE id=?",
+                     (body.budget_total, project_id))
     return {"ok": True}
 
 @router.delete("/{project_id}/tasks/{task_id}")
@@ -525,6 +657,294 @@ async def add_comment(project_id: int, task_id: int, body: CommentIn, request: R
     except Exception:
         pass
     return {"id": cid, "comment": body.comment.strip(), "suggestions": suggestions}
+
+# ─── Milestone Tracking ──────────────────────────────────────────────────────
+
+def _ensure_milestone_table(conn):
+    conn.execute("""CREATE TABLE IF NOT EXISTS project_milestones (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_id INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        due_date TEXT NOT NULL,
+        status TEXT DEFAULT 'pending',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )""")
+
+
+class MilestoneIn(BaseModel):
+    name: str
+    due_date: str
+
+
+class MilestonePatch(BaseModel):
+    status: Optional[str] = None
+
+
+@router.get("/{project_id}/milestones")
+async def list_milestones(project_id: int, request: Request):
+    cache = request.app.state.cache
+    with cache._conn() as conn:
+        _ensure_milestone_table(conn)
+        rows = conn.execute(
+            "SELECT id, name, due_date, status, created_at FROM project_milestones "
+            "WHERE project_id=? ORDER BY due_date ASC",
+            (project_id,)
+        ).fetchall()
+    from datetime import date as _date
+    today = _date.today().isoformat()
+    milestones = []
+    for r in rows:
+        m = dict(r)
+        try:
+            due = _date.fromisoformat(r["due_date"])
+            delta = (due - _date.today()).days
+            m["days_until"] = delta
+        except Exception:
+            m["days_until"] = None
+        milestones.append(m)
+    return {"milestones": milestones}
+
+
+@router.post("/{project_id}/milestones")
+async def add_milestone(project_id: int, body: MilestoneIn, request: Request):
+    cache = request.app.state.cache
+    if not body.name.strip():
+        raise HTTPException(400, "Name cannot be empty")
+    if not body.due_date.strip():
+        raise HTTPException(400, "due_date cannot be empty")
+    with cache._conn() as conn:
+        _ensure_milestone_table(conn)
+        if not conn.execute("SELECT id FROM projects WHERE id=?", (project_id,)).fetchone():
+            raise HTTPException(404, "Project not found")
+        cur = conn.execute(
+            "INSERT INTO project_milestones (project_id, name, due_date) VALUES (?,?,?)",
+            (project_id, body.name.strip(), body.due_date.strip())
+        )
+    return {"id": cur.lastrowid}
+
+
+@router.patch("/{project_id}/milestones/{milestone_id}")
+async def update_milestone(project_id: int, milestone_id: int, body: MilestonePatch, request: Request):
+    cache = request.app.state.cache
+    if body.status not in ("pending", "done", None):
+        raise HTTPException(400, "status must be 'pending' or 'done'")
+    updates = {k: v for k, v in body.dict().items() if v is not None}
+    if not updates:
+        return {"ok": True}
+    set_clause = ", ".join(f"{k}=?" for k in updates)
+    with cache._conn() as conn:
+        conn.execute(
+            f"UPDATE project_milestones SET {set_clause} WHERE id=? AND project_id=?",
+            list(updates.values()) + [milestone_id, project_id]
+        )
+    return {"ok": True}
+
+
+@router.delete("/{project_id}/milestones/{milestone_id}")
+async def delete_milestone(project_id: int, milestone_id: int, request: Request):
+    cache = request.app.state.cache
+    with cache._conn() as conn:
+        conn.execute(
+            "DELETE FROM project_milestones WHERE id=? AND project_id=?",
+            (milestone_id, project_id)
+        )
+    return {"deleted": milestone_id}
+
+
+@router.post("/{project_id}/tasks/{task_id}/assign-email")
+async def assign_email(project_id: int, task_id: int, request: Request):
+    cache = request.app.state.cache
+    with cache._conn() as conn:
+        _ensure_task_tables(conn)
+        row = conn.execute(
+            """SELECT t.name, t.assignee, t.duration_days, t.priority, p.name as project_name
+               FROM project_tasks t JOIN projects p ON p.id = t.project_id
+               WHERE t.id=? AND t.project_id=?""",
+            (task_id, project_id)
+        ).fetchone()
+    if not row:
+        raise HTTPException(404, "Task not found")
+    assignee = row["assignee"] or "Team Member"
+    subject = f"Task assigned: {row['name']}"
+    body = (
+        f"Hi {assignee},\n\n"
+        f"You've been assigned the following task in project '{row['project_name']}':\n\n"
+        f"  Task: {row['name']}\n"
+        f"  Duration: {row['duration_days']} day(s)\n"
+        f"  Priority: {row['priority']}\n\n"
+        "Please confirm receipt and let us know if you have any questions.\n\nThank you."
+    )
+    return {"subject": subject, "body": body, "to": assignee}
+
+
+def _ensure_templates_table(conn):
+    conn.execute("""CREATE TABLE IF NOT EXISTS project_templates (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        template_json TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP)""")
+
+
+@router.post("/{project_id}/save-as-template")
+async def save_as_template(project_id: int, request: Request):
+    cache = request.app.state.cache
+    with cache._conn() as conn:
+        _ensure_task_tables(conn)
+        _ensure_templates_table(conn)
+        proj = conn.execute("SELECT name FROM projects WHERE id=?", (project_id,)).fetchone()
+        if not proj:
+            raise HTTPException(404, "Project not found")
+        tasks = conn.execute(
+            "SELECT phase_name, name, duration_days, priority FROM project_tasks WHERE project_id=? ORDER BY phase_name, id",
+            (project_id,)
+        ).fetchall()
+    task_list = [dict(t) for t in tasks]
+    template_json = _json.dumps(task_list)
+    with cache._conn() as conn:
+        _ensure_templates_table(conn)
+        cur = conn.execute(
+            "INSERT INTO project_templates (name, template_json) VALUES (?,?)",
+            (proj["name"], template_json)
+        )
+    return {"id": cur.lastrowid, "name": proj["name"], "task_count": len(task_list)}
+
+
+@router.get("/templates")
+async def list_templates(request: Request):
+    cache = request.app.state.cache
+    with cache._conn() as conn:
+        _ensure_templates_table(conn)
+        rows = conn.execute(
+            "SELECT id, name, created_at, template_json FROM project_templates ORDER BY created_at DESC"
+        ).fetchall()
+    result = []
+    for r in rows:
+        tasks = _json.loads(r["template_json"] or "[]")
+        result.append({"id": r["id"], "name": r["name"], "created_at": r["created_at"], "task_count": len(tasks)})
+    return {"templates": result}
+
+
+class TemplateProjectIn(BaseModel):
+    name: str
+    description: str = ""
+
+
+@router.post("/from-template/{template_id}")
+async def create_from_template(template_id: int, body: TemplateProjectIn, request: Request):
+    cache = request.app.state.cache
+    with cache._conn() as conn:
+        _ensure_templates_table(conn)
+        tmpl = conn.execute("SELECT * FROM project_templates WHERE id=?", (template_id,)).fetchone()
+    if not tmpl:
+        raise HTTPException(404, "Template not found")
+    tasks = _json.loads(tmpl["template_json"] or "[]")
+    with cache._conn() as conn:
+        cur = conn.execute(
+            "INSERT INTO projects (name, description, status) VALUES (?,?,?)",
+            (body.name.strip(), body.description.strip(), "active")
+        )
+        pid = cur.lastrowid
+        _ensure_task_tables(conn)
+        for t in tasks:
+            conn.execute(
+                "INSERT INTO project_tasks (project_id,phase_name,name,duration_days,priority) VALUES (?,?,?,?,?)",
+                (pid, t.get("phase_name", ""), t.get("name", "Task"),
+                 t.get("duration_days", 1), t.get("priority", "medium"))
+            )
+    return {"id": pid, "name": body.name, "tasks_created": len(tasks)}
+
+
+@router.post("/{project_id}/client-report")
+async def client_report(project_id: int, request: Request):
+    cache = request.app.state.cache
+    with cache._conn() as conn:
+        _ensure_plan_column(conn)
+        _ensure_task_tables(conn)
+        proj = conn.execute(
+            "SELECT name, description, plan_json FROM projects WHERE id=?", (project_id,)
+        ).fetchone()
+        if not proj:
+            raise HTTPException(404, "Project not found")
+        tasks = conn.execute(
+            "SELECT name, status, priority, phase_name FROM project_tasks WHERE project_id=? ORDER BY phase_name, id",
+            (project_id,)
+        ).fetchall()
+
+    task_list = [dict(t) for t in tasks]
+    total = len(task_list)
+    done_count = sum(1 for t in task_list if t["status"] == "done")
+    pct = int(done_count / total * 100) if total else 0
+    bar_done = int(pct / 5)
+    progress_bar = "█" * bar_done + "░" * (20 - bar_done)
+
+    plan: dict = {}
+    if proj["plan_json"]:
+        try:
+            plan = _json.loads(proj["plan_json"])
+        except Exception:
+            pass
+
+    summary = plan.get("summary") or proj["description"] or "No summary available."
+    risks = plan.get("risks", [])
+    phases = plan.get("phases", [])
+
+    milestones_html = ""
+    for ph in phases:
+        ms = ph.get("milestone", "")
+        if not ms:
+            continue
+        ph_tasks = [t for t in task_list if t["phase_name"] == ph.get("name", "")]
+        ph_done = bool(ph_tasks) and all(t["status"] == "done" for t in ph_tasks)
+        overdue = any(t["status"] == "blocked" for t in ph_tasks)
+        icon = "✓" if ph_done else ("⚠" if overdue else "⏳")
+        color = "#16a34a" if ph_done else ("#dc2626" if overdue else "#d97706")
+        milestones_html += (
+            f'<li style="margin-bottom:6px"><span style="color:{color};font-weight:bold">{icon}</span>'
+            f' <strong>{ph["name"]}</strong>: {ms}</li>'
+        )
+
+    next_tasks = [t for t in task_list if t["status"] in ("in_progress", "not_started")][:3]
+    next_html = "".join(
+        f'<li style="margin-bottom:4px">{t["name"]} <span style="color:#64748b;font-size:11px">({t["priority"]} priority)</span></li>'
+        for t in next_tasks
+    )
+
+    risks_html = "".join(
+        f'<li style="margin-bottom:4px"><span style="color:{"#dc2626" if r["impact"]=="high" else "#d97706"}">'
+        f'{r["impact"].upper()}</span> — {r["description"]}: <em>{r.get("mitigation","")}</em></li>'
+        for r in risks
+    ) or "<li>No significant risks identified.</li>"
+
+    from datetime import date as _date
+    today_str = _date.today().isoformat()
+
+    html = (
+        f'<!DOCTYPE html><html><head><meta charset="utf-8">'
+        f'<title>{proj["name"]} — Client Status Report</title>'
+        f'<style>'
+        f'body{{font-family:system-ui,sans-serif;max-width:760px;margin:32px auto;color:#1e293b;font-size:13px;line-height:1.6}}'
+        f'h1{{font-size:22px;color:#0f172a;margin-bottom:2px}}'
+        f'h2{{font-size:14px;font-weight:700;color:#1e293b;margin:24px 0 8px;border-bottom:2px solid #e2e8f0;padding-bottom:4px}}'
+        f'.progress-wrap{{background:#f1f5f9;border-radius:8px;padding:10px 14px;margin:8px 0}}'
+        f'ul{{margin:4px 0 0 18px;padding:0}}li{{margin-bottom:3px}}'
+        f'.bar{{font-family:monospace;font-size:13px;color:#2563eb;letter-spacing:1px}}'
+        f'@media print{{body{{margin:0}}}}'
+        f'</style></head><body>'
+        f'<h1>{proj["name"]}</h1>'
+        f'<p style="color:#64748b;font-size:12px">Client Status Report &mdash; {today_str}</p>'
+        f'<h2>Executive Summary</h2><p>{summary}</p>'
+        f'<h2>Milestones</h2><ul>{milestones_html or "<li>No milestones defined yet.</li>"}</ul>'
+        f'<h2>Progress</h2>'
+        f'<div class="progress-wrap">'
+        f'<p style="margin:0 0 4px"><strong>{pct}% complete</strong> &mdash; {done_count} of {total} task(s) done</p>'
+        f'<p class="bar">[{progress_bar}] {pct}%</p>'
+        f'</div>'
+        f'<h2>Next Steps</h2><ul>{next_html or "<li>All tasks complete!</li>"}</ul>'
+        f'<h2>Risks &amp; Mitigations</h2><ul>{risks_html}</ul>'
+        f'</body></html>'
+    )
+    return {"html": html}
+
 
 @router.post("/{project_id}/weekly-update")
 async def weekly_update(project_id: int, request: Request):

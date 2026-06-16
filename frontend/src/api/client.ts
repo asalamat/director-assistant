@@ -797,6 +797,15 @@ export const api = {
   getProjectPlan(id: number): Promise<{ plan: any }> {
     return request(`/projects/${id}/plan`)
   },
+  getProjectDocuments(id: number): Promise<{ documents: { doc_id: string; filename: string; linked_at: string }[] }> {
+    return request(`/projects/${id}/documents`)
+  },
+  linkProjectDocument(id: number, doc_id: string, filename: string): Promise<void> {
+    return request(`/projects/${id}/documents`, { method: 'POST', body: JSON.stringify({ doc_id, filename }) })
+  },
+  unlinkProjectDocument(id: number, doc_id: string): Promise<void> {
+    return request(`/projects/${id}/documents/${encodeURIComponent(doc_id)}`, { method: 'DELETE' })
+  },
   getProjectNotes(id: number): Promise<{ notes: { id: number; note: string; created_at: string }[] }> {
     return request(`/projects/${id}/notes`)
   },
@@ -834,6 +843,46 @@ export const api = {
   },
   addTaskComment(id: number, taskId: number, comment: string): Promise<{ id: number; comment: string; suggestions?: string[] }> {
     return request(`/projects/${id}/tasks/${taskId}/comments`, { method: 'POST', body: JSON.stringify({ comment }) })
+  },
+  draftTaskAssignment(projectId: number, taskId: number): Promise<{ subject: string; body: string; to: string }> {
+    return request(`/projects/${projectId}/tasks/${taskId}/assign-email`, { method: 'POST' })
+  },
+  saveProjectAsTemplate(projectId: number): Promise<{ id: number; name: string; task_count: number }> {
+    return request(`/projects/${projectId}/save-as-template`, { method: 'POST' })
+  },
+  getProjectTemplates(): Promise<{ templates: { id: number; name: string; created_at: string; task_count: number }[] }> {
+    return request('/projects/templates')
+  },
+  createProjectFromTemplate(templateId: number, data: { name: string; description?: string }): Promise<{ id: number; name: string; tasks_created: number }> {
+    return request(`/projects/from-template/${templateId}`, { method: 'POST', body: JSON.stringify(data) })
+  },
+  getClientReport(projectId: number): Promise<{ html: string }> {
+    return request(`/projects/${projectId}/client-report`, { method: 'POST' })
+  },
+
+  // Project Milestones
+  getMilestones(id: number): Promise<{ milestones: { id: number; name: string; due_date: string; status: string; days_until: number | null }[] }> {
+    return request(`/projects/${id}/milestones`)
+  },
+  addMilestone(id: number, data: { name: string; due_date: string }): Promise<{ id: number }> {
+    return request(`/projects/${id}/milestones`, { method: 'POST', body: JSON.stringify(data) })
+  },
+  updateMilestone(id: number, mid: number, data: { status: string }): Promise<void> {
+    return request(`/projects/${id}/milestones/${mid}`, { method: 'PATCH', body: JSON.stringify(data) })
+  },
+  deleteMilestone(id: number, mid: number): Promise<void> {
+    return request(`/projects/${id}/milestones/${mid}`, { method: 'DELETE' })
+  },
+  getProjectBudget(id: number): Promise<{
+    budget_total: number
+    estimated_cost: number
+    actual_cost_estimate: number
+    tasks_breakdown: { id: number; phase_name: string; name: string; duration_days: number; hourly_rate: number; estimated_cost: number; status: string }[]
+  }> {
+    return request(`/projects/${id}/budget`)
+  },
+  updateProjectBudget(id: number, budget_total: number): Promise<void> {
+    return request(`/projects/${id}/budget`, { method: 'PATCH', body: JSON.stringify({ budget_total }) })
   },
 
   // Send-Time Optimizer

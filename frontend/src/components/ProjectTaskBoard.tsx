@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { api } from '../api/client'
 import { Spinner } from './ui'
+import { useUIContext } from '../contexts/UIContext'
 
 interface Task {
   id: number
@@ -12,6 +13,7 @@ interface Task {
   status: string
   depends_on: string[]
   comment_count: number
+  hourly_rate?: number
 }
 
 interface TaskComment {
@@ -26,6 +28,7 @@ interface TaskCardProps {
   onUpdate: (taskId: number, data: Partial<Task>) => Promise<void>
   onDelete: (taskId: number) => Promise<void>
   projectId: number
+  onAssignEmail: (taskId: number, assignee: string) => void
 }
 
 const PRIORITY_DOT: Record<string, string> = {
@@ -44,12 +47,15 @@ const STATUS_LABEL: Record<TaskStatus, string> = {
   blocked: 'Blocked',
 }
 
-function TaskCard({ task, onUpdate, onDelete, projectId }: TaskCardProps) {
+function TaskCard({ task, onUpdate, onDelete, projectId, onAssignEmail }: TaskCardProps) {
   const [expanded, setExpanded] = useState(false)
   const [assignee, setAssignee] = useState(task.assignee)
   const [priority, setPriority] = useState(task.priority)
   const [dependsOn, setDependsOn] = useState(task.depends_on.join(', '))
+  const [hourlyRate, setHourlyRate] = useState(String(task.hourly_rate ?? 0))
   const [saving, setSaving] = useState(false)
+  const [showAssignPrompt, setShowAssignPrompt] = useState(false)
+  const [savedAssignee, setSavedAssignee] = useState('')
   const [comments, setComments] = useState<TaskComment[]>([])
   const [commentsLoading, setCommentsLoading] = useState(false)
   const [newComment, setNewComment] = useState('')
@@ -75,8 +81,13 @@ function TaskCard({ task, onUpdate, onDelete, projectId }: TaskCardProps) {
       assignee,
       priority,
       depends_on: dependsOn.split(',').map(s => s.trim()).filter(Boolean),
+      hourly_rate: parseFloat(hourlyRate) || 0,
     })
     setSaving(false)
+    if (assignee.trim() && assignee.trim() !== task.assignee) {
+      setSavedAssignee(assignee.trim())
+      setShowAssignPrompt(true)
+    }
   }
 
   const moveStatus = async (dir: 'next' | 'prev') => {
@@ -135,6 +146,18 @@ function TaskCard({ task, onUpdate, onDelete, projectId }: TaskCardProps) {
                 <option value="low">Low</option>
               </select>
             </div>
+            <div>
+              <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide block mb-0.5">Rate ($/hr)</label>
+              <input type="number" min="0" step="5" value={hourlyRate}
+                onChange={e => setHourlyRate(e.target.value)}
+                className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400" />
+            </div>
+            <div>
+              <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide block mb-0.5">Est. Cost</label>
+              <p className="text-xs text-gray-600 px-2 py-1">
+                ${((parseFloat(hourlyRate) || 0) * (task.duration_days || 1) * 8).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+              </p>
+            </div>
           </div>
 
           <div>
@@ -158,6 +181,23 @@ function TaskCard({ task, onUpdate, onDelete, projectId }: TaskCardProps) {
             <button onClick={() => onDelete(task.id)}
               className="text-[10px] text-red-400 hover:text-red-600 px-1 py-0.5 ml-1">Delete</button>
           </div>
+
+          {/* Assignment email prompt */}
+          {showAssignPrompt && (
+            <div className="flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+              <span className="text-xs text-blue-700 flex-1">Send assignment email to <strong>{savedAssignee}</strong>?</span>
+              <button
+                onClick={() => { onAssignEmail(task.id, savedAssignee); setShowAssignPrompt(false) }}
+                className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded-lg hover:bg-blue-600">
+                Yes
+              </button>
+              <button
+                onClick={() => setShowAssignPrompt(false)}
+                className="text-xs border border-gray-200 px-2 py-0.5 rounded-lg hover:bg-white text-gray-600">
+                No
+              </button>
+            </div>
+          )}
 
           {/* AI suggestions */}
           {latestSuggestions.length > 0 && (
@@ -209,6 +249,7 @@ const COLUMN_CONFIG: { status: TaskStatus; label: string; headerCls: string }[] 
 interface Props { projectId: number }
 
 export function ProjectTaskBoard({ projectId }: Props) {
+  const { openCompose } = useUIContext()
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingPlan, setLoadingPlan] = useState(false)
@@ -236,6 +277,13 @@ export function ProjectTaskBoard({ projectId }: Props) {
     if (!confirm('Delete this task?')) return
     await api.deleteProjectTask(projectId, taskId)
     setTasks(prev => prev.filter(t => t.id !== taskId))
+  }
+
+  const handleAssignEmail = async (taskId: number, _assignee: string) => {
+    try {
+      const r = await api.draftTaskAssignment(projectId, taskId)
+      openCompose({ to: r.to, subject: r.subject, body: r.body })
+    } catch { /* ignore */ }
   }
 
   const addTask = async (status: TaskStatus) => {
@@ -288,7 +336,7 @@ export function ProjectTaskBoard({ projectId }: Props) {
                 </div>
                 <div className="flex-1 space-y-2">
                   {col.map(task => (
-                    <TaskCard key={task.id} task={task} projectId={projectId} onUpdate={handleUpdate} onDelete={handleDelete} />
+                    <TaskCard key={task.id} task={task} projectId={projectId} onUpdate={handleUpdate} onDelete={handleDelete} onAssignEmail={handleAssignEmail} />
                   ))}
                 </div>
                 {addingIn === status ? (

@@ -6,6 +6,10 @@ import { useUIContext } from '../contexts/UIContext'
 import { ProjectNotes } from './ProjectNotes'
 import { ProjectTaskBoard } from './ProjectTaskBoard'
 import { ProjectGantt, GanttTask } from './ProjectGantt'
+import { ProjectDashboard } from './ProjectDashboard'
+import { ProjectMilestones } from './ProjectMilestones'
+import { ProjectBudget } from './ProjectBudget'
+import { ProjectBurndown } from './ProjectBurndown'
 
 interface Project { id: number; name: string; description: string; status: string; email_count: number; created_at: string }
 
@@ -188,6 +192,7 @@ export function ProjectsPanel() {
   const [weeklyUpdate, setWeeklyUpdate] = useState<{ subject: string; body: string } | null>(null)
   const [weeklyLoading, setWeeklyLoading] = useState(false)
   const [showWeekly, setShowWeekly] = useState(false)
+  const [recommendations, setRecommendations] = useState<{ health?: string } | null>(null)
 
   const load = () => {
     setLoading(true)
@@ -243,16 +248,33 @@ export function ProjectsPanel() {
     setGanttTasks([])
     setWeeklyUpdate(null)
     setShowWeekly(false)
+    setRecommendations(null)
+    setProjDocIds(new Set())
     setEmailsLoading(true)
-    const [emailsRes, planRes, tasksRes] = await Promise.allSettled([
+    const [emailsRes, planRes, tasksRes, docsRes] = await Promise.allSettled([
       api.getProjectEmails(proj.id),
       api.getProjectPlan(proj.id),
       api.getProjectTasks(proj.id),
+      api.getProjectDocuments(proj.id),
     ])
     if (emailsRes.status === 'fulfilled') setProjEmails(emailsRes.value.emails)
     else setProjEmails([])
     if (planRes.status === 'fulfilled' && planRes.value?.plan) setPlan(planRes.value.plan)
     if (tasksRes.status === 'fulfilled') setGanttTasks(tasksRes.value.tasks || [])
+    if (docsRes.status === 'fulfilled') {
+      const savedIds = new Set(docsRes.value.documents.map((d: {doc_id: string}) => d.doc_id))
+      setProjDocIds(savedIds)
+      // Populate indexedDocs with saved filenames so they show even without opening picker
+      setIndexedDocs(prev => {
+        const merged = [...prev]
+        docsRes.value.documents.forEach((d: {doc_id: string; filename: string}) => {
+          if (!merged.find(m => m.doc_id === d.doc_id)) {
+            merged.push({ doc_id: d.doc_id, filename: d.filename, file_type: '' })
+          }
+        })
+        return merged
+      })
+    }
     setEmailsLoading(false)
   }
 
@@ -349,6 +371,13 @@ export function ProjectsPanel() {
           </span>
         </div>
         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
+          {/* Project Dashboard — stat tiles */}
+          <ProjectDashboard
+            project={selected}
+            tasks={ganttTasks}
+            plan={plan}
+            recommendations={recommendations}
+          />
           {emailsLoading && <div className="flex justify-center py-8"><Spinner size="md" /></div>}
           {!emailsLoading && projEmails.length === 0 && (
             <div className="py-4">
@@ -381,7 +410,10 @@ export function ProjectsPanel() {
               return doc ? (
                 <div key={docId} className="flex items-center gap-2 py-1">
                   <span className="text-xs text-gray-600 flex-1 truncate">📎 {doc.filename}</span>
-                  <button onClick={() => setProjDocIds(s => { const n = new Set(s); n.delete(docId); return n })}
+                  <button onClick={async () => {
+                    setProjDocIds(s => { const n = new Set(s); n.delete(docId); return n })
+                    if (selected) await api.unlinkProjectDocument(selected.id, docId).catch(() => {})
+                  }}
                     className="text-gray-300 hover:text-red-400 text-xs">✕</button>
                 </div>
               ) : null
@@ -390,7 +422,12 @@ export function ProjectsPanel() {
               <div className="mt-2 border border-gray-200 rounded-lg overflow-hidden max-h-48 overflow-y-auto">
                 {indexedDocs.length === 0 && <p className="text-xs text-gray-400 p-3">No indexed documents. Add folders in Settings → Documents.</p>}
                 {indexedDocs.map(doc => (
-                  <button key={doc.doc_id} onClick={() => { setProjDocIds(s => new Set([...s, doc.doc_id])); setShowDocPicker(false) }}
+                  <button key={doc.doc_id} onClick={async () => {
+                    if (!selected) return
+                    setProjDocIds(s => new Set([...s, doc.doc_id]))
+                    setShowDocPicker(false)
+                    await api.linkProjectDocument(selected.id, doc.doc_id, doc.filename).catch(() => {})
+                  }}
                     className={`w-full text-left px-3 py-2 text-xs hover:bg-blue-50 border-b border-gray-50 last:border-0 flex items-center gap-2 ${projDocIds.has(doc.doc_id) ? 'text-accent font-medium' : 'text-gray-700'}`}>
                     <span className="flex-1 truncate">📎 {doc.filename}</span>
                     <span className="text-gray-400 flex-shrink-0">{doc.file_type}</span>
@@ -428,12 +465,27 @@ export function ProjectsPanel() {
             {plan && <ProjectPlanView plan={plan} />}
           </div>
 
+          {/* Milestone tracking */}
+          <ProjectMilestones projectId={selected.id} />
+
           {/* Gantt chart */}
           {ganttTasks.length > 0 && (
             <div className="pt-2 border-t border-gray-100">
               <p className="text-xs font-semibold text-gray-700 mb-2">Progress Diagram</p>
               <ProjectGantt tasks={ganttTasks} />
             </div>
+          )}
+
+          {/* Budget tracking */}
+          <ProjectBudget projectId={selected.id} />
+
+          {/* Burndown chart */}
+          {ganttTasks.length > 0 && (
+            <ProjectBurndown
+              tasks={ganttTasks as any[]}
+              createdAt={selected.created_at}
+              estimatedWeeks={plan?.estimated_duration_weeks ?? 8}
+            />
           )}
 
           {/* Weekly Update modal */}
