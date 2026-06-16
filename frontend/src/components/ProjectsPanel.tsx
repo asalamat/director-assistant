@@ -165,7 +165,13 @@ export function ProjectsPanel() {
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreate, setShowCreate] = useState(false)
+  const [wizardStep, setWizardStep] = useState<'name' | 'brief'>('name')
   const [newName, setNewName] = useState('')
+  const [wizardGoal, setWizardGoal] = useState('')
+  const [wizardTimeline, setWizardTimeline] = useState('')
+  const [wizardStakeholders, setWizardStakeholders] = useState('')
+  const [wizardDeliverables, setWizardDeliverables] = useState('')
+  const [wizardConstraints, setWizardConstraints] = useState('')
   const [newDesc, setNewDesc] = useState('')
   const [saving, setSaving] = useState(false)
   const [selected, setSelected] = useState<Project | null>(null)
@@ -183,12 +189,42 @@ export function ProjectsPanel() {
 
   useEffect(() => { load() }, [])
 
+  const resetWizard = () => {
+    setNewName(''); setWizardGoal(''); setWizardTimeline(''); setWizardStakeholders('')
+    setWizardDeliverables(''); setWizardConstraints(''); setNewDesc(''); setWizardStep('name')
+    setShowCreate(false)
+  }
+
+  const advanceToWizardBrief = () => {
+    if (!newName.trim()) return
+    setWizardStep('brief')
+  }
+
   const create = async () => {
     if (!newName.trim()) return
     setSaving(true)
+    const parts: string[] = []
+    if (wizardGoal.trim())         parts.push(`Goal: ${wizardGoal.trim()}`)
+    if (wizardTimeline.trim())     parts.push(`Timeline: ${wizardTimeline.trim()}`)
+    if (wizardStakeholders.trim()) parts.push(`Stakeholders: ${wizardStakeholders.trim()}`)
+    if (wizardDeliverables.trim()) parts.push(`Deliverables: ${wizardDeliverables.trim()}`)
+    if (wizardConstraints.trim())  parts.push(`Constraints: ${wizardConstraints.trim()}`)
+    const description = parts.join('\n')
     try {
-      await api.createProject({ name: newName.trim(), description: newDesc.trim(), status: 'active' })
-      setNewName(''); setNewDesc(''); setShowCreate(false); load()
+      const r = await api.createProject({ name: newName.trim(), description, status: 'active' })
+      resetWizard()
+      load()
+      // Auto-open the new project and generate plan if brief was filled
+      if (parts.length > 0 && r && (r as any).id) {
+        const proj = { id: (r as any).id, name: newName.trim(), description, status: 'active', email_count: 0, created_at: '' }
+        setSelected(proj); setProjEmails([]); setPlan(null)
+        setPlanLoading(true); setPlanMsg('AI is creating your project plan…')
+        try {
+          const planRes = await api.generateProjectPlan((r as any).id)
+          setPlan(planRes.plan); setPlanMsg('')
+        } catch { setPlanMsg('Plan generation failed — click Generate Plan to retry') }
+        setPlanLoading(false)
+      }
     } catch { /* silent */ }
     setSaving(false)
   }
@@ -338,15 +374,49 @@ export function ProjectsPanel() {
         <Button variant="primary" size="sm" onClick={() => setShowCreate(v => !v)}>+ New</Button>
       </div>
 
-      {showCreate && (
+      {showCreate && wizardStep === 'name' && (
         <div className="px-4 py-3 bg-blue-50 border-b border-blue-100 flex-shrink-0 space-y-2">
-          <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Project name *"
+          <p className="text-xs font-semibold text-blue-700">Step 1 of 2 — Project Name</p>
+          <input value={newName} onChange={e => setNewName(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && newName.trim() && advanceToWizardBrief()}
+            placeholder="e.g. Website Redesign, Q3 Sales Campaign…"
             className="w-full text-sm border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent bg-white" autoFocus />
-          <input value={newDesc} onChange={e => setNewDesc(e.target.value)} placeholder="Description (optional)"
-            className="w-full text-sm border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent bg-white" />
           <div className="flex gap-2 justify-end">
-            <button onClick={() => setShowCreate(false)} className="text-xs text-gray-500 px-2 py-1">Cancel</button>
-            <Button variant="primary" size="sm" loading={saving} onClick={create} disabled={saving || !newName.trim()}>Create</Button>
+            <button onClick={resetWizard} className="text-xs text-gray-500 px-2 py-1">Cancel</button>
+            <Button variant="primary" size="sm" onClick={advanceToWizardBrief} disabled={!newName.trim()}>Next →</Button>
+          </div>
+        </div>
+      )}
+
+      {showCreate && wizardStep === 'brief' && (
+        <div className="px-4 py-3 bg-blue-50 border-b border-blue-100 flex-shrink-0 space-y-2.5">
+          <div className="flex items-center gap-2">
+            <button onClick={() => setWizardStep('name')} className="text-xs text-blue-600 hover:underline">← Back</button>
+            <p className="text-xs font-semibold text-blue-700">Step 2 of 2 — Project Brief for <span className="text-blue-900">{newName}</span></p>
+          </div>
+          <p className="text-[11px] text-blue-600">AI will use these details to build a detailed project plan. Fill in what you know — skip the rest.</p>
+          {[
+            { label: 'Goal / Objective', val: wizardGoal, set: setWizardGoal, ph: 'What does success look like?' },
+            { label: 'Timeline / Deadline', val: wizardTimeline, set: setWizardTimeline, ph: 'e.g. 3 months, by Sep 30' },
+            { label: 'Key Stakeholders', val: wizardStakeholders, set: setWizardStakeholders, ph: 'e.g. CEO, Marketing team, Client X' },
+            { label: 'Main Deliverables', val: wizardDeliverables, set: setWizardDeliverables, ph: 'e.g. new website, launch campaign, signed contract' },
+            { label: 'Risks / Constraints', val: wizardConstraints, set: setWizardConstraints, ph: 'e.g. limited budget, dependency on vendor' },
+          ].map(({ label, val, set, ph }) => (
+            <div key={label}>
+              <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide block mb-0.5">{label}</label>
+              <input value={val} onChange={e => set(e.target.value)} placeholder={ph}
+                className="w-full text-sm border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent bg-white" />
+            </div>
+          ))}
+          <div className="flex gap-2 justify-end pt-1">
+            <button onClick={resetWizard} className="text-xs text-gray-500 px-2 py-1">Cancel</button>
+            <button onClick={create} disabled={saving}
+              className="text-xs border border-gray-200 text-gray-600 px-3 py-1.5 rounded-lg hover:bg-white disabled:opacity-50">
+              {saving ? '…' : 'Create without plan'}
+            </button>
+            <Button variant="primary" size="sm" loading={saving} onClick={create} disabled={saving}>
+              ✦ Create &amp; Generate Plan
+            </Button>
           </div>
         </div>
       )}
