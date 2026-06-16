@@ -809,6 +809,32 @@ export const api = {
   getProjectRecommendations(id: number): Promise<{ recommendations: any; note_count: number }> {
     return request(`/projects/${id}/recommendations`, { method: 'POST' })
   },
+  getWeeklyUpdate(id: number): Promise<{ subject: string; body: string }> {
+    return request(`/projects/${id}/weekly-update`, { method: 'POST' })
+  },
+
+  // Project Tasks
+  getProjectTasks(id: number): Promise<{ tasks: any[] }> {
+    return request(`/projects/${id}/tasks`)
+  },
+  createProjectTask(id: number, data: { name: string; status: string; assignee?: string; priority?: string; phase_name?: string; duration_days?: number; depends_on?: string[] }): Promise<{ id: number }> {
+    return request(`/projects/${id}/tasks`, { method: 'POST', body: JSON.stringify(data) })
+  },
+  updateProjectTask(id: number, taskId: number, data: object): Promise<void> {
+    return request(`/projects/${id}/tasks/${taskId}`, { method: 'PATCH', body: JSON.stringify(data) })
+  },
+  deleteProjectTask(id: number, taskId: number): Promise<void> {
+    return request(`/projects/${id}/tasks/${taskId}`, { method: 'DELETE' })
+  },
+  loadTasksFromPlan(id: number): Promise<{ inserted: number }> {
+    return request(`/projects/${id}/tasks/from-plan`, { method: 'POST' })
+  },
+  getTaskComments(id: number, taskId: number): Promise<{ comments: { id: number; comment: string; created_at: string; suggestions?: string[] }[] }> {
+    return request(`/projects/${id}/tasks/${taskId}/comments`)
+  },
+  addTaskComment(id: number, taskId: number, comment: string): Promise<{ id: number; comment: string; suggestions?: string[] }> {
+    return request(`/projects/${id}/tasks/${taskId}/comments`, { method: 'POST', body: JSON.stringify({ comment }) })
+  },
 
   // Send-Time Optimizer
   getBestSendTime(emailAddr: string): Promise<{ suggestion: string | null; best_day: string; best_hour_display: string; top_days: string[]; reason: string }> {

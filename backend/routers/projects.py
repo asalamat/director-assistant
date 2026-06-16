@@ -384,3 +384,172 @@ async def get_recommendations(project_id: int, request: Request):
         raise HTTPException(502, f"AI recommendations failed: {ex}")
 
     return {"recommendations": result, "note_count": len(notes)}
+
+
+# ─── Task Management ─────────────────────────────────────────────────────────
+
+def _ensure_task_tables(conn):
+    conn.execute("""CREATE TABLE IF NOT EXISTS project_tasks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL,
+        phase_name TEXT NOT NULL DEFAULT '', name TEXT NOT NULL,
+        assignee TEXT NOT NULL DEFAULT '', duration_days INTEGER DEFAULT 1,
+        priority TEXT DEFAULT 'medium', status TEXT DEFAULT 'not_started',
+        depends_on TEXT DEFAULT '[]',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)""")
+    conn.execute("""CREATE TABLE IF NOT EXISTS project_task_comments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER NOT NULL,
+        comment TEXT NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)""")
+
+class TaskIn(BaseModel):
+    phase_name: str = ""; name: str; assignee: str = ""
+    duration_days: int = 1; priority: str = "medium"; depends_on: list = []
+
+class TaskPatch(BaseModel):
+    name: Optional[str] = None; assignee: Optional[str] = None
+    priority: Optional[str] = None; status: Optional[str] = None
+    depends_on: Optional[list] = None
+
+class CommentIn(BaseModel):
+    comment: str
+
+def _ai_client(ai):
+    return getattr(ai, "_anthropic", None) or ai
+
+async def _ai_json(ai, prompt, max_tokens=300):
+    client = _ai_client(ai)
+    resp = await client.messages.create(model="claude-haiku-4-5-20251001",
+        max_tokens=max_tokens, messages=[{"role": "user", "content": prompt}])
+    raw = _strip_json_fences(resp.content[0].text)
+    s, e = raw.find("{"), raw.rfind("}") + 1
+    return _json.loads(raw[s:e]) if s >= 0 else {}
+
+@router.post("/{project_id}/tasks/from-plan")
+async def tasks_from_plan(project_id: int, request: Request):
+    cache = request.app.state.cache
+    with cache._conn() as conn:
+        _ensure_plan_column(conn); _ensure_task_tables(conn)
+        proj = conn.execute("SELECT plan_json FROM projects WHERE id=?", (project_id,)).fetchone()
+        if not proj: raise HTTPException(404, "Project not found")
+        if not proj["plan_json"]: raise HTTPException(404, "No plan — call /generate-plan first")
+        plan = _json.loads(proj["plan_json"])
+        conn.execute("DELETE FROM project_tasks WHERE project_id=?", (project_id,))
+        count = 0
+        for phase in plan.get("phases", []):
+            pname = phase.get("name", "")
+            for t in phase.get("tasks", []):
+                conn.execute(
+                    "INSERT INTO project_tasks (project_id,phase_name,name,assignee,duration_days,priority) VALUES (?,?,?,?,?,?)",
+                    (project_id, pname, t.get("name","Task"), t.get("assignee",""), t.get("duration_days",1), t.get("priority","medium")))
+                count += 1
+    return {"inserted": count}
+
+@router.get("/{project_id}/tasks")
+async def list_tasks(project_id: int, request: Request):
+    cache = request.app.state.cache
+    with cache._conn() as conn:
+        _ensure_task_tables(conn)
+        rows = conn.execute(
+            """SELECT t.id, t.phase_name, t.name, t.assignee, t.duration_days, t.priority,
+                      t.status, t.depends_on, t.created_at, COUNT(c.id) as comment_count
+               FROM project_tasks t LEFT JOIN project_task_comments c ON c.task_id = t.id
+               WHERE t.project_id=? GROUP BY t.id ORDER BY t.phase_name, t.id""",
+            (project_id,)).fetchall()
+    return {"tasks": [{**dict(r), "depends_on": _json.loads(r["depends_on"] or "[]")} for r in rows]}
+
+@router.post("/{project_id}/tasks")
+async def create_task(project_id: int, body: TaskIn, request: Request):
+    cache = request.app.state.cache
+    with cache._conn() as conn:
+        _ensure_task_tables(conn)
+        if not conn.execute("SELECT id FROM projects WHERE id=?", (project_id,)).fetchone():
+            raise HTTPException(404, "Project not found")
+        cur = conn.execute(
+            "INSERT INTO project_tasks (project_id,phase_name,name,assignee,duration_days,priority,depends_on) VALUES (?,?,?,?,?,?,?)",
+            (project_id, body.phase_name, body.name.strip(), body.assignee, body.duration_days, body.priority, _json.dumps(body.depends_on)))
+    return {"id": cur.lastrowid}
+
+@router.patch("/{project_id}/tasks/{task_id}")
+async def update_task(project_id: int, task_id: int, body: TaskPatch, request: Request):
+    cache = request.app.state.cache
+    updates = {k: v for k, v in body.dict().items() if v is not None}
+    if not updates: return {"ok": True}
+    if "depends_on" in updates: updates["depends_on"] = _json.dumps(updates["depends_on"])
+    set_clause = ", ".join(f"{k}=?" for k in updates) + ", updated_at=CURRENT_TIMESTAMP"
+    with cache._conn() as conn:
+        conn.execute(f"UPDATE project_tasks SET {set_clause} WHERE id=? AND project_id=?",
+                     list(updates.values()) + [task_id, project_id])
+    return {"ok": True}
+
+@router.delete("/{project_id}/tasks/{task_id}")
+async def delete_task(project_id: int, task_id: int, request: Request):
+    cache = request.app.state.cache
+    with cache._conn() as conn:
+        conn.execute("DELETE FROM project_task_comments WHERE task_id=?", (task_id,))
+        conn.execute("DELETE FROM project_tasks WHERE id=? AND project_id=?", (task_id, project_id))
+    return {"deleted": task_id}
+
+@router.get("/{project_id}/tasks/{task_id}/comments")
+async def list_comments(project_id: int, task_id: int, request: Request):
+    cache = request.app.state.cache
+    with cache._conn() as conn:
+        _ensure_task_tables(conn)
+        rows = conn.execute(
+            "SELECT id, comment, created_at FROM project_task_comments WHERE task_id=? ORDER BY created_at ASC",
+            (task_id,)).fetchall()
+    return {"comments": [dict(r) for r in rows]}
+
+@router.post("/{project_id}/tasks/{task_id}/comments")
+async def add_comment(project_id: int, task_id: int, body: CommentIn, request: Request):
+    if not body.comment.strip(): raise HTTPException(400, "Comment cannot be empty")
+    cache = request.app.state.cache
+    ai = request.app.state.advisor.ai
+    with cache._conn() as conn:
+        _ensure_task_tables(conn)
+        task = conn.execute("SELECT name FROM project_tasks WHERE id=? AND project_id=?",
+                            (task_id, project_id)).fetchone()
+        if not task: raise HTTPException(404, "Task not found")
+        cur = conn.execute("INSERT INTO project_task_comments (task_id, comment) VALUES (?,?)",
+                           (task_id, body.comment.strip()))
+        cid = cur.lastrowid
+        prev = conn.execute(
+            "SELECT comment FROM project_task_comments WHERE task_id=? AND id!=? ORDER BY created_at DESC LIMIT 5",
+            (task_id, cid)).fetchall()
+    suggestions = []
+    try:
+        prev_text = "; ".join(r["comment"] for r in prev) or "(none)"
+        prompt = (f'Task: {task["name"]}. Latest comment: {body.comment.strip()}. '
+                  f'Previous: {prev_text}. Suggest 1-2 next actions as JSON: {{"suggestions": ["str","str"]}}')
+        data = await _ai_json(ai, prompt, 200)
+        suggestions = data.get("suggestions", [])
+    except Exception:
+        pass
+    return {"id": cid, "comment": body.comment.strip(), "suggestions": suggestions}
+
+@router.post("/{project_id}/weekly-update")
+async def weekly_update(project_id: int, request: Request):
+    cache = request.app.state.cache
+    ai = request.app.state.advisor.ai
+    with cache._conn() as conn:
+        _ensure_task_tables(conn)
+        proj = conn.execute("SELECT name FROM projects WHERE id=?", (project_id,)).fetchone()
+        if not proj: raise HTTPException(404, "Project not found")
+        tasks = conn.execute("SELECT status FROM project_tasks WHERE project_id=?", (project_id,)).fetchall()
+        recent = conn.execute(
+            """SELECT c.comment, t.name as task_name FROM project_task_comments c
+               JOIN project_tasks t ON t.id = c.task_id
+               WHERE t.project_id=? AND c.created_at >= datetime('now','-7 days')
+               ORDER BY c.created_at DESC LIMIT 20""", (project_id,)).fetchall()
+    counts = {"done": 0, "in_progress": 0, "blocked": 0, "not_started": 0}
+    for t in tasks: counts[t["status"]] = counts.get(t["status"], 0) + 1
+    activity = "; ".join(f"[{r['task_name']}] {r['comment']}" for r in recent) or "(no recent activity)"
+    prompt = (f"Project: {proj['name']}. Tasks: done={counts['done']}, in_progress={counts['in_progress']}, "
+              f"blocked={counts['blocked']}, not_started={counts['not_started']}. "
+              f"Recent activity: {activity}. Write a 150-word weekly update email summarizing progress, "
+              f"blockers, and next week's focus. Return ONLY JSON: {{\"subject\": \"str\", \"body\": \"str\"}}")
+    try:
+        result = await _ai_json(ai, prompt, 400)
+        if not result: raise ValueError("empty")
+    except Exception as ex:
+        raise HTTPException(502, f"AI weekly update failed: {ex}")
+    return result

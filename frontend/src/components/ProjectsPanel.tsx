@@ -4,6 +4,8 @@ import { EmptyState, Spinner, Button } from './ui'
 import { useEmailContext } from '../contexts/EmailContext'
 import { useUIContext } from '../contexts/UIContext'
 import { ProjectNotes } from './ProjectNotes'
+import { ProjectTaskBoard } from './ProjectTaskBoard'
+import { ProjectGantt, GanttTask } from './ProjectGantt'
 
 interface Project { id: number; name: string; description: string; status: string; email_count: number; created_at: string }
 
@@ -182,6 +184,10 @@ export function ProjectsPanel() {
   const [plan, setPlan] = useState<ProjectPlan | null>(null)
   const [planLoading, setPlanLoading] = useState(false)
   const [planMsg, setPlanMsg] = useState('')
+  const [ganttTasks, setGanttTasks] = useState<GanttTask[]>([])
+  const [weeklyUpdate, setWeeklyUpdate] = useState<{ subject: string; body: string } | null>(null)
+  const [weeklyLoading, setWeeklyLoading] = useState(false)
+  const [showWeekly, setShowWeekly] = useState(false)
 
   const load = () => {
     setLoading(true)
@@ -234,14 +240,19 @@ export function ProjectsPanel() {
     setSelected(proj)
     setPlan(null)
     setPlanMsg('')
+    setGanttTasks([])
+    setWeeklyUpdate(null)
+    setShowWeekly(false)
     setEmailsLoading(true)
-    const [emailsRes, planRes] = await Promise.allSettled([
+    const [emailsRes, planRes, tasksRes] = await Promise.allSettled([
       api.getProjectEmails(proj.id),
       api.getProjectPlan(proj.id),
+      api.getProjectTasks(proj.id),
     ])
     if (emailsRes.status === 'fulfilled') setProjEmails(emailsRes.value.emails)
     else setProjEmails([])
     if (planRes.status === 'fulfilled' && planRes.value?.plan) setPlan(planRes.value.plan)
+    if (tasksRes.status === 'fulfilled') setGanttTasks(tasksRes.value.tasks || [])
     setEmailsLoading(false)
   }
 
@@ -309,6 +320,17 @@ export function ProjectsPanel() {
     const a = document.createElement('a')
     a.href = url; a.download = `${selected.name}.xml`; a.click()
     URL.revokeObjectURL(url)
+  }
+
+  const handleWeeklyUpdate = async () => {
+    if (!selected) return
+    setWeeklyLoading(true)
+    try {
+      const res = await api.getWeeklyUpdate(selected.id)
+      setWeeklyUpdate(res)
+      setShowWeekly(true)
+    } catch { /* silent */ }
+    setWeeklyLoading(false)
   }
 
   const filtered = filter === 'all' ? projects : projects.filter(p => p.status === filter)
@@ -406,6 +428,9 @@ export function ProjectsPanel() {
           <div className="border-t border-gray-100 pt-4">
             <ProjectNotes projectId={selected.id} />
           </div>
+
+          {/* Task Board */}
+          <ProjectTaskBoard projectId={selected.id} />
         </div>
       </div>
     )
