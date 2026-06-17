@@ -138,6 +138,7 @@ function InboxEmail() {
         <FeatureRow label="Bulk select" desc="Checkbox appears on hover — select multiple emails to bulk Archive, Mark Read, Delete, or Snooze. 'Select all N' link selects the full visible list." />
         <FeatureRow label="⚡ Filters" desc="Click the Filters button beside the search bar to expand date range, sender, category, has-attachment, and unread-only filters. Active filters show as removable chips." />
         <FeatureRow label="Auto-poll" desc="New emails checked every 60 seconds automatically. Click Refresh for an immediate check." />
+        <FeatureRow label="Auto-refresh" desc="The inbox updates automatically after you send a reply, send a new email, or create a rule — no manual page refresh needed." />
       </div>
 
       <H3>Email viewer</H3>
@@ -468,6 +469,7 @@ function KnowledgeSection() {
         <Li><strong>Zoom + pan</strong> — scroll wheel to zoom (0.3×–8×), drag to pan, <strong>Reset zoom</strong> button appears when transformed</Li>
         <Li><strong>Hover</strong> — tooltip shows subject + sender; click a dot to search for that email</Li>
         <Li><strong>✦ Explain cluster</strong> — Shift+click multiple dots to select them, then click <strong>"✦ Explain N selected"</strong> to stream an AI explanation of what those emails have in common</Li>
+        <Li><strong>Loading state</strong> — if the RAG worker is still starting up, the map waits up to 60 s automatically. If it shows an error, click the <strong>↻ Retry</strong> button — it usually resolves within the first minute after app launch.</Li>
       </UL>
 
       <H3>Knowledge Graph</H3>
