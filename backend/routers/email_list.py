@@ -107,18 +107,24 @@ def sanitize_email_html(html: str) -> str:
 
     html = re.sub(r'style=(["\'])([^"\']*)\1', _fix_inline_style, html, flags=re.IGNORECASE)
 
-    # 4. CSS safety block — belt-and-suspenders for anything the regex missed.
-    #    Forces the email root to white; all other elements default to transparent
-    #    so they inherit the white background instead of showing dark.
+    # 4. Scoped CSS safety block — wraps email in .da-email-view so background
+    #    overrides are contained and do NOT leak to the rest of the app.
     safety = (
         '<style type="text/css">'
-        'html,body{background-color:#ffffff!important;color:#333333}'
-        'table,tr,td,th,div,p,span,font,a,li,ul,ol,blockquote,'
-        'section,article,header,footer,h1,h2,h3,h4,h5,h6{'
-        'background-color:transparent!important}'
+        '.da-email-view{background-color:#ffffff;color:#333333}'
+        '.da-email-view table,.da-email-view tr,.da-email-view td,'
+        '.da-email-view th,.da-email-view div,.da-email-view p,'
+        '.da-email-view span,.da-email-view font,.da-email-view a,'
+        '.da-email-view li,.da-email-view ul,.da-email-view ol,'
+        '.da-email-view blockquote,.da-email-view section,.da-email-view article,'
+        '.da-email-view header,.da-email-view footer,'
+        '.da-email-view h1,.da-email-view h2,.da-email-view h3,'
+        '.da-email-view h4,.da-email-view h5,.da-email-view h6'
+        '{background-color:transparent!important}'
         '</style>'
+        '<div class="da-email-view">'
     )
-    return safety + html
+    return safety + html + '</div>'
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 from typing import Optional
