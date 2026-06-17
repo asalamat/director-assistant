@@ -77,6 +77,7 @@ export function ActionBoard() {
       setActions((prev) => prev.filter((a) => a.id !== id))
       try {
         await api.setActionDone(id, done)
+        reload()
       } catch {
         if (original) setActions((prev) => [...prev, original].sort((a, b) => a.id - b.id))
       }
@@ -84,6 +85,7 @@ export function ActionBoard() {
       setActions((prev) => prev.map((a) => a.id === id ? { ...a, done } : a))
       try {
         await api.setActionDone(id, done)
+        reload()
       } catch {
         setActions((prev) => prev.map((a) => a.id === id ? { ...a, done: !done } : a))
       }

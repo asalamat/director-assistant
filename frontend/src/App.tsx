@@ -324,6 +324,7 @@ export default function App() {
     try {
       await api.deleteEmail(emailId)
       removeEmail(emailId)
+      clearSelectedEmail()
       setTimeout(() => mergeRefresh(), 800)
     } catch (e) {
       console.error('Delete failed:', e)
@@ -334,6 +335,7 @@ export default function App() {
     try {
       await api.snoozeEmail(emailId, wakeDate)
       removeEmail(emailId)
+      clearSelectedEmail()
       setTimeout(() => mergeRefresh(), 800)
     } catch { /* ignore */ }
   }
@@ -341,11 +343,13 @@ export default function App() {
   const handleBulkDelete = async (ids: string[]) => {
     await api.bulkEmailAction('delete', ids).catch(() => {})
     ids.forEach(id => removeEmail(id))
+    if (selectedEmail && ids.includes(selectedEmail.id)) clearSelectedEmail()
   }
 
   const handleBulkArchive = async (ids: string[]) => {
     await api.bulkEmailAction('archive', ids).catch(() => {})
     ids.forEach(id => removeEmail(id))
+    if (selectedEmail && ids.includes(selectedEmail.id)) clearSelectedEmail()
   }
 
   const handleBulkMarkRead = async (ids: string[]) => {
