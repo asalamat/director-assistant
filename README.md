@@ -2,7 +2,7 @@
 
 > **Your AI-powered executive email intelligence platform.** Connects to Gmail, Microsoft 365, Yahoo, or any IMAP mailbox and uses Claude AI to help you triage faster, never miss a commitment, and stay on top of every relationship that matters.
 
-**Current version: 3.38.14** · [Releases](https://github.com/asalamat/director-assistant/releases) · MIT License
+**Current version: 3.38.15** · [Releases](https://github.com/asalamat/director-assistant/releases) · MIT License
 
 ---
 

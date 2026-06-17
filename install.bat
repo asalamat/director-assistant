@@ -164,6 +164,15 @@ set "BACKEND=!INSTALL_DIR!\backend"
 set "FRONTEND=!INSTALL_DIR!\frontend"
 echo [OK]    Repository ready
 
+:: Self-update: copy the repo's install.bat over the one the user ran so future
+:: runs always use the latest version (safe — Windows can overwrite a running .bat).
+if exist "!INSTALL_DIR!\install.bat" (
+    if /i not "%~f0"=="!INSTALL_DIR!\install.bat" (
+        copy /y "!INSTALL_DIR!\install.bat" "%~f0" >nul 2>&1
+        if not errorlevel 1 echo [INFO]   install.bat updated for future runs.
+    )
+)
+
 :: ==== 5. PYTHON VENV ============================================
 echo [5/8] Creating Python virtual environment...
 cd /d "!BACKEND!"
@@ -184,10 +193,11 @@ call "!BACKEND!\.venv\Scripts\activate.bat"
 pip install -r "!BACKEND!\requirements.txt" --prefer-binary --disable-pip-version-check
 if errorlevel 1 (
     echo.
-    echo [ERROR] Package install failed.
+    echo [ERROR] Package install failed  (Python !PY_VER!^).
     echo.
-    echo   Most likely cause: Python version incompatibility.
-    echo   Recommended: Python 3.12 from https://www.python.org/downloads/release/python-3129/
+    echo   Python 3.14+ does not have pre-built Windows packages for scipy/chromadb.
+    echo   Install Python 3.12 from:
+    echo     https://www.python.org/downloads/release/python-3129/
     echo   Check "Add Python to PATH" during install, then run this installer again.
     echo.
     pause & exit /b 1
