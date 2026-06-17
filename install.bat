@@ -62,39 +62,41 @@ echo [OK]    Git !GIT_VER! found
 echo [2/8] Checking Python...
 set "PYTHON_CMD="
 
-:: Use py launcher to find the REAL python.exe path (avoids Store stub)
+:: py launcher (uses correct Python, avoids Store stub)
 where py >nul 2>&1
-if not errorlevel 1 (
-    for /f "tokens=*" %%P in ('py -c "import sys; print(sys.executable)" 2^>^&1') do set "PYTHON_CMD=%%P"
-    if defined PYTHON_CMD goto PYTHON_OK
-)
+if errorlevel 1 goto TRY_PYTHON_DIRECT
+for /f "tokens=*" %%P in ('py -c "import sys; print(sys.executable)" 2^>nul') do set "PYTHON_CMD=%%P"
+if defined PYTHON_CMD goto PYTHON_OK
 
-:: Try python directly (only if it's not the Store stub)
+:TRY_PYTHON_DIRECT
+:: python command (skip Windows Store stub)
 where python >nul 2>&1
-if not errorlevel 1 (
-    for /f "tokens=*" %%P in ('python -c "import sys; print(sys.executable)" 2^>^&1') do set "PYTHON_CMD=%%P"
-    if defined PYTHON_CMD (
-        echo !PYTHON_CMD! | findstr /i "WindowsApps" >nul 2>&1
-        if errorlevel 1 goto PYTHON_OK
-        set "PYTHON_CMD="
-    )
-)
+if errorlevel 1 goto TRY_PYTHON_PATHS
+for /f "tokens=*" %%P in ('python -c "import sys; print(sys.executable)" 2^>nul') do set "PYTHON_CMD=%%P"
+if not defined PYTHON_CMD goto TRY_PYTHON_PATHS
+echo !PYTHON_CMD! | findstr /i "WindowsApps" >nul 2>&1
+if not errorlevel 1 set "PYTHON_CMD="
+if defined PYTHON_CMD goto PYTHON_OK
 
-for /d %%D in ("!LAPP!\Programs\Python\Python3*") do (
-    if exist "%%D\python.exe" set "PATH=%%D;%%D\Scripts;!PATH!" & set "PYTHON_CMD=%%D\python.exe" & goto PYTHON_OK
-)
-for /d %%D in ("!PF!\Python3*") do (
-    if exist "%%D\python.exe" set "PATH=%%D;%%D\Scripts;!PATH!" & set "PYTHON_CMD=%%D\python.exe" & goto PYTHON_OK
-)
-for /d %%D in ("!PF86!\Python3*") do (
-    if exist "%%D\python.exe" set "PATH=%%D;%%D\Scripts;!PATH!" & set "PYTHON_CMD=%%D\python.exe" & goto PYTHON_OK
-)
+:TRY_PYTHON_PATHS
+:: scan known install paths — explicit versions, no for/d wildcards with (x86)
+if not defined PYTHON_CMD if exist "!LAPP!\Programs\Python\Python313\python.exe" set "PYTHON_CMD=!LAPP!\Programs\Python\Python313\python.exe" & set "PATH=!LAPP!\Programs\Python\Python313;!LAPP!\Programs\Python\Python313\Scripts;!PATH!"
+if not defined PYTHON_CMD if exist "!LAPP!\Programs\Python\Python312\python.exe" set "PYTHON_CMD=!LAPP!\Programs\Python\Python312\python.exe" & set "PATH=!LAPP!\Programs\Python\Python312;!LAPP!\Programs\Python\Python312\Scripts;!PATH!"
+if not defined PYTHON_CMD if exist "!LAPP!\Programs\Python\Python311\python.exe" set "PYTHON_CMD=!LAPP!\Programs\Python\Python311\python.exe" & set "PATH=!LAPP!\Programs\Python\Python311;!LAPP!\Programs\Python\Python311\Scripts;!PATH!"
+if not defined PYTHON_CMD if exist "!PF!\Python313\python.exe" set "PYTHON_CMD=!PF!\Python313\python.exe" & set "PATH=!PF!\Python313;!PF!\Python313\Scripts;!PATH!"
+if not defined PYTHON_CMD if exist "!PF!\Python312\python.exe" set "PYTHON_CMD=!PF!\Python312\python.exe" & set "PATH=!PF!\Python312;!PF!\Python312\Scripts;!PATH!"
+if not defined PYTHON_CMD if exist "!PF!\Python311\python.exe" set "PYTHON_CMD=!PF!\Python311\python.exe" & set "PATH=!PF!\Python311;!PF!\Python311\Scripts;!PATH!"
+if not defined PYTHON_CMD if exist "!PF86!\Python313\python.exe" set "PYTHON_CMD=!PF86!\Python313\python.exe" & set "PATH=!PF86!\Python313;!PF86!\Python313\Scripts;!PATH!"
+if not defined PYTHON_CMD if exist "!PF86!\Python312\python.exe" set "PYTHON_CMD=!PF86!\Python312\python.exe" & set "PATH=!PF86!\Python312;!PF86!\Python312\Scripts;!PATH!"
+if not defined PYTHON_CMD if exist "!PF86!\Python311\python.exe" set "PYTHON_CMD=!PF86!\Python311\python.exe" & set "PATH=!PF86!\Python311;!PF86!\Python311\Scripts;!PATH!"
+if defined PYTHON_CMD goto PYTHON_OK
 
 echo.
 echo [ERROR] Python not found!
-echo   Install Python 3.11 or 3.12 from https://python.org/downloads
+echo   Install Python 3.12 from:
+echo     https://www.python.org/downloads/release/python-3129/
 echo   Check "Add Python to PATH" during install.
-echo   Then close this window and run again.
+echo   Then close this window and run install.bat again.
 echo.
 pause & exit /b 1
 
