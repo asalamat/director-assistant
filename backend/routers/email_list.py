@@ -19,16 +19,27 @@ _CSS_NAMED_COLORS: dict[str, str] = {
 }
 
 
+_BG_SHORTHAND_SKIP = frozenset({
+    'no-repeat', 'repeat', 'repeat-x', 'repeat-y', 'round', 'space',
+    'center', 'top', 'bottom', 'left', 'right', 'cover', 'contain',
+    'auto', 'fixed', 'scroll', 'local', 'initial', 'inherit', 'unset', 'none',
+})
+
+
 def _luminance(color: str) -> float:
     """Return perceived brightness 0–1 for a CSS color string, or -1 if unknown."""
     c = color.strip().lower().rstrip(';').rstrip()
-    # Handle CSS background shorthand: extract first token (the color part)
-    # e.g. "black url(img.gif) no-repeat" → try "black"
-    first_token = c.split()[0] if c else c
-    if first_token != c:
-        lum = _luminance(first_token)
-        if lum >= 0:
-            return lum
+    # For background shorthand, scan ALL tokens for a recognizable color.
+    # e.g. "url(img.gif) #000 no-repeat" — first token is url(), skip it, find #000.
+    tokens = c.split()
+    if len(tokens) > 1:
+        for tok in tokens:
+            if tok.startswith('url(') or tok in _BG_SHORTHAND_SKIP:
+                continue
+            lum = _luminance(tok)
+            if lum >= 0:
+                return lum
+        return -1.0
     if c in _CSS_NAMED_COLORS:
         c = '#' + _CSS_NAMED_COLORS[c]
     m = re.match(r'^#([0-9a-f]{3}|[0-9a-f]{6})$', c)
@@ -51,7 +62,7 @@ def _fix_bg_in_style(style: str) -> str:
         prop = sm.group(1)
         val  = sm.group(2).strip()
         lum = _luminance(val)
-        if 0 <= lum < 0.2:
+        if 0 <= lum <= 0.2:
             return f'{prop}: transparent'
         return sm.group(0)
     return re.sub(
@@ -78,7 +89,7 @@ def sanitize_email_html(html: str) -> str:
     def _fix_bgcolor(m: re.Match) -> str:
         val = (m.group(2) or m.group(3) or '').strip()
         lum = _luminance(val)
-        if 0 <= lum < 0.2:
+        if 0 <= lum <= 0.2:
             q = m.group(1) or ''
             return f'bgcolor={q}transparent{q}' if q else 'bgcolor=transparent'
         return m.group(0)
@@ -95,7 +106,19 @@ def sanitize_email_html(html: str) -> str:
         return f'style={q}{new_style}{q}'
 
     html = re.sub(r'style=(["\'])([^"\']*)\1', _fix_inline_style, html, flags=re.IGNORECASE)
-    return html
+
+    # 4. CSS safety block — belt-and-suspenders for anything the regex missed.
+    #    Forces the email root to white; all other elements default to transparent
+    #    so they inherit the white background instead of showing dark.
+    safety = (
+        '<style type="text/css">'
+        'html,body{background-color:#ffffff!important;color:#333333}'
+        'table,tr,td,th,div,p,span,font,a,li,ul,ol,blockquote,'
+        'section,article,header,footer,h1,h2,h3,h4,h5,h6{'
+        'background-color:transparent!important}'
+        '</style>'
+    )
+    return safety + html
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 from typing import Optional
