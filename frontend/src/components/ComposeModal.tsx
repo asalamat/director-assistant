@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { api } from '../api/client'
 import type { Account } from '../types'
+import { useEmailContext } from '../contexts/EmailContext'
 
 interface Props {
   open: boolean
@@ -12,6 +13,7 @@ interface Props {
 }
 
 export function ComposeModal({ open, onClose, accounts, initialTo = '', initialSubject = '', initialBody = '' }: Props) {
+  const { mergeRefresh } = useEmailContext()
   const [to, setTo] = useState(initialTo)
   const [cc, setCc] = useState('')
   const [subject, setSubject] = useState(initialSubject)
@@ -53,7 +55,7 @@ export function ComposeModal({ open, onClose, accounts, initialTo = '', initialS
     try {
       await api.sendNew({ to, cc: cc || undefined, subject, body, account_id: accountId })
       setMsg('Sent!')
-      setTimeout(() => onClose(), 1200)
+      setTimeout(() => { onClose(); mergeRefresh() }, 1200)
     } catch (e: unknown) {
       setMsg(e instanceof Error ? e.message : 'Send failed')
     } finally {

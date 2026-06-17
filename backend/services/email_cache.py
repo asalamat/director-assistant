@@ -496,6 +496,9 @@ class EmailCache(EmailExtrasMixin, DocumentCacheMixin):
     ) -> tuple[list[EmailSummary], int]:
         col = self.SORT_COLS.get(sort_by, "date")
         direction = "ASC" if sort_order.lower() == "asc" else "DESC"
+        # Dates are stored with mixed timezone formats (e.g. +00:00, -04:00, bare).
+        # Lexicographic ORDER BY breaks across offsets — datetime() normalises to UTC.
+        order_expr = f"datetime(e.{col})" if col == "date" else f"e.{col}"
 
         if only_unread:
             # Cross-folder unread query — ignores folder/account filter
@@ -548,7 +551,7 @@ class EmailCache(EmailExtrasMixin, DocumentCacheMixin):
                     FROM emails e
                     LEFT JOIN email_categories ec ON ec.email_id = e.id
                     WHERE {where}
-                    ORDER BY e.{col} {direction} LIMIT ? OFFSET ?""",
+                    ORDER BY {order_expr} {direction} LIMIT ? OFFSET ?""",
                 params + [limit, skip],
             ).fetchall()
         return [self._row_to_summary(dict(r)) for r in rows], total

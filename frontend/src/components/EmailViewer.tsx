@@ -5,6 +5,7 @@ import { api } from '../api/client'
 import { EmailHeader } from './email/EmailHeader'
 import { EmailCompose } from './email/EmailCompose'
 import { EmailTools } from './email/EmailTools'
+import { useEmailContext } from '../contexts/EmailContext'
 
 function splitBodyAndQuotes(body: string): { main: string; quoted: string | null } {
   const lines = body.split('\n')
@@ -50,6 +51,7 @@ interface Props {
 }
 
 export function EmailViewer({ email, loading, fetchError, onAnalyze, analyzing, onDelete, onSnooze, onAsk, onSearch, replyTriggerRef, forwardTriggerRef }: Props) {
+  const { mergeRefresh } = useEmailContext()
   const [showCompose, setShowCompose] = useState(false)
   const [composeInitialTo, setComposeInitialTo] = useState('')
   const [composeInitialSubject, setComposeInitialSubject] = useState('')
@@ -210,6 +212,7 @@ export function EmailViewer({ email, loading, fetchError, onAnalyze, analyzing, 
         onTranslate={handleTranslate}
         translating={translating}
         onArchive={handleArchive}
+        onRuleAdded={() => setTimeout(() => mergeRefresh(), 600)}
       />
 
       {thread.length > 0 && (

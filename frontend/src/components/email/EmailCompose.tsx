@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import type { EmailMessage } from '../../types'
 import { api } from '../../api/client'
+import { useEmailContext } from '../../contexts/EmailContext'
 
 export interface EmailComposeProps {
   email: EmailMessage
@@ -27,6 +28,7 @@ export function EmailCompose({
   draftCommitments = [],
   onCommitmentsChange,
 }: EmailComposeProps) {
+  const { mergeRefresh } = useEmailContext()
   const [replyTo, setReplyTo] = useState(initialTo)
   const [replyCC, setReplyCC] = useState('')
   const [replyBCC, setReplyBCC] = useState('')
@@ -160,6 +162,7 @@ export function EmailCompose({
       setSendMsg('Sent!')
       setTimeout(() => {
         onClose()
+        mergeRefresh()
         setSendMsg('')
         setReplyCC('')
         setReplyBCC('')
