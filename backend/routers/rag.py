@@ -111,6 +111,12 @@ async def get_embeddings_2d(request: Request):
         return result
 
     def _project():
+        # Wait up to 60s for the worker subprocess to finish loading before
+        # returning the "not available" error — covers the common case where
+        # the user opens Email Map within the first minute after app start.
+        if not rag._proxy._available:
+            rag._proxy._wait_available(timeout=60)
+
         try:
             # Fetch only chunk_index==0 to get one vector per email (the first chunk)
             result = rag._proxy.get(

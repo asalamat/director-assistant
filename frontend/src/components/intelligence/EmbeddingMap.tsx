@@ -251,11 +251,22 @@ export function EmbeddingMap({ onSearch }: { onSearch?: (subject: string) => voi
   }
 
   if (error) {
+    const isLoading = error.toLowerCase().includes('loading') || error.toLowerCase().includes('available')
     return (
-      <div className="flex flex-col items-center justify-center h-full gap-2 text-gray-400 px-8 text-center">
+      <div className="flex flex-col items-center justify-center h-full gap-3 text-gray-400 px-8 text-center">
         <span className="text-2xl">🗺</span>
         <p className="text-sm font-medium text-gray-500">{error}</p>
-        <p className="text-xs text-gray-400">Index at least a few emails and make sure the RAG worker is ready.</p>
+        {isLoading ? (
+          <p className="text-xs text-gray-400">The RAG worker is still starting up. Click Retry in a few seconds.</p>
+        ) : (
+          <p className="text-xs text-gray-400">Index at least a few emails and make sure the RAG worker is ready.</p>
+        )}
+        <button
+          onClick={loadMap}
+          className="mt-1 text-xs border border-gray-200 text-gray-600 px-3 py-1.5 rounded hover:bg-gray-50 transition-colors"
+        >
+          ↻ Retry
+        </button>
       </div>
     )
   }
