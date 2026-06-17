@@ -102,6 +102,29 @@ pause & exit /b 1
 if not defined PYTHON_CMD set "PYTHON_CMD=python"
 for /f "tokens=*" %%v in ('"!PYTHON_CMD!" -c "import sys; print(sys.version.split()[0])" 2^>nul') do set PY_VER=%%v
 if not defined PY_VER set PY_VER=(version unknown)
+
+:: Python 3.14+ has no pre-built wheels for scipy/chromadb on Windows.
+:: Abort early with a clear message instead of a confusing compile error.
+for /f "tokens=1,2 delims=." %%a in ("!PY_VER!") do (
+    set PY_MAJ=%%a & set PY_MIN=%%b
+)
+if defined PY_MAJ if defined PY_MIN (
+    if !PY_MAJ! EQU 3 if !PY_MIN! GEQ 14 (
+        echo.
+        echo [ERROR] Python !PY_VER! is too new for some dependencies.
+        echo.
+        echo   Some packages (scipy, chromadb) do not yet have pre-built
+        echo   Windows binaries for Python 3.14+.
+        echo.
+        echo   Please install Python 3.12 from:
+        echo     https://www.python.org/downloads/release/python-3129/
+        echo.
+        echo   Check "Add Python to PATH" during install, then run this
+        echo   installer again.
+        echo.
+        pause & exit /b 1
+    )
+)
 echo [OK]    Python !PY_VER! found
 
 :: ==== 3. NODE.JS ================================================
@@ -158,10 +181,15 @@ if exist ".venv\Scripts\activate.bat" (
 :: ==== 6. PYTHON PACKAGES ========================================
 echo [6/8] Installing Python packages (2-3 min)...
 call "!BACKEND!\.venv\Scripts\activate.bat"
-pip install -r "!BACKEND!\requirements.txt" --disable-pip-version-check
+pip install -r "!BACKEND!\requirements.txt" --prefer-binary --disable-pip-version-check
 if errorlevel 1 (
+    echo.
     echo [ERROR] Package install failed.
-    echo   If build error: try Python 3.12 instead of 3.14
+    echo.
+    echo   Most likely cause: Python version incompatibility.
+    echo   Recommended: Python 3.12 from https://www.python.org/downloads/release/python-3129/
+    echo   Check "Add Python to PATH" during install, then run this installer again.
+    echo.
     pause & exit /b 1
 )
 echo [OK]    Python packages installed
