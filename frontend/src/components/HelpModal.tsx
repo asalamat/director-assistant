@@ -138,7 +138,7 @@ function InboxEmail() {
         <FeatureRow label="Bulk select" desc="Checkbox appears on hover — select multiple emails to bulk Archive, Mark Read, Delete, or Snooze. 'Select all N' link selects the full visible list." />
         <FeatureRow label="⚡ Filters" desc="Click the Filters button beside the search bar to expand date range, sender, category, has-attachment, and unread-only filters. Active filters show as removable chips." />
         <FeatureRow label="Auto-poll" desc="New emails checked every 60 seconds automatically. Click Refresh for an immediate check." />
-        <FeatureRow label="Auto-refresh" desc="The inbox updates automatically after you send a reply, send a new email, or create a rule — no manual page refresh needed." />
+        <FeatureRow label="Auto-refresh" desc="The inbox updates automatically after every action — send reply, new email, rule creation, delete, or snooze. The viewer closes immediately after delete or snooze. No manual page refresh needed." />
       </div>
 
       <H3>Email viewer</H3>
@@ -580,7 +580,7 @@ function DashboardSection() {
       <UL>
         <Li><strong>↗ Open in App</strong> — opens the exact email in Director Assistant (new tab, navigates directly)</Li>
         <Li><strong>✉ Reply by Email</strong> — opens your mail client pre-addressed to the sender</Li>
-        <Li><strong>✓ Mark Done</strong> — marks action items complete instantly; the item disappears from the list immediately (enable "Show done" to see completed items)</Li>
+        <Li><strong>✓ Mark Done</strong> — marks action items complete instantly; the item disappears from the list immediately and the tab badge updates. Enable "Show done" to see completed items.</Li>
         <Li><strong>✎ Generate Follow-up Draft</strong> — AI writes a chase email; editable textarea appears with Copy and Send via App buttons</Li>
         <Li><strong>▶ Join Meeting</strong> — opens the Teams/Zoom/Meet link for online calendar events</Li>
       </UL>

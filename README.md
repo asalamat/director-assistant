@@ -2,7 +2,7 @@
 
 > **Your AI-powered executive email intelligence platform.** Connects to Gmail, Microsoft 365, Yahoo, or any IMAP mailbox and uses Claude AI to help you triage faster, never miss a commitment, and stay on top of every relationship that matters.
 
-**Current version: 3.38.5** · [Releases](https://github.com/asalamat/director-assistant/releases) · MIT License
+**Current version: 3.38.9** · [Releases](https://github.com/asalamat/director-assistant/releases) · MIT License
 
 ---
 
@@ -133,11 +133,12 @@ Everything runs **locally on your machine**. Your emails never leave your device
 - **Scheduled Send** — compose now, schedule delivery for any future date and time
 
 ### Bug Fixes & Polish (v3.38.x — 2026-06-17)
-- **Auto-refresh after actions** — inbox list now updates automatically after sending a reply, sending a new email, or creating an email rule; no more manual page refresh required
+- **Delete / snooze closes viewer** — email viewer now closes immediately after deleting or snoozing an email; bulk delete/archive also clears the viewer if the open email is in the selection
+- **Actions tab "done" sync** — marking an action item done removes it from the list instantly and re-syncs the tab badge count in the background
+- **HTML email readability (extended)** — sanitizer now also strips dark backgrounds from `<style>` blocks inside emails, unquoted `bgcolor` attributes, background shorthand values (e.g. `black url(img.gif)`), and a broader set of named CSS dark colors (navy, maroon, indigo, midnightblue, purple, etc.)
+- **Auto-refresh after actions** — inbox list now updates automatically after sending a reply, sending a new email, creating a rule, deleting, or snoozing; no more manual page refresh required
 - **Date sort fixed** — emails stored with mixed timezone offsets (e.g. `+00:00` vs `-04:00`) now sort correctly by actual UTC time instead of lexicographic string order
-- **HTML email readability** — dark `bgcolor` and `background-color` inline styles (e.g. `#000`, `#1a1a1a`) in HTML emails are stripped so text is always readable against the white viewer background
 - **Email Map retry** — Email Map now waits up to 60 s for the RAG worker to finish loading on startup before returning an error; a **Retry** button appears if it still isn't ready
-- **Email rule refresh** — creating a rule from the email viewer toolbar now triggers a list refresh so the rule takes effect immediately in the current view
 
 ### Code Quality & Reliability (v3.16)
 - **Poll concurrency fixed** — `_poll_lock` now correctly serializes concurrent refresh cycles; no more duplicate email ingestion on manual refresh
