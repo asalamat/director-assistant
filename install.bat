@@ -62,17 +62,21 @@ echo [OK]    Git !GIT_VER! found
 echo [2/8] Checking Python...
 set "PYTHON_CMD="
 
-:: py launcher (uses correct Python, avoids Store stub)
+:: py launcher — use where output directly (avoids for/f with parens in python cmd)
 where py >nul 2>&1
 if errorlevel 1 goto TRY_PYTHON_DIRECT
-for /f "tokens=*" %%P in ('py -c "import sys; print(sys.executable)" 2^>nul') do set "PYTHON_CMD=%%P"
+where py > "%TEMP%\da_py.tmp" 2>nul
+set /p PYTHON_CMD= < "%TEMP%\da_py.tmp"
+del "%TEMP%\da_py.tmp" >nul 2>&1
 if defined PYTHON_CMD goto PYTHON_OK
 
 :TRY_PYTHON_DIRECT
-:: python command (skip Windows Store stub)
+:: python command — use where output, skip Windows Store stub
 where python >nul 2>&1
 if errorlevel 1 goto TRY_PYTHON_PATHS
-for /f "tokens=*" %%P in ('python -c "import sys; print(sys.executable)" 2^>nul') do set "PYTHON_CMD=%%P"
+where python > "%TEMP%\da_py.tmp" 2>nul
+set /p PYTHON_CMD= < "%TEMP%\da_py.tmp"
+del "%TEMP%\da_py.tmp" >nul 2>&1
 if not defined PYTHON_CMD goto TRY_PYTHON_PATHS
 echo !PYTHON_CMD! | findstr /i "WindowsApps" >nul 2>&1
 if not errorlevel 1 set "PYTHON_CMD="
@@ -102,7 +106,9 @@ pause & exit /b 1
 
 :PYTHON_OK
 if not defined PYTHON_CMD set "PYTHON_CMD=python"
-for /f "tokens=*" %%v in ('"!PYTHON_CMD!" -c "import sys; print(sys.version.split()[0])" 2^>nul') do set PY_VER=%%v
+"!PYTHON_CMD!" -c "import sys; print(sys.version.split()[0])" > "%TEMP%\da_pyver.tmp" 2>nul
+set /p PY_VER= < "%TEMP%\da_pyver.tmp"
+del "%TEMP%\da_pyver.tmp" >nul 2>&1
 if not defined PY_VER set PY_VER=(version unknown)
 
 :: Python 3.14+ has no pre-built wheels for scipy/chromadb on Windows.
@@ -201,7 +207,7 @@ call "!BACKEND!\.venv\Scripts\activate.bat"
 pip install -r "!BACKEND!\requirements.txt" --prefer-binary --disable-pip-version-check
 if errorlevel 1 (
     echo.
-    echo [ERROR] Package install failed  (Python !PY_VER!^).
+    echo [ERROR] Package install failed. Python !PY_VER! may be too new.
     echo.
     echo   Python 3.14+ does not have pre-built Windows packages for scipy/chromadb.
     echo   Install Python 3.12 from:
