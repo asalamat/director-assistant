@@ -164,12 +164,18 @@ set "BACKEND=!INSTALL_DIR!\backend"
 set "FRONTEND=!INSTALL_DIR!\frontend"
 echo [OK]    Repository ready
 
-:: Self-update: copy the repo's install.bat over the one the user ran so future
-:: runs always use the latest version (safe — Windows can overwrite a running .bat).
+:: Self-update: if the repo has a newer install.bat than what the user ran,
+:: copy it and exit — the user re-runs and gets all the latest fixes.
 if exist "!INSTALL_DIR!\install.bat" (
     if /i not "%~f0"=="!INSTALL_DIR!\install.bat" (
         copy /y "!INSTALL_DIR!\install.bat" "%~f0" >nul 2>&1
-        if not errorlevel 1 echo [INFO]   install.bat updated for future runs.
+        if not errorlevel 1 (
+            echo.
+            echo [INFO]   install.bat has been updated to the latest version.
+            echo          Please run install.bat again to continue.
+            echo.
+            pause & exit /b 0
+        )
     )
 )
 
