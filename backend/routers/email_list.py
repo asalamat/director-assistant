@@ -1,6 +1,70 @@
 import asyncio
 import re
 from time import monotonic
+
+
+# ---------------------------------------------------------------------------
+# HTML email sanitizer — prevents black-on-black text caused by HTML emails
+# that hard-code dark background colors (bgcolor="#000" or inline style).
+# ---------------------------------------------------------------------------
+
+def _luminance(color: str) -> float:
+    """Return perceived brightness 0–1 for a CSS color string, or -1 if unknown."""
+    c = color.strip().lower().rstrip(';').rstrip()
+    hex_map = {'black': '000000', 'white': 'ffffff'}
+    if c in hex_map:
+        c = '#' + hex_map[c]
+    m = re.match(r'^#([0-9a-f]{3}|[0-9a-f]{6})$', c)
+    if m:
+        h = m.group(1)
+        if len(h) == 3:
+            h = h[0]*2 + h[1]*2 + h[2]*2
+        r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+        return (0.299*r + 0.587*g + 0.114*b) / 255
+    m = re.match(r'^rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)', c)
+    if m:
+        r, g, b = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        return (0.299*r + 0.587*g + 0.114*b) / 255
+    return -1.0  # unknown — leave it alone
+
+
+def sanitize_email_html(html: str) -> str:
+    """Strip very dark background colors from HTML email to prevent unreadable text."""
+    if not html:
+        return html
+
+    # Replace dark bgcolor="..." attributes
+    def _fix_bgcolor(m: re.Match) -> str:
+        q = m.group(1)   # quote char
+        val = m.group(2)
+        lum = _luminance(val)
+        if 0 <= lum < 0.2:
+            return f'bgcolor={q}transparent{q}'
+        return m.group(0)
+
+    html = re.sub(r'bgcolor=(["\'])([^"\']*)\1', _fix_bgcolor, html, flags=re.IGNORECASE)
+
+    # Replace dark background-color / background in inline style="..."
+    def _fix_inline_style(m: re.Match) -> str:
+        q = m.group(1)
+        style = m.group(2)
+
+        def _sub_bg(sm: re.Match) -> str:
+            prop = sm.group(1)   # "background" or "background-color"
+            val  = sm.group(2).strip()
+            lum = _luminance(val)
+            if 0 <= lum < 0.2:
+                return f'{prop}: transparent'
+            return sm.group(0)
+
+        new_style = re.sub(
+            r'(background(?:-color)?)\s*:\s*([^;"\'>]+)',
+            _sub_bg, style, flags=re.IGNORECASE,
+        )
+        return f'style={q}{new_style}{q}'
+
+    html = re.sub(r'style=(["\'])([^"\']*)\1', _fix_inline_style, html, flags=re.IGNORECASE)
+    return html
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 from typing import Optional
@@ -269,6 +333,8 @@ async def get_email(request: Request, email_id: str, folder: str = Query("INBOX"
     # Fast path: SQLite cache
     cached = cache.get(email_id)
     if cached:
+        if cached.body_html:
+            cached = cached.model_copy(update={"body_html": sanitize_email_html(cached.body_html)})
         return cached
 
     # Slow path: fetch from IMAP and cache for next time
@@ -284,6 +350,8 @@ async def get_email(request: Request, email_id: str, folder: str = Query("INBOX"
         raise HTTPException(404, "Email not found")
 
     cache.save(email)
+    if email.body_html:
+        email = email.model_copy(update={"body_html": sanitize_email_html(email.body_html)})
     return email
 
 
