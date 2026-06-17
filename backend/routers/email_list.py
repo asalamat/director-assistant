@@ -8,12 +8,29 @@ from time import monotonic
 # that hard-code dark background colors (bgcolor="#000" or inline style).
 # ---------------------------------------------------------------------------
 
+_CSS_NAMED_COLORS: dict[str, str] = {
+    'black': '000000', 'navy': '000080', 'maroon': '800000',
+    'darkblue': '00008b', 'darkgreen': '006400', 'darkred': '8b0000',
+    'darkmagenta': '8b008b', 'darkcyan': '008b8b', 'darkviolet': '9400d3',
+    'darkslategray': '2f4f4f', 'darkslategrey': '2f4f4f',
+    'indigo': '4b0082', 'midnightblue': '191970', 'purple': '800080',
+    'teal': '008080', 'olive': '808000', 'sienna': 'a0522d',
+    'saddlebrown': '8b4513', 'brown': 'a52a2a', 'white': 'ffffff',
+}
+
+
 def _luminance(color: str) -> float:
     """Return perceived brightness 0–1 for a CSS color string, or -1 if unknown."""
     c = color.strip().lower().rstrip(';').rstrip()
-    hex_map = {'black': '000000', 'white': 'ffffff'}
-    if c in hex_map:
-        c = '#' + hex_map[c]
+    # Handle CSS background shorthand: extract first token (the color part)
+    # e.g. "black url(img.gif) no-repeat" → try "black"
+    first_token = c.split()[0] if c else c
+    if first_token != c:
+        lum = _luminance(first_token)
+        if lum >= 0:
+            return lum
+    if c in _CSS_NAMED_COLORS:
+        c = '#' + _CSS_NAMED_COLORS[c]
     m = re.match(r'^#([0-9a-f]{3}|[0-9a-f]{6})$', c)
     if m:
         h = m.group(1)
@@ -21,11 +38,26 @@ def _luminance(color: str) -> float:
             h = h[0]*2 + h[1]*2 + h[2]*2
         r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
         return (0.299*r + 0.587*g + 0.114*b) / 255
-    m = re.match(r'^rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)', c)
+    m = re.match(r'^rgb\(\s*(\d+)\s*[,\s]\s*(\d+)\s*[,\s]\s*(\d+)', c)
     if m:
         r, g, b = int(m.group(1)), int(m.group(2)), int(m.group(3))
         return (0.299*r + 0.587*g + 0.114*b) / 255
     return -1.0  # unknown — leave it alone
+
+
+def _fix_bg_in_style(style: str) -> str:
+    """Neutralize dark background-color / background properties inside a CSS string."""
+    def _sub_bg(sm: re.Match) -> str:
+        prop = sm.group(1)
+        val  = sm.group(2).strip()
+        lum = _luminance(val)
+        if 0 <= lum < 0.2:
+            return f'{prop}: transparent'
+        return sm.group(0)
+    return re.sub(
+        r'(background(?:-color)?)\s*:\s*([^;"\'>]+)',
+        _sub_bg, style, flags=re.IGNORECASE,
+    )
 
 
 def sanitize_email_html(html: str) -> str:
@@ -33,34 +65,33 @@ def sanitize_email_html(html: str) -> str:
     if not html:
         return html
 
-    # Replace dark bgcolor="..." attributes
+    # 1. Sanitize <style>...</style> blocks (catches class-based dark backgrounds)
+    def _fix_style_tag(m: re.Match) -> str:
+        return m.group(1) + _fix_bg_in_style(m.group(2)) + m.group(3)
+
+    html = re.sub(
+        r'(<style[^>]*>)(.*?)(</style>)',
+        _fix_style_tag, html, flags=re.IGNORECASE | re.DOTALL,
+    )
+
+    # 2. Replace dark bgcolor="..." and bgcolor=... (quoted or unquoted)
     def _fix_bgcolor(m: re.Match) -> str:
-        q = m.group(1)   # quote char
-        val = m.group(2)
+        val = (m.group(2) or m.group(3) or '').strip()
         lum = _luminance(val)
         if 0 <= lum < 0.2:
-            return f'bgcolor={q}transparent{q}'
+            q = m.group(1) or ''
+            return f'bgcolor={q}transparent{q}' if q else 'bgcolor=transparent'
         return m.group(0)
 
+    # Quoted: bgcolor="..." or bgcolor='...'
     html = re.sub(r'bgcolor=(["\'])([^"\']*)\1', _fix_bgcolor, html, flags=re.IGNORECASE)
+    # Unquoted: bgcolor=#000000 or bgcolor=black
+    html = re.sub(r'bgcolor=()(#[0-9a-fA-F]{3,6}|[a-zA-Z]+)(?=[\s>])', _fix_bgcolor, html, flags=re.IGNORECASE)
 
-    # Replace dark background-color / background in inline style="..."
+    # 3. Replace dark background-color / background in inline style="..."
     def _fix_inline_style(m: re.Match) -> str:
         q = m.group(1)
-        style = m.group(2)
-
-        def _sub_bg(sm: re.Match) -> str:
-            prop = sm.group(1)   # "background" or "background-color"
-            val  = sm.group(2).strip()
-            lum = _luminance(val)
-            if 0 <= lum < 0.2:
-                return f'{prop}: transparent'
-            return sm.group(0)
-
-        new_style = re.sub(
-            r'(background(?:-color)?)\s*:\s*([^;"\'>]+)',
-            _sub_bg, style, flags=re.IGNORECASE,
-        )
+        new_style = _fix_bg_in_style(m.group(2))
         return f'style={q}{new_style}{q}'
 
     html = re.sub(r'style=(["\'])([^"\']*)\1', _fix_inline_style, html, flags=re.IGNORECASE)
