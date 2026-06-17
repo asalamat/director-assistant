@@ -106,34 +106,32 @@ pause & exit /b 1
 
 :PYTHON_OK
 if not defined PYTHON_CMD set "PYTHON_CMD=python"
-"!PYTHON_CMD!" -c "import sys; print(sys.version.split()[0])" > "%TEMP%\da_pyver.tmp" 2>nul
+"!PYTHON_CMD!" --version > "%TEMP%\da_pyver.tmp" 2>&1
 set /p PY_VER= < "%TEMP%\da_pyver.tmp"
 del "%TEMP%\da_pyver.tmp" >nul 2>&1
-if not defined PY_VER set PY_VER=(version unknown)
+if not defined PY_VER set "PY_VER=Python unknown"
+echo [OK]    !PY_VER! found
 
-:: Python 3.14+ has no pre-built wheels for scipy/chromadb on Windows.
-:: Abort early with a clear message instead of a confusing compile error.
-for /f "tokens=1,2 delims=." %%a in ("!PY_VER!") do (
-    set PY_MAJ=%%a & set PY_MIN=%%b
-)
-if defined PY_MAJ if defined PY_MIN (
-    if !PY_MAJ! EQU 3 if !PY_MIN! GEQ 14 (
-        echo.
-        echo [ERROR] Python !PY_VER! is too new for some dependencies.
-        echo.
-        echo   Some packages (scipy, chromadb) do not yet have pre-built
-        echo   Windows binaries for Python 3.14+.
-        echo.
-        echo   Please install Python 3.12 from:
-        echo     https://www.python.org/downloads/release/python-3129/
-        echo.
-        echo   Check "Add Python to PATH" during install, then run this
-        echo   installer again.
-        echo.
-        pause & exit /b 1
-    )
-)
-echo [OK]    Python !PY_VER! found
+:: Block Python 3.14+ — no binary wheels for scipy/chromadb on Windows
+echo !PY_VER! | findstr /c:"Python 3.14" /c:"Python 3.15" /c:"Python 3.16" /c:"Python 3.17" /c:"Python 3.18" /c:"Python 3.19" >nul 2>&1
+if not errorlevel 1 goto PYTHON_TOO_NEW
+goto PYTHON_VER_OK
+
+:PYTHON_TOO_NEW
+echo.
+echo [ERROR] !PY_VER! is not supported on Windows.
+echo.
+echo   scipy and chromadb have no pre-built Windows packages
+echo   for Python 3.14 and above.
+echo.
+echo   Install Python 3.12 from:
+echo     https://www.python.org/downloads/release/python-3129/
+echo.
+echo   Check "Add Python to PATH" during install, then run again.
+echo.
+pause & exit /b 1
+
+:PYTHON_VER_OK
 
 :: ==== 3. NODE.JS ================================================
 echo [3/8] Checking Node.js...
