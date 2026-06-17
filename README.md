@@ -2,7 +2,7 @@
 
 > **Your AI-powered executive email intelligence platform.** Connects to Gmail, Microsoft 365, Yahoo, or any IMAP mailbox and uses Claude AI to help you triage faster, never miss a commitment, and stay on top of every relationship that matters.
 
-**Current version: 3.38.9** · [Releases](https://github.com/asalamat/director-assistant/releases) · MIT License
+**Current version: 3.38.14** · [Releases](https://github.com/asalamat/director-assistant/releases) · MIT License
 
 ---
 
@@ -133,9 +133,11 @@ Everything runs **locally on your machine**. Your emails never leave your device
 - **Scheduled Send** — compose now, schedule delivery for any future date and time
 
 ### Bug Fixes & Polish (v3.38.x — 2026-06-17)
+- **Windows installer — Python 3.14 blocked** — `install.bat` now detects Python 3.14+ and exits with a clear message (use Python 3.12); pre-built wheels (`--prefer-binary`) used for all packages to prevent Cython/Meson compile errors
+- **Windows installer — System32 redirect** — running `install.bat` from `C:\Windows\System32` caused 32-to-64-bit path redirection that broke venv and pip; installer now detects system paths and redirects to `%USERPROFILE%\DirectorAssistant`
 - **Delete / snooze closes viewer** — email viewer now closes immediately after deleting or snoozing an email; bulk delete/archive also clears the viewer if the open email is in the selection
 - **Actions tab "done" sync** — marking an action item done removes it from the list instantly and re-syncs the tab badge count in the background
-- **HTML email readability (extended)** — sanitizer now also strips dark backgrounds from `<style>` blocks inside emails, unquoted `bgcolor` attributes, background shorthand values (e.g. `black url(img.gif)`), and a broader set of named CSS dark colors (navy, maroon, indigo, midnightblue, purple, etc.)
+- **HTML email readability (final)** — scoped CSS safety block prevents dark email backgrounds from leaking into app UI; background shorthand with URL-first token (e.g. `url(img) #000`) now correctly stripped; threshold raised to include `#333333`
 - **Auto-refresh after actions** — inbox list now updates automatically after sending a reply, sending a new email, creating a rule, deleting, or snoozing; no more manual page refresh required
 - **Date sort fixed** — emails stored with mixed timezone offsets (e.g. `+00:00` vs `-04:00`) now sort correctly by actual UTC time instead of lexicographic string order
 - **Email Map retry** — Email Map now waits up to 60 s for the RAG worker to finish loading on startup before returning an error; a **Retry** button appears if it still isn't ready
@@ -206,7 +208,7 @@ Everything runs **locally on your machine**. Your emails never leave your device
 | Requirement | Details |
 |------------|---------|
 | **OS** | macOS 12+ or Windows 10+ |
-| **Python** | 3.11 or higher |
+| **Python** | 3.11–3.13 (3.12 recommended) — Python 3.14 not yet supported on Windows |
 | **Node.js** | 18 or higher |
 | **AI API key** | Anthropic Claude (recommended) or OpenAI — get one at [console.anthropic.com](https://console.anthropic.com) |
 | **Email account** | Gmail, Yahoo, Hotmail, Office 365, or any IMAP-enabled mailbox |
@@ -273,7 +275,8 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.director-assistant.a
 ## Install — Windows 11
 
 ### Prerequisites (install once)
-1. **Python 3.11+** — [python.org/downloads](https://python.org/downloads) → ✅ check **"Add Python to PATH"**
+1. **Python 3.12** — [python.org/downloads/release/python-3129](https://www.python.org/downloads/release/python-3129/) → ✅ check **"Add Python to PATH"**
+   > ⚠️ Python 3.14 is **not supported** — some dependencies (scipy, chromadb) have no Windows wheels yet. Use **3.12**.
 2. **Node.js 18+** — [nodejs.org](https://nodejs.org/en/download)
 3. **Git** — [git-scm.com](https://git-scm.com/download/win)
 
@@ -284,9 +287,12 @@ cd director-assistant
 install.bat
 ```
 
+> **Run `install.bat` from your home folder or Desktop — not from `C:\Windows\System32`.**
+> If it detects a system-protected path, it will automatically redirect to `%USERPROFILE%\DirectorAssistant`.
+
 `install.bat` automatically:
 - Creates a Python virtual environment
-- Installs all backend and frontend dependencies
+- Installs all backend and frontend dependencies (pre-built wheels only — no compilation)
 - Builds the frontend
 - Creates a **"Director Assistant.bat"** shortcut on your Desktop
 

@@ -719,6 +719,11 @@ function TipsSection() {
       <P>If you see many Python processes consuming excessive RAM after repeated restarts, they are cleaned up automatically on the next server start. You can also restart the app from the LaunchAgent to trigger cleanup immediately.</P>
       <Tip>The app automatically kills stale background workers on startup. If memory still seems high, quit Director Assistant (Settings → Quit) and relaunch it.</Tip>
 
+      <H3>Windows installation</H3>
+      <P>Run <code className="bg-gray-100 px-1 rounded text-xs">install.bat</code> from your <strong>Downloads</strong> folder or Desktop — <em>not</em> from <code className="bg-gray-100 px-1 rounded text-xs">C:\Windows\System32</code>. Running from a system folder causes 32-to-64-bit path redirection that breaks the Python virtual environment. The installer will warn you and redirect automatically if it detects a protected path.</P>
+      <Note><strong>Python version:</strong> Use <strong>Python 3.12</strong> (recommended). Python 3.14 is not yet supported on Windows because some required packages (scipy, chromadb) do not have pre-built Windows binaries for 3.14. The installer will detect this and show a link to Python 3.12. Always check <strong>Add Python to PATH</strong> during Python install.</Note>
+      <Tip>After installing Python 3.12, close and reopen your terminal or run <code className="bg-gray-100 px-1 rounded text-xs">install.bat</code> again — it will pick up the new version automatically.</Tip>
+
       <H3>Contact</H3>
       <P>Built by <strong>Ali Salamat</strong> · <a href="mailto:ali.salamat@firstpc.ca" className="text-accent-600 hover:underline">ali.salamat@firstpc.ca</a></P>
     </div>
