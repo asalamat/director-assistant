@@ -7,7 +7,22 @@ chcp 65001 >nul 2>&1
 set "PF=%ProgramFiles%"
 set "PF86=%ProgramFiles(x86)%"
 set "LAPP=%LOCALAPPDATA%"
+
+:: Default install dir is a sub-folder beside this script
 set "INSTALL_DIR=%~dp0director-assistant"
+
+:: Safety check: never install into Windows system directories.
+:: Running install.bat from System32 / SysWOW64 / Program Files causes
+:: 32-to-64-bit path redirection that breaks venv and pip.
+echo "%INSTALL_DIR%" | findstr /i "\\Windows\\System32 \\Windows\\SysWOW64 \\Program Files" >nul 2>&1
+if not errorlevel 1 (
+    echo.
+    echo [WARN]  install.bat is running from a system-protected folder:
+    echo         %~dp0
+    echo         Redirecting install to your user profile instead.
+    echo.
+    set "INSTALL_DIR=%USERPROFILE%\DirectorAssistant"
+)
 
 echo.
 echo ============================================================
@@ -85,7 +100,8 @@ pause & exit /b 1
 
 :PYTHON_OK
 if not defined PYTHON_CMD set "PYTHON_CMD=python"
-for /f "tokens=*" %%v in ('"!PYTHON_CMD!" -c "import sys; print(sys.version.split()[0])" 2^>^&1') do set PY_VER=%%v
+for /f "tokens=*" %%v in ('"!PYTHON_CMD!" -c "import sys; print(sys.version.split()[0])" 2^>nul') do set PY_VER=%%v
+if not defined PY_VER set PY_VER=(version unknown)
 echo [OK]    Python !PY_VER! found
 
 :: ==== 3. NODE.JS ================================================
