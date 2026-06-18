@@ -492,6 +492,12 @@ export const api = {
   findContactDuplicates(): Promise<{ duplicate_groups: any[]; total_groups: number }> {
     return request('/contacts/duplicates')
   },
+  getContactGroups(): Promise<{ groups: Array<{ name: string; color: string; members: Array<{ name: string; email: string }> }> }> {
+    return request('/contacts/groups')
+  },
+  autoGroupContacts(): Promise<{ groups: Array<{ name: string; color: string; members: Array<{ name: string; email: string }> }> }> {
+    return request('/contacts/auto-group', { method: 'POST' })
+  },
   mergeContactDuplicates(): Promise<{ merged_groups: number; records_removed: number; message: string }> {
     return request('/contacts/merge-duplicates', { method: 'POST' })
   },
@@ -548,6 +554,10 @@ export const api = {
 
   detectSentCommitments(): Promise<{ detected: { email_id: string; subject: string; date: string; commitments: string[] }[]; scanned: number }> {
     return request('/actions/detect-from-sent', { method: 'POST' })
+  },
+
+  draftFromActionItem(itemId: number): Promise<{ to: string; subject: string; body: string }> {
+    return request(`/actions/${itemId}/draft-reply`, { method: 'POST' })
   },
 
   detectInboxAsks(): Promise<{ detected: Array<{ email_id: string; subject: string; date: string; sender: string; asks: string[] }>; scanned: number }> {
@@ -740,6 +750,9 @@ export const api = {
   },
   searchBriefItem(q: string): Promise<{ query: string; emails: any[] }> {
     return request(`/weekly-brief/search?q=${encodeURIComponent(q)}`)
+  },
+  sendBriefToInbox(): Promise<{ sent: boolean; to: string }> {
+    return request('/weekly-brief/send-to-inbox', { method: 'POST' })
   },
 
   // VIP Contacts

@@ -6,6 +6,7 @@ import { Spinner, EmptyState, Button, Badge } from './ui'
 import { TaskExportButton } from './TaskExportButton'
 import { DelegationTracker } from './DelegationTracker'
 import { OvernightDrafts } from './OvernightDrafts'
+import { useUIContext } from '../contexts/UIContext'
 
 function formatDate(s: string) {
   return new Date(s).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
@@ -55,6 +56,9 @@ export function ActionBoard() {
   const [inboxAsks, setInboxAsks] = useState<InboxAsk[] | null>(null)
   const [inboxScanError, setInboxScanError] = useState('')
   const [addingInboxItem, setAddingInboxItem] = useState<string | null>(null)
+
+  const { openCompose } = useUIContext()
+  const [draftingId, setDraftingId] = useState<number | null>(null)
 
   const loadWaiting = async () => {
     setLoadingWaiting(true)
@@ -210,6 +214,15 @@ export function ActionBoard() {
       reload()
     } catch { /* ignore */ }
     finally { setAddingInboxItem(null) }
+  }
+
+  const handleDraftReply = async (id: number) => {
+    setDraftingId(id)
+    try {
+      const draft = await api.draftFromActionItem(id)
+      openCompose({ to: draft.to, subject: draft.subject, body: draft.body })
+    } catch { addToast('Draft failed', 'warning') }
+    finally { setDraftingId(null) }
   }
 
   const pendingActions = actions.filter((a) => !a.done)
@@ -485,6 +498,22 @@ export function ActionBoard() {
                   </p>
                   <p className="text-xs text-gray-400 mt-0.5 truncate">{a.email_subject}</p>
                 </div>
+                {!a.done && (
+                  <button
+                    onClick={() => handleDraftReply(a.id)}
+                    disabled={draftingId === a.id}
+                    title="Draft reply"
+                    className="shrink-0 text-gray-300 hover:text-accent disabled:opacity-50 transition-colors"
+                  >
+                    {draftingId === a.id ? (
+                      <span className="w-3.5 h-3.5 border border-accent border-t-transparent rounded-full animate-spin block" />
+                    ) : (
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                      </svg>
+                    )}
+                  </button>
+                )}
                 {!a.done && (
                   <TaskExportButton actionId={a.id} text={a.text} emailSubject={a.email_subject} />
                 )}

@@ -265,6 +265,7 @@ function ExecutiveTools() {
       </UL>
       <Note>The brief is cached for 1 hour. Click ↺ Refresh to force a new generation. Uses Claude Sonnet for depth.</Note>
       <P><strong>Export:</strong> use <strong>📋 Copy</strong> to copy the full brief to your clipboard, or <strong>↓ .md</strong> to download it as a Markdown file.</P>
+      <P><strong>Send to inbox:</strong> click <strong>Send to inbox</strong> to email yourself a formatted HTML copy of the brief — useful when you're away from the app.</P>
 
       <H3>Smart Daily Triage (Focus Tab)</H3>
       <P>Switch to <strong>Focus</strong> to see your top 7 priority unread emails, AI-scored using 7 signals:</P>
@@ -294,15 +295,16 @@ function ExecutiveTools() {
       <H3>Send-Time Optimizer <Tag color="green">New</Tag></H3>
       <P>When you click <strong>Reply</strong> on any email, a green hint appears below the To field: <strong>"Best time to send: Tuesday at 9:00 AM"</strong>. This is calculated from the recipient's historical email activity patterns — when they're most active and likely to respond quickly.</P>
 
-      <H3>Actions Board</H3>
+      <H3>Actions Board <Tag color="purple">Updated</Tag></H3>
       <UL>
         <Li><strong>Auto-extracted</strong> — AI finds commitments in every incoming email</Li>
+        <Li><strong>Scan sent mail</strong> — AI scans your sent mail and surfaces commitments you made</Li>
+        <Li><strong>Scan inbox for asks</strong> — AI scans received emails for requests others are making of you</Li>
+        <Li><strong>Draft reply</strong> — click the pencil ✏ icon on any action item to generate an AI reply draft and open it in compose</Li>
         <Li><strong>Overdue badge</strong> — red count badge on the Actions tab for past-due items</Li>
         <Li><strong>Waiting for Reply</strong> — sent emails 3+ days old with no response</Li>
-        <Li><strong>Scan sent mail</strong> — AI scans your sent mail and surfaces commitments you made</Li>
         <Li><strong>Bulk actions</strong> — checkbox on each item; select multiple then use the toolbar to bulk mark done or bulk delete</Li>
         <Li><strong>CSV export</strong> — export all pending action items as a spreadsheet</Li>
-        <Li><strong>Copy checklist</strong> — one-click copy of all items as a Markdown checklist</Li>
       </UL>
 
       <H3>Delegation Tracker</H3>
@@ -333,6 +335,17 @@ function ContactsSection() {
       </UL>
       <P>Click <strong>Emails</strong> to see a scrollable timeline of all emails to/from that contact. Click any email to open it.</P>
       <Tip>Use VIP contacts to ensure you never miss a message from your board, key clients, or direct reports. The awaiting-reply flag is your early warning system.</Tip>
+
+      <H3>Smart Contact Groups <Tag color="purple">New</Tag></H3>
+      <P>Go to the <strong>Groups</strong> tab and click <strong>Auto-group contacts</strong>. AI clusters your top contacts into named groups (Clients, Team, Vendors, Partners, etc.).</P>
+      <UL>
+        <Li>Click any group to expand and see its members</Li>
+        <Li>Click <strong>Search</strong> next to any contact to filter all emails from them</Li>
+        <Li>Click <strong>Regroup</strong> to re-run the AI clustering any time</Li>
+      </UL>
+
+      <H3>Client Interaction Timeline <Tag color="purple">New</Tag></H3>
+      <P>Click any sender name to open their Contact Card, then click the <strong>Timeline</strong> tab to see every email you've exchanged with that person — oldest first, with ↓ Received / ↑ Sent direction badges and a message snippet.</P>
 
       <H3>Contact Card</H3>
       <P>Click any sender name in the email viewer to open a contact card showing:</P>

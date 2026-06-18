@@ -17,6 +17,7 @@ import { ToastContainer, addToast } from './components/Toast'
 import UpdatePopup from './components/UpdatePopup'
 import { ComposeModal } from './components/ComposeModal'
 import { VIPPanel } from './components/VIPPanel'
+import { ContactGroupsPanel } from './components/ContactGroupsPanel'
 import { ShortcutHelp } from './components/ShortcutHelp'
 import { CommandPalette } from './components/CommandPalette'
 import { useRecommendation } from './hooks/useEmails'
@@ -76,6 +77,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'ask',       label: 'Ask' },
   { id: 'actions',   label: 'Actions' },
   { id: 'vip',       label: 'VIP' },
+  { id: 'groups',    label: 'Groups' },
   { id: 'digest',    label: 'Brief' },
   { id: 'health',    label: 'Health' },
   { id: 'knowledge', label: 'Knowledge' },
@@ -708,6 +710,7 @@ export default function App() {
           {activeTab === 'health' && <HealthPanel />}
           {activeTab === 'knowledge' && <IntelligencePanel />}
           {activeTab === 'vip' && <VIPPanel />}
+          {activeTab === 'groups' && <ContactGroupsPanel onSearch={(q) => { setAskContext(`Show me recent emails with ${q}`); setActiveTab('ask') }} />}
         </div>
       </div>
 

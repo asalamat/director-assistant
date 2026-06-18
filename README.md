@@ -2,7 +2,7 @@
 
 > **Your AI-powered executive email intelligence platform.** Connects to Gmail, Microsoft 365, Yahoo, or any IMAP mailbox and uses Claude AI to help you triage faster, never miss a commitment, and stay on top of every relationship that matters.
 
-**Current version: 3.38.19** · [Releases](https://github.com/asalamat/director-assistant/releases) · MIT License
+**Current version: 3.40.0** · [Releases](https://github.com/asalamat/director-assistant/releases) · MIT License
 
 ---
 
@@ -131,6 +131,13 @@ Everything runs **locally on your machine**. Your emails never leave your device
 - **Calendar Event Creator** — pre-filled event form on any email; creates directly in Microsoft Calendar via Graph API
 - **Meeting Prep Brief** — click any calendar event in the Dashboard for an AI-generated agenda, talking points, and prior email context from all attendees
 - **Scheduled Send** — compose now, schedule delivery for any future date and time
+
+### New Features (v3.39–v3.40 — 2026-06-18)
+- **Action Items inbox scan** — AI scans received emails and surfaces requests others are making of you (complements the existing sent-mail commitment scan)
+- **Draft Reply from Action Item** — click the pencil icon on any action item to generate an AI reply draft pre-filled in compose
+- **Send Brief to Inbox** — "Send to inbox" button in Weekly Brief emails you a formatted HTML digest of your brief
+- **Smart Contact Groups** — AI auto-clusters your top contacts into groups (Clients, Team, Vendors, etc.); new Groups tab in the sidebar; click Search on any member to filter emails
+- **Client Interaction Timeline** — Timeline tab in every contact card shows your full chronological email history with that person (↓ received / ↑ sent)
 
 ### Bug Fixes & Polish (v3.38.x — 2026-06-17)
 - **Windows installer — Python 3.14 blocked** — `install.bat` now detects Python 3.14+ and exits with a clear message (use Python 3.12); pre-built wheels (`--prefer-binary`) used for all packages to prevent Cython/Meson compile errors

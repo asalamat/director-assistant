@@ -1,8 +1,9 @@
 """Weekly Executive Brief — AI summary of the past 7 days."""
+import html as _html
 import json
 from datetime import datetime, timedelta, timezone
 from cachetools import TTLCache
-from fastapi import APIRouter, Request, Query
+from fastapi import APIRouter, HTTPException, Request, Query
 
 router = APIRouter(prefix="/api/weekly-brief", tags=["weekly-brief"])
 
@@ -126,6 +127,98 @@ async def search_brief_item(request: Request, q: str = Query(...)):
                            "date": s.date, "text": s.preview})
             seen.add(s.id)
     return {"query": q, "emails": emails[:8]}
+
+
+_SECTIONS = [
+    ("summary", "Summary"),
+    ("action_items", "Action Items"),
+    ("commitments_made", "Commitments Made"),
+    ("waiting_for", "Waiting For"),
+    ("upcoming_deadlines", "Upcoming Deadlines"),
+    ("key_decisions", "Key Decisions"),
+    ("wins", "Wins"),
+    ("relationships_to_nurture", "Relationships to Nurture"),
+]
+
+
+def _brief_to_text_html(brief: dict) -> tuple[str, str]:
+    lines = ["Director Assistant — Weekly Brief", "=" * 40, ""]
+    period = brief.get("period") or brief.get("since") or ""
+    if period:
+        lines.append(f"Period: {period}")
+        lines.append("")
+
+    html_body = '<html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#1f2937">'
+    html_body += '<h2 style="color:#1d4ed8">Director Assistant — Weekly Brief</h2>'
+    if period:
+        html_body += f'<p style="color:#6b7280;margin:0 0 16px">{_html.escape(str(period))}</p>'
+
+    for key, title in _SECTIONS:
+        value = brief.get(key)
+        if not value:
+            continue
+        if key == "summary":
+            lines.append(f"## {title}")
+            lines.append(f"  {value}")
+            lines.append("")
+            html_body += f"<h3 style='color:#1d4ed8;margin:16px 0 6px'>{title}</h3>"
+            html_body += f"<p style='margin:0'>{_html.escape(str(value))}</p>"
+            continue
+        items = value if isinstance(value, list) else [value]
+        rendered = []
+        for item in items:
+            text = item.get("text") if isinstance(item, dict) else str(item)
+            if text:
+                rendered.append(text)
+        if not rendered:
+            continue
+        lines.append(f"## {title}")
+        for text in rendered:
+            lines.append(f"  • {text}")
+        lines.append("")
+        html_body += f"<h3 style='color:#1d4ed8;margin:16px 0 6px'>{title}</h3>"
+        html_body += "<ul style='margin:0;padding-left:20px'>"
+        for text in rendered:
+            html_body += f"<li style='margin-bottom:4px'>{_html.escape(text)}</li>"
+        html_body += "</ul>"
+
+    html_body += '<hr style="margin-top:24px;border:none;border-top:1px solid #e5e7eb">'
+    html_body += '<p style="font-size:12px;color:#9ca3af">Sent from Director Assistant</p>'
+    html_body += "</body></html>"
+    return "\n".join(lines), html_body
+
+
+@router.post("/send-to-inbox")
+async def send_brief_to_inbox(request: Request):
+    """Generate the weekly brief and email it to the user's own address."""
+    from email.mime.multipart import MIMEMultipart
+    from email.mime.text import MIMEText
+    from .email_send import _smtp_send
+
+    cache = request.app.state.cache
+    advisor = request.app.state.advisor
+
+    accounts = cache.list_accounts()
+    if not accounts:
+        raise HTTPException(400, "No email accounts configured")
+    acc = accounts[0]
+    to_addr = acc.username
+
+    brief = await generate_brief(cache, advisor)
+    if brief.get("error"):
+        raise HTTPException(400, brief["error"])
+
+    plain, html_body = _brief_to_text_html(brief)
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = "Your Director Assistant Weekly Brief"
+    msg["From"] = to_addr
+    msg["To"] = to_addr
+    msg.attach(MIMEText(plain, "plain", "utf-8"))
+    msg.attach(MIMEText(html_body, "html", "utf-8"))
+
+    _smtp_send(acc, msg)
+    return {"sent": True, "to": to_addr}
 
 
 @router.delete("/cache")

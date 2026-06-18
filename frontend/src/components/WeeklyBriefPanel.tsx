@@ -3,6 +3,7 @@ import { api } from '../api/client'
 import { LoadingOverlay, EmptyState, Button, Badge } from './ui'
 import { useEmailContext } from '../contexts/EmailContext'
 import { useUIContext } from '../contexts/UIContext'
+import { addToast } from './Toast'
 
 interface SourceEmail {
   id: string; subject: string; sender: string; date: string; folder: string
@@ -225,6 +226,19 @@ export function WeeklyBriefPanel() {
   const [brief, setBrief] = useState<Brief | null>(null)
   const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [sending, setSending] = useState(false)
+
+  const handleSendToInbox = async () => {
+    setSending(true)
+    try {
+      const r = await api.sendBriefToInbox()
+      addToast(`Brief sent to ${r.to}`, 'success')
+    } catch (e: unknown) {
+      addToast(e instanceof Error ? e.message : 'Failed to send', 'warning')
+    } finally {
+      setSending(false)
+    }
+  }
 
   const generate = async (force = false) => {
     if (force) await api.clearWeeklyBriefCache().catch(() => {})
@@ -312,6 +326,22 @@ export function WeeklyBriefPanel() {
               className="text-xs text-gray-400 hover:text-accent px-2 py-1 rounded hover:bg-blue-50 transition-colors"
             >
               ↓ .md
+            </button>
+            <button
+              onClick={handleSendToInbox}
+              disabled={sending}
+              title="Email this brief to yourself"
+              className="text-xs text-gray-400 hover:text-accent px-2 py-1 rounded hover:bg-blue-50 transition-colors flex items-center gap-1 disabled:opacity-50"
+            >
+              {sending ? (
+                <span className="w-3 h-3 border border-accent border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
+                  <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
+                </svg>
+              )}
+              {sending ? 'Sending…' : 'Send to inbox'}
             </button>
             <button onClick={() => generate(true)} title="Regenerate"
               className="text-xs text-gray-400 hover:text-accent px-2 py-1 rounded hover:bg-blue-50 transition-colors flex items-center gap-1">

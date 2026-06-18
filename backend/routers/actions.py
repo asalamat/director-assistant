@@ -168,6 +168,68 @@ async def detect_asks_from_inbox(request: Request):
     return {"detected": detected, "scanned": len(new_emails)}
 
 
+@router.post("/{item_id}/draft-reply")
+async def draft_reply_from_action(item_id: int, request: Request):
+    """Generate a reply draft addressing this action item."""
+    cache = request.app.state.cache
+    advisor = request.app.state.advisor
+
+    # Look up the action item
+    with cache._conn() as conn:
+        row = conn.execute(
+            "SELECT id, email_id, email_subject, text FROM action_items WHERE id = ?",
+            (item_id,)
+        ).fetchone()
+    if not row:
+        raise HTTPException(404, "Action item not found")
+
+    item = dict(row)
+    # Get source email
+    with cache._conn() as conn:
+        em = conn.execute(
+            "SELECT subject, sender, body FROM emails WHERE id = ?",
+            (item["email_id"],)
+        ).fetchone()
+    em = dict(em) if em else {}
+
+    subject = em.get("subject") or item.get("email_subject") or ""
+    sender = em.get("sender") or ""
+    body_snippet = (em.get("body") or "")[:600]
+
+    prompt = (
+        f"Write a short professional email reply that addresses this action item:\n"
+        f"Action: {item['text']}\n\n"
+        f"Original email subject: {subject}\n"
+        f"From: {sender}\n"
+        f"Original message snippet:\n{body_snippet}\n\n"
+        "Write ONLY the reply body (no subject line, no greeting header). "
+        "Be concise and professional. 2-4 sentences max."
+    )
+    ant = getattr(advisor.ai, "_anthropic", None)
+    try:
+        if ant:
+            resp = await ant.messages.create(model="claude-haiku-4-5-20251001", max_tokens=300,
+                messages=[{"role": "user", "content": prompt}])
+            body = resp.content[0].text.strip()
+        else:
+            resp = await advisor.ai.messages.create(model="claude-haiku-4-5-20251001", max_tokens=300,
+                messages=[{"role": "user", "content": prompt}])
+            body = resp.content[0].text.strip()
+    except Exception as e:
+        raise HTTPException(500, f"AI draft failed: {e}")
+
+    # Extract reply-to address
+    import re as _re
+    to = _re.search(r"<([^>]+)>", sender)
+    to = to.group(1) if to else sender
+
+    return {
+        "to": to,
+        "subject": f"Re: {subject}" if subject and not subject.lower().startswith("re:") else subject,
+        "body": body,
+    }
+
+
 @router.get("/export.csv")
 async def export_actions_csv(request: Request):
     items = request.app.state.cache.list_action_items()

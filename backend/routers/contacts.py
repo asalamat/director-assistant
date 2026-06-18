@@ -898,3 +898,107 @@ async def contact_timeline(email_addr: str, request: Request, limit: int = 50):
         })
 
     return {"emails": emails, "total": len(emails)}
+
+
+@router.post("/auto-group")
+async def auto_group_contacts(request: Request):
+    """Use AI to cluster top contacts into named groups."""
+    import json as _json
+    cache = request.app.state.cache
+    advisor = request.app.state.advisor
+
+    # Get top 60 contacts by email frequency
+    with cache._conn() as conn:
+        rows = conn.execute(
+            """SELECT sender, COUNT(*) as cnt
+               FROM emails
+               WHERE sender NOT LIKE '%noreply%'
+               AND sender NOT LIKE '%no-reply%'
+               AND sender NOT LIKE '%donotreply%'
+               GROUP BY LOWER(sender)
+               ORDER BY cnt DESC
+               LIMIT 60"""
+        ).fetchall()
+
+    if not rows:
+        return {"groups": []}
+
+    contacts_text = "\n".join(
+        f"- {r['sender']} ({r['cnt']} emails)" for r in rows
+    )
+
+    prompt = (
+        "Group these email contacts into 4-6 meaningful categories "
+        "(e.g. Clients, Team/Colleagues, Vendors, Partners, Newsletters, Other).\n\n"
+        f"Contacts:\n{contacts_text}\n\n"
+        "Return ONLY valid JSON in this exact format:\n"
+        '{"groups": [{"name": "Clients", "color": "blue", "emails": ["email1@x.com", "email2@x.com"]}, ...]}\n'
+        "Colors must be one of: blue, green, purple, orange, red, gray.\n"
+        "Extract just the email address from each contact string."
+    )
+
+    ant = getattr(advisor.ai, "_anthropic", None)
+    try:
+        if ant:
+            resp = await ant.messages.create(model="claude-haiku-4-5-20251001", max_tokens=800,
+                messages=[{"role": "user", "content": prompt}])
+            text = resp.content[0].text.strip()
+        else:
+            resp = await advisor.ai.messages.create(model="claude-haiku-4-5-20251001", max_tokens=800,
+                messages=[{"role": "user", "content": prompt}])
+            text = resp.content[0].text.strip()
+        start, end = text.find("{"), text.rfind("}") + 1
+        data = _json.loads(text[start:end]) if start >= 0 else {}
+        groups = data.get("groups", [])
+    except Exception as e:
+        raise HTTPException(500, f"AI grouping failed: {e}")
+
+    # Build display groups with sender name + email
+    sender_map = {
+        r["sender"].lower(): r["sender"] for r in rows
+    }
+
+    def extract_email(s: str) -> str:
+        m = re.search(r"<([^>]+)>", s)
+        return (m.group(1) if m else s).strip().lower()
+
+    result = []
+    for g in groups:
+        members = []
+        for addr in g.get("emails", []):
+            addr_lower = addr.strip().lower()
+            full = sender_map.get(addr_lower)
+            if not full:
+                # try partial match
+                for k, v in sender_map.items():
+                    if addr_lower in k or extract_email(k) == addr_lower:
+                        full = v
+                        break
+            if full:
+                name_m = re.match(r"^([^<]+)<", full)
+                name = name_m.group(1).strip() if name_m else addr
+                members.append({"name": name, "email": extract_email(full)})
+        if members:
+            result.append({"name": g["name"], "color": g.get("color", "gray"), "members": members})
+
+    # Save to cache (simple JSON file beside DB)
+    import pathlib
+    groups_path = pathlib.Path(cache.db_path).parent / "contact_groups.json"
+    groups_path.write_text(_json.dumps(result))
+
+    return {"groups": result}
+
+
+@router.get("/groups")
+async def get_contact_groups(request: Request):
+    """Return saved contact groups."""
+    import json as _json
+    import pathlib
+    cache = request.app.state.cache
+    groups_path = pathlib.Path(cache.db_path).parent / "contact_groups.json"
+    if not groups_path.exists():
+        return {"groups": []}
+    try:
+        return {"groups": _json.loads(groups_path.read_text())}
+    except Exception:
+        return {"groups": []}
