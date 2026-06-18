@@ -303,6 +303,59 @@ install.bat
 - Builds the frontend
 - Creates a **"Director Assistant.bat"** shortcut on your Desktop
 
+### Manual install (without Git)
+
+If you prefer not to use Git, or `install.bat` fails, follow these steps manually.
+
+**1. Download & extract**
+
+Go to [github.com/asalamat/director-assistant](https://github.com/asalamat/director-assistant) → **Code → Download ZIP**.  
+Extract to a folder — e.g. `C:\Users\YourName\DirectorAssistant`.
+
+**2. Open Command Prompt in that folder**
+
+Shift+Right-click the extracted folder → *Open in Terminal* (or *Open Command Prompt here*).
+
+**3. Install Python virtual environment + backend**
+
+```bat
+cd backend
+python -m venv .venv
+call .venv\Scripts\activate.bat
+pip install -r requirements.txt --prefer-binary
+```
+
+> If pip fails, check `python --version` — must be **3.11–3.13** (not 3.14+).
+
+**4. Build the frontend**
+
+```bat
+cd ..\frontend
+npm install
+npm run build
+```
+
+**5. Copy built frontend into backend**
+
+```bat
+if not exist ..\backend\static mkdir ..\backend\static
+xcopy /s /e /y dist\* ..\backend\static\
+```
+
+**6. Start the app**
+
+```bat
+cd ..\backend
+python -m uvicorn main:app --host 0.0.0.0 --port 8000
+```
+
+Open `http://localhost:8000` in your browser.
+
+> **To start the app in future**, open Command Prompt in the project root and run `start.bat`.  
+> **To update**, download a new ZIP, re-run steps 3–5, then `start.bat` again.
+
+---
+
 ### Daily use
 Double-click **"Director Assistant.bat"** on your Desktop — opens at `http://localhost:8000`
 
