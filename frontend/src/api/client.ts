@@ -513,6 +513,9 @@ export const api = {
   listHiddenContacts(): Promise<{ hidden: { email_addr: string; hidden_at: string }[] }> {
     return request('/contacts/hidden')
   },
+  getContactTimeline(emailAddr: string, limit = 50): Promise<{ emails: Array<{ id: string; subject: string; date: string; direction: 'received' | 'sent'; snippet: string; folder: string }>; total: number }> {
+    return request(`/contacts/timeline/${encodeURIComponent(emailAddr)}?limit=${limit}`)
+  },
 
   // Triage
   getTriageTop(limit?: number): Promise<{ emails: import('../types').TriageEmail[] }> {
@@ -545,6 +548,10 @@ export const api = {
 
   detectSentCommitments(): Promise<{ detected: { email_id: string; subject: string; date: string; commitments: string[] }[]; scanned: number }> {
     return request('/actions/detect-from-sent', { method: 'POST' })
+  },
+
+  detectInboxAsks(): Promise<{ detected: Array<{ email_id: string; subject: string; date: string; sender: string; asks: string[] }>; scanned: number }> {
+    return request('/actions/detect-from-inbox', { method: 'POST' })
   },
 
   topicCluster(query: string, limit?: number): Promise<{ query: string; results: any[]; total: number }> {

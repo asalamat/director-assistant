@@ -856,3 +856,45 @@ async def export_vcard(request: Request):
         media_type='text/vcard',
         headers={'Content-Disposition': 'attachment; filename="director-assistant-contacts.vcf"'},
     )
+
+
+@router.get("/timeline/{email_addr:path}")
+async def contact_timeline(email_addr: str, request: Request, limit: int = 50):
+    """Chronological email history (oldest first) with a given contact."""
+    from urllib.parse import unquote
+    addr = unquote(email_addr).strip().lower()
+    if not addr:
+        raise HTTPException(400, "email_addr required")
+
+    like = f"%{addr}%"
+    cache = request.app.state.cache
+    with cache._conn() as conn:
+        rows = conn.execute(
+            """SELECT id, subject, sender, recipients, date, body, folder
+               FROM emails
+               WHERE LOWER(sender) LIKE ? OR LOWER(recipients) LIKE ?
+               ORDER BY date ASC
+               LIMIT ?""",
+            (like, like, max(1, min(limit, 500))),
+        ).fetchall()
+
+    seen = set()
+    emails = []
+    for r in rows:
+        if r["id"] in seen:
+            continue
+        seen.add(r["id"])
+        folder = (r["folder"] or "")
+        direction = "sent" if "sent" in folder.lower() else "received"
+        raw_body = r["body"] or ""
+        snippet = re.sub(r"<[^>]+>", "", raw_body).strip()[:120]
+        emails.append({
+            "id": r["id"],
+            "subject": r["subject"] or "(no subject)",
+            "date": r["date"] or "",
+            "direction": direction,
+            "snippet": snippet,
+            "folder": folder,
+        })
+
+    return {"emails": emails, "total": len(emails)}

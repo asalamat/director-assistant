@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { api } from '../api/client'
 import type { SenderStats } from '../types'
+import { ContactTimeline } from './ContactTimeline'
 
 interface MonthlyData { months: { month: string; count: number }[] }
 
@@ -22,6 +23,7 @@ export function ContactCard({ sender, onClose, onSearch }: Props) {
   const [rel, setRel] = useState<Relationship | null>(null)
   const [monthly, setMonthly] = useState<MonthlyData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [cardTab, setCardTab] = useState<'overview' | 'timeline'>('overview')
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -74,9 +76,26 @@ export function ContactCard({ sender, onClose, onSearch }: Props) {
         <button onClick={onClose} className="ml-auto text-gray-300 hover:text-gray-500 flex-shrink-0">✕</button>
       </div>
 
-      {loading && <p className="text-xs text-gray-400 text-center py-3">Loading…</p>}
+      {/* Tab bar */}
+      <div className="flex gap-3 border-b border-gray-100 mb-3">
+        {(['overview', 'timeline'] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setCardTab(t)}
+            className={`text-xs pb-1.5 font-medium border-b-2 transition-colors capitalize ${
+              cardTab === t ? 'border-accent text-accent' : 'border-transparent text-gray-400 hover:text-gray-600'
+            }`}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
 
-      {stats && !loading && (
+      {cardTab === 'timeline' && <ContactTimeline emailAddr={email} />}
+
+      {cardTab === 'overview' && loading && <p className="text-xs text-gray-400 text-center py-3">Loading…</p>}
+
+      {cardTab === 'overview' && stats && !loading && (
         <div className="space-y-2">
           <div className="grid grid-cols-3 gap-2 text-center">
             <div className="bg-gray-50 rounded-lg p-2">
