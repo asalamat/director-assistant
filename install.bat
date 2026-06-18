@@ -123,6 +123,9 @@ if defined BUNDLE_SRC (
 set "BACKEND=!INSTALL_DIR!\backend"
 set "FRONTEND=!INSTALL_DIR!\frontend"
 
+:: Write source_repo.txt so auto-update can locate the repo
+echo !INSTALL_DIR!> "!INSTALL_DIR!\source_repo.txt"
+
 :: ── 4. Python virtual environment + packages ─────────────────────
 echo [4/6] Installing Python packages ^(first run: 2-3 min^)...
 cd /d "!BACKEND!"
