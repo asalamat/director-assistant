@@ -940,15 +940,23 @@ async def auto_group_contacts(request: Request):
     ant = getattr(advisor.ai, "_anthropic", None)
     try:
         if ant:
-            resp = await ant.messages.create(model="claude-haiku-4-5-20251001", max_tokens=800,
+            resp = await ant.messages.create(model="claude-haiku-4-5-20251001", max_tokens=2000,
                 messages=[{"role": "user", "content": prompt}])
             text = resp.content[0].text.strip()
         else:
-            resp = await advisor.ai.messages.create(model="claude-haiku-4-5-20251001", max_tokens=800,
+            resp = await advisor.ai.messages.create(model="claude-haiku-4-5-20251001", max_tokens=2000,
                 messages=[{"role": "user", "content": prompt}])
             text = resp.content[0].text.strip()
+        # Strip markdown code fences if present
+        text = re.sub(r"```(?:json)?\s*", "", text).strip()
         start, end = text.find("{"), text.rfind("}") + 1
-        data = _json.loads(text[start:end]) if start >= 0 else {}
+        chunk = text[start:end] if start >= 0 else ""
+        # Fix trailing commas before } or ] (common AI JSON mistake)
+        chunk = re.sub(r",\s*([}\]])", r"\1", chunk)
+        try:
+            data = _json.loads(chunk) if chunk else {}
+        except Exception:
+            data = {}
         groups = data.get("groups", [])
     except Exception as e:
         raise HTTPException(500, f"AI grouping failed: {e}")
