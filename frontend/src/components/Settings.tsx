@@ -129,7 +129,7 @@ export function Settings({ onConnected, initialTab }: Props) {
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6 min-w-0">
+        <div className="flex-1 overflow-y-auto p-6 min-w-0 min-h-0">
 
           {/* ── Accounts ── */}
           {section === 'accounts' && (
@@ -209,7 +209,7 @@ export function Settings({ onConnected, initialTab }: Props) {
               {docCount !== null && docCount > 0 && <p className="text-xs text-gray-400">{docCount} file{docCount !== 1 ? 's' : ''} currently indexed</p>}
 
               {docFolders.length > 0 && (
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
                   {docFolders.map((f, i) => (
                     <div key={i} className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
                       <span className="flex-1 text-xs text-gray-700 truncate font-mono">{f}</span>

@@ -55,7 +55,7 @@ export function FolderPicker({ onSelect, onClose }: Props) {
         </div>
 
         {/* Directory list */}
-        <div className="flex-1 overflow-y-auto px-2 py-2">
+        <div className="flex-1 overflow-y-auto min-h-0 px-2 py-2">
           {loading && (
             <div className="flex items-center justify-center py-8 text-gray-400 text-sm">Loading…</div>
           )}
