@@ -279,29 +279,36 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.director-assistant.a
 
 ---
 
-## Install — Windows 11
+## Install — Windows 10/11
 
-### Prerequisites (install once)
-1. **Python 3.12** — [python.org/downloads/release/python-3129](https://www.python.org/downloads/release/python-3129/) → ✅ check **"Add Python to PATH"**
-   > ⚠️ Python 3.14 is **not supported** — some dependencies (scipy, chromadb) have no Windows wheels yet. Use **3.12**.
-2. **Node.js 18+** — [nodejs.org](https://nodejs.org/en/download)
-3. **Git** — [git-scm.com](https://git-scm.com/download/win)
+> **All-in-one installer** — `install.bat` automatically downloads **Python 3.12** and **Node.js 20 LTS** if they are not already installed. No admin rights required.
 
-### One-command install
+### Option A — From GitHub (recommended)
+
 ```bat
 git clone https://github.com/asalamat/director-assistant.git
 cd director-assistant
 install.bat
 ```
 
-> **Run `install.bat` from your home folder or Desktop — not from `C:\Windows\System32`.**
-> If it detects a system-protected path, it will automatically redirect to `%USERPROFILE%\DirectorAssistant`.
+Requires [Git for Windows](https://git-scm.com/download/win). Python and Node.js are downloaded automatically.
+
+### Option B — From ZIP (no Git needed)
+
+1. Go to [github.com/asalamat/director-assistant](https://github.com/asalamat/director-assistant) → **Code → Download ZIP**
+2. Extract the ZIP anywhere (e.g. Desktop)
+3. Double-click **`install.bat`** inside the extracted folder
 
 `install.bat` automatically:
-- Creates a Python virtual environment
-- Installs all backend and frontend dependencies (pre-built wheels only — no compilation)
-- Builds the frontend
+- Downloads **Python 3.12.9** (~25 MB) if Python is not installed
+- Downloads **Node.js 20 LTS** (~30 MB, portable ZIP) if Node.js is not installed
+- Creates a Python virtual environment and installs all backend packages
+- Builds the frontend (React/TypeScript → static files)
+- Copies everything to `%USERPROFILE%\DirectorAssistant`
 - Creates a **"Director Assistant.bat"** shortcut on your Desktop
+
+> ⚠️ Python **3.14+** is not supported — scipy and chromadb have no Windows wheels yet.
+> The installer blocks 3.14+ with a clear message and links to 3.12.
 
 ### Manual install (without Git)
 
