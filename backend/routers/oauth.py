@@ -314,14 +314,46 @@ async def poll_microsoft_oauth(flow_id: str, request: Request):
 _REDIRECT_URI = "http://localhost:8000/api/oauth/microsoft/callback"
 
 
+def _find_az() -> str | None:
+    """Locate the Azure CLI executable, including Windows az.cmd locations."""
+    import sys as _sys, os as _os, shutil as _sh
+    az = _sh.which("az")
+    if az:
+        return az
+    if _sys.platform == "win32":
+        candidates = [
+            r"C:\Program Files (x86)\Microsoft SDKs\Azure\CLI2\wbin\az.cmd",
+            r"C:\Program Files\Microsoft SDKs\Azure\CLI2\wbin\az.cmd",
+            _os.path.join(_os.environ.get("LOCALAPPDATA", ""), r"Programs\Azure CLI\wbin\az.cmd"),
+            _os.path.join(_os.environ.get("ProgramFiles(x86)", ""), r"Microsoft SDKs\Azure\CLI2\wbin\az.cmd"),
+            _os.path.join(_os.environ.get("ProgramFiles", ""), r"Microsoft SDKs\Azure\CLI2\wbin\az.cmd"),
+        ]
+        for c in candidates:
+            if _os.path.exists(c):
+                return c
+    return None
+
+
+def _az_cmd(az_path: str, *args: str) -> tuple:
+    """Wrap az.cmd in 'cmd /c' on Windows — CreateProcess can't run .cmd directly."""
+    if az_path.lower().endswith(".cmd"):
+        return ("cmd", "/c", az_path) + args
+    return (az_path,) + args
+
+
 @router.post("/microsoft/auto-setup")
 async def auto_setup_microsoft_app(request: Request):
     """Auto-create Azure app via Graph API using Azure CLI session."""
-    import asyncio, shutil, json as _j
+    import asyncio, json as _j
     from routers.config import load_app_config, save_app_config
 
-    if not shutil.which("az"):
-        return {"status": "needs_cli", "message": "Azure CLI not installed.", "fix": "brew install azure-cli"}
+    az_exe = _find_az()
+    if not az_exe:
+        import sys as _sys
+        fix = "brew install azure-cli" if _sys.platform == "darwin" else "winget install Microsoft.AzureCLI"
+        return {"status": "needs_cli",
+                "message": "Azure CLI not installed.",
+                "fix": fix}
 
     async def _run(*args, timeout=20):
         proc = await asyncio.create_subprocess_exec(
@@ -334,20 +366,20 @@ async def auto_setup_microsoft_app(request: Request):
         return proc.returncode, out, err
 
     # Check login — az account show fails if not logged in
-    rc, _, _ = await _run("az", "account", "show")
+    rc, _, _ = await _run(*_az_cmd(az_exe, "account", "show"))
     if rc != 0:
-        rc2, _, _ = await _run("az", "account", "show", "--allow-no-subscriptions")
+        rc2, _, _ = await _run(*_az_cmd(az_exe, "account", "show", "--allow-no-subscriptions"))
         if rc2 != 0:
             await asyncio.create_subprocess_exec(
-                "az", "login",
+                *_az_cmd(az_exe, "login"),
                 stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL
             )
             return {"status": "login_required", "message": "Azure sign-in opened in your browser — sign in, then click Continue Setup."}
 
     # Find existing app via Graph API (works for personal accounts)
     rc, out, _ = await _run(
-        "az", "rest", "--method", "GET",
-        "--url", f"https://graph.microsoft.com/v1.0/applications?$filter=displayName+eq+'Director+Assistant'",
+        *_az_cmd(az_exe, "rest", "--method", "GET",
+                 "--url", "https://graph.microsoft.com/v1.0/applications?$filter=displayName+eq+'Director+Assistant'"),
         timeout=30,
     )
     client_id = ""
@@ -364,10 +396,10 @@ async def auto_setup_microsoft_app(request: Request):
     if obj_id:
         # Update existing app to ensure public client flows enabled
         await _run(
-            "az", "rest", "--method", "PATCH",
-            "--url", f"https://graph.microsoft.com/v1.0/applications/{obj_id}",
-            "--body", _j.dumps({"isFallbackPublicClient": True,
-                                "publicClient": {"redirectUris": [_REDIRECT_URI]}}),
+            *_az_cmd(az_exe, "rest", "--method", "PATCH",
+                     "--url", f"https://graph.microsoft.com/v1.0/applications/{obj_id}",
+                     "--body", _j.dumps({"isFallbackPublicClient": True,
+                                         "publicClient": {"redirectUris": [_REDIRECT_URI]}})),
             timeout=30,
         )
     else:
@@ -379,9 +411,9 @@ async def auto_setup_microsoft_app(request: Request):
             "publicClient": {"redirectUris": [_REDIRECT_URI]},
         })
         rc, out, err = await _run(
-            "az", "rest", "--method", "POST",
-            "--url", "https://graph.microsoft.com/v1.0/applications",
-            "--body", body,
+            *_az_cmd(az_exe, "rest", "--method", "POST",
+                     "--url", "https://graph.microsoft.com/v1.0/applications",
+                     "--body", body),
             timeout=60,
         )
         if rc != 0:
