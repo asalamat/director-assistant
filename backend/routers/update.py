@@ -60,12 +60,32 @@ def _source_repo() -> Path | None:
     return None
 
 
-def _venv_python() -> str | None:
+def _effective_install_dir(repo: Path | None = None) -> Path:
+    """Return the dir that actually contains backend/.venv.
+    On macOS with a separate install, this is _INSTALL_DIR.
+    On Windows git-clone layout (install.bat ran inside the repo), this is repo."""
+    venv_subs = [
+        Path("backend") / ".venv" / "Scripts" / "python.exe",  # Windows
+        Path("backend") / ".venv" / "bin" / "python3",          # macOS/Linux
+        Path("backend") / ".venv" / "bin" / "python",
+    ]
+    for sub in venv_subs:
+        if (_INSTALL_DIR / sub).exists():
+            return _INSTALL_DIR
+    if repo is not None:
+        for sub in venv_subs:
+            if (repo / sub).exists():
+                return repo
+    return _INSTALL_DIR
+
+
+def _venv_python(install_dir: Path | None = None) -> str | None:
     """Return the venv Python path, checking both Windows and Unix layouts."""
+    base = install_dir if install_dir is not None else _INSTALL_DIR
     candidates = [
-        _INSTALL_DIR / "backend" / ".venv" / "Scripts" / "python.exe",  # Windows
-        _INSTALL_DIR / "backend" / ".venv" / "bin" / "python3",          # macOS/Linux
-        _INSTALL_DIR / "backend" / ".venv" / "bin" / "python",
+        base / "backend" / ".venv" / "Scripts" / "python.exe",  # Windows
+        base / "backend" / ".venv" / "bin" / "python3",          # macOS/Linux
+        base / "backend" / ".venv" / "bin" / "python",
     ]
     for c in candidates:
         if c.exists():
@@ -133,12 +153,13 @@ async def apply_update():
         return JSONResponse({"status": "error",
                              "message": f"Source repo not found. {hint} to set up auto-update."}, status_code=400)
 
-    python = _venv_python()
+    install_dir_path = _effective_install_dir(repo)
+    python = _venv_python(install_dir_path)
     if python is None:
         return JSONResponse({"status": "error",
-                             "message": "Virtual environment not found in install dir."}, status_code=400)
+                             "message": "Virtual environment not found. Re-run install.bat (Windows) or install-mac.sh (macOS)."}, status_code=400)
 
-    install_dir = str(_INSTALL_DIR)
+    install_dir = str(install_dir_path)
     node_path = _node_path()
     env = os.environ.copy()
     env["PATH"] = node_path
@@ -179,47 +200,56 @@ def _apply_macos(repo: Path, install_dir: str, python: str, node_path: str, env:
 
 
 def _apply_windows(repo: Path, install_dir: str, python: str, node_path: str, env: dict):
-    log = r"%TEMP%\director-assistant-update.log"
+    """Windows update via GitHub ZIP download — no git or npm required on target machine."""
+    zip_url = "https://github.com/asalamat/director-assistant/archive/refs/heads/main.zip"
 
-    # Build a PowerShell update script as a string
     ps = f"""
 $ErrorActionPreference = 'Stop'
 $log = "$env:TEMP\\director-assistant-update.log"
 function Log($msg) {{ Add-Content $log "$(Get-Date -f 'yyyy-MM-dd HH:mm:ss') $msg" }}
 
-Log '--- Update started'
+Log '--- Update started (ZIP method)'
 try {{
-    # 1. Git pull
-    Set-Location '{repo}'
-    git pull origin main --ff-only 2>&1 | ForEach-Object {{ Log $_ }}
+    $zip = "$env:TEMP\\da_update.zip"
+    $tmp = "$env:TEMP\\da_update_src"
 
-    # 2. Sync backend files (exclude .venv and __pycache__)
-    $src = '{repo}\\backend\\'
-    $dst = '{install_dir}\\backend\\'
-    robocopy $src $dst /E /XD .venv __pycache__ /NFL /NDL /NJH /NJS | Out-Null
+    # 1. Download latest release
+    Log 'Downloading latest release...'
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    Invoke-WebRequest -Uri '{zip_url}' -OutFile $zip -UseBasicParsing
+    Log 'Download complete'
 
-    # 3. pip install
+    # 2. Extract
+    if (Test-Path $tmp) {{ Remove-Item $tmp -Recurse -Force }}
+    Expand-Archive -Path $zip -DestinationPath $tmp -Force
+    Remove-Item $zip -Force
+    $src = (Get-ChildItem $tmp -Directory | Select-Object -First 1).FullName
+    Log "Extracted: $src"
+
+    # 3. Copy backend files (skip .venv and __pycache__)
+    robocopy "$src\\backend" '{install_dir}\\backend' /E /XD .venv __pycache__ /NFL /NDL /NJH /NJS | Out-Null
+
+    # 4. pip install new requirements
     & '{python}' -m pip install -q --upgrade -r '{install_dir}\\backend\\requirements.txt'
     Log 'pip install done'
 
-    # 4. npm build
-    $env:PATH = '{node_path.replace(chr(39), chr(34))}'
-    Set-Location '{repo}\\frontend'
-    npm install --silent 2>&1 | Out-Null
-    npm run build 2>&1 | ForEach-Object {{ Log $_ }}
-
-    # 5. Copy dist to static
+    # 5. Copy pre-built frontend dist (no npm needed — dist is committed to the repo)
     $static = '{install_dir}\\backend\\static'
     if (Test-Path $static) {{ Remove-Item $static -Recurse -Force }}
-    Copy-Item '{repo}\\frontend\\dist' $static -Recurse
+    Copy-Item "$src\\frontend\\dist" $static -Recurse
 
-    # 6. Copy version.json
-    Copy-Item '{repo}\\version.json' '{install_dir}\\version.json' -Force
+    # 6. Update version.json
+    Copy-Item "$src\\version.json" '{install_dir}\\version.json' -Force
+    $ver = (Get-Content '{install_dir}\\version.json' | ConvertFrom-Json).version
+    Log "Updated to v$ver"
+
+    # 7. Cleanup temp
+    Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
 
     Log '--- Update complete. Restarting...'
 
-    # 7. Kill uvicorn and let start.bat revive it
-    Get-Process | Where-Object {{ $_.CommandLine -like '*uvicorn*main:app*' }} | Stop-Process -Force -ErrorAction SilentlyContinue
+    # 8. Kill uvicorn and restart via start.bat
+    Get-Process -ErrorAction SilentlyContinue | Where-Object {{ $_.CommandLine -like '*uvicorn*main:app*' }} | Stop-Process -Force -ErrorAction SilentlyContinue
     Start-Sleep 3
     Start-Process '{install_dir}\\start.bat' -WindowStyle Hidden
 
@@ -228,7 +258,6 @@ try {{
     Log "ERROR: $_"
 }}
 """
-    # Write the script to a temp file and run it detached
     ps_path = Path(os.environ.get("TEMP", "C:\\Windows\\Temp")) / "da_update.ps1"
     ps_path.write_text(ps, encoding="utf-8")
 

@@ -1,6 +1,12 @@
 @echo off
-setlocal enabledelayedexpansion
-title Director Assistant — Installer
+:: Force re-launch with delayed expansion (/V:ON) if not already active
+if not "!DA_DX!" == "1" (
+    set "DA_DX=1"
+    cmd /V:ON /E:ON /C "%~f0" %*
+    exit /b %ERRORLEVEL%
+)
+setlocal enabledelayedexpansion enableextensions
+title Director Assistant - Installer
 chcp 65001 >nul 2>&1
 
 :: ── Pre-define paths (avoids parens issues inside for/if blocks) ──
