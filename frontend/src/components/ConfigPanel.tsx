@@ -178,6 +178,8 @@ export function ConfigPanel({ onSaved }: Props) {
   const [setupStatus, setSetupStatus] = useState<'idle' | 'running' | 'login_wait' | 'done' | 'error' | 'needs_cli'>('idle')
   const [setupMsg, setSetupMsg] = useState('')
   const [setupFix, setSetupFix] = useState('')
+  const [deviceCode, setDeviceCode] = useState('')
+  const [deviceUrl, setDeviceUrl] = useState('https://microsoft.com/devicelogin')
   const setupPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const stopSetupPoll = () => { if (setupPollRef.current) { clearInterval(setupPollRef.current); setupPollRef.current = null } }
@@ -195,6 +197,8 @@ export function ConfigPanel({ onSaved }: Props) {
       } else if (r.status === 'login_required') {
         setSetupStatus('login_wait')
         setSetupMsg(r.message ?? 'Sign in to Azure in the browser, then click Continue.')
+        setDeviceCode(r.device_code ?? '')
+        setDeviceUrl(r.device_url ?? 'https://microsoft.com/devicelogin')
         // Poll every 4s for login to complete
         stopSetupPoll()
         setupPollRef.current = setInterval(async () => {
@@ -427,13 +431,24 @@ export function ConfigPanel({ onSaved }: Props) {
 
         {/* Waiting for browser login */}
         {setupStatus === 'login_wait' && (
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-sm text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
-              <span className="inline-block w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
-              Sign in to Azure in the browser window that opened, then the setup will continue automatically.
+          <div className="space-y-3">
+            <div className="text-sm text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="inline-block w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                <span>Open your browser and go to:</span>
+              </div>
+              <a href={deviceUrl} target="_blank" rel="noreferrer"
+                className="block font-mono text-blue-600 underline break-all">{deviceUrl}</a>
+              {deviceCode && (
+                <div className="flex items-center gap-3 mt-1">
+                  <span className="text-gray-600">Enter code:</span>
+                  <span className="font-mono text-xl font-bold tracking-widest bg-white border border-blue-300 rounded px-3 py-1 text-blue-800 select-all">{deviceCode}</span>
+                </div>
+              )}
+              {!deviceCode && <p className="text-xs text-gray-500">{setupMsg}</p>}
             </div>
             <button onClick={runAutoSetup} className="w-full border border-blue-300 text-blue-700 text-sm py-2 rounded-lg hover:bg-blue-50">
-              Continue Setup
+              I've signed in — Continue Setup
             </button>
           </div>
         )}

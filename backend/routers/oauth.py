@@ -19,6 +19,7 @@ router = APIRouter(prefix="/api/oauth", tags=["oauth"])
 
 _flows: dict[str, dict] = {}          # device-code flows
 _pending_states: dict[str, dict] = {} # redirect-flow state → {username, client_id}
+_oauth_bg_procs: dict[str, object] = {}  # background subprocesses (e.g. az login)
 _google_states: dict[str, dict] = {}  # Google redirect-flow state → {username}
 
 _MS_AUTHORITY = "https://login.microsoftonline.com/consumers/oauth2/v2.0"
@@ -383,10 +384,50 @@ async def auto_setup_microsoft_app(request: Request):
     if rc != 0:
         rc2, _, _ = await _run(*_az_cmd(az_exe, "account", "show", "--allow-no-subscriptions"))
         if rc2 != 0:
-            await loop.run_in_executor(
-                None, _ft.partial(_run_sync, *_az_cmd(az_exe, "login"), timeout=120)
-            )
-            return {"status": "login_required", "message": "Azure sign-in opened in your browser — sign in, then click Continue Setup."}
+            # Use device code flow: outputs URL+code immediately, doesn't need to open a browser
+            # from within the server process (avoids CREATE_NO_WINDOW / capture_output issues)
+            device_url = "https://microsoft.com/devicelogin"
+            device_code = ""
+            try:
+                import re as _re, threading as _thr, time as _time, subprocess as _sp2
+                proc = _sp2.Popen(
+                    list(_az_cmd(az_exe, "login", "--use-device-code")),
+                    stdout=_sp2.PIPE, stderr=_sp2.STDOUT,
+                    creationflags=_sp2.CREATE_NO_WINDOW if _sys.platform == "win32" else 0,
+                )
+                # Store so it keeps running in background after we return
+                _oauth_bg_procs["az_login"] = proc
+                # Read output for up to 8 seconds to capture device code
+                collected: list[str] = []
+                def _read():
+                    for raw in proc.stdout:
+                        collected.append(raw.decode(errors="replace"))
+                _thr.Thread(target=_read, daemon=True).start()
+                deadline = _time.time() + 8
+                while _time.time() < deadline:
+                    for line in collected:
+                        m = _re.search(r"\b([A-Z0-9]{8,9})\b", line)
+                        if m and ("microsoft.com" in line or "devicelogin" in line.lower()):
+                            device_code = m.group(1)
+                            break
+                    if device_code:
+                        break
+                    _time.sleep(0.25)
+            except Exception:
+                pass
+            # Open device login page in the user's default browser
+            try:
+                import webbrowser as _wb
+                _wb.open(device_url)
+            except Exception:
+                pass
+            msg = f"Browser opened to {device_url}"
+            if device_code:
+                msg += f" — enter code {device_code} when prompted."
+            else:
+                msg += " — sign in, then click Continue Setup."
+            return {"status": "login_required", "message": msg,
+                    "device_code": device_code, "device_url": device_url}
 
     # Find existing app via Graph API (works for personal accounts)
     rc, out, _ = await _run(
