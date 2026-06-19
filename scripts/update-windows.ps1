@@ -65,9 +65,14 @@ Log "Updated to v$ver"
 Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
 
 Log "Restarting Director Assistant..."
-Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -like '*uvicorn*main:app*' } | Stop-Process -Force -ErrorAction SilentlyContinue
+# Kill uvicorn without needing WMI/CommandLine (avoids access-denied errors)
+taskkill /F /FI "WINDOWTITLE eq Director Assistant*" 2>$null | Out-Null
+Get-Process python,python3,uvicorn -ErrorAction SilentlyContinue | ForEach-Object {
+    $cmd = (Get-WmiObject Win32_Process -Filter "ProcessId=$($_.Id)" -ErrorAction SilentlyContinue).CommandLine
+    if ($cmd -like '*uvicorn*' -or $cmd -like '*main:app*') { $_.Kill() }
+}
 Start-Sleep 3
-Start-Process "$InstallDir\start.bat" -WindowStyle Hidden
+Start-Process cmd -ArgumentList "/c `"$InstallDir\start.bat`"" -WindowStyle Hidden
 Log "Restart initiated"
 
 Write-Host ""

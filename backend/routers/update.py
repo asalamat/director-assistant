@@ -204,17 +204,17 @@ def _apply_windows(repo: Path, install_dir: str, python: str, node_path: str, en
     zip_url = "https://github.com/asalamat/director-assistant/archive/refs/heads/main.zip"
 
     ps = f"""
-$ErrorActionPreference = 'Stop'
 $log = "$env:TEMP\\director-assistant-update.log"
 function Log($msg) {{ Add-Content $log "$(Get-Date -f 'yyyy-MM-dd HH:mm:ss') $msg" }}
 
 Log '--- Update started (ZIP method)'
 try {{
+    $ErrorActionPreference = 'Stop'
     $zip = "$env:TEMP\\da_update.zip"
     $tmp = "$env:TEMP\\da_update_src"
 
     # 1. Download latest release
-    Log 'Downloading latest release...'
+    Log 'Downloading...'
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     Invoke-WebRequest -Uri '{zip_url}' -OutFile $zip -UseBasicParsing
     Log 'Download complete'
@@ -227,7 +227,11 @@ try {{
     Log "Extracted: $src"
 
     # 3. Copy backend files (skip .venv and __pycache__)
+    # robocopy exit 0-7 = success; suppress non-zero to avoid false Stop
+    $ErrorActionPreference = 'Continue'
     robocopy "$src\\backend" '{install_dir}\\backend' /E /XD .venv __pycache__ /NFL /NDL /NJH /NJS | Out-Null
+    $ErrorActionPreference = 'Stop'
+    Log 'Backend files copied'
 
     # 4. pip install new requirements
     & '{python}' -m pip install -q --upgrade -r '{install_dir}\\backend\\requirements.txt'
@@ -237,6 +241,7 @@ try {{
     $static = '{install_dir}\\backend\\static'
     if (Test-Path $static) {{ Remove-Item $static -Recurse -Force }}
     Copy-Item "$src\\frontend\\dist" $static -Recurse
+    Log 'Frontend copied'
 
     # 6. Update version.json
     Copy-Item "$src\\version.json" '{install_dir}\\version.json' -Force
@@ -248,12 +253,23 @@ try {{
 
     Log '--- Update complete. Restarting...'
 
-    # 8. Kill uvicorn and restart via start.bat
-    Get-Process -ErrorAction SilentlyContinue | Where-Object {{ $_.CommandLine -like '*uvicorn*main:app*' }} | Stop-Process -Force -ErrorAction SilentlyContinue
+    # 8. Kill python/uvicorn processes — use taskkill (no WMI/CommandLine needed)
+    $ErrorActionPreference = 'Continue'
+    taskkill /F /FI "WINDOWTITLE eq Director Assistant*" 2>$null | Out-Null
+    Get-Process python,python3,uvicorn -ErrorAction SilentlyContinue | ForEach-Object {{
+        $cmdline = (Get-WmiObject Win32_Process -Filter "ProcessId=$($_.Id)" -ErrorAction SilentlyContinue).CommandLine
+        if ($cmdline -like '*uvicorn*' -or $cmdline -like '*main:app*') {{ $_.Kill() }}
+    }}
     Start-Sleep 3
-    Start-Process '{install_dir}\\start.bat' -WindowStyle Hidden
 
-    Log '--- restart done'
+    # 9. Restart via start.bat
+    $startBat = '{install_dir}\\start.bat'
+    if (Test-Path $startBat) {{
+        Start-Process cmd -ArgumentList "/c `"$startBat`"" -WindowStyle Hidden
+        Log '--- restart done'
+    }} else {{
+        Log "WARNING: start.bat not found at $startBat — restart manually"
+    }}
 }} catch {{
     Log "ERROR: $_"
 }}
