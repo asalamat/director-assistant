@@ -149,12 +149,12 @@ function InboxEmail() {
         <FeatureRow label="Tone Adjuster" desc="Rewrite your draft in a different tone: Formal / Casual / Shorter / Friendlier / Direct." />
         <FeatureRow label="Send-time hint" desc="When composing a reply, a green hint shows the best time to send based on the recipient's historical activity." />
         <FeatureRow label="Translate" desc="Translate the email body inline with automatic language detection. 20 languages supported." />
-        <FeatureRow label="Summarize thread" desc="Distill any email chain into a summary, key bullet points, and next-step outcome." />
+        <FeatureRow label="Summarize thread" desc="Click ✦ Summarize thread to distill any email chain into a structured result — summary, key bullet points, next-step outcome, and participant list. Cached per thread, so re-opening is instant." />
         <FeatureRow label="Project linker" desc="Click the Project button to link this email to any of your named projects." />
         <FeatureRow label="Snooze" desc="Hide an email until a date you choose — it reappears automatically." />
         <FeatureRow label="Remind me" desc="Set a follow-up reminder for tomorrow, in 3 days, or in a week." />
         <FeatureRow label="Create event" desc="Opens an inline calendar event form pre-filled from the email; creates in Microsoft Calendar." />
-        <FeatureRow label="Unsubscribe" desc="Auto-detects unsubscribe links. 'Unsub' button appears when found." />
+        <FeatureRow label="Unsubscribe" desc="Newsletters and bulk mail are auto-detected via List-Unsubscribe headers and in-body links. An 'Unsub' button appears — click to open the unsubscribe page, or for mailto: targets the app sends the unsubscribe email for you over SMTP." />
         <FeatureRow label="Ask AI" desc="Jump to the Ask tab with this email pre-loaded as context." />
       </div>
 
@@ -166,6 +166,15 @@ function InboxEmail() {
         <Li><strong>Scheduled Send</strong> — compose now, choose a future date/time, and the app sends automatically</Li>
         <Li><strong>Commitment detection</strong> — after Smart Draft, detected promises appear as pills to add to your Actions board</Li>
       </UL>
+
+      <H3>Email Rules & Filters</H3>
+      <P>Go to <strong>Settings → 🛡️ Rules &amp; Filters</strong> to create rules that auto-label, archive, mark-read, or delete emails by sender, subject, or body. Rules run automatically as new mail arrives, and you can apply them to your existing inbox any time with <strong>▶ Run Now</strong>.</P>
+      <div className="mb-4">
+        <FeatureRow label="🔍 Preview" desc="Before saving a new rule, click Preview to see exactly how many emails it would affect — with up to 3 sample subjects. Nothing is changed, so you can safely tune the field, condition, and value first." />
+        <FeatureRow label="Last-run status" desc="Each panel shows 'Last run: X ago — labeled N, archived N, marked read N, deleted N', updated after every manual Run Now and every automatic background pass — so you always know when rules last fired and what they did." />
+        <FeatureRow label="🚫 Quick rule" desc="Click '🚫 Rule' in the email toolbar to create a rule pre-filled from that email's sender or subject — choose delete / archive / mark read and save in one step." />
+        <FeatureRow label="Delete action" desc="Matching emails are removed from the local cache and the AI search index on arrival — keeping marketing, carrier notices, and no-reply spam out of your inbox." />
+      </div>
     </div>
   )
 }
@@ -287,6 +296,7 @@ function ExecutiveTools() {
         <Li>Adjust the threshold with the dropdown (2 / 3 / 7 / 14+ days)</Li>
         <Li>Click <strong>✎ Write follow-up</strong> to generate an AI polite chase draft</Li>
         <Li>Open in Compose or copy to clipboard in one click</Li>
+        <Li><strong>Automatic reminders</strong> — a background task runs hourly and adds any sent email still unanswered past the threshold (default 3 days) to this queue for you, deduplicated so nothing is added twice. No manual scan needed.</Li>
       </UL>
 
       <H3>Daily Brief</H3>

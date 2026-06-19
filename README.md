@@ -43,6 +43,7 @@ Everything runs **locally on your machine**. Your emails never leave your device
 - **Pinned searches** — save any search query as a persistent smart folder
 - **Bulk operations** — select multiple emails to delete, snooze, or generate AI draft replies for all at once
 - **Read-time estimator** — each email shows an estimated read time (e.g. ~3m) so you triage by effort
+- **Smart Unsubscribe** — newsletters and bulk mail are auto-detected (via `List-Unsubscribe` headers and in-body links); an **Unsub** button appears in the viewer. Click it to open the unsubscribe page, or — for `mailto:` unsubscribe targets — the app sends the unsubscribe email for you over your account's SMTP, no manual step needed
 - **"New" badge** — emails received in the last 4 hours show a green pill for instant visibility
 - **Auto-poll** — new emails checked every 60 seconds in the background
 
