@@ -594,8 +594,8 @@ export const api = {
     return request(`/sender/${encodeURIComponent(sender)}/relationship`)
   },
 
-  // Unsubscribe URL detection
-  getUnsubscribeUrl(emailId: string): Promise<{ url: string | null }> {
+  // Unsubscribe detection (read-only): method "url"|"mailto"|"none"
+  getUnsubscribeUrl(emailId: string): Promise<{ method: 'url' | 'mailto' | 'none'; url: string | null }> {
     return request(`/emails/${encodeURIComponent(emailId)}/unsubscribe-url`)
   },
 

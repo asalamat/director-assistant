@@ -529,14 +529,18 @@ async def get_email_category(request: Request, email_id: str):
 
 @router.get("/{email_id}/unsubscribe-url")
 async def get_unsubscribe_url(email_id: str, request: Request):
-    """Return the unsubscribe URL found in the email, or null."""
+    """Report the available unsubscribe method for an email (read-only).
+
+    Returns {method, url}. `url` is set only for http(s) targets; the button
+    shows whenever method != "none" (covers mailto-based newsletters too).
+    """
     cache: EmailCache = request.app.state.cache
     email = cache.get(email_id)
     if not email:
         raise HTTPException(404, "Email not found")
-    from services.unsubscribe import extract_unsubscribe_url
-    url = extract_unsubscribe_url(email)
-    return {"url": url}
+    from services.unsubscribe import detect_unsubscribe
+    result = detect_unsubscribe(email)
+    return {"method": result["method"], "url": result.get("url")}
 
 
 @router.get("/{email_id}/preview")

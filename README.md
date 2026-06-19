@@ -120,11 +120,12 @@ Everything runs **locally on your machine**. Your emails never leave your device
 - Overdue items show a badge on the Actions tab
 - **Waiting for Reply** — surfaces sent emails 3+ days old with no response
 - **Chase Queue** — dedicated tab for follow-up drafts with urgency color-coding (3d / 7d / 14d+)
+- **Auto follow-up reminders** — a background task runs hourly, finds sent emails with no reply after the threshold (default 3 days), and automatically adds them to the Chase Queue as follow-up reminders — deduplicated, so nothing is added twice. Tunable via `followup_reminder_days`; disable with `followup_reminder_enabled`
 - **Proactive Alerts** — background engine runs every 90 seconds detecting: deadline mentions, topic clusters, VIP sentiment escalation, commitment gaps, and relationship health
 
 ### Translations & Accessibility
 - **Email Translation** — translate any email inline with automatic language detection; 20 languages supported; preferred language set in App Settings
-- **Thread Summarization** — distill any email chain into a summary, key bullet points, and next-step outcome
+- **Thread Summarization** — click **✦ Summarize thread** in the email viewer to distill any email chain into a structured result: a summary, key bullet points, the next-step outcome, and the participant list. Results are cached per thread, so re-opening is instant
 - **Contact card** — LinkedIn profile search, per-sender monthly volume chart, relationship AI summary, unreplied count, average response time
 
 ### Calendar & Scheduling
@@ -550,10 +551,12 @@ Outputs `dist/DirectorAssistant-mac-3.15.3.zip` and `dist/DirectorAssistant-win-
 - **📍 Email Cluster Map** — Intelligence → Email Map: PCA-projected 2D scatter plot of all indexed emails (up to 1500); colored by AI-assigned category (newsletter/action/proposal/invoice/meeting); hover tooltip; click to search; **🏷 Classify emails** button bulk-classifies up to 300 random emails per click to populate colors; no external chart library (pure SVG)
 - **🕸 Knowledge Graph** — Intelligence → Knowledge Graph: force-directed SVG graph of people (top senders), topics (subject keywords), and projects; edges show co-occurrence relationships; click a person node to search their emails; pure React/SVG physics simulation (no D3 dependency)
 
-### Email Rules & Filtering (v3.28.6–v3.28.9)
+### Email Rules & Filtering (v3.28.6–v3.40.0)
 - **🚫 Quick-rule from email** — click "🚫 Rule" in the email toolbar to instantly create a rule pre-filled with that email's sender or subject; choose delete / archive / mark read and save in one step
 - **Delete action** — Email Rules now support `delete` — matching emails are removed from SQLite + ChromaDB on arrival (no more marketing, carrier notifications, no-reply spam in your inbox)
 - **▶ Run Now** — apply all enabled rules to your existing inbox in one click (up to 2000 emails); shows stats: deleted / labeled / archived / marked read; also removes deleted emails from the RAG vector index
+- **🔍 Dry-run Preview** — click **Preview** in the create-rule form to see exactly how many emails a rule *would* affect (with up to 3 sample subjects) before you save it — no action is taken, so you can tune the field / condition / value safely
+- **Last-run status** — each rule panel shows **"Last run: X ago — labeled N, archived N, marked read N, deleted N"**, updated after every manual Run Now and every automatic background pass, so you always know when rules last fired and what they did
 - Email Rules moved to dedicated **Settings → 🛡️ Rules & Filters** section
 
 ### Settings Redesign (v3.29.0)

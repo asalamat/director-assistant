@@ -86,7 +86,9 @@ export function EmailHeader({
 
     api.getProjectsForEmail(email.id).then(r => setEmailProjects(r.projects)).catch(() => {})
     api.getProjects().then(r => setAllProjects(r.projects)).catch(() => {})
-    api.getUnsubscribeUrl(email.id).then(r => setUnsubUrl(r.url)).catch(() => setUnsubUrl(null))
+    api.getUnsubscribeUrl(email.id)
+      .then(r => setUnsubUrl(r.method !== 'none' ? (r.url ?? r.method) : null))
+      .catch(() => setUnsubUrl(null))
   }, [email.id])
 
   const tomorrow = new Date()
@@ -346,16 +348,17 @@ export function EmailHeader({
 
           {/* Unsubscribe */}
           {unsubUrl && (
-            <a
-              href={unsubUrl} target="_blank" rel="noreferrer noopener"
+            <button
+              onClick={handleUnsubscribe}
+              disabled={unsubBusy}
               title="Unsubscribe from this sender"
-              className="flex items-center gap-1 text-xs text-gray-500 hover:text-orange-600 px-2 py-1.5 rounded-lg hover:bg-orange-50 transition-colors"
+              className="flex items-center gap-1 text-xs text-gray-500 hover:text-orange-600 px-2 py-1.5 rounded-lg hover:bg-orange-50 transition-colors disabled:opacity-50"
             >
               <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M13.477 14.89A6 6 0 015.11 6.524l8.367 8.368zm1.414-1.414L6.524 5.11a6 6 0 018.367 8.367zM18 10a8 8 0 11-16 0 8 8 0 0116 0z" clipRule="evenodd" />
               </svg>
-              <span>Unsub</span>
-            </a>
+              <span>{unsubMsg || (unsubBusy ? 'Unsubscribing…' : 'Unsub')}</span>
+            </button>
           )}
 
           {onArchive && (
