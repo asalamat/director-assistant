@@ -28,6 +28,53 @@ class RuleCreate(BaseModel):
             raise ValueError(f"action must be one of {VALID_ACTIONS}")
 
 
+class RulePreview(BaseModel):
+    field: str
+    condition: str
+    value: str
+
+    def validate_fields(self):
+        if self.field not in VALID_FIELDS:
+            raise ValueError(f"field must be one of {VALID_FIELDS}")
+        if self.condition not in VALID_CONDITIONS:
+            raise ValueError(f"condition must be one of {VALID_CONDITIONS}")
+
+
+def _rule_matches(field: str, condition: str, check: str, row) -> bool:
+    val = ""
+    if field == "sender":
+        val = (row["sender"] or "").lower()
+    elif field == "subject":
+        val = (row["subject"] or "").lower()
+    elif field == "body":
+        val = ((row["body"] or "")[:1000]).lower()
+    return (
+        (condition == "contains" and check in val) or
+        (condition == "equals" and val == check) or
+        (condition == "starts_with" and val.startswith(check)) or
+        (condition == "ends_with" and val.endswith(check))
+    )
+
+
+def log_rules_run(cache, labeled, archived, marked, deleted) -> None:
+    """Record a rules auto-run summary into rules_run_log."""
+    with cache._conn() as conn:
+        conn.execute(
+            "INSERT INTO rules_run_log (labeled, archived, marked, deleted) VALUES (?,?,?,?)",
+            (labeled, archived, marked, deleted),
+        )
+
+
+@router.get("/last-run")
+async def last_run(request: Request):
+    cache = request.app.state.cache
+    with cache._conn() as conn:
+        row = conn.execute(
+            "SELECT ran_at, labeled, archived, marked, deleted FROM rules_run_log ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+    return dict(row) if row else None
+
+
 @router.get("")
 async def list_rules(request: Request):
     cache = request.app.state.cache
@@ -49,6 +96,34 @@ async def create_rule(req: RuleCreate, request: Request):
             (req.name, req.field, req.condition, req.value, req.action, req.label, req.priority),
         )
     return {"id": cur.lastrowid, "status": "created"}
+
+
+@router.post("/preview")
+async def preview_rule(req: RulePreview, request: Request):
+    """Count how many emails a rule would match, without applying any action."""
+    try:
+        req.validate_fields()
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    cache = request.app.state.cache
+    with cache._conn() as conn:
+        emails = conn.execute(
+            "SELECT id, sender, subject, body FROM emails ORDER BY date DESC LIMIT 2000"
+        ).fetchall()
+
+    check = req.value.lower()
+    count = 0
+    sample = []
+    for row in emails:
+        if _rule_matches(req.field, req.condition, check, row):
+            count += 1
+            if len(sample) < 5:
+                sample.append({
+                    "id": row["id"],
+                    "subject": row["subject"] or "(no subject)",
+                    "sender": row["sender"] or "",
+                })
+    return {"count": count, "sample": sample}
 
 
 @router.patch("/{rule_id}/toggle")
@@ -136,6 +211,7 @@ async def run_all_rules(request: Request):
             if action == "delete":
                 break  # email gone, skip remaining rules
 
+    log_rules_run(cache, labeled, archived, marked, deleted)
     return {"status": "done", "deleted": deleted, "labeled": labeled, "archived": archived, "marked": marked}
 
 

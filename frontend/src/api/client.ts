@@ -599,6 +599,11 @@ export const api = {
     return request(`/emails/${encodeURIComponent(emailId)}/unsubscribe-url`)
   },
 
+  // One-click unsubscribe: opens URL or sends a mailto unsubscribe server-side
+  unsubscribe(emailId: string): Promise<{ method: 'url' | 'mailto' | 'none'; url?: string; sent?: boolean }> {
+    return request(`/emails/${encodeURIComponent(emailId)}/unsubscribe`, { method: 'POST' })
+  },
+
   // Calendar event creation
   createCalendarEvent(emailId: string, data: { title: string; start_datetime: string; end_datetime: string; attendees: string[]; description: string }): Promise<{ status: string; event_id: string; web_link: string }> {
     return request(`/emails/${encodeURIComponent(emailId)}/create-event`, { method: 'POST', body: JSON.stringify(data) })
@@ -1113,9 +1118,15 @@ export const api = {
   createEmailRule(data: { name: string; field: string; condition: string; value: string; action: string; label?: string; priority?: number }): Promise<{ id: number }> {
     return request('/email-rules', { method: 'POST', body: JSON.stringify(data) })
   },
+  previewEmailRule(data: { field: string; condition: string; value: string }): Promise<{ count: number; sample: { id: number; subject: string; sender: string }[] }> {
+    return request('/email-rules/preview', { method: 'POST', body: JSON.stringify(data) })
+  },
   toggleEmailRule(id: number): Promise<void> { return request(`/email-rules/${id}/toggle`, { method: 'PATCH' }) },
   deleteEmailRule(id: number): Promise<void> { return request(`/email-rules/${id}`, { method: 'DELETE' }) },
   runEmailRules(): Promise<{ status: string; deleted: number; labeled: number; archived: number; marked: number }> {
     return request('/email-rules/run', { method: 'POST' })
+  },
+  getEmailRulesLastRun(): Promise<{ ran_at: string; labeled: number; archived: number; marked: number; deleted: number } | null> {
+    return request('/email-rules/last-run')
   },
 }

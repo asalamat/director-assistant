@@ -11,6 +11,9 @@ from services.rag_engine import RAGEngine
 
 router = APIRouter(prefix="/api/emails", tags=["email-ai"])
 
+# Cache thread summaries to avoid re-summarizing the same conversation.
+_thread_summary_cache: dict[str, dict] = {}
+
 
 class CreateEventRequest(BaseModel):
     title: str
@@ -232,6 +235,11 @@ async def summarize_thread(email_id: str, request: Request):
     if not email:
         raise HTTPException(404, "Email not found")
 
+    cache_key = email.thread_id or email_id
+    cached_summary = _thread_summary_cache.get(cache_key)
+    if cached_summary is not None:
+        return cached_summary
+
     # Fetch all messages in the thread
     thread_msgs = []
     if email.thread_id:
@@ -276,13 +284,16 @@ Return ONLY valid JSON."""
         data = _json.loads(text[start:end]) if start >= 0 else {}
     except Exception:
         data = {}
-    return {
+    result = {
         "summary": data.get("summary", ""),
         "key_points": data.get("key_points", []),
         "outcome": data.get("outcome", ""),
         "participants": data.get("participants", []),
         "message_count": len(thread_msgs),
     }
+    if result["summary"]:
+        _thread_summary_cache[cache_key] = result
+    return result
 
 @router.post("/{email_id}/extract-commitments")
 async def extract_commitments(email_id: str, request: Request):

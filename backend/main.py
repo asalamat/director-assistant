@@ -66,7 +66,8 @@ from workers.background_tasks import (
     _auto_recommend, _auto_deadline_extract, _auto_cluster_alert,
     _auto_sentiment_escalation, _commitment_scan_loop,
     _relationship_health_loop, _auto_label_loop, _scheduled_send_loop,
-    _scheduled_report_loop, _overnight_triage_loop,
+    _scheduled_report_loop, _overnight_triage_loop, _rules_loop,
+    _followup_reminder_loop,
 )
 from routers.config import get_effective_api_key, load_app_config
 from services.ai_client import AIClient
@@ -486,10 +487,13 @@ async def lifespan(app: FastAPI):
     app.state.report_task = asyncio.create_task(_scheduled_report_loop(app))
     app.state.auto_label_task = asyncio.create_task(_auto_label_loop(app))
     app.state.overnight_task = asyncio.create_task(_overnight_triage_loop(app))
+    app.state.rules_task = asyncio.create_task(_rules_loop(app))
+    app.state.followup_reminder_task = asyncio.create_task(_followup_reminder_loop(app))
     app.state.restart_poll = lambda: asyncio.create_task(_restart_poll(app))
     yield
     for task_name in ("digest_task", "poll_task", "commitment_task", "relationship_task",
-                      "scheduled_send_task", "auto_label_task", "report_task", "overnight_task"):
+                      "scheduled_send_task", "auto_label_task", "report_task", "overnight_task",
+                      "rules_task"):
         task = getattr(app.state, task_name, None)
         if task:
             task.cancel()

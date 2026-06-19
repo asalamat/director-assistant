@@ -49,6 +49,8 @@ export function EmailHeader({
   const [creatingEvent, setCreatingEvent] = useState(false)
   const [eventMsg, setEventMsg] = useState('')
   const [unsubUrl, setUnsubUrl] = useState<string | null | undefined>(undefined)
+  const [unsubBusy, setUnsubBusy] = useState(false)
+  const [unsubMsg, setUnsubMsg] = useState('')
   const [showRuleModal, setShowRuleModal] = useState(false)
   const [ruleField, setRuleField] = useState<'sender' | 'subject'>('sender')
   const [ruleAction, setRuleAction] = useState<'delete' | 'archive' | 'mark_read'>('delete')
@@ -104,6 +106,29 @@ export function EmailHeader({
       setRemindMsg('Failed to set reminder')
     }
     setRemindDays(null)
+  }
+
+  const handleUnsubscribe = async () => {
+    if (unsubBusy) return
+    setUnsubBusy(true)
+    setUnsubMsg('')
+    try {
+      const res = await api.unsubscribe(email.id)
+      if (res.method === 'url' && res.url) {
+        window.open(res.url, '_blank', 'noreferrer,noopener')
+      } else if (res.method === 'mailto' && res.sent) {
+        setUnsubMsg('Unsubscribe email sent')
+        setTimeout(() => setUnsubMsg(''), 3000)
+      } else {
+        setUnsubMsg('No unsubscribe option found')
+        setTimeout(() => setUnsubMsg(''), 3000)
+      }
+    } catch {
+      setUnsubMsg('Unsubscribe failed')
+      setTimeout(() => setUnsubMsg(''), 3000)
+    } finally {
+      setUnsubBusy(false)
+    }
   }
 
   const handleSnoozeConfirm = () => {

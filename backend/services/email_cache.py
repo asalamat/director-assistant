@@ -386,6 +386,16 @@ class EmailCache(EmailExtrasMixin, DocumentCacheMixin):
                     created_at TEXT DEFAULT (datetime('now'))
                 )
             """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS rules_run_log (
+                    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ran_at   TEXT DEFAULT (datetime('now')),
+                    labeled  INTEGER DEFAULT 0,
+                    archived INTEGER DEFAULT 0,
+                    marked   INTEGER DEFAULT 0,
+                    deleted  INTEGER DEFAULT 0
+                )
+            """)
             for col_def in ["account_id INTEGER DEFAULT 0", "server_id TEXT",
                              "followup_remind_at TEXT"]:
                 try:

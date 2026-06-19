@@ -2,6 +2,7 @@
 
 Contains the proactive feature loops that run independently of the poll cycle:
 - _commitment_scan_loop   — scan sent mail for commitments every 30 min
+- _rules_loop             — apply all enabled email rules every 30 min
 - _relationship_health_loop — alert on long-awaited replies every 2 hours
 - _auto_label_loop        — label recent unlabeled emails every hour
 - _auto_deadline_extract  — extract deadlines from new emails per poll cycle
@@ -625,3 +626,125 @@ async def _generate_and_send_report(app) -> None:
 
     except Exception as e:
         print(f"[report-scheduler] send failed: {e}")
+
+
+async def _followup_reminder_loop(app: "object") -> None:
+    """Feature 3: Auto-add sent emails with no reply to the Chase Queue as follow-up reminders.
+
+    Runs hourly. Sent emails older than N days (config `followup_reminder_days`, default 3)
+    with no detected reply are added as follow-ups, deduped against existing ones by email_id.
+    """
+    from datetime import date as _date
+    from models import FollowUp
+
+    await asyncio.sleep(240)  # let startup settle
+    while True:
+        await asyncio.sleep(3600)  # every hour
+        try:
+            from routers.config import load_app_config
+            cfg = load_app_config()
+            if not cfg.get("followup_reminder_enabled", True):
+                continue
+            try:
+                days = int(cfg.get("followup_reminder_days", 3))
+            except (TypeError, ValueError):
+                days = 3
+            days = max(1, days)
+
+            cache = app.state.cache
+            from services.waiting_reply import get_waiting_replies
+            waiting = get_waiting_replies(cache, threshold_days=days, limit=50)
+            if not waiting:
+                continue
+
+            existing_ids = {f.email_id for f in cache.list_follow_ups()}
+            added = 0
+            for em in waiting:
+                if em["id"] in existing_ids:
+                    continue
+                recipient = em.get("recipient") or ""
+                f = FollowUp(
+                    email_id=em["id"],
+                    subject=em.get("subject") or "",
+                    sender=recipient,
+                    due_date=_date.today().isoformat(),
+                    note=f"No reply after {em.get('days_waiting', days)} days — sent to {recipient or 'recipient'}",
+                    done=False,
+                )
+                cache.add_follow_up(f)
+                added += 1
+            if added > 0:
+                push_alert(app, "followup",
+                           f"{added} sent email{'' if added == 1 else 's'} with no reply added to your Chase Queue",
+                           "actions")
+                print(f"[followup-reminder] added {added} follow-ups")
+        except Exception as e:
+            print(f"[followup-reminder] {e}")
+
+
+async def _rules_loop(app: "object") -> None:
+    """Apply all enabled email rules every 30 minutes."""
+    await asyncio.sleep(60)  # let startup settle
+    while True:
+        await asyncio.sleep(1800)  # every 30 min
+        try:
+            cache = app.state.cache
+            rag = getattr(app.state, "rag", None)
+            with cache._conn() as conn:
+                emails = conn.execute(
+                    "SELECT id, sender, subject, body FROM emails ORDER BY date DESC LIMIT 2000"
+                ).fetchall()
+                rules = conn.execute(
+                    "SELECT * FROM email_rules WHERE enabled=1 ORDER BY priority DESC"
+                ).fetchall()
+            if not rules:
+                continue
+            labeled = archived = marked = deleted = 0
+            for row in emails:
+                email_id = row["id"]
+                for rule in rules:
+                    field = rule["field"]
+                    val = ""
+                    if field == "sender":
+                        val = (row["sender"] or "").lower()
+                    elif field == "subject":
+                        val = (row["subject"] or "").lower()
+                    elif field == "body":
+                        val = ((row["body"] or "")[:1000]).lower()
+                    check = rule["value"].lower()
+                    cond = rule["condition"]
+                    matched = (
+                        (cond == "contains" and check in val) or
+                        (cond == "equals" and val == check) or
+                        (cond == "starts_with" and val.startswith(check)) or
+                        (cond == "ends_with" and val.endswith(check))
+                    )
+                    if not matched:
+                        continue
+                    action = rule["action"]
+                    if action == "label" and rule["label"]:
+                        cache.set_category(email_id, rule["label"])
+                        labeled += 1
+                    elif action == "mark_read":
+                        with cache._conn() as conn:
+                            conn.execute("UPDATE emails SET is_read=1 WHERE id=?", (email_id,))
+                        marked += 1
+                    elif action == "archive":
+                        with cache._conn() as conn:
+                            conn.execute("UPDATE emails SET folder='Archive' WHERE id=?", (email_id,))
+                        archived += 1
+                    elif action == "delete":
+                        with cache._conn() as conn:
+                            conn.execute("DELETE FROM emails WHERE id=?", (email_id,))
+                        if rag:
+                            try:
+                                rag.remove_email(email_id)
+                            except Exception:
+                                pass
+                        deleted += 1
+                        break
+            from routers.email_rules import log_rules_run
+            log_rules_run(cache, labeled, archived, marked, deleted)
+            print(f"[rules-loop] rules run: labeled={labeled} archived={archived} marked={marked} deleted={deleted}")
+        except Exception as e:
+            print(f"[rules-loop] error: {e}")
