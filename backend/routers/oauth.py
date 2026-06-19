@@ -355,24 +355,36 @@ async def auto_setup_microsoft_app(request: Request):
                 "message": "Azure CLI not installed.",
                 "fix": fix}
 
-    async def _run(*args, timeout=20):
-        proc = await asyncio.create_subprocess_exec(
-            *args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-        )
+    import subprocess as _sp, functools as _ft
+    import sys as _sys
+
+    def _run_sync(*args, timeout=20):
+        """Run a subprocess synchronously — avoids SelectorEventLoop issues on Windows."""
         try:
-            out, err = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-        except asyncio.TimeoutError:
-            proc.kill(); return -1, b"", b"timeout"
-        return proc.returncode, out, err
+            r = _sp.run(
+                list(args), capture_output=True, timeout=timeout,
+                creationflags=_sp.CREATE_NO_WINDOW if _sys.platform == "win32" else 0,
+            )
+            return r.returncode, r.stdout, r.stderr
+        except _sp.TimeoutExpired:
+            return -1, b"", b"timeout"
+        except Exception as e:
+            return -1, b"", str(e).encode()
+
+    loop = asyncio.get_event_loop()
+
+    async def _run(*args, timeout=20):
+        return await loop.run_in_executor(
+            None, _ft.partial(_run_sync, *args, timeout=timeout)
+        )
 
     # Check login — az account show fails if not logged in
     rc, _, _ = await _run(*_az_cmd(az_exe, "account", "show"))
     if rc != 0:
         rc2, _, _ = await _run(*_az_cmd(az_exe, "account", "show", "--allow-no-subscriptions"))
         if rc2 != 0:
-            await asyncio.create_subprocess_exec(
-                *_az_cmd(az_exe, "login"),
-                stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL
+            await loop.run_in_executor(
+                None, _ft.partial(_run_sync, *_az_cmd(az_exe, "login"), timeout=120)
             )
             return {"status": "login_required", "message": "Azure sign-in opened in your browser — sign in, then click Continue Setup."}
 
