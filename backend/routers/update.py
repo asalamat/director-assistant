@@ -40,22 +40,28 @@ def _current_version() -> str:
     return "unknown"
 
 
+def _valid_install_dir(p: Path) -> bool:
+    """True if p looks like a Director Assistant install (git repo or ZIP install)."""
+    return (p / ".git").exists() or (p / "backend" / "main.py").exists()
+
+
 def _source_repo() -> Path | None:
-    """Find the git repo that backs this installation."""
-    # macOS: install-mac.sh writes source_repo.txt
+    """Find the install/source directory for this installation.
+    Works for git-clone installs (has .git) and ZIP installs (no .git)."""
+    # source_repo.txt written by install scripts
     try:
         p = (_INSTALL_DIR / "source_repo.txt").read_text().strip()
         repo = Path(p)
-        if (repo / ".git").exists():
+        if _valid_install_dir(repo):
             return repo
     except Exception:
         pass
-    # Windows: install.bat clones into INSTALL_DIR itself, so INSTALL_DIR is the repo
-    if (_INSTALL_DIR / ".git").exists():
+    # INSTALL_DIR itself (git-clone or ZIP installed here)
+    if _valid_install_dir(_INSTALL_DIR):
         return _INSTALL_DIR
     # Dev layout: this file lives inside the repo
     repo = Path(__file__).parents[2]
-    if (repo / ".git").exists():
+    if _valid_install_dir(repo):
         return repo
     return None
 

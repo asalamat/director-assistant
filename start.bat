@@ -33,13 +33,6 @@ if errorlevel 1 (
     exit /b 1
 )
 
-where node >nul 2>&1
-if errorlevel 1 (
-    echo [ERROR] Node.js not found. Install from https://nodejs.org
-    pause
-    exit /b 1
-)
-
 :: ── Check / create virtual environment ──────────────────────
 
 if not exist "%BACKEND%\.venv\Scripts\activate.bat" (
@@ -72,6 +65,12 @@ if /i NOT "%MODE%"=="dev" (
 
     :: Build frontend if static dir is missing
     if not exist "%BACKEND%\static\index.html" (
+        where node >nul 2>&1
+        if errorlevel 1 (
+            echo [ERROR] Frontend not built and Node.js not found. Install Node from https://nodejs.org or copy pre-built dist/ into backend\static\.
+            pause
+            exit /b 1
+        )
         echo [INFO]  Building frontend...
         cd /d "%FRONTEND%"
         if not exist "%FRONTEND%\node_modules" (
@@ -114,6 +113,13 @@ if /i NOT "%MODE%"=="dev" (
     :: Kill anything on port 8000
     for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":8000 "') do (
         taskkill /f /pid %%a >nul 2>&1
+    )
+
+    where node >nul 2>&1
+    if errorlevel 1 (
+        echo [ERROR] Node.js not found. Dev mode requires Node. Install from https://nodejs.org
+        pause
+        exit /b 1
     )
 
     :: Install frontend deps if needed
