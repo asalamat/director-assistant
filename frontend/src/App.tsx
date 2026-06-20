@@ -139,6 +139,12 @@ export default function App() {
   const [overdueCount, setOverdueCount] = useState(0)
   const prevOverdueRef = useRef(0)
 
+  const refreshOverdue = () =>
+    api.getFollowUps(false).then(list => {
+      const today = new Date().toISOString().slice(0, 10)
+      setOverdueCount(list.filter(f => f.due_date < today).length)
+    }).catch(() => {})
+
   const {
     emails, total, loading: listLoading, hasMore, currentParams, refresh, mergeRefresh, loadMore, setSort, removeEmail,
     selectedEmail, email, emailLoading, emailError, selectEmail, clearSelectedEmail, fetchEmail,
@@ -710,7 +716,7 @@ export default function App() {
 
           {activeTab === 'triage' && <TriagePanel />}
           {activeTab === 'ask' && <AskPanel initialQuery={askContext} onClear={() => setAskContext('')} />}
-          {activeTab === 'actions' && <ActionBoard />}
+          {activeTab === 'actions' && <ActionBoard onRefreshCount={refreshOverdue} />}
           {activeTab === 'digest' && <DigestView />}
           {activeTab === 'health' && <HealthPanel />}
           {activeTab === 'knowledge' && <IntelligencePanel />}

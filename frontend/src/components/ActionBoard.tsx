@@ -27,7 +27,7 @@ interface InboxAsk {
   asks: string[]
 }
 
-export function ActionBoard() {
+export function ActionBoard({ onRefreshCount }: { onRefreshCount?: () => void }) {
   const [actions, setActions] = useState<ActionItem[]>([])
   const [followUps, setFollowUps] = useState<FollowUp[]>([])
   const [showDone, setShowDone] = useState(false)
@@ -79,6 +79,7 @@ export function ActionBoard() {
       ])
       setActions(a)
       setFollowUps(f)
+      onRefreshCount?.()
     } catch (e) {
       setLoadError('Failed to load — check backend is running')
     } finally {
@@ -118,6 +119,7 @@ export function ActionBoard() {
   const deleteFollowUp = async (id: number) => {
     await api.deleteFollowUp(id)
     setFollowUps((prev) => prev.filter((f) => f.id !== id))
+    onRefreshCount?.()
   }
 
   // Bulk action handlers
