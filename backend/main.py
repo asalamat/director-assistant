@@ -493,7 +493,7 @@ async def lifespan(app: FastAPI):
     yield
     for task_name in ("digest_task", "poll_task", "commitment_task", "relationship_task",
                       "scheduled_send_task", "auto_label_task", "report_task", "overnight_task",
-                      "rules_task"):
+                      "rules_task", "followup_reminder_task"):
         task = getattr(app.state, task_name, None)
         if task:
             task.cancel()

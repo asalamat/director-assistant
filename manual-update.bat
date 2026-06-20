@@ -29,7 +29,7 @@ echo.
 echo [3/4] Copying frontend...
 if exist "frontend\dist" (
     if not exist "backend\static" mkdir "backend\static"
-    xcopy /s /e /y "frontend\dist\*" "backend\static\" >/dev/null
+    xcopy /s /e /y "frontend\dist\*" "backend\static\" >nul
     echo [OK] Frontend copied
 ) else (
     echo [WARN] frontend\dist not found - skipping
@@ -37,8 +37,9 @@ if exist "frontend\dist" (
 echo.
 
 echo [4/4] Restarting app...
-taskkill /F /IM python.exe /T >/dev/null 2>&1
-timeout /t 3 /nobreak >/dev/null
+taskkill /F /FI "WINDOWTITLE eq Director Assistant*" >nul 2>&1
+taskkill /F /FI "IMAGENAME eq python.exe" /FI "WINDOWTITLE eq *uvicorn*" >nul 2>&1
+timeout /t 3 /nobreak >nul
 start /b start.bat
 echo [OK] App restarted
 echo.
