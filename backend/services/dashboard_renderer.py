@@ -177,7 +177,14 @@ function openInApp(emailId){{
 function markDone(id,btn){{
   fetch('/api/actions/'+id,{{method:'PATCH',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{done:true}})}})
     .then(r=>r.ok?Promise.resolve():Promise.reject())
-    .then(()=>{{btn.textContent='✓ Done!';btn.disabled=true;btn.style.background='#238636';btn.style.opacity='.7';}})
+    .then(()=>{{
+      btn.textContent='✓ Done!';btn.disabled=true;btn.style.background='#238636';btn.style.opacity='.7';
+      var el=document.getElementById('kpi-actions-val');
+      if(el){{var n=parseInt(el.textContent,10);if(!isNaN(n)&&n>0)el.textContent=n-1;}}
+      // Hide the card row visually
+      var row=btn.closest('[data-action-id]');
+      if(row){{row.style.opacity='0.4';row.style.pointerEvents='none';}}
+    }})
     .catch(()=>{{btn.textContent='Error';btn.style.background='#6e1a1a';}});
 }}
 function draftFollowUp(btn){{
@@ -298,10 +305,12 @@ def _modal_attr(title: str, rows: list[tuple[str, str]], opts: dict | None = Non
     return f' data-modal=\'{_html.escape(json.dumps(payload), quote=True)}\''
 
 
-def _kpi_tile(val: str | int, label: str, cls: str = "", sub: str = "", href: str = "") -> str:
+def _kpi_tile(val: str | int, label: str, cls: str = "", sub: str = "", href: str = "", tile_id: str = "") -> str:
     sub_html = f'<div class="sub-lbl">{_e(sub)}</div>' if sub else ""
-    tag, close = (f'<a class="kpi-tile {cls}" href="{href}">', '</a>') if href else (f'<div class="kpi-tile {cls}">', '</div>')
-    return f'{tag}<div class="val">{val}</div><div class="lbl">{label}</div>{sub_html}{close}'
+    id_attr = f' id="{tile_id}"' if tile_id else ""
+    tag, close = (f'<a class="kpi-tile {cls}"{id_attr} href="{href}">', '</a>') if href else (f'<div class="kpi-tile {cls}"{id_attr}>', '</div>')
+    val_id = f' id="{tile_id}-val"' if tile_id else ""
+    return f'{tag}<div class="val"{val_id}>{val}</div><div class="lbl">{label}</div>{sub_html}{close}'
 
 
 def _section(title: str, body: str, extra_class: str = "", section_id: str = "") -> str:
@@ -549,8 +558,9 @@ def _action_list(actions: list[dict]) -> str:
         modal = _modal_attr(text[:80], [
             ("Action", text), ("Email", subj), ("Added", created)
         ], {"actionId": aid})
+        data_id = f' data-action-id="{aid}"' if aid else ""
         items.append(
-            f'<li{modal}>{_e(text[:90])}'
+            f'<li{modal}{data_id}>{_e(text[:90])}'
             f'{"<div class=meta>"+_e(subj[:50])+"</div>" if subj else ""}</li>'
         )
     return f'<ul class="item-list">{"".join(items)}</ul>'
@@ -663,7 +673,7 @@ def render_dashboard(d: dict) -> str:
 
   <!-- KPI Tiles -->
   <div class="kpi">
-    {_kpi_tile(overdue_count, "Open Actions", "red" if overdue_count else "green", "needs attention", "#s-actions")}
+    {_kpi_tile(overdue_count, "Open Actions", "red" if overdue_count else "green", "needs attention", "#s-actions", "kpi-actions")}
     {_kpi_tile(unread, "Unread Emails", "yellow" if unread > 20 else "green", "in your inbox", "#s-unread")}
     {_kpi_tile(chase_count, "Chase Queue", "orange" if chase_count else "green", "no reply received", "#s-chase")}
     {_kpi_tile(vip_alert_count, "VIP Alerts", "purple" if vip_alert_count else "green", "need attention", "#s-vip")}
