@@ -12,6 +12,7 @@ export default function UpdatePopup() {
   const [dismissed, setDismissed] = useState(false)
   const [applying, setApplying] = useState(false)
   const [message, setMessage] = useState('')
+  const [isError, setIsError] = useState(false)
 
   useEffect(() => {
     // Check once on load, then every 60 minutes
@@ -30,28 +31,31 @@ export default function UpdatePopup() {
   if (!update || dismissed) return null
 
   const handleUpdate = async () => {
-    setApplying(true)
-    setMessage('Pulling latest code and rebuilding…')
+    setApplying(true); setIsError(false)
+    setMessage('Starting update…')
     try {
       await api.applyUpdate()
-      setMessage('Rebuilding… reloading when ready')
-      // Wait for backend to come back up instead of a fixed timer
+      setMessage('Update running — reloading when ready…')
       await new Promise<void>(resolve => {
         const start = Date.now()
         const poll = setInterval(async () => {
-          // Give the build at least 15 s before we start probing
           if (Date.now() - start < 15_000) return
           try {
             const r = await fetch('/health', { cache: 'no-store' })
             if (r.ok) { clearInterval(poll); resolve() }
-          } catch { /* still down — keep waiting */ }
-          // Hard cap at 3 minutes
+          } catch { /* still restarting */ }
           if (Date.now() - start > 180_000) { clearInterval(poll); resolve() }
         }, 3_000)
       })
       window.location.reload()
-    } catch {
-      setMessage('Update failed. Check /tmp/director-assistant-update.log for details.')
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Update failed'
+      // If it's a setup error (no repo/venv), guide the user to reinstall
+      const isSetup = msg.includes('repo') || msg.includes('venv') || msg.includes('environment') || msg.includes('install')
+      setIsError(true)
+      setMessage(isSetup
+        ? `${msg} — re-run install.bat on Windows or install-mac.sh on Mac to fix.`
+        : `${msg} — check %TEMP%\\director-assistant-update.log (Windows) or /tmp/director-assistant-update.log (Mac).`)
       setApplying(false)
     }
   }
@@ -65,7 +69,7 @@ export default function UpdatePopup() {
             v{update.current} → v{update.latest}
           </p>
           {message && (
-            <p className="text-xs text-blue-600 mt-1">{message}</p>
+            <p className={`text-xs mt-1 ${isError ? 'text-red-600' : 'text-blue-600'}`}>{message}</p>
           )}
         </div>
         {!applying && (
@@ -82,13 +86,13 @@ export default function UpdatePopup() {
             onClick={handleUpdate}
             className="flex-1 bg-blue-600 text-white text-xs font-medium py-1.5 rounded-lg hover:bg-blue-700 transition-colors"
           >
-            Install Update
+            {isError ? 'Retry' : 'Install Update'}
           </button>
           <button
             onClick={() => setDismissed(true)}
             className="flex-1 text-xs text-gray-500 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
           >
-            Later
+            {isError ? 'Dismiss' : 'Later'}
           </button>
         </div>
       ) : (

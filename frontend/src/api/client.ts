@@ -28,7 +28,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }))
-    throw new Error(err.detail || 'Request failed')
+    throw new Error(err.detail || err.message || 'Request failed')
   }
   return res.json()
 }
@@ -356,7 +356,7 @@ export const api = {
   },
 
   // Microsoft OAuth2 device flow
-  autoSetupMicrosoft(): Promise<{ status: string; message?: string; fix?: string; client_id?: string }> {
+  autoSetupMicrosoft(): Promise<{ status: string; message?: string; fix?: string; client_id?: string; device_code?: string; device_url?: string }> {
     return request('/oauth/microsoft/auto-setup', { method: 'POST' })
   },
   getMicrosoftAuthUrl(username?: string): Promise<{ url: string }> {
