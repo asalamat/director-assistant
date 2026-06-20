@@ -34,7 +34,7 @@ def _is_high_priority(email) -> bool:
 
 async def _auto_recommend(app, new_emails: list) -> None:
     """Background: run the advisor on up to 3 high-priority new emails per poll cycle."""
-    from routers.emails import _rec_cache, _REC_COOLDOWN
+    from routers.email_list import _rec_cache, _REC_COOLDOWN
     from time import monotonic
 
     if not get_effective_api_key():
