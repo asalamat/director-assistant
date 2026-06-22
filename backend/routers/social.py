@@ -269,27 +269,34 @@ async def generate_images(body: dict, request: Request):
         return {"images": [], "error": f"OpenAI key looks invalid (should start with 'sk-'). Current key starts with: {openai_key[:8]}…"}
 
     base = custom_prompt.strip() if custom_prompt else ""
-    post_summary = post_text[:1000] if post_text else topic
-    img_system = "Return ONLY the image prompt text — no JSON, no labels, no extra text."
-    img_prompt = (
-        "Write ONE detailed DALL-E image prompt for a LinkedIn post.\n\n"
-        f"POST TOPIC: {topic}\n"
-        f"POST TEXT (use this for the visual theme):\n{post_summary}\n\n"
-        + (f"STYLE PREFERENCE: {base}\n\n" if base else "")
-        + "The prompt must:\n"
-        "- Visually represent the core message of the post\n"
-        "- Be professional and LinkedIn-appropriate\n"
-        "- Include composition, lighting, color tone, and mood\n"
-        "Return ONLY the prompt text — nothing else."
-    )
-    try:
-        dalle_prompt = await _ai_complete(request, img_prompt, max_tokens=300, system=img_system)
-        dalle_prompt = dalle_prompt.strip().strip('"').strip("'")
-    except Exception as e:
-        return {"images": [], "error": f"AI prompt generation failed: {e}"}
+    post_summary = post_text[:600] if post_text else topic
 
-    if not dalle_prompt:
-        return {"images": [], "error": "Could not generate image prompt"}
+    if base:
+        # Template/custom prompt provided: combine directly with post details — no AI rewrite
+        topic_line = f"Topic: {topic}." if topic else ""
+        summary_line = f" Context: {post_summary[:300]}" if post_summary else ""
+        dalle_prompt = f"{base}. {topic_line}{summary_line}".strip(". ").strip()
+    else:
+        # No template: use AI to write a meaningful DALL-E prompt from scratch
+        img_system = "Return ONLY the image prompt text — no JSON, no labels, no extra text."
+        img_prompt = (
+            "Write ONE detailed DALL-E image prompt for a LinkedIn post.\n\n"
+            f"POST TOPIC: {topic}\n"
+            f"POST TEXT (use this for the visual theme):\n{post_summary}\n\n"
+            "The prompt must:\n"
+            "- Visually represent the core message of the post\n"
+            "- Be professional and LinkedIn-appropriate\n"
+            "- Include composition, lighting, color tone, and mood\n"
+            "Return ONLY the prompt text — nothing else."
+        )
+        try:
+            dalle_prompt = await _ai_complete(request, img_prompt, max_tokens=300, system=img_system)
+            dalle_prompt = dalle_prompt.strip().strip('"').strip("'")
+        except Exception as e:
+            return {"images": [], "error": f"AI prompt generation failed: {e}"}
+
+        if not dalle_prompt:
+            return {"images": [], "error": "Could not generate image prompt"}
 
     preferred = _get_linkedin_settings().get("image_model", "dall-e-3") or "dall-e-3"
     fallback_list = list(IMAGE_MODELS)
@@ -644,6 +651,29 @@ async def save_template(body: dict, request: Request):
             (tmpl_id, name, prompt, sample_image),
         )
     return {"id": tmpl_id, "name": name, "prompt": prompt, "sample_image": sample_image, "builtin": 0}
+
+
+@router.put("/linkedin/templates/{template_id}")
+async def update_template(template_id: str, body: dict, request: Request):
+    name = (body.get("name") or "").strip()
+    prompt = (body.get("prompt") or "").strip()
+    if not name or not prompt:
+        return {"error": "name and prompt are required"}
+    cache = request.app.state.cache
+    _ensure_tables(cache)
+    sample_image = body.get("sample_image")
+    with cache._conn() as conn:
+        if sample_image is not None:
+            conn.execute(
+                "UPDATE linkedin_templates SET name=?, prompt=?, sample_image=? WHERE id=? AND builtin=0",
+                (name, prompt, sample_image, template_id),
+            )
+        else:
+            conn.execute(
+                "UPDATE linkedin_templates SET name=?, prompt=? WHERE id=? AND builtin=0",
+                (name, prompt, template_id),
+            )
+    return {"status": "updated"}
 
 
 @router.delete("/linkedin/templates/{template_id}")

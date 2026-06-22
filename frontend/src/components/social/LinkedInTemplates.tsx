@@ -10,11 +10,10 @@ interface Template {
   icon?: string
 }
 
-/** Mini LinkedIn post card mockup — shows what the post will look like */
+/** Mini LinkedIn post card mockup */
 function PostMockup({ sampleImage, icon, name }: { sampleImage?: string; icon?: string; name: string }) {
   return (
     <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm w-full">
-      {/* Header */}
       <div className="flex items-center gap-2 px-3 pt-3 pb-2">
         <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
           YN
@@ -24,13 +23,11 @@ function PostMockup({ sampleImage, icon, name }: { sampleImage?: string; icon?: 
           <p className="text-[10px] text-gray-400 leading-tight">LinkedIn Post · Just now</p>
         </div>
       </div>
-      {/* Body text lines (placeholder) */}
       <div className="px-3 pb-2 space-y-1">
         <div className="h-1.5 bg-gray-100 rounded-full w-full" />
         <div className="h-1.5 bg-gray-100 rounded-full w-5/6" />
         <div className="h-1.5 bg-gray-100 rounded-full w-2/3" />
       </div>
-      {/* Image area */}
       <div className="relative bg-gray-50 aspect-video overflow-hidden">
         {sampleImage ? (
           <img src={sampleImage} alt={name} className="w-full h-full object-cover" />
@@ -41,11 +38,112 @@ function PostMockup({ sampleImage, icon, name }: { sampleImage?: string; icon?: 
           </div>
         )}
       </div>
-      {/* Reactions bar */}
       <div className="flex items-center gap-3 px-3 py-2 border-t border-gray-100">
         <span className="text-[9px] text-gray-400">👍 Like</span>
         <span className="text-[9px] text-gray-400">💬 Comment</span>
         <span className="text-[9px] text-gray-400">↗ Share</span>
+      </div>
+    </div>
+  )
+}
+
+interface EditFormProps {
+  template: Template
+  onSave: (updated: Template) => void
+  onCancel: () => void
+}
+
+function EditForm({ template, onSave, onCancel }: EditFormProps) {
+  const [name, setName] = useState(template.name)
+  const [prompt, setPrompt] = useState(template.prompt)
+  const [image, setImage] = useState(template.sample_image || '')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = ev => setImage(ev.target?.result as string)
+    reader.readAsDataURL(file)
+  }
+
+  const save = async () => {
+    if (!name.trim() || !prompt.trim()) { setError('Name and prompt are required'); return }
+    setSaving(true); setError('')
+    try {
+      const r = await fetch(`/api/linkedin/templates/${template.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), prompt: prompt.trim(), sample_image: image }),
+      })
+      const data = await r.json()
+      if (data.error) { setError(data.error); return }
+      onSave({ ...template, name: name.trim(), prompt: prompt.trim(), sample_image: image })
+    } catch (e) {
+      setError((e as Error).message || 'Save failed')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="border-2 border-accent rounded-2xl p-4 bg-blue-50/30 space-y-3">
+      <p className="text-xs font-semibold text-accent">Editing: {template.name}</p>
+      {error && <p className="text-xs text-red-500">{error}</p>}
+      <div>
+        <label className="text-xs font-medium text-gray-700 block mb-1">Style Name</label>
+        <input
+          type="text"
+          className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent"
+          value={name}
+          onChange={e => setName(e.target.value)}
+        />
+      </div>
+      <div>
+        <label className="text-xs font-medium text-gray-700 block mb-1">Image Prompt</label>
+        <p className="text-[11px] text-gray-400 mb-1.5">
+          This prompt is sent directly to DALL-E combined with your post topic and content — describe the visual style.
+        </p>
+        <textarea
+          className="w-full h-28 px-3 py-2 border border-gray-200 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent"
+          value={prompt}
+          onChange={e => setPrompt(e.target.value)}
+        />
+      </div>
+      <div>
+        <label className="text-xs font-medium text-gray-700 block mb-1">Sample Image</label>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => fileRef.current?.click()}
+            className="px-3 py-1.5 border border-dashed border-gray-300 rounded-xl text-xs text-gray-500 hover:border-accent hover:text-accent transition"
+          >
+            {image ? 'Change image…' : 'Upload sample…'}
+          </button>
+          {image && (
+            <button onClick={() => setImage('')} className="text-xs text-red-400 hover:text-red-600">Remove</button>
+          )}
+        </div>
+        <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+        {image && (
+          <img src={image} alt="preview" className="mt-2 h-20 rounded-lg object-cover border border-gray-200" />
+        )}
+      </div>
+      <div className="flex gap-2">
+        <button
+          onClick={save}
+          disabled={saving || !name.trim() || !prompt.trim()}
+          className="px-4 py-2 bg-accent text-white rounded-xl text-sm font-medium hover:opacity-90 disabled:opacity-50 transition"
+        >
+          {saving ? 'Saving…' : 'Save Changes'}
+        </button>
+        <button
+          onClick={onCancel}
+          className="px-4 py-2 bg-gray-100 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-200 transition"
+        >
+          Cancel
+        </button>
       </div>
     </div>
   )
@@ -57,8 +155,9 @@ export function LinkedInTemplates() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [editingId, setEditingId] = useState<string | null>(null)
 
-  // Form state
+  // New template form state
   const [newName, setNewName] = useState('')
   const [newPrompt, setNewPrompt] = useState('')
   const [newImage, setNewImage] = useState('')
@@ -102,7 +201,7 @@ export function LinkedInTemplates() {
     try {
       await (api as any).saveLinkedInTemplate({ name: newName.trim(), prompt: newPrompt.trim(), sample_image: newImage })
       setNewName(''); setNewPrompt(''); clearImage()
-      setSuccess('Template saved and ready to use in the wizard!')
+      setSuccess('Template saved!')
       await load()
       setTimeout(() => setSuccess(''), 4000)
     } catch (e) {
@@ -121,6 +220,13 @@ export function LinkedInTemplates() {
     }
   }
 
+  const handleEditSave = (updated: Template) => {
+    setTemplates(prev => prev.map(t => t.id === updated.id ? updated : t))
+    setEditingId(null)
+    setSuccess('Template updated!')
+    setTimeout(() => setSuccess(''), 3000)
+  }
+
   const builtin = templates.filter(t => t.builtin)
   const user = templates.filter(t => !t.builtin)
 
@@ -132,9 +238,8 @@ export function LinkedInTemplates() {
       <div>
         <h2 className="text-base font-semibold text-gray-900">📚 Prompt Template Library</h2>
         <p className="text-xs text-gray-500 mt-1 leading-relaxed">
-          Each template defines an image style used when generating your LinkedIn post visuals.
-          The <strong>sample image</strong> shows exactly what your post will look like — upload a reference photo
-          or screenshot so you can compare styles at a glance while composing a post.
+          Each template defines an image style. When you select one in the wizard, your template prompt
+          is sent <strong>directly to DALL-E combined with your post topic and content</strong> — no AI rewrite in between.
         </p>
       </div>
 
@@ -150,11 +255,9 @@ export function LinkedInTemplates() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {builtin.map(t => (
             <div key={t.id} className="border border-gray-200 rounded-2xl overflow-hidden bg-gray-50">
-              {/* LinkedIn post mockup */}
               <div className="p-3">
                 <PostMockup sampleImage={t.sample_image || undefined} icon={t.icon} name={t.name} />
               </div>
-              {/* Template info */}
               <div className="px-4 pb-4 space-y-1.5">
                 <div className="flex items-center gap-2">
                   <span className="text-xl">{t.icon || '🎨'}</span>
@@ -183,24 +286,44 @@ export function LinkedInTemplates() {
             <p className="text-xs text-gray-400 mt-0.5">Add one below to use your own visual style</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="space-y-4">
             {user.map(t => (
-              <div key={t.id} className="border border-gray-200 rounded-2xl overflow-hidden bg-white group">
-                <div className="p-3">
-                  <PostMockup sampleImage={t.sample_image || undefined} name={t.name} />
-                </div>
-                <div className="px-4 pb-4 space-y-1.5">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-sm text-gray-900 flex-1">{t.name}</span>
-                    <button
-                      onClick={() => remove(t.id)}
-                      className="opacity-0 group-hover:opacity-100 px-2 py-0.5 text-xs text-red-400 hover:bg-red-50 rounded transition"
-                    >
-                      Delete
-                    </button>
+              <div key={t.id}>
+                {editingId === t.id ? (
+                  <EditForm
+                    template={t}
+                    onSave={handleEditSave}
+                    onCancel={() => setEditingId(null)}
+                  />
+                ) : (
+                  <div className="border border-gray-200 rounded-2xl overflow-hidden bg-white group">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-0">
+                      <div className="p-3 border-b sm:border-b-0 sm:border-r border-gray-100">
+                        <PostMockup sampleImage={t.sample_image || undefined} name={t.name} />
+                      </div>
+                      <div className="px-4 py-4 flex flex-col gap-2">
+                        <div className="flex items-start gap-2">
+                          <span className="font-semibold text-sm text-gray-900 flex-1">{t.name}</span>
+                        </div>
+                        <p className="text-[11px] text-gray-500 leading-relaxed flex-1">{t.prompt}</p>
+                        <div className="flex gap-2 mt-auto pt-2">
+                          <button
+                            onClick={() => setEditingId(t.id)}
+                            className="px-3 py-1.5 text-xs font-medium text-accent border border-accent rounded-lg hover:bg-blue-50 transition"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => remove(t.id)}
+                            className="px-3 py-1.5 text-xs text-red-400 border border-red-200 rounded-lg hover:bg-red-50 transition"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <p className="text-[11px] text-gray-500 leading-relaxed line-clamp-3">{t.prompt}</p>
-                </div>
+                )}
               </div>
             ))}
           </div>
@@ -212,7 +335,6 @@ export function LinkedInTemplates() {
         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Add New Template</p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-          {/* Form fields */}
           <div className="space-y-4">
             <div>
               <label className="text-xs font-medium text-gray-700 block mb-1.5">Style Name</label>
@@ -227,7 +349,9 @@ export function LinkedInTemplates() {
 
             <div>
               <label className="text-xs font-medium text-gray-700 block mb-1.5">Image Prompt</label>
-              <p className="text-[11px] text-gray-400 mb-1.5">Describe the visual style for DALL-E to use when generating your post image</p>
+              <p className="text-[11px] text-gray-400 mb-1.5">
+                Sent directly to DALL-E with your post topic appended. Describe the visual style.
+              </p>
               <textarea
                 className="w-full h-28 px-3 py-2 border border-gray-200 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent"
                 placeholder="e.g. Dark moody photography, dramatic lighting, desaturated background with one vivid accent color, cinematic style, no text"
@@ -239,8 +363,7 @@ export function LinkedInTemplates() {
             <div>
               <label className="text-xs font-medium text-gray-700 block mb-1">Sample Image</label>
               <p className="text-[11px] text-gray-400 mb-2">
-                Upload an example of what your post will look like — a reference photo, a DALL-E output you liked, or any visual that captures the style.
-                This appears as the post preview so you can choose the right style at a glance.
+                Upload a reference photo so you can compare styles at a glance in the wizard.
               </p>
               <div className="flex items-center gap-3">
                 <button
@@ -265,10 +388,9 @@ export function LinkedInTemplates() {
             </button>
           </div>
 
-          {/* Live preview */}
           <div>
             <label className="text-xs font-medium text-gray-700 block mb-1.5">Live Preview</label>
-            <p className="text-[11px] text-gray-400 mb-2">This is how your template card will appear when choosing a style</p>
+            <p className="text-[11px] text-gray-400 mb-2">How this template card will appear when choosing a style</p>
             <div className="border border-gray-200 rounded-2xl overflow-hidden bg-gray-50">
               <div className="p-3">
                 <PostMockup sampleImage={previewImage || undefined} name={newName || 'My Style'} />
