@@ -3,7 +3,7 @@ import pkgJson from '../../package.json'
 
 interface Props { onClose: () => void }
 
-type Section = 'start' | 'inbox' | 'compose' | 'ai' | 'executive' | 'contacts' | 'projects' | 'knowledge' | 'dashboard' | 'import' | 'providers' | 'integrations' | 'tips'
+type Section = 'start' | 'inbox' | 'compose' | 'ai' | 'executive' | 'social' | 'contacts' | 'projects' | 'knowledge' | 'dashboard' | 'import' | 'providers' | 'integrations' | 'tips'
 
 const SECTIONS: { id: Section; icon: string; label: string }[] = [
   { id: 'start',     icon: '🚀', label: 'Getting Started' },
@@ -11,6 +11,7 @@ const SECTIONS: { id: Section; icon: string; label: string }[] = [
   { id: 'compose',   icon: '✏️', label: 'Composing' },
   { id: 'ai',        icon: '✦',  label: 'AI Features' },
   { id: 'executive', icon: '📊', label: 'Executive Tools' },
+  { id: 'social',    icon: '💼', label: 'Social Media' },
   { id: 'contacts',  icon: '⭐', label: 'VIP & Contacts' },
   { id: 'projects',  icon: '📁', label: 'Projects' },
   { id: 'knowledge', icon: '🧠', label: 'Knowledge Base' },
@@ -883,6 +884,60 @@ sudo apt-get install readpst
   )
 }
 
+function SocialSection() {
+  return (
+    <div>
+      <H2>Social Media — LinkedIn</H2>
+      <P>Create and publish AI-generated LinkedIn posts with custom images using the 7-step wizard in <strong>Social → LinkedIn</strong>.</P>
+
+      <H3>7-step wizard</H3>
+      <Step n={1}><strong>Topic</strong> — describe what you want to post about</Step>
+      <Step n={2}><strong>Trends</strong> — pick a trending angle from AI-suggested topics</Step>
+      <Step n={3}><strong>Write</strong> — choose audience and tone, then generate and edit your post text</Step>
+      <Step n={4}><strong>Style</strong> — pick an image style template (or write a custom prompt), then click <strong>"Generate with this Style →"</strong>. Click <strong>"Skip — No Style"</strong> to generate without a template.</Step>
+      <Step n={5}><strong>Images</strong> — choose one of 3 AI-generated images, or select "No image" for a text-only post. Use the prompt box to tweak and regenerate.</Step>
+      <Step n={6}><strong>Schedule</strong> — post immediately or schedule for a future date and time</Step>
+      <Step n={7}><strong>Done</strong> — post published or scheduled on LinkedIn</Step>
+
+      <H3>Prompt Template Library</H3>
+      <P>Access via <strong>Social → Templates</strong> or the blue banner at the top of the LinkedIn wizard.</P>
+      <UL>
+        <Li><strong>6 built-in styles</strong> ship with every install: Professional Corporate, Inspirational Quote, Tech &amp; Innovation, Warm &amp; Storytelling, Data &amp; Analytics, Leadership &amp; Growth</Li>
+        <Li>Each template has a <strong>sample image</strong> showing what the style looks like — displayed as a mini LinkedIn post mockup</Li>
+        <Li>Click <strong>"Add New Template"</strong> to create your own: enter a name, a DALL-E image prompt, and optionally upload a sample image</Li>
+        <Li>Custom templates are saved to the local database and persist across sessions</Li>
+      </UL>
+
+      <H3>Image generation model</H3>
+      <P>Go to <strong>Settings → LinkedIn → Image Generation Model</strong> to choose which OpenAI model generates your post images.</P>
+      <UL>
+        <Li><strong>DALL-E 3</strong> — default; best quality, most widely available</Li>
+        <Li><strong>GPT Image 1</strong> — newer OpenAI image model</Li>
+        <Li><strong>GPT-5.5</strong> — latest generation model with image capabilities</Li>
+        <Li><strong>DALL-E 2</strong> — fastest fallback; available on all OpenAI keys</Li>
+        <Li>If your selected model isn't available on your key, the app <strong>automatically tries the next model</strong> until one works</Li>
+      </UL>
+
+      <H3>Verify connectivity</H3>
+      <P>Click <strong>Verify</strong> in Settings → LinkedIn to test all three connections at once:</P>
+      <UL>
+        <Li><strong>LinkedIn API</strong> — checks your access token is valid and shows your name</Li>
+        <Li><strong>OpenAI (DALL-E)</strong> — validates your OpenAI API key</Li>
+        <Li><strong>AI Provider</strong> — confirms your configured AI (Claude, GPT, etc.) can respond</Li>
+      </UL>
+
+      <H3>LinkedIn setup</H3>
+      <UL>
+        <Li>Create a LinkedIn app at <strong>developer.linkedin.com</strong></Li>
+        <Li>Add the <strong>Share on LinkedIn</strong> and <strong>OpenID Connect</strong> products</Li>
+        <Li>Generate an access token via OAuth 2.0 tools</Li>
+        <Li>Enter your <strong>Access Token</strong> and <strong>LinkedIn User ID</strong> in Settings → LinkedIn</Li>
+        <Li>Your User ID format: <code>urn:li:person:XXXXXXXX</code></Li>
+      </UL>
+    </div>
+  )
+}
+
 function IntegrationsSection() {
   return (
     <div>
@@ -933,6 +988,7 @@ const CONTENT: Record<Section, React.ReactNode> = {
   compose:      <CompositionSection />,
   ai:           <AISection />,
   executive:    <ExecutiveTools />,
+  social:       <SocialSection />,
   contacts:     <ContactsSection />,
   projects:     <ProjectsSection />,
   knowledge:    <KnowledgeSection />,

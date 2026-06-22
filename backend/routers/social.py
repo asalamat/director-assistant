@@ -10,7 +10,8 @@ from routers.config import load_app_config, save_app_config
 
 router = APIRouter(prefix="/api/social", tags=["social"])
 
-LINKEDIN_SETTING_KEYS = ("client_id", "client_secret", "access_token", "user_id", "custom_prompts")
+LINKEDIN_SETTING_KEYS = ("client_id", "client_secret", "access_token", "user_id", "custom_prompts", "image_model")
+IMAGE_MODELS = ("dall-e-3", "gpt-image-1", "gpt-5.5", "dall-e-2")  # tried in order if preferred fails
 
 BUILTIN_TEMPLATES = [
     {
@@ -105,6 +106,7 @@ def _get_linkedin_settings() -> dict:
         "access_token": ln.get("access_token", ""),
         "user_id": ln.get("user_id", ""),
         "custom_prompts": ln.get("custom_prompts", []),
+        "image_model": ln.get("image_model", "dall-e-3"),
     }
 
 
@@ -250,29 +252,71 @@ async def generate_images(body: dict, request: Request):
         return {"images": [], "error": "Could not parse AI image prompts"}
     prompts = [str(p) for p in prompts[:3]]
 
+    # Use model from settings, then fall back through the rest
+    preferred = _get_linkedin_settings().get("image_model", "dall-e-3") or "dall-e-3"
+    fallback_list = list(IMAGE_MODELS)
+    if preferred in fallback_list:
+        fallback_list.remove(preferred)
+    IMAGE_MODEL_FALLBACKS = [preferred] + fallback_list
+
+    async def _try_image(http_client, prompt: str, model: str) -> tuple[str, str]:
+        """Returns (data_url_or_https_url, error). url is empty on failure."""
+        # Do NOT send response_format — some models reject it as unknown.
+        # Instead, check both url and b64_json in the response.
+        payload: dict = {
+            "model": model,
+            "prompt": prompt[:4000],
+            "n": 1,
+            "size": "1024x1024",
+        }
+        try:
+            r = await http_client.post(
+                "https://api.openai.com/v1/images/generations",
+                headers=headers,
+                json=payload,
+            )
+        except Exception as e:
+            return "", f"Request failed: {e}"
+        if r.status_code == 200:
+            item = r.json().get("data", [{}])[0]
+            url = item.get("url", "")
+            b64 = item.get("b64_json", "")
+            if url:
+                return url, ""
+            if b64:
+                return f"data:image/png;base64,{b64}", ""
+            return "", f"Model {model} returned no image data"
+        eb = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
+        msg = eb.get("error", {}).get("message", r.text[:300])
+        return "", f"OpenAI {r.status_code}: {msg}"
+
     images = []
     last_error = ""
     headers = {"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"}
+
+    # Try each model in order — stop at the first one that works for this key
+    working_model: str | None = None
+    _skip_phrases = ("does not exist", "not supported", "not available", "no access", "model_not_found")
     async with httpx.AsyncClient(timeout=120.0) as http:
-        for p in prompts:
-            try:
-                resp = await http.post(
-                    "https://api.openai.com/v1/images/generations",
-                    headers=headers,
-                    json={"model": "dall-e-3", "prompt": p, "size": "1024x1024", "n": 1},
-                )
-                if resp.status_code != 200:
-                    err_body = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
-                    openai_msg = err_body.get("error", {}).get("message", resp.text[:200])
-                    last_error = f"OpenAI {resp.status_code}: {openai_msg}"
-                    continue
-                data = resp.json()
-                url = data.get("data", [{}])[0].get("url", "")
+        if prompts:
+            for m in IMAGE_MODEL_FALLBACKS:
+                url, err = await _try_image(http, prompts[0], m)
+                if url:
+                    images.append({"url": url, "prompt": prompts[0]})
+                    working_model = m
+                    break
+                last_error = err
+                err_lower = err.lower()
+                if not any(p in err_lower for p in _skip_phrases):
+                    break  # real error (quota/auth/billing) — no point trying other models
+        # Generate remaining prompts with the working model
+        if working_model and len(prompts) > 1:
+            for p in prompts[1:]:
+                url, err = await _try_image(http, p, working_model)
                 if url:
                     images.append({"url": url, "prompt": p})
-            except Exception as e:
-                last_error = str(e)
-                continue
+                else:
+                    last_error = err
 
     if not images:
         return {"images": [], "error": last_error or "DALL-E returned no images"}

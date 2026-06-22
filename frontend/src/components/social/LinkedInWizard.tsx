@@ -22,7 +22,7 @@ interface LinkedInTemplate {
   icon?: string
 }
 
-const STEPS = ['Topic', 'Trends', 'Write', 'Images', 'Schedule', 'Done']
+const STEPS = ['Topic', 'Trends', 'Write', 'Style', 'Images', 'Schedule', 'Done']
 
 const AUDIENCES = ['Executives', 'Developers', 'Marketers', 'General']
 const TONES = ['Professional', 'Conversational', 'Inspirational', 'Educational']
@@ -76,6 +76,7 @@ export function LinkedInWizard({ onViewHistory, onManageTemplates }: { onViewHis
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [imgLoading, setImgLoading] = useState(false)
+  const [templatesLoading, setTemplatesLoading] = useState(false)
   const [error, setError] = useState('')
 
   const fetchTrends = async () => {
@@ -106,42 +107,35 @@ export function LinkedInWizard({ onViewHistory, onManageTemplates }: { onViewHis
     }
   }
 
-  const goToImages = async () => {
-    setStep(4); setImgLoading(true); setError('')
+  // Step 4 — load templates, no image generation yet
+  const goToStylePicker = async () => {
+    setStep(4); setImages([]); setSelectedImage(null); setError('')
+    setTemplatesLoading(true)
     try {
-      const [imgR, tmplR] = await Promise.all([
-        (api as any).generateLinkedInImages({
-          topic: selectedTrend?.title,
-          post_text: post,
-          custom_prompt: customPrompt || undefined,
-        }),
-        (api as any).getLinkedInTemplates().catch(() => ({ templates: [] })),
-      ])
-      if (imgR.error) setError(imgR.error)
-      setImages(imgR.images || [])
-      setTemplates(tmplR.templates || [])
-    } catch (e) {
-      setError((e as Error).message || 'Failed to generate images')
+      const r = await (api as any).getLinkedInTemplates().catch(() => ({ templates: [] }))
+      setTemplates(r.templates || [])
+    } catch {
+      setTemplates([])
     } finally {
-      setImgLoading(false)
+      setTemplatesLoading(false)
     }
   }
 
-  const applyTemplate = async (tmpl: LinkedInTemplate) => {
-    setSelectedTemplate(tmpl.id)
-    setCustomPrompt(tmpl.prompt)
-    setImgLoading(true); setError('')
+  // Step 5 — generate images using selected template (or none)
+  const generateImages = async (tmpl?: LinkedInTemplate) => {
+    const prompt = tmpl ? tmpl.prompt : (customPrompt || undefined)
+    if (tmpl) { setSelectedTemplate(tmpl.id); setCustomPrompt(tmpl.prompt) }
+    setStep(5); setImgLoading(true); setError('')
     try {
       const r = await (api as any).generateLinkedInImages({
         topic: selectedTrend?.title,
         post_text: post,
-        custom_prompt: tmpl.prompt,
+        custom_prompt: prompt,
       })
       if (r.error) setError(r.error)
       setImages(r.images || [])
-      setSelectedImage(null)
     } catch (e) {
-      setError((e as Error).message || 'Failed to regenerate images')
+      setError((e as Error).message || 'Failed to generate images')
     } finally {
       setImgLoading(false)
     }
@@ -167,15 +161,15 @@ export function LinkedInWizard({ onViewHistory, onManageTemplates }: { onViewHis
   const publish = async () => {
     setLoading(true); setError('')
     try {
+      const hashtagLine = hashtags.length > 0 ? '\n\n' + hashtags.map(h => `#${h}`).join(' ') : ''
       const r = await (api as any).publishLinkedInPost({
-        post,
-        hashtags,
+        post_text: post + hashtagLine,
         image_url: selectedImage !== null && selectedImage >= 0 ? images[selectedImage]?.url : undefined,
         content_type: contentType,
-        schedule_at: scheduleMode === 'schedule' ? scheduleDate : undefined,
+        scheduled_at: scheduleMode === 'schedule' ? scheduleDate : undefined,
       })
       setPublishResult(r)
-      setStep(6)
+      setStep(7)
     } catch (e) {
       setError((e as Error).message || 'Failed to publish')
     } finally {
@@ -188,7 +182,7 @@ export function LinkedInWizard({ onViewHistory, onManageTemplates }: { onViewHis
     setPost(''); setHashtags([]); setImages([]); setSelectedImage(null)
     setCustomPrompt(''); setContentType('image+text'); setScheduleMode('now')
     setScheduleDate(''); setPublishResult(null); setError('')
-    setTemplates([]); setSelectedTemplate(null)
+    setTemplates([]); setSelectedTemplate(null); setTemplatesLoading(false)
   }
 
   const engagementColor = (e: string) =>
@@ -361,68 +355,125 @@ export function LinkedInWizard({ onViewHistory, onManageTemplates }: { onViewHis
               Back
             </button>
             <button
-              onClick={goToImages}
+              onClick={goToStylePicker}
               disabled={!post}
               className="px-5 py-2.5 bg-accent text-white rounded-xl text-sm font-medium hover:opacity-90 disabled:opacity-50 transition"
             >
-              Generate Images →
+              Choose Image Style →
             </button>
           </div>
         </div>
       )}
 
-      {/* Step 4 — Images */}
+      {/* Step 4 — Pick image style / template */}
       {step === 4 && (
-        <div className="space-y-4">
-          <h2 className="text-base font-semibold text-gray-900">Choose an Image</h2>
+        <div className="space-y-5">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">Choose an Image Style</h2>
+            <p className="text-xs text-gray-400 mt-1">Pick a visual style for your post image, or skip to generate without one.</p>
+          </div>
 
-          {/* Template Style Picker */}
-          {templates.length > 0 && (
-            <div>
-              <p className="text-xs font-medium text-gray-500 mb-2">Choose a visual style — click to apply</p>
-              <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1">
-                {templates.map(tmpl => (
-                  <button
-                    key={tmpl.id}
-                    onClick={() => applyTemplate(tmpl)}
-                    disabled={imgLoading}
-                    title={tmpl.prompt}
-                    className={`flex-shrink-0 w-28 border-2 rounded-xl overflow-hidden transition-colors disabled:opacity-50 ${
-                      selectedTemplate === tmpl.id
-                        ? 'border-accent shadow-sm'
-                        : 'border-gray-200 hover:border-gray-400 bg-white'
-                    }`}
-                  >
-                    {/* Mini LinkedIn post mockup */}
-                    <div className="bg-white">
-                      {/* Fake header */}
-                      <div className="flex items-center gap-1 px-2 pt-2 pb-1">
-                        <div className="w-4 h-4 bg-blue-600 rounded-full flex-shrink-0" />
-                        <div className="flex-1 space-y-0.5">
-                          <div className="h-1 bg-gray-200 rounded-full w-full" />
-                          <div className="h-1 bg-gray-100 rounded-full w-2/3" />
-                        </div>
-                      </div>
-                      {/* Image area */}
-                      <div className="w-full aspect-video bg-gray-100 overflow-hidden flex items-center justify-center">
-                        {tmpl.sample_image ? (
-                          <img src={tmpl.sample_image} alt={tmpl.name} className="w-full h-full object-cover" />
-                        ) : (
-                          <span className="text-xl">{tmpl.icon || '🎨'}</span>
-                        )}
+          {templatesLoading ? (
+            <div className="flex items-center gap-2 text-sm text-gray-400"><Spinner /> Loading styles…</div>
+          ) : templates.length === 0 ? (
+            <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center space-y-1">
+              <span className="text-2xl">🎨</span>
+              <p className="text-sm text-gray-500">No templates yet</p>
+              <p className="text-xs text-gray-400">Add styles in the Prompt Template Library →</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              {templates.map(tmpl => (
+                <button
+                  key={tmpl.id}
+                  onClick={() => setSelectedTemplate(prev => prev === tmpl.id ? null : tmpl.id)}
+                  title={tmpl.prompt}
+                  className={`text-left border-2 rounded-xl overflow-hidden transition-all ${
+                    selectedTemplate === tmpl.id
+                      ? 'border-accent shadow-md ring-2 ring-blue-100'
+                      : 'border-gray-200 hover:border-gray-400 bg-white'
+                  }`}
+                >
+                  {/* Mini post mockup */}
+                  <div className="bg-white">
+                    <div className="flex items-center gap-1.5 px-3 pt-3 pb-1.5">
+                      <div className="w-5 h-5 bg-blue-600 rounded-full flex-shrink-0" />
+                      <div className="flex-1 space-y-1">
+                        <div className="h-1.5 bg-gray-200 rounded-full w-full" />
+                        <div className="h-1 bg-gray-100 rounded-full w-2/3" />
                       </div>
                     </div>
-                    <div className="px-2 py-1.5 bg-white border-t border-gray-100">
-                      <span className="text-[10px] text-gray-600 leading-tight line-clamp-1 font-medium">{tmpl.name}</span>
-                      {selectedTemplate === tmpl.id && (
-                        <div className="mt-0.5 text-[9px] text-accent font-semibold">✓ Applied</div>
+                    <div className="w-full aspect-video bg-gray-100 overflow-hidden flex items-center justify-center">
+                      {tmpl.sample_image ? (
+                        <img src={tmpl.sample_image} alt={tmpl.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-2xl">{tmpl.icon || '🎨'}</span>
                       )}
                     </div>
-                  </button>
-                ))}
-              </div>
+                  </div>
+                  <div className="px-3 py-2 bg-white border-t border-gray-100 flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-semibold text-gray-800 line-clamp-1">{tmpl.name}</p>
+                      <p className="text-[10px] text-gray-400 line-clamp-1 mt-0.5">{tmpl.prompt.slice(0, 50)}…</p>
+                    </div>
+                    {selectedTemplate === tmpl.id && (
+                      <div className="w-5 h-5 bg-accent rounded-full flex items-center justify-center flex-shrink-0 ml-2">
+                        <span className="text-white text-[9px] font-bold">✓</span>
+                      </div>
+                    )}
+                  </div>
+                </button>
+              ))}
             </div>
           )}
+
+          {/* Custom prompt override */}
+          <div>
+            <p className="text-xs font-medium text-gray-500 mb-1.5">Or describe your own style</p>
+            <textarea
+              className="w-full h-20 px-3 py-2 border border-gray-200 rounded-xl text-xs resize-none focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent placeholder-gray-400"
+              placeholder="e.g. 'Minimalist design, white background, bold typography, no faces'"
+              value={customPrompt}
+              onChange={e => { setCustomPrompt(e.target.value); if (e.target.value) setSelectedTemplate(null) }}
+            />
+          </div>
+
+          <div className="flex gap-2 pt-1">
+            <button onClick={() => setStep(3)} className="px-4 py-2 rounded-xl text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition">
+              Back
+            </button>
+            <button
+              onClick={() => generateImages()}
+              className="px-4 py-2 rounded-xl text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition"
+            >
+              Skip — No Style
+            </button>
+            <button
+              onClick={() => {
+                const tmpl = templates.find(t => t.id === selectedTemplate)
+                generateImages(tmpl)
+              }}
+              disabled={!selectedTemplate && !customPrompt.trim()}
+              className="flex-1 px-5 py-2.5 bg-accent text-white rounded-xl text-sm font-medium hover:opacity-90 disabled:opacity-50 transition"
+            >
+              Generate with this Style →
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Step 5 — Generated Images */}
+      {step === 5 && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold text-gray-900">Choose an Image</h2>
+            <button
+              onClick={goToStylePicker}
+              className="text-xs text-accent hover:underline"
+            >
+              ← Change style
+            </button>
+          </div>
 
           {imgLoading ? (
             <div className="space-y-3">
@@ -433,15 +484,15 @@ export function LinkedInWizard({ onViewHistory, onManageTemplates }: { onViewHis
               </div>
               <div className="flex items-center gap-2 text-xs text-gray-400">
                 <Spinner />
-                <span>Generating images with DALL-E… this can take up to 60 seconds</span>
+                <span>Generating images… this can take up to 60 seconds</span>
               </div>
             </div>
           ) : images.length === 0 ? (
             <div className="border-2 border-dashed border-gray-200 rounded-xl p-8 text-center space-y-2">
               <span className="text-3xl">🖼️</span>
-              <p className="text-sm font-medium text-gray-600">No images generated yet</p>
+              <p className="text-sm font-medium text-gray-600">No images generated</p>
               <p className="text-xs text-gray-400">
-                {error ? 'See error above — check your OpenAI API key in Settings' : 'Enter a custom prompt below and click Regenerate, or go back to Step 3 and try a different topic'}
+                {error ? 'See error above — check your OpenAI API key in Settings' : 'Click Try Again or go back to choose a different style'}
               </p>
               <button
                 onClick={regenImages}
@@ -485,7 +536,7 @@ export function LinkedInWizard({ onViewHistory, onManageTemplates }: { onViewHis
             <input
               type="text"
               className="flex-1 px-3 py-2 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent placeholder-gray-400"
-              placeholder="Custom prompt to regenerate (optional)…"
+              placeholder="Tweak the prompt and regenerate…"
               value={customPrompt}
               onChange={e => setCustomPrompt(e.target.value)}
             />
@@ -499,11 +550,11 @@ export function LinkedInWizard({ onViewHistory, onManageTemplates }: { onViewHis
           </div>
 
           <div className="flex gap-2 pt-2">
-            <button onClick={() => setStep(3)} className="px-4 py-2 rounded-xl text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition">
+            <button onClick={goToStylePicker} className="px-4 py-2 rounded-xl text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition">
               Back
             </button>
             <button
-              onClick={() => setStep(5)}
+              onClick={() => setStep(6)}
               disabled={selectedImage === null}
               className="px-5 py-2.5 bg-accent text-white rounded-xl text-sm font-medium hover:opacity-90 disabled:opacity-50 transition"
             >
@@ -513,8 +564,8 @@ export function LinkedInWizard({ onViewHistory, onManageTemplates }: { onViewHis
         </div>
       )}
 
-      {/* Step 5 — Content Type & Schedule */}
-      {step === 5 && (
+      {/* Step 6 — Content Type & Schedule */}
+      {step === 6 && (
         <div className="space-y-5">
           <h2 className="text-base font-semibold text-gray-900">How do you want to post?</h2>
 
@@ -566,7 +617,7 @@ export function LinkedInWizard({ onViewHistory, onManageTemplates }: { onViewHis
           </div>
 
           <div className="flex gap-2 pt-2">
-            <button onClick={() => setStep(4)} className="px-4 py-2 rounded-xl text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition">
+            <button onClick={() => setStep(5)} className="px-4 py-2 rounded-xl text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition">
               Back
             </button>
             <button
@@ -581,8 +632,8 @@ export function LinkedInWizard({ onViewHistory, onManageTemplates }: { onViewHis
         </div>
       )}
 
-      {/* Step 6 — Done */}
-      {step === 6 && (
+      {/* Step 7 — Done */}
+      {step === 7 && (
         <div className="space-y-5 text-center">
           <div className="flex flex-col items-center gap-3">
             <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">

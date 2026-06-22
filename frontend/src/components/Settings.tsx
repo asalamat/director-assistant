@@ -442,12 +442,20 @@ function SectionHeader({ title, desc }: { title: string; desc: string }) {
   )
 }
 
+const IMAGE_MODELS = [
+  { value: 'dall-e-3',    label: 'DALL-E 3 (default)' },
+  { value: 'gpt-image-1', label: 'GPT Image 1' },
+  { value: 'gpt-5.5',     label: 'GPT-5.5' },
+  { value: 'dall-e-2',    label: 'DALL-E 2 (fallback)' },
+]
+
 function LinkedInSettingsPanel() {
   const [clientId, setClientId] = useState('')
   const [clientSecret, setClientSecret] = useState('')
   const [accessToken, setAccessToken] = useState('')
   const [userId, setUserId] = useState('')
   const [customPromptsRaw, setCustomPromptsRaw] = useState('')
+  const [imageModel, setImageModel] = useState('dall-e-3')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
@@ -456,12 +464,13 @@ function LinkedInSettingsPanel() {
 
   useEffect(() => {
     api.getLinkedInSettings()
-      .then(r => {
+      .then((r: any) => {
         setClientId(r.client_id || '')
         setClientSecret(r.client_secret || '')
         setAccessToken(r.access_token || '')
         setUserId(r.user_id || '')
         setCustomPromptsRaw((r.custom_prompts || []).join('\n'))
+        setImageModel(r.image_model || 'dall-e-3')
       })
       .catch(() => {})
   }, [])
@@ -474,7 +483,8 @@ function LinkedInSettingsPanel() {
       await api.saveLinkedInSettings({
         client_id: clientId, client_secret: clientSecret,
         access_token: accessToken, user_id: userId, custom_prompts: prompts,
-      })
+        image_model: imageModel,
+      } as any)
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     } catch (e: unknown) {
@@ -553,6 +563,20 @@ function LinkedInSettingsPanel() {
             placeholder={"Professional headshot on white background\nModern tech office with team"}
             className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent resize-none"
           />
+        </div>
+
+        <div>
+          <label className="text-xs font-medium text-gray-600 block mb-1">Image Generation Model</label>
+          <p className="text-xs text-gray-400 mb-1.5">Which OpenAI model to use for generating post images. If the selected model isn't available on your key, the app tries the next one automatically.</p>
+          <select
+            value={imageModel}
+            onChange={e => setImageModel(e.target.value)}
+            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent bg-white"
+          >
+            {IMAGE_MODELS.map(m => (
+              <option key={m.value} value={m.value}>{m.label}</option>
+            ))}
+          </select>
         </div>
       </div>
 
