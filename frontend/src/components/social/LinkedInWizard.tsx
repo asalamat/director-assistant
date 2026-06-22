@@ -117,6 +117,7 @@ export function LinkedInWizard({ onViewHistory, onManageTemplates }: { onViewHis
         }),
         (api as any).getLinkedInTemplates().catch(() => ({ templates: [] })),
       ])
+      if (imgR.error) setError(imgR.error)
       setImages(imgR.images || [])
       setTemplates(tmplR.templates || [])
     } catch (e) {
@@ -136,6 +137,7 @@ export function LinkedInWizard({ onViewHistory, onManageTemplates }: { onViewHis
         post_text: post,
         custom_prompt: tmpl.prompt,
       })
+      if (r.error) setError(r.error)
       setImages(r.images || [])
       setSelectedImage(null)
     } catch (e) {
@@ -153,6 +155,7 @@ export function LinkedInWizard({ onViewHistory, onManageTemplates }: { onViewHis
         post_text: post,
         custom_prompt: customPrompt || undefined,
       })
+      if (r.error) setError(r.error)
       setImages(r.images || [])
     } catch (e) {
       setError((e as Error).message || 'Failed to regenerate images')
@@ -422,10 +425,30 @@ export function LinkedInWizard({ onViewHistory, onManageTemplates }: { onViewHis
           )}
 
           {imgLoading ? (
-            <div className="grid grid-cols-3 gap-3">
-              {[0, 1, 2].map(i => (
-                <div key={i} className="aspect-square bg-gray-100 rounded-xl animate-pulse" />
-              ))}
+            <div className="space-y-3">
+              <div className="grid grid-cols-3 gap-3">
+                {[0, 1, 2].map(i => (
+                  <div key={i} className="aspect-square bg-gray-100 rounded-xl animate-pulse" />
+                ))}
+              </div>
+              <div className="flex items-center gap-2 text-xs text-gray-400">
+                <Spinner />
+                <span>Generating images with DALL-E… this can take up to 60 seconds</span>
+              </div>
+            </div>
+          ) : images.length === 0 ? (
+            <div className="border-2 border-dashed border-gray-200 rounded-xl p-8 text-center space-y-2">
+              <span className="text-3xl">🖼️</span>
+              <p className="text-sm font-medium text-gray-600">No images generated yet</p>
+              <p className="text-xs text-gray-400">
+                {error ? 'See error above — check your OpenAI API key in Settings' : 'Enter a custom prompt below and click Regenerate, or go back to Step 3 and try a different topic'}
+              </p>
+              <button
+                onClick={regenImages}
+                className="mt-2 px-4 py-2 bg-accent text-white rounded-xl text-sm font-medium hover:opacity-90 transition"
+              >
+                Try Again
+              </button>
             </div>
           ) : (
             <div className="grid grid-cols-3 gap-3">
@@ -462,16 +485,16 @@ export function LinkedInWizard({ onViewHistory, onManageTemplates }: { onViewHis
             <input
               type="text"
               className="flex-1 px-3 py-2 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent placeholder-gray-400"
-              placeholder="+ Custom prompt to regenerate…"
+              placeholder="Custom prompt to regenerate (optional)…"
               value={customPrompt}
               onChange={e => setCustomPrompt(e.target.value)}
             />
             <button
               onClick={regenImages}
               disabled={imgLoading}
-              className="px-3 py-2 bg-gray-100 text-gray-700 rounded-xl text-xs font-medium hover:bg-gray-200 transition"
+              className="px-3 py-2 bg-gray-100 text-gray-700 rounded-xl text-xs font-medium hover:bg-gray-200 disabled:opacity-50 transition"
             >
-              Regen
+              {imgLoading ? 'Generating…' : 'Regenerate'}
             </button>
           </div>
 
