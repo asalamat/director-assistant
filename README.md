@@ -135,6 +135,10 @@ Everything runs **locally on your machine**. Your emails never leave your device
 - **Meeting Prep Brief** — click any calendar event in the Dashboard for an AI-generated agenda, talking points, and prior email context from all attendees
 - **Scheduled Send** — compose now, schedule delivery for any future date and time
 
+### New Features (v3.49.0 — 2026-06-22)
+- **📚 LinkedIn Prompt Template Library** — pre-built style templates (Professional Corporate, Inspirational Quote, Tech & Innovation, Warm & Storytelling, Data & Analytics, Leadership & Growth) ship with every install; create custom templates with a name, prompt, and optional sample image upload (saved to SQLite, persist across sessions); templates appear as a visual picker strip in wizard Step 4 so you can click any style to regenerate DALL-E images instantly
+- **🔍 Verify Connectivity** — new Verify button in Settings → LinkedIn section pings LinkedIn API (token check), OpenAI (key validation), and the AI provider (Claude test call) simultaneously; each check reports OK ✓ / Fail ✕ with the exact error message so you know precisely what to fix before publishing a post
+
 ### New Features (v3.47.0 — 2026-06-21)
 - **⚖️ Decision Tracker** — Knowledge → Decisions scans your inbox for decision-language threads ("we decided", "approved", "pending your approval") and splits them into **Needs My Decision** (waiting on you) and **Waiting on Others**; days-waiting badge turns amber at 3d, red at 7d; "Generate Brief" writes an AI context summary of the full decision thread
 - **🚨 Escalation Radar** — Knowledge → Escalations scores every thread 0–100 across 5 signals (follow-up count, urgency words, VIP sender, days since reply, recipient count); threads scoring 40+ surface with a heat bar, signal badges, and a **View Timeline** jump button — zero AI cost, pure SQL

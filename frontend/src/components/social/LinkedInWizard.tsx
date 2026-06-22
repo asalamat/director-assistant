@@ -13,6 +13,15 @@ interface GeneratedImage {
   prompt: string
 }
 
+interface LinkedInTemplate {
+  id: string
+  name: string
+  prompt: string
+  sample_image: string
+  builtin: number
+  icon?: string
+}
+
 const STEPS = ['Topic', 'Trends', 'Write', 'Images', 'Schedule', 'Done']
 
 const AUDIENCES = ['Executives', 'Developers', 'Marketers', 'General']
@@ -63,6 +72,8 @@ export function LinkedInWizard({ onViewHistory }: { onViewHistory: () => void })
   const [scheduleMode, setScheduleMode] = useState<'now' | 'schedule'>('now')
   const [scheduleDate, setScheduleDate] = useState('')
   const [publishResult, setPublishResult] = useState<{ status: string; scheduled_for?: string } | null>(null)
+  const [templates, setTemplates] = useState<LinkedInTemplate[]>([])
+  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [imgLoading, setImgLoading] = useState(false)
   const [error, setError] = useState('')
@@ -98,14 +109,37 @@ export function LinkedInWizard({ onViewHistory }: { onViewHistory: () => void })
   const goToImages = async () => {
     setStep(4); setImgLoading(true); setError('')
     try {
+      const [imgR, tmplR] = await Promise.all([
+        (api as any).generateLinkedInImages({
+          topic: selectedTrend?.title,
+          post_text: post,
+          custom_prompt: customPrompt || undefined,
+        }),
+        (api as any).getLinkedInTemplates().catch(() => ({ templates: [] })),
+      ])
+      setImages(imgR.images || [])
+      setTemplates(tmplR.templates || [])
+    } catch (e) {
+      setError((e as Error).message || 'Failed to generate images')
+    } finally {
+      setImgLoading(false)
+    }
+  }
+
+  const applyTemplate = async (tmpl: LinkedInTemplate) => {
+    setSelectedTemplate(tmpl.id)
+    setCustomPrompt(tmpl.prompt)
+    setImgLoading(true); setError('')
+    try {
       const r = await (api as any).generateLinkedInImages({
         topic: selectedTrend?.title,
         post_text: post,
-        custom_prompt: customPrompt || undefined,
+        custom_prompt: tmpl.prompt,
       })
       setImages(r.images || [])
+      setSelectedImage(null)
     } catch (e) {
-      setError((e as Error).message || 'Failed to generate images')
+      setError((e as Error).message || 'Failed to regenerate images')
     } finally {
       setImgLoading(false)
     }
@@ -151,6 +185,7 @@ export function LinkedInWizard({ onViewHistory }: { onViewHistory: () => void })
     setPost(''); setHashtags([]); setImages([]); setSelectedImage(null)
     setCustomPrompt(''); setContentType('image+text'); setScheduleMode('now')
     setScheduleDate(''); setPublishResult(null); setError('')
+    setTemplates([]); setSelectedTemplate(null)
   }
 
   const engagementColor = (e: string) =>
@@ -320,6 +355,35 @@ export function LinkedInWizard({ onViewHistory }: { onViewHistory: () => void })
       {step === 4 && (
         <div className="space-y-4">
           <h2 className="text-base font-semibold text-gray-900">Choose an Image</h2>
+
+          {/* Template Style Picker */}
+          {templates.length > 0 && (
+            <div>
+              <p className="text-xs font-medium text-gray-500 mb-2">Apply a template style</p>
+              <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+                {templates.map(tmpl => (
+                  <button
+                    key={tmpl.id}
+                    onClick={() => applyTemplate(tmpl)}
+                    disabled={imgLoading}
+                    title={tmpl.prompt}
+                    className={`flex-shrink-0 w-20 border-2 rounded-xl p-2 flex flex-col items-center gap-1 transition-colors disabled:opacity-50 ${
+                      selectedTemplate === tmpl.id
+                        ? 'border-accent bg-blue-50'
+                        : 'border-gray-200 hover:border-gray-300 bg-white'
+                    }`}
+                  >
+                    {tmpl.sample_image ? (
+                      <img src={tmpl.sample_image} alt={tmpl.name} className="w-10 h-10 rounded-lg object-cover" />
+                    ) : (
+                      <span className="text-2xl leading-none">{tmpl.icon || '🎨'}</span>
+                    )}
+                    <span className="text-[10px] text-gray-600 text-center leading-tight line-clamp-2">{tmpl.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {imgLoading ? (
             <div className="grid grid-cols-3 gap-3">

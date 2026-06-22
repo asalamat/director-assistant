@@ -12,6 +12,57 @@ router = APIRouter(prefix="/api/social", tags=["social"])
 
 LINKEDIN_SETTING_KEYS = ("client_id", "client_secret", "access_token", "user_id", "custom_prompts")
 
+BUILTIN_TEMPLATES = [
+    {
+        "id": "builtin-professional-corporate",
+        "name": "Professional Corporate",
+        "icon": "🏢",
+        "prompt": "Clean corporate boardroom or modern office setting, professional lighting, sleek architecture, muted blues and grays, no text overlays, business LinkedIn aesthetic",
+        "sample_image": "",
+        "builtin": 1,
+    },
+    {
+        "id": "builtin-inspirational-quote",
+        "name": "Inspirational Quote",
+        "icon": "💬",
+        "prompt": "Minimalist motivational poster style, bold clean typography placeholder on a smooth gradient background, warm amber or teal tones, uplifting atmosphere, no specific text",
+        "sample_image": "",
+        "builtin": 1,
+    },
+    {
+        "id": "builtin-tech-innovation",
+        "name": "Tech & Innovation",
+        "icon": "🚀",
+        "prompt": "Futuristic technology visualization, blue holographic UI elements, glowing circuit patterns, data flow streams, dark background with neon accents, high-tech professional aesthetic",
+        "sample_image": "",
+        "builtin": 1,
+    },
+    {
+        "id": "builtin-warm-storytelling",
+        "name": "Warm & Storytelling",
+        "icon": "🌟",
+        "prompt": "Authentic candid moment, warm golden natural lighting, genuine human connection or team collaboration, documentary photography style, relatable and approachable, no artificial staging",
+        "sample_image": "",
+        "builtin": 1,
+    },
+    {
+        "id": "builtin-data-analytics",
+        "name": "Data & Analytics",
+        "icon": "📊",
+        "prompt": "Clean business data visualization, professional charts and graphs on a white or light blue background, modern dashboard aesthetic, crisp lines, no specific numbers or labels",
+        "sample_image": "",
+        "builtin": 1,
+    },
+    {
+        "id": "builtin-leadership-growth",
+        "name": "Leadership & Growth",
+        "icon": "📈",
+        "prompt": "Upward growth and success visualization, staircase to achievement or mountain summit metaphor, inspiring greens and golds, teamwork or individual triumph, professional motivational imagery",
+        "sample_image": "",
+        "builtin": 1,
+    },
+]
+
 
 def _ensure_tables(cache):
     with cache._conn() as conn:
@@ -30,6 +81,16 @@ def _ensure_tables(cache):
                 published_at TEXT,
                 linkedin_post_id TEXT,
                 status TEXT DEFAULT 'draft',
+                created_at TEXT DEFAULT (datetime('now'))
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS linkedin_templates (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                prompt TEXT NOT NULL,
+                sample_image TEXT DEFAULT '',
+                builtin INTEGER DEFAULT 0,
                 created_at TEXT DEFAULT (datetime('now'))
             )
         """)
@@ -323,3 +384,104 @@ async def delete_history(post_id: str, request: Request):
     with cache._conn() as conn:
         conn.execute("DELETE FROM linkedin_posts WHERE id=?", (post_id,))
     return {"status": "deleted"}
+
+
+# ── Prompt Template Library ────────────────────────────────────────────────────
+
+@router.get("/linkedin/templates")
+async def get_templates(request: Request):
+    cache = request.app.state.cache
+    _ensure_tables(cache)
+    with cache._conn() as conn:
+        rows = conn.execute(
+            "SELECT id, name, prompt, sample_image, builtin, created_at FROM linkedin_templates WHERE builtin=0 ORDER BY created_at ASC"
+        ).fetchall()
+    user_templates = [dict(r) for r in rows]
+    return {"templates": BUILTIN_TEMPLATES + user_templates}
+
+
+@router.post("/linkedin/templates")
+async def save_template(body: dict, request: Request):
+    name = (body.get("name") or "").strip()
+    prompt = (body.get("prompt") or "").strip()
+    if not name or not prompt:
+        return {"error": "name and prompt are required"}
+    cache = request.app.state.cache
+    _ensure_tables(cache)
+    tmpl_id = str(uuid.uuid4())
+    sample_image = (body.get("sample_image") or "")
+    with cache._conn() as conn:
+        conn.execute(
+            "INSERT INTO linkedin_templates (id, name, prompt, sample_image, builtin) VALUES (?, ?, ?, ?, 0)",
+            (tmpl_id, name, prompt, sample_image),
+        )
+    return {"id": tmpl_id, "name": name, "prompt": prompt, "sample_image": sample_image, "builtin": 0}
+
+
+@router.delete("/linkedin/templates/{template_id}")
+async def delete_template(template_id: str, request: Request):
+    cache = request.app.state.cache
+    _ensure_tables(cache)
+    with cache._conn() as conn:
+        conn.execute("DELETE FROM linkedin_templates WHERE id=? AND builtin=0", (template_id,))
+    return {"status": "deleted"}
+
+
+# ── Connectivity Verification ──────────────────────────────────────────────────
+
+@router.post("/linkedin/verify")
+async def verify_linkedin(request: Request):
+    """Verify LinkedIn token, OpenAI key, and AI provider connectivity."""
+    results = {}
+
+    # LinkedIn
+    settings = _get_linkedin_settings()
+    access_token = settings.get("access_token", "")
+    if not access_token:
+        results["linkedin"] = {"ok": False, "message": "No access token configured"}
+    else:
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as http:
+                r = await http.get(
+                    "https://api.linkedin.com/v2/userinfo",
+                    headers={"Authorization": f"Bearer {access_token}"},
+                )
+            if r.status_code == 200:
+                data = r.json()
+                name = data.get("name") or data.get("given_name", "")
+                results["linkedin"] = {"ok": True, "message": f"Connected as {name}" if name else "Connected"}
+            else:
+                results["linkedin"] = {"ok": False, "message": f"HTTP {r.status_code}: token may be expired"}
+        except Exception as e:
+            results["linkedin"] = {"ok": False, "message": str(e)}
+
+    # OpenAI
+    openai_key = _get_openai_key()
+    if not openai_key:
+        results["openai"] = {"ok": False, "message": "No OpenAI API key configured"}
+    else:
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as http:
+                r = await http.get(
+                    "https://api.openai.com/v1/models",
+                    headers={"Authorization": f"Bearer {openai_key}"},
+                )
+            if r.status_code == 200:
+                results["openai"] = {"ok": True, "message": "OpenAI API key valid"}
+            else:
+                results["openai"] = {"ok": False, "message": f"HTTP {r.status_code}: invalid key"}
+        except Exception as e:
+            results["openai"] = {"ok": False, "message": str(e)}
+
+    # AI provider (Claude/Anthropic)
+    try:
+        advisor = getattr(request.app.state, "advisor", None)
+        if advisor:
+            await _ai_complete(request, "Reply with the single word: ok", max_tokens=10)
+            results["ai_provider"] = {"ok": True, "message": "AI provider responding"}
+        else:
+            results["ai_provider"] = {"ok": False, "message": "AI advisor not initialised"}
+    except Exception as e:
+        results["ai_provider"] = {"ok": False, "message": str(e)}
+
+    return results

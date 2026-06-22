@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { LinkedInWizard } from './LinkedInWizard'
 import { PostHistory } from './PostHistory'
+import { LinkedInTemplates } from './LinkedInTemplates'
 
-type TabId = 'linkedin' | 'instagram' | 'twitter' | 'history'
+type TabId = 'linkedin' | 'instagram' | 'twitter' | 'history' | 'templates'
 
 const TABS: { id: TabId; icon: string; label: string; disabled?: boolean }[] = [
   { id: 'linkedin', icon: '💼', label: 'LinkedIn' },
@@ -40,7 +41,7 @@ export function SocialPanel() {
             </button>
           ))}
 
-          <div className="mt-2 border-t border-gray-100 pt-2">
+          <div className="mt-2 border-t border-gray-100 pt-2 flex flex-col gap-0.5">
             <button
               onClick={() => setActiveTab('history')}
               className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-left transition-colors ${
@@ -49,6 +50,15 @@ export function SocialPanel() {
             >
               <span>📋</span>
               <span>History</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('templates')}
+              className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-left transition-colors ${
+                activeTab === 'templates' ? 'bg-blue-50 text-accent' : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <span>📚</span>
+              <span>Templates</span>
             </button>
           </div>
         </nav>
@@ -60,6 +70,7 @@ export function SocialPanel() {
           <LinkedInWizard onViewHistory={() => setActiveTab('history')} />
         )}
         {activeTab === 'history' && <PostHistory />}
+        {activeTab === 'templates' && <LinkedInTemplates />}
         {(activeTab === 'instagram' || activeTab === 'twitter') && (
           <div className="flex items-center justify-center h-full text-gray-400 text-sm">
             Coming soon

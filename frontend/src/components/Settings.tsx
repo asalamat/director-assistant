@@ -451,6 +451,8 @@ function LinkedInSettingsPanel() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
+  const [verifying, setVerifying] = useState(false)
+  const [verifyResult, setVerifyResult] = useState<Record<string, { ok: boolean; message: string }> | null>(null)
 
   useEffect(() => {
     api.getLinkedInSettings()
@@ -479,6 +481,18 @@ function LinkedInSettingsPanel() {
       setError(e instanceof Error ? e.message : 'Save failed')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const verify = async () => {
+    setVerifying(true); setVerifyResult(null); setError('')
+    try {
+      const r = await (api as any).verifyLinkedIn()
+      setVerifyResult(r)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Verification failed')
+    } finally {
+      setVerifying(false)
     }
   }
 
@@ -544,12 +558,43 @@ function LinkedInSettingsPanel() {
 
       {error && <p className="text-xs text-red-500">{error}</p>}
 
-      <button
-        onClick={save} disabled={saving}
-        className="w-full bg-accent text-white text-sm font-medium py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
-      >
-        {saving ? 'Saving…' : saved ? 'Saved' : 'Save LinkedIn Settings'}
-      </button>
+      <div className="flex gap-2">
+        <button
+          onClick={save} disabled={saving}
+          className="flex-1 bg-accent text-white text-sm font-medium py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+        >
+          {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save LinkedIn Settings'}
+        </button>
+        <button
+          onClick={verify} disabled={verifying}
+          className="px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 disabled:opacity-50 transition-colors"
+        >
+          {verifying ? 'Verifying…' : 'Verify'}
+        </button>
+      </div>
+
+      {verifyResult && (
+        <div className="border border-gray-200 rounded-xl p-3 space-y-2">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Connectivity Check</p>
+          {[
+            { key: 'linkedin', label: 'LinkedIn API' },
+            { key: 'openai', label: 'OpenAI (DALL-E)' },
+            { key: 'ai_provider', label: 'AI Provider (Claude)' },
+          ].map(({ key, label }) => {
+            const r = verifyResult[key]
+            if (!r) return null
+            return (
+              <div key={key} className="flex items-center gap-2 text-sm">
+                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0 ${r.ok ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
+                  {r.ok ? '✓' : '✕'}
+                </span>
+                <span className="font-medium text-gray-700 w-36 flex-shrink-0">{label}</span>
+                <span className={`text-xs ${r.ok ? 'text-green-600' : 'text-red-500'}`}>{r.message}</span>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

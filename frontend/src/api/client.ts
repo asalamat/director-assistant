@@ -1213,4 +1213,20 @@ export const api = {
   saveLinkedInSettings(data: { client_id?: string; client_secret?: string; access_token?: string; user_id?: string; custom_prompts?: string[] }): Promise<void> {
     return request('/social/linkedin/settings', { method: 'POST', body: JSON.stringify(data) })
   },
+
+  // LinkedIn Prompt Templates
+  getLinkedInTemplates(): Promise<{ templates: { id: string; name: string; prompt: string; sample_image: string; builtin: number; icon?: string }[] }> {
+    return request('/social/linkedin/templates')
+  },
+  saveLinkedInTemplate(data: { name: string; prompt: string; sample_image?: string }): Promise<{ id: string; name: string; prompt: string; sample_image: string; builtin: number }> {
+    return request('/social/linkedin/templates', { method: 'POST', body: JSON.stringify(data) })
+  },
+  deleteLinkedInTemplate(id: string): Promise<void> {
+    return request(`/social/linkedin/templates/${id}`, { method: 'DELETE' })
+  },
+
+  // LinkedIn Connectivity Verify
+  verifyLinkedIn(): Promise<{ linkedin: { ok: boolean; message: string }; openai: { ok: boolean; message: string }; ai_provider: { ok: boolean; message: string } }> {
+    return request('/social/linkedin/verify', { method: 'POST' })
+  },
 }
