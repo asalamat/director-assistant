@@ -346,9 +346,9 @@ async def save_providers(body: ProviderUpdate, request: Request):
         if p.get("type") == "openai" and p.get("key"):
             cfg["openai_api_key"] = p["key"]
     save_app_config(cfg)
-    # Hot-reload the AI client
+    # Hot-reload the AI client with merged (keys preserved), not raw body (keys masked)
     client = request.app.state.advisor.ai
-    client.update_providers(providers=body.providers)
+    client.update_providers(providers=merged)
     return {"saved": len(body.providers), "primary": body.providers[0]["type"] if body.providers else "none"}
 
 
