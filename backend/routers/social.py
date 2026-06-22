@@ -122,16 +122,19 @@ def _get_openai_key() -> str:
     return ""
 
 
-async def _ai_complete(request: Request, prompt: str, max_tokens: int = 800) -> str:
+async def _ai_complete(request: Request, prompt: str, max_tokens: int = 800, system: str = "") -> str:
     advisor = getattr(request.app.state, "advisor", None)
     if not advisor:
         raise RuntimeError("AI advisor not available")
     messages = [{"role": "user", "content": prompt}]
     ant = getattr(advisor.ai, "_anthropic", None)
+    kwargs: dict = {"model": "claude-opus-4-8", "max_tokens": max_tokens, "messages": messages}
+    if system:
+        kwargs["system"] = system
     if ant:
-        resp = await ant.messages.create(model="claude-opus-4-8", max_tokens=max_tokens, messages=messages)
+        resp = await ant.messages.create(**kwargs)
     else:
-        resp = await advisor.ai.messages.create(model="claude-opus-4-8", max_tokens=max_tokens, messages=messages)
+        resp = await advisor.ai.messages.create(**kwargs)
     return resp.content[0].text
 
 
@@ -213,48 +216,65 @@ async def generate_post(body: dict, request: Request):
     subject = (body.get("subject") or "").strip()
     if not topic:
         return {"post": "", "hashtags": [], "char_count": 0, "error": "topic is required"}
+    system_prompt = (
+        "You are a LinkedIn post writer. "
+        "You MUST respond using ONLY the exact output format requested. "
+        "NEVER use JSON. NEVER use code blocks. NEVER add explanations."
+    )
     prompt = (
         f"Write a professional LinkedIn post about: {topic}.\n"
-        f"Subject area: {subject or topic}.\n"
-        f"Target audience: {audience}.\n"
-        f"Tone: {tone}.\n"
-        "Make it engaging, well-structured with real line breaks, and suitable for LinkedIn. "
-        "Include relevant emojis sparingly. Do NOT include hashtags in the post body.\n\n"
-        "Use EXACTLY this format — nothing else, no JSON, no code fences:\n"
-        "===POST===\n"
-        "<write the full post here>\n"
-        "===HASHTAGS===\n"
-        "Hashtag1, Hashtag2, Hashtag3"
+        f"Subject area: {subject or topic}. Target audience: {audience}. Tone: {tone}.\n"
+        "Engaging, well-structured with real line breaks. Emojis sparingly. No hashtags in body.\n\n"
+        "YOUR RESPONSE MUST USE EXACTLY THIS FORMAT — no JSON, no code fences, nothing else:\n"
+        "POSTSTART\n"
+        "write the full post text here\n"
+        "POSTEND\n"
+        "HASHTAGSTART\n"
+        "Hashtag1,Hashtag2,Hashtag3\n"
+        "HASHTAGEND"
     )
     try:
-        content = await _ai_complete(request, prompt, max_tokens=1200)
+        content = await _ai_complete(request, prompt, max_tokens=1200, system=system_prompt)
     except Exception as e:
         return {"post": "", "hashtags": [], "char_count": 0, "error": str(e)}
 
-    # Parse delimited format
     post = ""
     hashtags: list[str] = []
-    if "===POST===" in content:
-        after_post = content.split("===POST===", 1)[1]
-        if "===HASHTAGS===" in after_post:
-            post_part, hashtag_part = after_post.split("===HASHTAGS===", 1)
-            post = post_part.strip()
-            hashtags = [h.strip().lstrip("#") for h in hashtag_part.strip().split(",") if h.strip()]
+
+    # Primary: distinctive markers that an AI would never put inside a LinkedIn post
+    if "POSTSTART" in content and "POSTEND" in content:
+        post = content.split("POSTSTART", 1)[1].split("POSTEND", 1)[0].strip()
+        if "HASHTAGSTART" in content and "HASHTAGEND" in content:
+            ht_raw = content.split("HASHTAGSTART", 1)[1].split("HASHTAGEND", 1)[0].strip()
+            hashtags = [h.strip().lstrip("#") for h in ht_raw.split(",") if h.strip()]
+    elif "===POST===" in content:
+        # Fallback for old format in case already cached
+        after = content.split("===POST===", 1)[1]
+        if "===HASHTAGS===" in after:
+            pp, hp = after.split("===HASHTAGS===", 1)
+            post = pp.strip()
+            hashtags = [h.strip().lstrip("#") for h in hp.strip().split(",") if h.strip()]
         else:
-            post = after_post.strip()
+            post = after.strip()
     else:
-        # Fallback: AI ignored format — use raw content, strip any JSON wrapper
-        post = content.strip()
-        if post.startswith("{") and ('"post"' in post or "'post'" in post):
-            parsed = _extract_json(post)
-            if isinstance(parsed, dict) and "post" in parsed:
-                post = str(parsed["post"]).strip()
-                hashtags = [str(h) for h in (parsed.get("hashtags") or [])]
+        # Nuclear fallback: AI returned JSON despite instructions — strip it
+        raw = content.strip()
+        # Strip markdown code fences
+        import re as _re
+        raw = _re.sub(r"^```[a-z]*\n?", "", raw)
+        raw = _re.sub(r"\n?```$", "", raw).strip()
+        parsed = _extract_json(raw)
+        if isinstance(parsed, dict) and "post" in parsed:
+            post = str(parsed["post"]).strip()
+            hashtags = [str(h) for h in (parsed.get("hashtags") or [])]
+        else:
+            # Last resort: regex-extract the post value from JSON-ish text
+            m = _re.search(r'"post"\s*:\s*"((?:[^"\\]|\\.|\n)*)"', raw, _re.DOTALL)
+            if m:
+                post = m.group(1).replace("\\n", "\n").replace('\\"', '"').replace("\\\\", "\\")
             else:
-                import re as _re
-                m = _re.search(r'["\']post["\']\s*:\s*["\'](.+?)["\'](?:\s*[,}])', post, _re.DOTALL)
-                if m:
-                    post = m.group(1).replace("\\n", "\n")
+                post = raw  # give raw to user so they can see and edit it
+
     return {"post": post, "hashtags": hashtags, "char_count": len(post)}
 
 
