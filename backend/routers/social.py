@@ -220,27 +220,41 @@ async def generate_post(body: dict, request: Request):
         f"Tone: {tone}.\n"
         "Make it engaging, well-structured with real line breaks, and suitable for LinkedIn. "
         "Include relevant emojis sparingly. Do NOT include hashtags in the post body.\n\n"
-        'Return ONLY valid JSON (double quotes, no trailing commas): '
-        '{"post": "the full post text with real newlines", "hashtags": ["Hashtag1", "Hashtag2"]}'
+        "Use EXACTLY this format — nothing else, no JSON, no code fences:\n"
+        "===POST===\n"
+        "<write the full post here>\n"
+        "===HASHTAGS===\n"
+        "Hashtag1, Hashtag2, Hashtag3"
     )
     try:
         content = await _ai_complete(request, prompt, max_tokens=1200)
     except Exception as e:
         return {"post": "", "hashtags": [], "char_count": 0, "error": str(e)}
-    parsed = _extract_json(content)
-    if isinstance(parsed, dict) and "post" in parsed:
-        post = str(parsed.get("post", "")).strip()
-        hashtags = [str(h) for h in (parsed.get("hashtags") or [])]
+
+    # Parse delimited format
+    post = ""
+    hashtags: list[str] = []
+    if "===POST===" in content:
+        after_post = content.split("===POST===", 1)[1]
+        if "===HASHTAGS===" in after_post:
+            post_part, hashtag_part = after_post.split("===HASHTAGS===", 1)
+            post = post_part.strip()
+            hashtags = [h.strip().lstrip("#") for h in hashtag_part.strip().split(",") if h.strip()]
+        else:
+            post = after_post.strip()
     else:
-        # Fallback: strip any JSON wrapper the AI may have added
+        # Fallback: AI ignored format — use raw content, strip any JSON wrapper
         post = content.strip()
-        if post.startswith("{") and '"post"' in post:
-            # AI returned JSON text but parsing failed — try to extract post value
-            import re
-            m = re.search(r'"post"\s*:\s*"(.*?)"(?:,|\s*})', post, re.DOTALL)
-            if m:
-                post = m.group(1).replace("\\n", "\n").replace('\\"', '"')
-        hashtags = []
+        if post.startswith("{") and ('"post"' in post or "'post'" in post):
+            parsed = _extract_json(post)
+            if isinstance(parsed, dict) and "post" in parsed:
+                post = str(parsed["post"]).strip()
+                hashtags = [str(h) for h in (parsed.get("hashtags") or [])]
+            else:
+                import re as _re
+                m = _re.search(r'["\']post["\']\s*:\s*["\'](.+?)["\'](?:\s*[,}])', post, _re.DOTALL)
+                if m:
+                    post = m.group(1).replace("\\n", "\n")
     return {"post": post, "hashtags": hashtags, "char_count": len(post)}
 
 
@@ -434,15 +448,15 @@ async def _upload_image_to_linkedin(access_token: str, author: str, image_url: s
                 return "", f"Could not download image: {dl.status_code}"
             image_bytes = dl.content
 
-        # 3. Upload binary (no auth header needed on the pre-signed URL)
-        up = await http.put(upload_url, content=image_bytes, headers={"Content-Type": "image/png"})
+        # 3. Upload binary — LinkedIn pre-signed URL requires application/octet-stream
+        up = await http.put(upload_url, content=image_bytes, headers={"Content-Type": "application/octet-stream"})
         if up.status_code >= 400:
-            return "", f"Image binary upload failed {up.status_code}"
+            return "", f"Image binary upload failed {up.status_code}: {up.text[:100]}"
 
     return image_urn, ""
 
 
-async def _publish_to_linkedin(post_text: str, settings: dict, image_url: str = "") -> dict:
+async def _publish_to_linkedin(post_text: str, settings: dict, image_url: str = "", content_type: str = "image+text") -> dict:
     access_token = settings.get("access_token", "")
     user_id = settings.get("user_id", "")
     if not access_token:
@@ -459,18 +473,22 @@ async def _publish_to_linkedin(post_text: str, settings: dict, image_url: str = 
         "LinkedIn-Version": "202410",
     }
 
+    # For image-only posts, commentary is empty
+    commentary = "" if content_type == "image" else post_text
+
     # Upload image if provided
     image_urn = ""
+    img_upload_error = ""
     if image_url:
-        image_urn, img_err = await _upload_image_to_linkedin(access_token, author, image_url)
-        if img_err:
-            # Log but continue — post text-only rather than fail entirely
-            image_urn = ""
+        image_urn, img_upload_error = await _upload_image_to_linkedin(access_token, author, image_url)
+        # If image-only and upload failed, return error rather than posting blank text
+        if img_upload_error and content_type == "image":
+            return {"error": f"Image upload failed: {img_upload_error}"}
 
     # Build new /v2/posts payload
     new_payload: dict = {
         "author": author,
-        "commentary": post_text,
+        "commentary": commentary,
         "visibility": "PUBLIC",
         "distribution": {
             "feedDistribution": "MAIN_FEED",
@@ -561,7 +579,7 @@ async def publish(body: dict, request: Request):
         return {"status": "scheduled", "scheduled_for": scheduled_at}
 
     settings = _get_linkedin_settings()
-    result = await _publish_to_linkedin(post_text, settings, image_url)
+    result = await _publish_to_linkedin(post_text, settings, image_url, content_type)
     if "error" in result:
         with cache._conn() as conn:
             conn.execute(

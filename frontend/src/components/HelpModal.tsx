@@ -888,51 +888,83 @@ function SocialSection() {
   return (
     <div>
       <H2>Social Media — LinkedIn</H2>
-      <P>Create and publish AI-generated LinkedIn posts with custom images using the 7-step wizard in <strong>Social → LinkedIn</strong>.</P>
+      <P>Write, design, and publish professional LinkedIn posts with AI-generated text and images — all from inside Director Assistant. No copywriting or design skills needed.</P>
 
-      <H3>7-step wizard</H3>
-      <Step n={1}><strong>Topic</strong> — describe what you want to post about</Step>
-      <Step n={2}><strong>Trends</strong> — pick a trending angle from AI-suggested topics</Step>
-      <Step n={3}><strong>Write</strong> — choose audience and tone, then generate and edit your post text</Step>
-      <Step n={4}><strong>Style</strong> — pick an image style template (or write a custom prompt), then click <strong>"Generate with this Style →"</strong>. Click <strong>"Skip — No Style"</strong> to generate without a template.</Step>
-      <Step n={5}><strong>Images</strong> — choose one of 3 AI-generated images, or select "No image" for a text-only post. Use the prompt box to tweak and regenerate.</Step>
-      <Step n={6}><strong>Schedule</strong> — post immediately or schedule for a future date and time</Step>
-      <Step n={7}><strong>Done</strong> — post published or scheduled on LinkedIn</Step>
+      <H3>Before you start — one-time setup</H3>
+      <P>You need a <strong>LinkedIn Developer App</strong> and an <strong>Access Token</strong>. This takes about 10 minutes and only needs to be done once.</P>
+      <Step n={1}><strong>Go to</strong> <strong>developer.linkedin.com</strong> and sign in with your LinkedIn account.</Step>
+      <Step n={2}><strong>Create an app</strong> — click "Create app", fill in the name (e.g. "My Posting Tool"), link it to your LinkedIn Company Page (you need one; create a free one if you don't have it), and accept the terms.</Step>
+      <Step n={3}><strong>Add products</strong> — in your app, go to the <strong>Products</strong> tab. Request access to <strong>"Share on LinkedIn"</strong> and <strong>"Sign In with LinkedIn using OpenID Connect"</strong>. Both are approved instantly.</Step>
+      <Step n={4}><strong>Generate a token</strong> — go to the <strong>OAuth 2.0 tools</strong> tab inside your app. Under "OAuth token tools", select <strong>Member authorization</strong>. Choose these scopes: <code className="text-xs bg-gray-100 px-1 rounded">openid profile email w_member_social</code>. Click <strong>Request access token</strong> and authorize with your LinkedIn login. Copy the long token that appears.</Step>
+      <Step n={5}><strong>Save in Director Assistant</strong> — open <strong>Settings → LinkedIn</strong>. Paste the token in <strong>Access Token</strong> and click Save. You don't need to enter a User ID — the app finds it automatically.</Step>
+      <Step n={6}><strong>Verify</strong> — click the <strong>Verify Connectivity</strong> button. You should see ✓ next to LinkedIn showing your name (e.g. "Connected as Ali Salamat"). If it shows ✗, your token may be invalid — re-generate it.</Step>
+
+      <Note><strong>Token expiry:</strong> LinkedIn access tokens expire after 60 days. When posting fails with a 403 error, come back to <strong>OAuth 2.0 tools</strong> and generate a fresh token, then update it in Settings → LinkedIn.</Note>
+      <Note><strong>Important:</strong> Always add the <code className="text-xs bg-gray-100 px-1 rounded">w_member_social</code> scope when generating your token — this is what allows posting. If you added "Share on LinkedIn" to your app but generated the token before doing so, generate a new token to pick up the new scope.</Note>
+
+      <H3>Creating a post — 7-step wizard</H3>
+      <P>Click <strong>Social → LinkedIn</strong> and follow the steps:</P>
+      <Step n={1}><strong>Topic</strong> — type the subject you want to post about (e.g. "AI talent shortage in Canada"). Press Enter or click Next.</Step>
+      <Step n={2}><strong>Trends</strong> — the AI suggests 3–5 trending angles on your topic. Click the one that fits best, then click <strong>"Generate Post →"</strong>.</Step>
+      <Step n={3}><strong>Write</strong> — choose your target <strong>Audience</strong> (Executives, Developers, etc.) and <strong>Tone</strong> (Professional, Inspirational, etc.), then click <strong>Generate Post</strong>. Read the result in the text box — you can edit it directly. When happy, click <strong>"Choose Image Style →"</strong>.</Step>
+      <Step n={4}><strong>Style</strong> — pick a visual style for your image (e.g. "Professional Corporate", "Tech &amp; Innovation") or write your own description. Click <strong>"Generate with this Style →"</strong>. If you don't want an image, click <strong>"Skip — No Style"</strong>.</Step>
+      <Step n={5}><strong>Images</strong> — 3 AI-generated images appear. Click the one you like to select it. To try again, change the prompt and click Regenerate. Click <strong>"No Image"</strong> if you want text-only. Then click <strong>Next →</strong>.</Step>
+      <Step n={6}><strong>Schedule</strong> — choose <strong>Post Now</strong> to publish immediately, or <strong>Schedule</strong> to pick a date and time. Click <strong>Publish</strong>.</Step>
+      <Step n={7}><strong>Done</strong> — your post is live on LinkedIn. You'll see a confirmation with a link to view it.</Step>
+
+      <H3>Content types</H3>
+      <UL>
+        <Li><strong>Image + Text</strong> (default) — posts both the image and the text together. Best for engagement.</Li>
+        <Li><strong>Text Only</strong> — posts just the written post, no image. Use when you skip image selection (click "No Image" at step 5).</Li>
+        <Li><strong>Image Only</strong> — posts just the image with no caption text. Select this at step 6 if you only want the visual.</Li>
+      </UL>
+
+      <H3>Post History</H3>
+      <P>Click <strong>Social → History</strong> to see all your posts — drafts, scheduled, published, and failed.</P>
+      <UL>
+        <Li>Each post shows its status: <strong>Published</strong> (green), <strong>Scheduled</strong> (yellow), <strong>Failed</strong> (red)</Li>
+        <Li>Published posts have a <strong>"View on LinkedIn"</strong> link to open the live post</Li>
+        <Li><strong>"↺ Post Again"</strong> — re-publishes a previously published post (text only — images are not re-uploaded)</Li>
+        <Li><strong>"↺ Retry"</strong> — retries a failed post. Fix the token error first (see Troubleshooting below), then click Retry</Li>
+        <Li>Click <strong>Delete</strong> to remove a post from history</Li>
+      </UL>
+
+      <Note>Images are not stored in history because they are temporary links that expire. Retrying a post always sends text only.</Note>
 
       <H3>Prompt Template Library</H3>
-      <P>Access via <strong>Social → Templates</strong> or the blue banner at the top of the LinkedIn wizard.</P>
+      <P>Templates let you reuse your favourite image styles so you don't have to type a prompt every time.</P>
       <UL>
-        <Li><strong>6 built-in styles</strong> ship with every install: Professional Corporate, Inspirational Quote, Tech &amp; Innovation, Warm &amp; Storytelling, Data &amp; Analytics, Leadership &amp; Growth</Li>
-        <Li>Each template has a <strong>sample image</strong> showing what the style looks like — displayed as a mini LinkedIn post mockup</Li>
-        <Li>Click <strong>"Add New Template"</strong> to create your own: enter a name, a DALL-E image prompt, and optionally upload a sample image</Li>
-        <Li>Custom templates are saved to the local database and persist across sessions</Li>
+        <Li>Access via <strong>Social → Templates</strong> or the blue banner at the top of the LinkedIn wizard</Li>
+        <Li><strong>6 built-in styles</strong> are included: Professional Corporate, Inspirational Quote, Tech &amp; Innovation, Warm &amp; Storytelling, Data &amp; Analytics, Leadership &amp; Growth</Li>
+        <Li>Click <strong>"Add New Template"</strong> to create your own — give it a name, describe the image style, and optionally upload a sample image</Li>
+        <Li>Your templates appear in Step 4 of the wizard alongside the built-in ones</Li>
       </UL>
 
       <H3>Image generation model</H3>
-      <P>Go to <strong>Settings → LinkedIn → Image Generation Model</strong> to choose which OpenAI model generates your post images.</P>
+      <P>Go to <strong>Settings → LinkedIn → Image Generation Model</strong> to choose which AI model creates your images. Requires an OpenAI API key.</P>
       <UL>
-        <Li><strong>DALL-E 3</strong> — default; best quality, most widely available</Li>
-        <Li><strong>GPT Image 1</strong> — newer OpenAI image model</Li>
-        <Li><strong>GPT-5.5</strong> — latest generation model with image capabilities</Li>
-        <Li><strong>DALL-E 2</strong> — fastest fallback; available on all OpenAI keys</Li>
-        <Li>If your selected model isn't available on your key, the app <strong>automatically tries the next model</strong> until one works</Li>
+        <Li><strong>DALL-E 3</strong> (default) — best quality; works on most OpenAI keys</Li>
+        <Li><strong>GPT Image 1</strong> — newer model; may require a paid OpenAI tier</Li>
+        <Li><strong>GPT-5.5</strong> — latest generation</Li>
+        <Li><strong>DALL-E 2</strong> — faster and cheaper fallback</Li>
+        <Li>If your chosen model isn't available, the app automatically tries the next one down the list</Li>
       </UL>
 
       <H3>Verify connectivity</H3>
-      <P>Click <strong>Verify</strong> in Settings → LinkedIn to test all three connections at once:</P>
+      <P>Go to <strong>Settings → LinkedIn</strong> and click <strong>Verify Connectivity</strong> to test everything at once:</P>
       <UL>
-        <Li><strong>LinkedIn API</strong> — checks your access token is valid and shows your name</Li>
-        <Li><strong>OpenAI (DALL-E)</strong> — validates your OpenAI API key</Li>
-        <Li><strong>AI Provider</strong> — confirms your configured AI (Claude, GPT, etc.) can respond</Li>
+        <Li>✓ <strong>LinkedIn API</strong> — shows "Connected as [Your Name]". If ✗, your access token is expired or missing the <code className="text-xs bg-gray-100 px-1 rounded">w_member_social</code> scope</Li>
+        <Li>✓ <strong>OpenAI (DALL-E)</strong> — confirms your OpenAI key can generate images. If ✗, check Settings → AI Providers → OpenAI key</Li>
+        <Li>✓ <strong>AI Provider</strong> — confirms your AI (Claude, GPT, etc.) can write posts. If ✗, check Settings → AI Providers</Li>
       </UL>
 
-      <H3>LinkedIn setup</H3>
+      <H3>Troubleshooting</H3>
       <UL>
-        <Li>Create a LinkedIn app at <strong>developer.linkedin.com</strong></Li>
-        <Li>Add the <strong>Share on LinkedIn</strong> and <strong>OpenID Connect</strong> products</Li>
-        <Li>Generate an access token via OAuth 2.0 tools</Li>
-        <Li>Enter your <strong>Access Token</strong> and <strong>LinkedIn User ID</strong> in Settings → LinkedIn</Li>
-        <Li>Your User ID format: <code>urn:li:person:XXXXXXXX</code></Li>
+        <Li><strong>"LinkedIn 403 / token missing w_member_social scope"</strong> — your access token was created before you added "Share on LinkedIn" to your app, or it expired. Go to developer.linkedin.com → your app → OAuth 2.0 tools → generate a new token with the <code className="text-xs bg-gray-100 px-1 rounded">w_member_social</code> scope checked. Paste the new token in Settings → LinkedIn → Save.</Li>
+        <Li><strong>Post shows raw JSON text on LinkedIn</strong> — this was a bug in older versions (fixed in v3.50.1). Update the app and regenerate your post.</Li>
+        <Li><strong>Image not appearing on LinkedIn</strong> — images require the <code className="text-xs bg-gray-100 px-1 rounded">w_member_social</code> scope (same as text posting). If the image fails to upload, the post is still published as text-only. Regenerate your token if you see image errors.</Li>
+        <Li><strong>"No posts in history"</strong> — posts are recorded when you click Publish. If no posts appear, you haven't published yet in this session, or posts failed before being saved.</Li>
+        <Li><strong>Token expires after 60 days</strong> — LinkedIn tokens are not permanent. Re-generate a new one from developer.linkedin.com every 60 days. The Verify button will show ✗ when it has expired.</Li>
       </UL>
     </div>
   )
