@@ -359,26 +359,45 @@ export function LinkedInWizard({ onViewHistory }: { onViewHistory: () => void })
           {/* Template Style Picker */}
           {templates.length > 0 && (
             <div>
-              <p className="text-xs font-medium text-gray-500 mb-2">Apply a template style</p>
-              <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+              <p className="text-xs font-medium text-gray-500 mb-2">Choose a visual style — click to apply</p>
+              <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1">
                 {templates.map(tmpl => (
                   <button
                     key={tmpl.id}
                     onClick={() => applyTemplate(tmpl)}
                     disabled={imgLoading}
                     title={tmpl.prompt}
-                    className={`flex-shrink-0 w-20 border-2 rounded-xl p-2 flex flex-col items-center gap-1 transition-colors disabled:opacity-50 ${
+                    className={`flex-shrink-0 w-28 border-2 rounded-xl overflow-hidden transition-colors disabled:opacity-50 ${
                       selectedTemplate === tmpl.id
-                        ? 'border-accent bg-blue-50'
-                        : 'border-gray-200 hover:border-gray-300 bg-white'
+                        ? 'border-accent shadow-sm'
+                        : 'border-gray-200 hover:border-gray-400 bg-white'
                     }`}
                   >
-                    {tmpl.sample_image ? (
-                      <img src={tmpl.sample_image} alt={tmpl.name} className="w-10 h-10 rounded-lg object-cover" />
-                    ) : (
-                      <span className="text-2xl leading-none">{tmpl.icon || '🎨'}</span>
-                    )}
-                    <span className="text-[10px] text-gray-600 text-center leading-tight line-clamp-2">{tmpl.name}</span>
+                    {/* Mini LinkedIn post mockup */}
+                    <div className="bg-white">
+                      {/* Fake header */}
+                      <div className="flex items-center gap-1 px-2 pt-2 pb-1">
+                        <div className="w-4 h-4 bg-blue-600 rounded-full flex-shrink-0" />
+                        <div className="flex-1 space-y-0.5">
+                          <div className="h-1 bg-gray-200 rounded-full w-full" />
+                          <div className="h-1 bg-gray-100 rounded-full w-2/3" />
+                        </div>
+                      </div>
+                      {/* Image area */}
+                      <div className="w-full aspect-video bg-gray-100 overflow-hidden flex items-center justify-center">
+                        {tmpl.sample_image ? (
+                          <img src={tmpl.sample_image} alt={tmpl.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="text-xl">{tmpl.icon || '🎨'}</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="px-2 py-1.5 bg-white border-t border-gray-100">
+                      <span className="text-[10px] text-gray-600 leading-tight line-clamp-1 font-medium">{tmpl.name}</span>
+                      {selectedTemplate === tmpl.id && (
+                        <div className="mt-0.5 text-[9px] text-accent font-semibold">✓ Applied</div>
+                      )}
+                    </div>
                   </button>
                 ))}
               </div>
