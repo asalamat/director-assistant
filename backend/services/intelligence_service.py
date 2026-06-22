@@ -315,9 +315,10 @@ class IntelligenceService:
         """Chronological timeline of emails matching a topic/cluster query.
 
         Strictness-first: never broaden to OR — false positives are worse than no results.
+        0. Subject LIKE full query   → when query looks like a subject line (long / has Re:)
         1. FTS5 exact phrase       → "choice properties interview"
         2. FTS5 AND all tokens     → choice AND properties AND interview AND automation
-        3. FTS5 AND top-2 tokens   → choice AND automation  (2 longest/most distinctive)
+        3. FTS5 AND top-3 tokens   → top 3 longest/most distinctive tokens
         4. LIKE subject only on single rarest token (longest, no common words)
         """
         sys_filter = self._system_email_filter()
@@ -326,8 +327,15 @@ class IntelligenceService:
                  'will', 'been', 'your', 'their', 'they', 'about', 'also',
                  'email', 'hello', 'dear', 'please', 'regards', 'thank',
                  'just', 'like', 'more', 'some', 'than', 'what', 'when'}
-        tokens = [t.strip('.,!?') for t in query.split()
-                  if len(t.strip('.,!?')) > 3 and t.lower().strip('.,!?') not in _stop]
+        tokens = [t.strip('.,!?&') for t in query.split()
+                  if len(t.strip('.,!?&')) > 3 and t.lower().strip('.,!?&') not in _stop]
+
+        # Strip common subject prefixes for matching
+        clean_q = query.strip()
+        for pfx in ('Re: ', 'RE: ', 'Fwd: ', 'FWD: ', 'Fw: '):
+            if clean_q.startswith(pfx):
+                clean_q = clean_q[len(pfx):]
+                break
 
         rows: list = []
         with self.cache._conn() as conn:
@@ -344,32 +352,40 @@ class IntelligenceService:
                 except Exception:
                     return []
 
+            def _subject_like(fragment: str) -> list:
+                try:
+                    return conn.execute(
+                        f"""SELECT id, subject, sender, date, body FROM emails
+                           WHERE subject LIKE ?
+                           {sys_filter}
+                           ORDER BY date ASC LIMIT ?""",
+                        (f"%{fragment}%", limit)
+                    ).fetchall()
+                except Exception:
+                    return []
+
+            # 0. Subject LIKE on full cleaned query — catches exact subject pastes
+            if len(clean_q) > 15:
+                rows = _subject_like(clean_q)
+
             # 1. Exact phrase
-            rows = _fts(f'"{query}"')
+            if not rows:
+                rows = _fts(f'"{query}"')
 
             # 2. AND all tokens — requires every token to be present
             if not rows and len(tokens) > 1:
                 rows = _fts(" AND ".join(tokens))
 
-            # 3. AND with only the 2 longest (most distinctive) tokens
-            if not rows and len(tokens) > 2:
-                top2 = sorted(tokens, key=len, reverse=True)[:2]
-                rows = _fts(" AND ".join(top2))
+            # 3. AND with only the 3 longest (most distinctive) tokens
+            if not rows and len(tokens) > 3:
+                top3 = sorted(tokens, key=len, reverse=True)[:3]
+                rows = _fts(" AND ".join(top3))
 
             # 4. LIKE subject-only on the single longest token — NO OR, stays precise
             if not rows and tokens:
                 anchor = sorted(tokens, key=len, reverse=True)[0]
-                if len(anchor) > 5:  # skip generic short words even if they're longest
-                    try:
-                        rows = conn.execute(
-                            f"""SELECT id, subject, sender, date, body FROM emails
-                               WHERE subject LIKE ?
-                               {sys_filter}
-                               ORDER BY date ASC LIMIT ?""",
-                            (f"%{anchor}%", limit)
-                        ).fetchall()
-                    except Exception:
-                        rows = []
+                if len(anchor) > 5:
+                    rows = _subject_like(anchor)
 
         return [
             {
