@@ -292,13 +292,20 @@ async def generate_images(body: dict, request: Request):
         return {"images": [], "error": f"OpenAI key looks invalid (should start with 'sk-'). Current key starts with: {openai_key[:8]}…"}
 
     base = custom_prompt.strip() if custom_prompt else ""
+    # Summarise post key message in a few words so DALL-E prompts are tightly themed
+    post_summary = post_text[:1000] if post_text else topic
     prompt = (
-        "Generate 3 distinct DALL-E image prompts for a LinkedIn post.\n"
-        f"Topic: {topic}\n"
-        f"Post content: {post_text[:600]}\n"
-        + (f"Style guidance: {base}\n" if base else "")
-        + "Each prompt should describe a professional, clean, modern visual suitable for LinkedIn. "
-        "Return ONLY a JSON array of 3 strings: ['prompt 1', 'prompt 2', 'prompt 3']"
+        "You are a visual director creating DALL-E image prompts for a LinkedIn post.\n\n"
+        f"POST TOPIC: {topic}\n"
+        f"POST TEXT (use this to understand the message and mood):\n{post_summary}\n\n"
+        + (f"STYLE PREFERENCE: {base}\n\n" if base else "")
+        + "Create 3 DISTINCT DALL-E image prompts. Each must:\n"
+        "- Visually represent the core message of the post above\n"
+        "- Be professional and LinkedIn-appropriate\n"
+        "- Include specific visual elements that reflect the post's theme (not generic stock photos)\n"
+        "- Describe composition, lighting, color tone, and mood\n"
+        "- Be different from each other (vary angle, metaphor, style)\n\n"
+        "Return ONLY a JSON array of 3 strings: [\"prompt1\", \"prompt2\", \"prompt3\"]"
     )
     try:
         content = await _ai_complete(request, prompt, max_tokens=600)
