@@ -140,6 +140,7 @@ Everything runs **locally on your machine**. Your emails never leave your device
 - **🚨 Escalation Radar** — Knowledge → Escalations scores every thread 0–100 across 5 signals (follow-up count, urgency words, VIP sender, days since reply, recipient count); threads scoring 40+ surface with a heat bar, signal badges, and a **View Timeline** jump button — zero AI cost, pure SQL
 - **🌐 Stakeholder Influence Map** — Knowledge → Influence ranks every contact by a composite influence score (volume, reply rate, VIP status, thread importance); VIP / Active / Silent badges; **Email** button opens Compose pre-addressed — zero AI cost, loads instantly
 - **AI Cluster error visibility** — Generate Clusters now returns the actual AI error message to the UI instead of a silent empty state; displayed in a red banner so users know to configure an AI provider in Settings
+- **Timeline exact-subject search** — pasting a full email subject (e.g. "Re: Follow-Up on Manager, AI & Automation") now matches only that thread; previously the search broadened to common keywords like "Opportunity" or "Automation" and returned unrelated emails
 
 ### New Features (v3.46.0 — 2026-06-21)
 - **⚡ Inbox Zero Sprint** — click Sprint in the inbox toolbar; AI buckets your unread emails into Reply Now / Needs Thought / Archive / Delegate columns; bulk "Mark all read" on each column clears the group in one click

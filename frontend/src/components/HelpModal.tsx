@@ -522,6 +522,10 @@ function KnowledgeSection() {
 
       <H3>Topic Timeline</H3>
       <P>Search any keyword or topic to see all related emails in chronological order — oldest to newest. Useful for reconstructing how a situation evolved: "what happened with the contract renewal?" or "how did the hiring process unfold?" Also accessed by clicking any AI Cluster card.</P>
+      <UL>
+        <Li><strong>Paste a full subject line</strong> (e.g. "Re: Follow-Up on Manager, AI &amp; Automation Opportunity") to find that exact thread — the search matches the subject directly and won't broaden to unrelated emails</Li>
+        <Li><strong>Short keyword search</strong> (e.g. "contract renewal") searches email body + subject across all emails and returns the closest matches</Li>
+      </UL>
 
       <H3>Role Transition Briefing</H3>
       <P>Click <strong>"Brief me on this role"</strong> in the Briefing tab to generate an AI-powered executive summary of your entire email history: key relationships, active projects, open commitments, and a 3-paragraph executive narrative with recommended first-week actions. Scans up to 300 recent emails. Takes 30–60 seconds the first time; cached for 10 minutes and auto-runs once per day.</P>
