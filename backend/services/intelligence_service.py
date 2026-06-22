@@ -364,9 +364,19 @@ class IntelligenceService:
                 except Exception:
                     return []
 
-            # 0. Subject LIKE on full cleaned query — catches exact subject pastes
-            if len(clean_q) > 15:
+            is_subject_paste = len(clean_q) > 20
+
+            # 0a. Subject LIKE on full cleaned query (stripped Re:/Fwd:)
+            if is_subject_paste:
                 rows = _subject_like(clean_q)
+
+            # 0b. Subject LIKE on original query (in case DB has Re: prefix too)
+            if not rows and is_subject_paste:
+                rows = _subject_like(query.strip())
+
+            # 0c. Subject LIKE on first 25 chars of cleaned query (handles slight truncation)
+            if not rows and is_subject_paste and len(clean_q) > 25:
+                rows = _subject_like(clean_q[:25])
 
             # 1. Exact phrase
             if not rows:
@@ -377,12 +387,13 @@ class IntelligenceService:
                 rows = _fts(" AND ".join(tokens))
 
             # 3. AND with only the 3 longest (most distinctive) tokens
-            if not rows and len(tokens) > 3:
+            # Skip this broadening step for subject-line pastes — avoids false positives
+            if not rows and len(tokens) > 3 and not is_subject_paste:
                 top3 = sorted(tokens, key=len, reverse=True)[:3]
                 rows = _fts(" AND ".join(top3))
 
-            # 4. LIKE subject-only on the single longest token — NO OR, stays precise
-            if not rows and tokens:
+            # 4. LIKE subject-only on the single longest token — short queries only
+            if not rows and tokens and not is_subject_paste:
                 anchor = sorted(tokens, key=len, reverse=True)[0]
                 if len(anchor) > 5:
                     rows = _subject_like(anchor)
