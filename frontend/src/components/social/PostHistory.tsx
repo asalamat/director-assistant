@@ -37,6 +37,8 @@ export function PostHistory() {
   const [error, setError] = useState('')
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [deleting, setDeleting] = useState<Set<string>>(new Set())
+  const [retrying, setRetrying] = useState<Set<string>>(new Set())
+  const [retryError, setRetryError] = useState<Record<string, string>>({})
 
   useEffect(() => {
     let cancelled = false
@@ -55,6 +57,28 @@ export function PostHistory() {
       next.has(id) ? next.delete(id) : next.add(id)
       return next
     })
+  }
+
+  const handleRetry = async (post: LinkedInPost) => {
+    setRetrying(prev => new Set(prev).add(post.id))
+    setRetryError(prev => { const n = {...prev}; delete n[post.id]; return n })
+    try {
+      // Always retry as text-only — image URLs expire and are not stored
+      const r = await (api as any).publishLinkedInPost({
+        id: post.id,
+        post_text: post.post_text || '',
+        content_type: 'article',
+      })
+      if (r.error) {
+        setRetryError(prev => ({...prev, [post.id]: r.error}))
+      } else {
+        setPosts(prev => prev.map(p => p.id === post.id ? {...p, status: 'published', linkedin_post_id: r.linkedin_post_id} : p))
+      }
+    } catch (e) {
+      setRetryError(prev => ({...prev, [post.id]: (e as Error).message}))
+    } finally {
+      setRetrying(prev => { const next = new Set(prev); next.delete(post.id); return next })
+    }
   }
 
   const handleDelete = async (id: string) => {
@@ -115,6 +139,10 @@ export function PostHistory() {
                 )}
               </p>
 
+              {retryError[post.id] && (
+                <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2 leading-relaxed">{retryError[post.id]}</p>
+              )}
+
               <div className="flex items-center gap-3 pt-1">
                 {post.status === 'published' && post.linkedin_post_id && (
                   <a
@@ -125,6 +153,15 @@ export function PostHistory() {
                   >
                     View on LinkedIn
                   </a>
+                )}
+                {post.status !== 'scheduled' && (
+                  <button
+                    onClick={() => handleRetry(post)}
+                    disabled={retrying.has(post.id)}
+                    className="text-xs font-medium text-white bg-accent px-3 py-1 rounded-lg hover:opacity-90 disabled:opacity-50 transition"
+                  >
+                    {retrying.has(post.id) ? 'Posting…' : post.status === 'published' ? '↺ Post Again' : '↺ Retry'}
+                  </button>
                 )}
                 <button
                   onClick={() => handleDelete(post.id)}

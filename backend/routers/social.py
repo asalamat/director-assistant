@@ -1,5 +1,6 @@
 """LinkedIn social posting endpoints — settings, AI trends/post/image generation, publish, history."""
 
+import base64
 import json
 import uuid
 
@@ -136,18 +137,34 @@ async def _ai_complete(request: Request, prompt: str, max_tokens: int = 800) -> 
 
 def _extract_json(text: str):
     """Pull a JSON array/object out of an AI response that may wrap it in prose or code fences."""
+    import re
     text = text.strip()
+    # Strip markdown code fences
     if text.startswith("```"):
-        text = text.split("```", 2)[1] if "```" in text[3:] else text
-        text = text.lstrip("json").strip("`").strip()
-    for open_ch, close_ch in (("[", "]"), ("{", "}")):
+        inner = re.sub(r"^```[a-z]*\n?", "", text)
+        inner = re.sub(r"```$", "", inner).strip()
+        if inner:
+            text = inner
+    # Try direct parse first
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+    # Find outermost { } or [ ]
+    for open_ch, close_ch in (("{", "}"), ("[", "]")):
         start = text.find(open_ch)
         end = text.rfind(close_ch)
         if start != -1 and end != -1 and end > start:
+            chunk = text[start:end + 1]
             try:
-                return json.loads(text[start:end + 1])
+                return json.loads(chunk)
             except json.JSONDecodeError:
-                continue
+                # Try replacing single-quote keys/values (AI sometimes uses them)
+                try:
+                    import ast
+                    return ast.literal_eval(chunk)
+                except Exception:
+                    pass
     return None
 
 
@@ -201,10 +218,10 @@ async def generate_post(body: dict, request: Request):
         f"Subject area: {subject or topic}.\n"
         f"Target audience: {audience}.\n"
         f"Tone: {tone}.\n"
-        "Make it engaging, well-structured with line breaks, and suitable for LinkedIn. "
+        "Make it engaging, well-structured with real line breaks, and suitable for LinkedIn. "
         "Include relevant emojis sparingly. Do NOT include hashtags in the post body.\n\n"
-        "Return ONLY a JSON object: "
-        "{'post': 'the full post text', 'hashtags': ['Hashtag1', 'Hashtag2']}"
+        'Return ONLY valid JSON (double quotes, no trailing commas): '
+        '{"post": "the full post text with real newlines", "hashtags": ["Hashtag1", "Hashtag2"]}'
     )
     try:
         content = await _ai_complete(request, prompt, max_tokens=1200)
@@ -212,10 +229,17 @@ async def generate_post(body: dict, request: Request):
         return {"post": "", "hashtags": [], "char_count": 0, "error": str(e)}
     parsed = _extract_json(content)
     if isinstance(parsed, dict) and "post" in parsed:
-        post = parsed.get("post", "")
-        hashtags = parsed.get("hashtags", []) or []
+        post = str(parsed.get("post", "")).strip()
+        hashtags = [str(h) for h in (parsed.get("hashtags") or [])]
     else:
+        # Fallback: strip any JSON wrapper the AI may have added
         post = content.strip()
+        if post.startswith("{") and '"post"' in post:
+            # AI returned JSON text but parsing failed — try to extract post value
+            import re
+            m = re.search(r'"post"\s*:\s*"(.*?)"(?:,|\s*})', post, re.DOTALL)
+            if m:
+                post = m.group(1).replace("\\n", "\n").replace('\\"', '"')
         hashtags = []
     return {"post": post, "hashtags": hashtags, "char_count": len(post)}
 
@@ -352,46 +376,181 @@ async def save_draft(body: dict, request: Request):
     return {"id": post_id}
 
 
-async def _publish_to_linkedin(post_text: str, settings: dict) -> dict:
-    access_token = settings.get("access_token", "")
-    user_id = settings.get("user_id", "")
-    if not access_token or not user_id:
-        return {"error": "LinkedIn not connected"}
+async def _resolve_linkedin_author(access_token: str, stored_user_id: str) -> tuple[str, str]:
+    """Returns (urn:li:person:ID, error). Always tries /userinfo first for the correct sub."""
+    # Always try userinfo — it gives the exact sub LinkedIn accepts as author
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as http:
+            r = await http.get(
+                "https://api.linkedin.com/v2/userinfo",
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+        if r.status_code == 200:
+            sub = r.json().get("sub", "")
+            if sub:
+                # UGC Posts API requires urn:li:person: (not urn:li:member:)
+                return f"urn:li:person:{sub}", ""
+    except Exception:
+        pass
+    # Fall back to stored value
+    if stored_user_id:
+        if stored_user_id.startswith("urn:li:person:"):
+            return stored_user_id, ""
+        if stored_user_id.startswith("urn:"):
+            return stored_user_id, ""
+        return f"urn:li:person:{stored_user_id}", ""
+    return "", "LinkedIn User ID not set — go to Settings → LinkedIn"
 
-    author = user_id if user_id.startswith("urn:") else f"urn:li:person:{user_id}"
-    payload = {
-        "author": author,
-        "lifecycleState": "PUBLISHED",
-        "specificContent": {
-            "com.linkedin.ugc.ShareContent": {
-                "shareCommentary": {"text": post_text},
-                "shareMediaCategory": "NONE",
-            }
-        },
-        "visibility": {"com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"},
-    }
+
+async def _upload_image_to_linkedin(access_token: str, author: str, image_url: str) -> tuple[str, str]:
+    """Upload an image to LinkedIn and return (image_urn, error). image_url can be http(s) or data URI."""
     headers = {
         "Authorization": f"Bearer {access_token}",
         "Content-Type": "application/json",
-        "X-Restli-Protocol-Version": "2.0.0",
+        "LinkedIn-Version": "202410",
     }
+    async with httpx.AsyncClient(timeout=60.0) as http:
+        # 1. Initialize upload
+        init = await http.post(
+            "https://api.linkedin.com/v2/images?action=initializeUpload",
+            headers=headers,
+            json={"initializeUploadRequest": {"owner": author}},
+        )
+        if init.status_code >= 400:
+            return "", f"Image upload init failed {init.status_code}: {init.text[:200]}"
+        val = init.json().get("value", {})
+        upload_url = val.get("uploadUrl", "")
+        image_urn = val.get("image", "")
+        if not upload_url or not image_urn:
+            return "", "LinkedIn did not return upload URL"
+
+        # 2. Get image bytes
+        if image_url.startswith("data:"):
+            _, b64data = image_url.split(",", 1)
+            image_bytes = base64.b64decode(b64data)
+        else:
+            dl = await http.get(image_url, follow_redirects=True)
+            if dl.status_code >= 400:
+                return "", f"Could not download image: {dl.status_code}"
+            image_bytes = dl.content
+
+        # 3. Upload binary (no auth header needed on the pre-signed URL)
+        up = await http.put(upload_url, content=image_bytes, headers={"Content-Type": "image/png"})
+        if up.status_code >= 400:
+            return "", f"Image binary upload failed {up.status_code}"
+
+    return image_urn, ""
+
+
+async def _publish_to_linkedin(post_text: str, settings: dict, image_url: str = "") -> dict:
+    access_token = settings.get("access_token", "")
+    user_id = settings.get("user_id", "")
+    if not access_token:
+        return {"error": "LinkedIn access token not configured — go to Settings → LinkedIn"}
+
+    author, err = await _resolve_linkedin_author(access_token, user_id)
+    if not author:
+        return {"error": err or "Could not resolve LinkedIn author ID"}
+
+    api_headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json",
+        "X-Restli-Protocol-Version": "2.0.0",
+        "LinkedIn-Version": "202410",
+    }
+
+    # Upload image if provided
+    image_urn = ""
+    if image_url:
+        image_urn, img_err = await _upload_image_to_linkedin(access_token, author, image_url)
+        if img_err:
+            # Log but continue — post text-only rather than fail entirely
+            image_urn = ""
+
+    # Build new /v2/posts payload
+    new_payload: dict = {
+        "author": author,
+        "commentary": post_text,
+        "visibility": "PUBLIC",
+        "distribution": {
+            "feedDistribution": "MAIN_FEED",
+            "targetEntities": [],
+            "thirdPartyDistributionChannels": [],
+        },
+        "lifecycleState": "PUBLISHED",
+        "isReshareDisabledByAuthor": False,
+    }
+    if image_urn:
+        new_payload["content"] = {"media": {"id": image_urn}}
+
     async with httpx.AsyncClient(timeout=30.0) as http:
         resp = await http.post(
-            "https://api.linkedin.com/v2/ugcPosts", headers=headers, json=payload
+            "https://api.linkedin.com/v2/posts", headers=api_headers, json=new_payload
         )
+
+    # If new API failed, try legacy ugcPosts (text-only fallback)
+    if resp.status_code in (400, 403, 422):
+        legacy_payload = {
+            "author": author,
+            "lifecycleState": "PUBLISHED",
+            "specificContent": {
+                "com.linkedin.ugc.ShareContent": {
+                    "shareCommentary": {"text": post_text},
+                    "shareMediaCategory": "NONE",
+                }
+            },
+            "visibility": {"com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"},
+        }
+        async with httpx.AsyncClient(timeout=30.0) as http:
+            resp2 = await http.post(
+                "https://api.linkedin.com/v2/ugcPosts",
+                headers={k: v for k, v in api_headers.items() if k != "LinkedIn-Version"},
+                json=legacy_payload,
+            )
+        if resp2.status_code < 400:
+            resp = resp2
+        elif resp.status_code >= 400:
+            resp = resp2 if resp2.status_code != 403 else resp
+
     if resp.status_code >= 400:
-        return {"error": f"LinkedIn API error {resp.status_code}: {resp.text[:200]}"}
-    data = resp.json()
-    return {"linkedin_post_id": data.get("id") or resp.headers.get("x-restli-id", "")}
+        raw = resp.text[:400]
+        if resp.status_code == 403:
+            return {"error": (
+                f"LinkedIn 403: token missing 'w_member_social' scope. "
+                f"Author: {author}. "
+                f"Fix: in your LinkedIn app → Products enable 'Share on LinkedIn', then regenerate your access token. "
+                f"Raw: {raw}"
+            )}
+        return {"error": f"LinkedIn API error {resp.status_code}: {raw}"}
+
+    post_id = resp.headers.get("x-restli-id", "") or (resp.json() or {}).get("id", "")
+    return {"linkedin_post_id": post_id, "image_uploaded": bool(image_urn)}
 
 
 @router.post("/linkedin/publish")
 async def publish(body: dict, request: Request):
     cache = request.app.state.cache
     _ensure_tables(cache)
-    post_id = body.get("id")
+    post_id = body.get("id") or str(uuid.uuid4())
     post_text = body.get("post_text") or ""
     scheduled_at = body.get("scheduled_at")
+    content_type = body.get("content_type", "image+text")
+    image_url = body.get("image_url") or ""  # used for upload but NOT stored in history
+    topic = (body.get("topic") or "").strip()
+    subject = (body.get("subject") or "").strip()
+
+    # Ensure a history record exists (wizard publishes without a prior draft save)
+    with cache._conn() as conn:
+        exists = conn.execute(
+            "SELECT 1 FROM linkedin_posts WHERE id=?", (post_id,)
+        ).fetchone()
+        if not exists:
+            conn.execute(
+                """INSERT INTO linkedin_posts
+                   (id, topic, subject, post_text, content_type, status)
+                   VALUES (?, ?, ?, ?, ?, 'pending')""",
+                (post_id, topic, subject, post_text, content_type),
+            )
 
     if scheduled_at:
         with cache._conn() as conn:
@@ -399,24 +558,26 @@ async def publish(body: dict, request: Request):
                 "UPDATE linkedin_posts SET status='scheduled', scheduled_at=? WHERE id=?",
                 (scheduled_at, post_id),
             )
-        return {"status": "scheduled", "linkedin_post_id": None}
+        return {"status": "scheduled", "scheduled_for": scheduled_at}
 
     settings = _get_linkedin_settings()
-    result = await _publish_to_linkedin(post_text, settings)
+    result = await _publish_to_linkedin(post_text, settings, image_url)
     if "error" in result:
+        with cache._conn() as conn:
+            conn.execute(
+                "UPDATE linkedin_posts SET status='failed' WHERE id=?", (post_id,)
+            )
         return {"error": result["error"]}
 
     linkedin_post_id = result.get("linkedin_post_id", "")
     with cache._conn() as conn:
         conn.execute(
-            """
-            UPDATE linkedin_posts
-            SET status='published', published_at=datetime('now'), linkedin_post_id=?
-            WHERE id=?
-            """,
+            """UPDATE linkedin_posts
+               SET status='published', published_at=datetime('now'), linkedin_post_id=?
+               WHERE id=?""",
             (linkedin_post_id, post_id),
         )
-    return {"status": "published", "linkedin_post_id": linkedin_post_id}
+    return {"status": "published", "linkedin_post_id": linkedin_post_id, "image_uploaded": result.get("image_uploaded", False)}
 
 
 @router.get("/linkedin/history")
@@ -502,7 +663,12 @@ async def verify_linkedin(request: Request):
             if r.status_code == 200:
                 data = r.json()
                 name = data.get("name") or data.get("given_name", "")
-                results["linkedin"] = {"ok": True, "message": f"Connected as {name}" if name else "Connected"}
+                sub = data.get("sub", "")
+                author_urn = f"urn:li:person:{sub}" if sub else "(sub missing)"
+                results["linkedin"] = {
+                    "ok": True,
+                    "message": f"Connected as {name} · author URN: {author_urn}" if name else f"Connected · {author_urn}",
+                }
             else:
                 results["linkedin"] = {"ok": False, "message": f"HTTP {r.status_code}: token may be expired"}
         except Exception as e:

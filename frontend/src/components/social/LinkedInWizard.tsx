@@ -167,7 +167,10 @@ export function LinkedInWizard({ onViewHistory, onManageTemplates }: { onViewHis
         image_url: selectedImage !== null && selectedImage >= 0 ? images[selectedImage]?.url : undefined,
         content_type: contentType,
         scheduled_at: scheduleMode === 'schedule' ? scheduleDate : undefined,
+        topic: selectedTrend?.title || subject,
+        subject,
       })
+      if (r.error) { setError(r.error); return }
       setPublishResult(r)
       setStep(7)
     } catch (e) {
