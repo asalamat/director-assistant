@@ -226,7 +226,10 @@ async def generate_images(body: dict, request: Request):
 
     openai_key = _get_openai_key()
     if not openai_key:
-        return {"images": [], "error": "OpenAI API key not configured"}
+        return {"images": [], "error": "OpenAI API key not configured — add it in Settings → AI Providers (type: openai)"}
+
+    if not openai_key.startswith("sk-"):
+        return {"images": [], "error": f"OpenAI key looks invalid (should start with 'sk-'). Current key starts with: {openai_key[:8]}…"}
 
     base = custom_prompt.strip() if custom_prompt else ""
     prompt = (
@@ -240,14 +243,15 @@ async def generate_images(body: dict, request: Request):
     try:
         content = await _ai_complete(request, prompt, max_tokens=600)
     except Exception as e:
-        return {"images": [], "error": str(e)}
+        return {"images": [], "error": f"AI prompt generation failed: {e}"}
 
     prompts = _extract_json(content)
     if not isinstance(prompts, list) or not prompts:
-        return {"images": [], "error": "Could not generate image prompts"}
+        return {"images": [], "error": "Could not parse AI image prompts"}
     prompts = [str(p) for p in prompts[:3]]
 
     images = []
+    last_error = ""
     headers = {"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"}
     async with httpx.AsyncClient(timeout=120.0) as http:
         for p in prompts:
@@ -257,16 +261,21 @@ async def generate_images(body: dict, request: Request):
                     headers=headers,
                     json={"model": "dall-e-3", "prompt": p, "size": "1024x1024", "n": 1},
                 )
-                resp.raise_for_status()
+                if resp.status_code != 200:
+                    err_body = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
+                    openai_msg = err_body.get("error", {}).get("message", resp.text[:200])
+                    last_error = f"OpenAI {resp.status_code}: {openai_msg}"
+                    continue
                 data = resp.json()
                 url = data.get("data", [{}])[0].get("url", "")
                 if url:
                     images.append({"url": url, "prompt": p})
-            except Exception:
+            except Exception as e:
+                last_error = str(e)
                 continue
 
     if not images:
-        return {"images": [], "error": "Image generation failed"}
+        return {"images": [], "error": last_error or "DALL-E returned no images"}
     return {"images": images}
 
 
