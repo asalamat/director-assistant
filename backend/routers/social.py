@@ -526,7 +526,7 @@ async def publish(body: dict, request: Request):
     post_text = body.get("post_text") or ""
     scheduled_at = body.get("scheduled_at")
     content_type = body.get("content_type", "image+text")
-    image_url = body.get("image_url") or ""  # used for upload but NOT stored in history
+    image_url = body.get("image_url") or ""
     topic = (body.get("topic") or "").strip()
     subject = (body.get("subject") or "").strip()
 
@@ -538,9 +538,9 @@ async def publish(body: dict, request: Request):
         if not exists:
             conn.execute(
                 """INSERT INTO linkedin_posts
-                   (id, topic, subject, post_text, content_type, status)
-                   VALUES (?, ?, ?, ?, ?, 'pending')""",
-                (post_id, topic, subject, post_text, content_type),
+                   (id, topic, subject, post_text, image_url, content_type, status)
+                   VALUES (?, ?, ?, ?, ?, ?, 'pending')""",
+                (post_id, topic, subject, post_text, image_url, content_type),
             )
 
     if scheduled_at:
@@ -564,9 +564,10 @@ async def publish(body: dict, request: Request):
     with cache._conn() as conn:
         conn.execute(
             """UPDATE linkedin_posts
-               SET status='published', published_at=datetime('now'), linkedin_post_id=?
+               SET status='published', published_at=datetime('now'), linkedin_post_id=?,
+                   image_url=COALESCE(NULLIF(?, ''), image_url)
                WHERE id=?""",
-            (linkedin_post_id, post_id),
+            (linkedin_post_id, image_url, post_id),
         )
     return {"status": "published", "linkedin_post_id": linkedin_post_id, "image_uploaded": result.get("image_uploaded", False)}
 
@@ -589,6 +590,28 @@ async def delete_history(post_id: str, request: Request):
     with cache._conn() as conn:
         conn.execute("DELETE FROM linkedin_posts WHERE id=?", (post_id,))
     return {"status": "deleted"}
+
+
+@router.post("/linkedin/ask")
+async def ask_about_post(body: dict, request: Request):
+    """Ask an AI question about a past post topic."""
+    topic = (body.get("topic") or "").strip()
+    post_text = (body.get("post_text") or "").strip()
+    question = (body.get("question") or "").strip()
+    if not question:
+        return {"error": "question is required"}
+    system = (
+        "You are a LinkedIn content strategist. Answer concisely and helpfully. "
+        "No JSON, no markdown headers — plain text only."
+    )
+    context = ""
+    if topic:
+        context += f"Post topic: {topic}\n"
+    if post_text:
+        context += f"Post text (excerpt): {post_text[:500]}\n"
+    prompt = f"{context}\nQuestion: {question}"
+    answer = await _ai_complete(request, prompt, max_tokens=400, system=system)
+    return {"answer": answer.strip()}
 
 
 # ── Prompt Template Library ────────────────────────────────────────────────────
