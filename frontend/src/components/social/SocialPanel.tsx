@@ -67,7 +67,10 @@ export function SocialPanel() {
       {/* Main content */}
       <div className="flex-1 overflow-hidden">
         {activeTab === 'linkedin' && (
-          <LinkedInWizard onViewHistory={() => setActiveTab('history')} />
+          <LinkedInWizard
+            onViewHistory={() => setActiveTab('history')}
+            onManageTemplates={() => setActiveTab('templates')}
+          />
         )}
         {activeTab === 'history' && <PostHistory />}
         {activeTab === 'templates' && <LinkedInTemplates />}

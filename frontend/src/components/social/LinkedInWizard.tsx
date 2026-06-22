@@ -56,7 +56,7 @@ function Spinner() {
   return <span className="inline-block w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" />
 }
 
-export function LinkedInWizard({ onViewHistory }: { onViewHistory: () => void }) {
+export function LinkedInWizard({ onViewHistory, onManageTemplates }: { onViewHistory: () => void; onManageTemplates?: () => void }) {
   const [step, setStep] = useState(1)
   const [subject, setSubject] = useState('')
   const [trends, setTrends] = useState<Trend[]>([])
@@ -193,6 +193,23 @@ export function LinkedInWizard({ onViewHistory }: { onViewHistory: () => void })
 
   return (
     <div className="flex flex-col h-full overflow-y-auto p-6 max-w-2xl mx-auto">
+      {/* Template Library shortcut — always visible */}
+      {onManageTemplates && (
+        <button
+          onClick={onManageTemplates}
+          className="flex items-center justify-between w-full mb-4 px-4 py-3 bg-blue-50 border border-blue-100 rounded-xl hover:bg-blue-100 transition group"
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-xl">📚</span>
+            <div className="text-left">
+              <p className="text-sm font-semibold text-blue-800">Prompt Template Library</p>
+              <p className="text-xs text-blue-500">Add your own image styles with sample images — used in Step 4</p>
+            </div>
+          </div>
+          <span className="text-blue-400 text-sm group-hover:translate-x-0.5 transition-transform">→</span>
+        </button>
+      )}
+
       <StepIndicator current={step} />
 
       {error && (
