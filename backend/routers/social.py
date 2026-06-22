@@ -216,64 +216,41 @@ async def generate_post(body: dict, request: Request):
     subject = (body.get("subject") or "").strip()
     if not topic:
         return {"post": "", "hashtags": [], "char_count": 0, "error": "topic is required"}
-    system_prompt = (
+
+    # --- Call 1: get ONLY the post text (no JSON, no markers, pure text) ---
+    post_system = (
         "You are a LinkedIn post writer. "
-        "You MUST respond using ONLY the exact output format requested. "
-        "NEVER use JSON. NEVER use code blocks. NEVER add explanations."
+        "Output ONLY the post text — nothing else. "
+        "No JSON, no code blocks, no labels, no introductions, no explanations."
     )
-    prompt = (
+    post_prompt = (
         f"Write a professional LinkedIn post about: {topic}.\n"
         f"Subject area: {subject or topic}. Target audience: {audience}. Tone: {tone}.\n"
-        "Engaging, well-structured with real line breaks. Emojis sparingly. No hashtags in body.\n\n"
-        "YOUR RESPONSE MUST USE EXACTLY THIS FORMAT — no JSON, no code fences, nothing else:\n"
-        "POSTSTART\n"
-        "write the full post text here\n"
-        "POSTEND\n"
-        "HASHTAGSTART\n"
-        "Hashtag1,Hashtag2,Hashtag3\n"
-        "HASHTAGEND"
+        "Engaging, well-structured with real line breaks. Emojis sparingly. "
+        "Do NOT include hashtags in the body. "
+        "Output ONLY the post text — start writing the post immediately."
     )
     try:
-        content = await _ai_complete(request, prompt, max_tokens=1200, system=system_prompt)
+        post_raw = await _ai_complete(request, post_prompt, max_tokens=1200, system=post_system)
     except Exception as e:
         return {"post": "", "hashtags": [], "char_count": 0, "error": str(e)}
 
-    post = ""
-    hashtags: list[str] = []
-
-    # Primary: distinctive markers that an AI would never put inside a LinkedIn post
-    if "POSTSTART" in content and "POSTEND" in content:
-        post = content.split("POSTSTART", 1)[1].split("POSTEND", 1)[0].strip()
-        if "HASHTAGSTART" in content and "HASHTAGEND" in content:
-            ht_raw = content.split("HASHTAGSTART", 1)[1].split("HASHTAGEND", 1)[0].strip()
-            hashtags = [h.strip().lstrip("#") for h in ht_raw.split(",") if h.strip()]
-    elif "===POST===" in content:
-        # Fallback for old format in case already cached
-        after = content.split("===POST===", 1)[1]
-        if "===HASHTAGS===" in after:
-            pp, hp = after.split("===HASHTAGS===", 1)
-            post = pp.strip()
-            hashtags = [h.strip().lstrip("#") for h in hp.strip().split(",") if h.strip()]
-        else:
-            post = after.strip()
-    else:
-        # Nuclear fallback: AI returned JSON despite instructions — strip it
-        raw = content.strip()
-        # Strip markdown code fences
-        import re as _re
-        raw = _re.sub(r"^```[a-z]*\n?", "", raw)
-        raw = _re.sub(r"\n?```$", "", raw).strip()
-        parsed = _extract_json(raw)
+    post = post_raw.strip()
+    # Strip any accidental JSON wrapper (old model behaviour)
+    if post.startswith("{") and ('"post"' in post or "'post'" in post):
+        parsed = _extract_json(post)
         if isinstance(parsed, dict) and "post" in parsed:
             post = str(parsed["post"]).strip()
-            hashtags = [str(h) for h in (parsed.get("hashtags") or [])]
-        else:
-            # Last resort: regex-extract the post value from JSON-ish text
-            m = _re.search(r'"post"\s*:\s*"((?:[^"\\]|\\.|\n)*)"', raw, _re.DOTALL)
-            if m:
-                post = m.group(1).replace("\\n", "\n").replace('\\"', '"').replace("\\\\", "\\")
-            else:
-                post = raw  # give raw to user so they can see and edit it
+
+    # --- Call 2: get hashtags as a simple comma-separated list ---
+    hashtag_system = "Return ONLY a comma-separated list of hashtag words without the # symbol. No JSON. No other text."
+    hashtag_prompt = f"Give 6 LinkedIn hashtags for a post about: {topic}. Return ONLY comma-separated words."
+    hashtags: list[str] = []
+    try:
+        ht_raw = await _ai_complete(request, hashtag_prompt, max_tokens=80, system=hashtag_system)
+        hashtags = [h.strip().lstrip("#") for h in ht_raw.split(",") if h.strip() and len(h.strip()) < 35]
+    except Exception:
+        pass
 
     return {"post": post, "hashtags": hashtags, "char_count": len(post)}
 
@@ -292,53 +269,41 @@ async def generate_images(body: dict, request: Request):
         return {"images": [], "error": f"OpenAI key looks invalid (should start with 'sk-'). Current key starts with: {openai_key[:8]}…"}
 
     base = custom_prompt.strip() if custom_prompt else ""
-    # Summarise post key message in a few words so DALL-E prompts are tightly themed
     post_summary = post_text[:1000] if post_text else topic
-    prompt = (
-        "You are a visual director creating DALL-E image prompts for a LinkedIn post.\n\n"
+    img_system = "Return ONLY the image prompt text — no JSON, no labels, no extra text."
+    img_prompt = (
+        "Write ONE detailed DALL-E image prompt for a LinkedIn post.\n\n"
         f"POST TOPIC: {topic}\n"
-        f"POST TEXT (use this to understand the message and mood):\n{post_summary}\n\n"
+        f"POST TEXT (use this for the visual theme):\n{post_summary}\n\n"
         + (f"STYLE PREFERENCE: {base}\n\n" if base else "")
-        + "Create 3 DISTINCT DALL-E image prompts. Each must:\n"
-        "- Visually represent the core message of the post above\n"
+        + "The prompt must:\n"
+        "- Visually represent the core message of the post\n"
         "- Be professional and LinkedIn-appropriate\n"
-        "- Include specific visual elements that reflect the post's theme (not generic stock photos)\n"
-        "- Describe composition, lighting, color tone, and mood\n"
-        "- Be different from each other (vary angle, metaphor, style)\n\n"
-        "Return ONLY a JSON array of 3 strings: [\"prompt1\", \"prompt2\", \"prompt3\"]"
+        "- Include composition, lighting, color tone, and mood\n"
+        "Return ONLY the prompt text — nothing else."
     )
     try:
-        content = await _ai_complete(request, prompt, max_tokens=600)
+        dalle_prompt = await _ai_complete(request, img_prompt, max_tokens=300, system=img_system)
+        dalle_prompt = dalle_prompt.strip().strip('"').strip("'")
     except Exception as e:
         return {"images": [], "error": f"AI prompt generation failed: {e}"}
 
-    prompts = _extract_json(content)
-    if not isinstance(prompts, list) or not prompts:
-        return {"images": [], "error": "Could not parse AI image prompts"}
-    prompts = [str(p) for p in prompts[:3]]
+    if not dalle_prompt:
+        return {"images": [], "error": "Could not generate image prompt"}
 
-    # Use model from settings, then fall back through the rest
     preferred = _get_linkedin_settings().get("image_model", "dall-e-3") or "dall-e-3"
     fallback_list = list(IMAGE_MODELS)
     if preferred in fallback_list:
         fallback_list.remove(preferred)
     IMAGE_MODEL_FALLBACKS = [preferred] + fallback_list
 
-    async def _try_image(http_client, prompt: str, model: str) -> tuple[str, str]:
-        """Returns (data_url_or_https_url, error). url is empty on failure."""
-        # Do NOT send response_format — some models reject it as unknown.
-        # Instead, check both url and b64_json in the response.
-        payload: dict = {
-            "model": model,
-            "prompt": prompt[:4000],
-            "n": 1,
-            "size": "1024x1024",
-        }
+    headers = {"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"}
+
+    async def _try_image(http_client, p: str, model: str) -> tuple[str, str]:
+        payload: dict = {"model": model, "prompt": p[:4000], "n": 1, "size": "1024x1024"}
         try:
             r = await http_client.post(
-                "https://api.openai.com/v1/images/generations",
-                headers=headers,
-                json=payload,
+                "https://api.openai.com/v1/images/generations", headers=headers, json=payload
             )
         except Exception as e:
             return "", f"Request failed: {e}"
@@ -355,37 +320,18 @@ async def generate_images(body: dict, request: Request):
         msg = eb.get("error", {}).get("message", r.text[:300])
         return "", f"OpenAI {r.status_code}: {msg}"
 
-    images = []
     last_error = ""
-    headers = {"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"}
-
-    # Try each model in order — stop at the first one that works for this key
-    working_model: str | None = None
     _skip_phrases = ("does not exist", "not supported", "not available", "no access", "model_not_found")
     async with httpx.AsyncClient(timeout=120.0) as http:
-        if prompts:
-            for m in IMAGE_MODEL_FALLBACKS:
-                url, err = await _try_image(http, prompts[0], m)
-                if url:
-                    images.append({"url": url, "prompt": prompts[0]})
-                    working_model = m
-                    break
-                last_error = err
-                err_lower = err.lower()
-                if not any(p in err_lower for p in _skip_phrases):
-                    break  # real error (quota/auth/billing) — no point trying other models
-        # Generate remaining prompts with the working model
-        if working_model and len(prompts) > 1:
-            for p in prompts[1:]:
-                url, err = await _try_image(http, p, working_model)
-                if url:
-                    images.append({"url": url, "prompt": p})
-                else:
-                    last_error = err
+        for m in IMAGE_MODEL_FALLBACKS:
+            url, err = await _try_image(http, dalle_prompt, m)
+            if url:
+                return {"images": [{"url": url, "prompt": dalle_prompt}]}
+            last_error = err
+            if not any(p in err.lower() for p in _skip_phrases):
+                break  # real error — no point trying other models
 
-    if not images:
-        return {"images": [], "error": last_error or "DALL-E returned no images"}
-    return {"images": images}
+    return {"images": [], "error": last_error or "Image generation failed"}
 
 
 @router.post("/linkedin/save-draft")

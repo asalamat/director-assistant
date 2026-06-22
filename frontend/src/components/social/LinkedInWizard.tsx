@@ -121,38 +121,42 @@ export function LinkedInWizard({ onViewHistory, onManageTemplates }: { onViewHis
     }
   }
 
-  // Step 5 — generate images using selected template (or none)
+  // Step 5 — generate 1 image using selected template (or none)
   const generateImages = async (tmpl?: LinkedInTemplate) => {
     const prompt = tmpl ? tmpl.prompt : (customPrompt || undefined)
     if (tmpl) { setSelectedTemplate(tmpl.id); setCustomPrompt(tmpl.prompt) }
-    setStep(5); setImgLoading(true); setError('')
+    setStep(5); setImgLoading(true); setError(''); setImages([]); setSelectedImage(null)
     try {
       const r = await (api as any).generateLinkedInImages({
         topic: selectedTrend?.title,
         post_text: post,
         custom_prompt: prompt,
       })
-      if (r.error) setError(r.error)
-      setImages(r.images || [])
+      if (r.error) { setError(r.error); return }
+      const imgs = r.images || []
+      setImages(imgs)
+      if (imgs.length > 0) setSelectedImage(0)  // auto-select the single image
     } catch (e) {
-      setError((e as Error).message || 'Failed to generate images')
+      setError((e as Error).message || 'Failed to generate image')
     } finally {
       setImgLoading(false)
     }
   }
 
   const regenImages = async () => {
-    setImgLoading(true); setError('')
+    setImgLoading(true); setError(''); setImages([]); setSelectedImage(null)
     try {
       const r = await (api as any).generateLinkedInImages({
         topic: selectedTrend?.title,
         post_text: post,
         custom_prompt: customPrompt || undefined,
       })
-      if (r.error) setError(r.error)
-      setImages(r.images || [])
+      if (r.error) { setError(r.error); return }
+      const imgs = r.images || []
+      setImages(imgs)
+      if (imgs.length > 0) setSelectedImage(0)
     } catch (e) {
-      setError((e as Error).message || 'Failed to regenerate images')
+      setError((e as Error).message || 'Failed to regenerate image')
     } finally {
       setImgLoading(false)
     }
@@ -465,11 +469,11 @@ export function LinkedInWizard({ onViewHistory, onManageTemplates }: { onViewHis
         </div>
       )}
 
-      {/* Step 5 — Generated Images */}
+      {/* Step 5 — Generated Image */}
       {step === 5 && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold text-gray-900">Choose an Image</h2>
+            <h2 className="text-base font-semibold text-gray-900">Generated Image</h2>
             <button
               onClick={goToStylePicker}
               className="text-xs text-accent hover:underline"
@@ -480,20 +484,16 @@ export function LinkedInWizard({ onViewHistory, onManageTemplates }: { onViewHis
 
           {imgLoading ? (
             <div className="space-y-3">
-              <div className="grid grid-cols-3 gap-3">
-                {[0, 1, 2].map(i => (
-                  <div key={i} className="aspect-square bg-gray-100 rounded-xl animate-pulse" />
-                ))}
-              </div>
+              <div className="aspect-video bg-gray-100 rounded-xl animate-pulse" />
               <div className="flex items-center gap-2 text-xs text-gray-400">
                 <Spinner />
-                <span>Generating images… this can take up to 60 seconds</span>
+                <span>Generating image… this can take up to 60 seconds</span>
               </div>
             </div>
           ) : images.length === 0 ? (
             <div className="border-2 border-dashed border-gray-200 rounded-xl p-8 text-center space-y-2">
               <span className="text-3xl">🖼️</span>
-              <p className="text-sm font-medium text-gray-600">No images generated</p>
+              <p className="text-sm font-medium text-gray-600">No image generated</p>
               <p className="text-xs text-gray-400">
                 {error ? 'See error above — check your OpenAI API key in Settings' : 'Click Try Again or go back to choose a different style'}
               </p>
@@ -505,33 +505,33 @@ export function LinkedInWizard({ onViewHistory, onManageTemplates }: { onViewHis
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-3 gap-3">
-              {images.map((img, i) => (
+            <div className="space-y-3">
+              <div className="relative rounded-xl overflow-hidden border border-gray-200">
+                <img src={images[0].url} alt={images[0].prompt} className="w-full object-cover rounded-xl" />
+              </div>
+              <p className="text-[11px] text-gray-400 leading-snug">{images[0].prompt}</p>
+              <div className="flex gap-2">
                 <button
-                  key={i}
-                  onClick={() => setSelectedImage(i)}
-                  className={`relative border-2 rounded-xl overflow-hidden transition-colors ${
-                    selectedImage === i ? 'border-accent' : 'border-transparent'
+                  onClick={() => setSelectedImage(0)}
+                  className={`flex-1 px-3 py-2 rounded-xl text-xs font-medium border-2 transition ${
+                    selectedImage === 0
+                      ? 'border-accent bg-accent text-white'
+                      : 'border-gray-200 text-gray-700 hover:border-accent'
                   }`}
                 >
-                  <img src={img.url} alt={img.prompt} className="w-full aspect-square object-cover" />
-                  {selectedImage === i && (
-                    <div className="absolute top-1.5 right-1.5 w-5 h-5 bg-accent rounded-full flex items-center justify-center">
-                      <span className="text-white text-[10px] font-bold">✓</span>
-                    </div>
-                  )}
-                  <p className="text-[10px] text-gray-500 p-1.5 truncate">{img.prompt}</p>
+                  {selectedImage === 0 ? '✓ Using this image' : 'Use this image'}
                 </button>
-              ))}
-              <button
-                onClick={() => setSelectedImage(-1)}
-                className={`border-2 rounded-xl p-4 flex flex-col items-center justify-center gap-1 transition-colors ${
-                  selectedImage === -1 ? 'border-accent bg-blue-50' : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <span className="text-xl">📄</span>
-                <span className="text-xs text-gray-500">No image</span>
-              </button>
+                <button
+                  onClick={() => setSelectedImage(-1)}
+                  className={`flex-1 px-3 py-2 rounded-xl text-xs font-medium border-2 transition ${
+                    selectedImage === -1
+                      ? 'border-accent bg-accent text-white'
+                      : 'border-gray-200 text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  Skip — No Image
+                </button>
+              </div>
             </div>
           )}
 
