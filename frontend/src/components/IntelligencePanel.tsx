@@ -11,14 +11,24 @@ import { MeetingTab } from './intelligence/MeetingTab'
 import { CRMTab } from './intelligence/CRMTab'
 import { BoardReportTab } from './intelligence/BoardReportTab'
 import { CoachingTab } from './intelligence/CoachingTab'
+import { NudgesTab } from './intelligence/NudgesTab'
+import { DecisionsTab } from './intelligence/DecisionsTab'
+import { StakeholderMap } from './intelligence/StakeholderMap'
+import { EscalationTab } from './intelligence/EscalationTab'
+import JobTracker from './JobTracker'
+import { useUIContext } from '../contexts/UIContext'
 
-type SubTab = 'briefing' | 'people' | 'loops' | 'ai-projects' | 'timeline' | 'email-map' | 'kg' | 'weekly' | 'chase' | 'analytics' | 'templates' | 'projects' | 'pst' | 'meetings' | 'crm' | 'board' | 'coaching'
+type SubTab = 'briefing' | 'people' | 'stakeholders' | 'loops' | 'nudges' | 'decisions' | 'escalations' | 'ai-projects' | 'timeline' | 'email-map' | 'kg' | 'weekly' | 'chase' | 'analytics' | 'templates' | 'projects' | 'pst' | 'meetings' | 'crm' | 'board' | 'coaching' | 'jobs'
 
 const SUB_TABS: { id: SubTab; label: string; icon: string; group?: string }[] = [
   // Intelligence
   { id: 'briefing',    label: 'Briefing',    icon: '🧭', group: 'intel' },
   { id: 'people',      label: 'People',      icon: '👥', group: 'intel' },
+  { id: 'stakeholders', label: 'Influence',  icon: '🌐', group: 'intel' },
   { id: 'loops',       label: 'Open Loops',  icon: '🔄', group: 'intel' },
+  { id: 'nudges',      label: 'Nudges',      icon: '🔔', group: 'intel' },
+  { id: 'decisions',   label: 'Decisions',   icon: '⚖️', group: 'intel' },
+  { id: 'escalations', label: 'Escalations', icon: '🚨', group: 'intel' },
   { id: 'ai-projects', label: 'AI Clusters', icon: '🗂', group: 'intel' },
   { id: 'timeline',    label: 'Timeline',    icon: '📅', group: 'intel' },
   { id: 'email-map',   label: 'Email Map',   icon: '🗺', group: 'intel' },
@@ -31,17 +41,28 @@ const SUB_TABS: { id: SubTab; label: string; icon: string; group?: string }[] = 
   { id: 'crm',         label: 'CRM',          icon: '💼', group: 'tools' },
   { id: 'board',       label: 'Board Report', icon: '📋', group: 'tools' },
   { id: 'coaching',    label: 'Coaching',     icon: '🎯', group: 'tools' },
+  { id: 'jobs',         label: 'Job Tracker',  icon: '💼', group: 'tools' },
   { id: 'analytics',   label: 'Analytics',    icon: '📈', group: 'tools' },
   { id: 'templates',   label: 'Templates',    icon: '✉',  group: 'tools' },
   { id: 'pst',         label: 'Import PST',   icon: '📦', group: 'tools' },
 ]
 
 export function IntelligencePanel() {
+  const { openCompose } = useUIContext()
   const [activeTab, setActiveTab] = useState<SubTab>('briefing')
   const [timelineQuery, setTimelineQuery] = useState('')
+  const [timelineIds, setTimelineIds] = useState<string[] | undefined>(undefined)
 
   const handleSelectCluster = (cluster: Cluster) => {
-    setTimelineQuery(cluster.keywords?.[0] || cluster.name)
+    if (cluster.email_ids && cluster.email_ids.length > 0) {
+      // Exact membership known — bypass text search entirely
+      setTimelineIds(cluster.email_ids)
+      setTimelineQuery(cluster.name)
+    } else {
+      // Older cached cluster without email_ids — fall back to keyword search
+      setTimelineIds(undefined)
+      setTimelineQuery(cluster.keywords?.slice(0, 3).join(' ') || cluster.name)
+    }
     setActiveTab('timeline')
   }
 
@@ -89,9 +110,13 @@ export function IntelligencePanel() {
       <div className="flex-1 overflow-hidden min-h-0">
         {activeTab === 'briefing'    && <div className="h-full overflow-y-auto min-h-0"><BriefingTab /></div>}
         {activeTab === 'people'      && <PeopleTab />}
+        {activeTab === 'stakeholders' && <StakeholderMap onEmailContact={email => openCompose({ to: email })} />}
         {activeTab === 'loops'       && <LoopsTab />}
+        {activeTab === 'nudges'      && <NudgesTab />}
+        {activeTab === 'decisions'   && <DecisionsTab />}
+        {activeTab === 'escalations' && <EscalationTab onViewThread={q => { setTimelineIds(undefined); setTimelineQuery(q); setActiveTab('timeline') }} />}
         {activeTab === 'ai-projects' && <ProjectsTab onSelectCluster={handleSelectCluster} />}
-        {activeTab === 'timeline'    && <TimelineTab initialQuery={timelineQuery} />}
+        {activeTab === 'timeline'    && <TimelineTab initialQuery={timelineQuery} initialIds={timelineIds} />}
         {activeTab === 'email-map'   && <div className="h-full overflow-hidden"><EmbeddingMap onSearch={q => { setTimelineQuery(q); setActiveTab('timeline') }} /></div>}
         {activeTab === 'kg'          && <div className="h-full overflow-hidden"><KnowledgeGraph onSearchPerson={name => { setTimelineQuery(name); setActiveTab('timeline') }} /></div>}
         {activeTab === 'weekly'      && <WeeklyBriefPanel />}
@@ -101,6 +126,7 @@ export function IntelligencePanel() {
         {activeTab === 'crm'         && <CRMTab />}
         {activeTab === 'board'       && <BoardReportTab />}
         {activeTab === 'coaching'    && <CoachingTab />}
+        {activeTab === 'jobs'        && <div className="h-full overflow-y-auto"><JobTracker /></div>}
         {activeTab === 'analytics'   && <Analytics />}
         {activeTab === 'templates'   && <TemplatesPanel />}
         {activeTab === 'pst'         && <PSTImport />}

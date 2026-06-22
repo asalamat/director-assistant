@@ -259,12 +259,17 @@ try {{
 
     Log '--- Update complete. Restarting...'
 
-    # 8. Kill python/uvicorn processes — use taskkill (no WMI/CommandLine needed)
+    # 8. Kill python/uvicorn processes — taskkill + CIM fallback (avoids deprecated WMI)
     $ErrorActionPreference = 'Continue'
     taskkill /F /FI "WINDOWTITLE eq Director Assistant*" 2>$null | Out-Null
-    Get-Process python,python3,uvicorn -ErrorAction SilentlyContinue | ForEach-Object {{
-        $cmdline = (Get-WmiObject Win32_Process -Filter "ProcessId=$($_.Id)" -ErrorAction SilentlyContinue).CommandLine
-        if ($cmdline -like '*uvicorn*' -or $cmdline -like '*main:app*') {{ $_.Kill() }}
+    taskkill /F /FI "IMAGENAME eq uvicorn.exe" 2>$null | Out-Null
+    try {{
+        Get-CimInstance Win32_Process -Filter "Name='python.exe' OR Name='python3.exe'" -ErrorAction Stop |
+            Where-Object {{ $_.CommandLine -like '*uvicorn*' -or $_.CommandLine -like '*main:app*' }} |
+            ForEach-Object {{ Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }}
+    }} catch {{
+        Get-Process python,python3 -ErrorAction SilentlyContinue |
+            ForEach-Object {{ $_.Kill() }}
     }}
     Start-Sleep 3
 

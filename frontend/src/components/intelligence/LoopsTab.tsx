@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { api } from '../../api/client'
+import { useUIContext } from '../../contexts/UIContext'
 import type { OpenLoop, ForgotReplyEmail } from '../../types'
 
 const DISMISSED_KEY = 'dismissed_loops'
@@ -133,6 +134,7 @@ function ForgotReplyTab({ onOpenCompose }: { onOpenCompose?: (to: string, subjec
 }
 
 export function LoopsTab() {
+  const { openCompose } = useUIContext()
   const [view, setView] = useState<'loops' | 'forgot'>('loops')
   const [loops, setLoops] = useState<OpenLoop[]>([])
   const [loading, setLoading] = useState(false)
@@ -228,7 +230,7 @@ export function LoopsTab() {
     return (
       <div className="flex flex-col h-full">
         {tabBar}
-        <ForgotReplyTab />
+        <ForgotReplyTab onOpenCompose={(to, subject) => openCompose({ to, subject })} />
       </div>
     )
   }

@@ -91,16 +91,20 @@ export function AIPanel({ rec, loading, error, email }: Props) {
 
   const createFollowUp = async () => {
     if (!email || !dueDate) return
-    await api.createFollowUp({
-      email_id: email.id,
-      subject: email.subject,
-      sender: email.sender,
-      due_date: dueDate,
-      note: followUpNote,
-    })
-    setShowFollowUp(false)
-    setDueDate('')
-    setFollowUpNote('')
+    try {
+      await api.createFollowUp({
+        email_id: email.id,
+        subject: email.subject,
+        sender: email.sender,
+        due_date: dueDate,
+        note: followUpNote,
+      })
+      setShowFollowUp(false)
+      setDueDate('')
+      setFollowUpNote('')
+    } catch {
+      // silently ignore — form stays open so user can retry
+    }
   }
 
   const saveDraft = async (body: string, idx: number) => {

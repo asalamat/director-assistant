@@ -60,6 +60,7 @@ from routers import signatures as signatures_router
 from routers import snippets as snippets_router
 from routers import rag as rag_router
 from routers import knowledge_graph as knowledge_graph_router
+from routers import jobs as jobs_router
 from routers.proactive import push_alert
 from services.intelligence_service import IntelligenceService
 from workers.background_tasks import (
@@ -67,7 +68,7 @@ from workers.background_tasks import (
     _auto_sentiment_escalation, _commitment_scan_loop,
     _relationship_health_loop, _auto_label_loop, _scheduled_send_loop,
     _scheduled_report_loop, _overnight_triage_loop, _rules_loop,
-    _followup_reminder_loop,
+    _followup_reminder_loop, daily_focus_task,
 )
 from routers.config import get_effective_api_key, load_app_config
 from services.ai_client import AIClient
@@ -200,7 +201,7 @@ async def _do_poll_cycle(rag: RAGEngine, cache: EmailCache, app=None) -> tuple[i
 
 
 async def _do_poll_cycle_inner(rag: RAGEngine, cache: EmailCache, app=None) -> tuple[int, list[str]]:
-    global _last_poll_new, _last_poll_error
+    global _last_poll_new, _last_poll_error, _last_poll_time
     from routers.connection import load_config
     from services.email_provider import build_provider, IMAPProvider
 
@@ -342,6 +343,7 @@ async def _do_poll_cycle_inner(rag: RAGEngine, cache: EmailCache, app=None) -> t
 
     _last_poll_new = new_total
     _last_poll_error = "; ".join(errors) if errors else ""
+    _last_poll_time = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     return new_total, errors
 
 
@@ -489,11 +491,12 @@ async def lifespan(app: FastAPI):
     app.state.overnight_task = asyncio.create_task(_overnight_triage_loop(app))
     app.state.rules_task = asyncio.create_task(_rules_loop(app))
     app.state.followup_reminder_task = asyncio.create_task(_followup_reminder_loop(app))
+    app.state.daily_focus_task = asyncio.create_task(daily_focus_task(app))
     app.state.restart_poll = lambda: asyncio.create_task(_restart_poll(app))
     yield
     for task_name in ("digest_task", "poll_task", "commitment_task", "relationship_task",
                       "scheduled_send_task", "auto_label_task", "report_task", "overnight_task",
-                      "rules_task", "followup_reminder_task"):
+                      "rules_task", "followup_reminder_task", "daily_focus_task"):
         task = getattr(app.state, task_name, None)
         if task:
             task.cancel()
@@ -560,6 +563,7 @@ app.include_router(signatures_router.router)
 app.include_router(snippets_router.router)
 app.include_router(rag_router.router)
 app.include_router(knowledge_graph_router.router)
+app.include_router(jobs_router.router)
 
 
 @app.get("/health")

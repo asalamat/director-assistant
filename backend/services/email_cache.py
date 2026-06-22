@@ -464,13 +464,17 @@ class EmailCache(EmailExtrasMixin, DocumentCacheMixin):
         if not emails:
             return 0
         rows = [self._email_to_row(e, account_id) for e in emails]
+        CHUNK = 900  # stay under SQLite SQLITE_LIMIT_VARIABLE_NUMBER (999 on older builds)
+        existing_ids: set = set()
         with self._conn() as conn:
-            existing_ids = {
-                r[0] for r in conn.execute(
-                    f"SELECT id FROM emails WHERE id IN ({','.join('?' * len(emails))})",
-                    [e.id for e in emails],
-                ).fetchall()
-            }
+            for i in range(0, len(emails), CHUNK):
+                chunk = emails[i:i + CHUNK]
+                existing_ids.update(
+                    r[0] for r in conn.execute(
+                        f"SELECT id FROM emails WHERE id IN ({','.join('?' * len(chunk))})",
+                        [e.id for e in chunk],
+                    ).fetchall()
+                )
             conn.executemany(
                 """INSERT OR REPLACE INTO emails
                    (id, subject, sender, recipients, date, body, body_html,

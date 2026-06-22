@@ -144,6 +144,13 @@ export interface ForgotReplyEmail {
   days_ago: number
 }
 
+export interface SprintEmail {
+  id: string
+  sender: string
+  subject: string
+  date: string
+}
+
 export interface QuickReplies {
   short: string
   detailed: string
@@ -200,6 +207,7 @@ export interface Cluster {
   last_activity: string
   keywords: string[]
   status: 'active' | 'dormant' | 'resolved'
+  email_ids?: string[]
 }
 
 export interface OpenLoop {
@@ -208,6 +216,26 @@ export interface OpenLoop {
   sender: string
   date: string
   urgency: 'high' | 'medium' | 'low'
+}
+
+export interface RelationshipNudge {
+  name: string
+  email: string
+  is_vip: boolean
+  last_contact_date: string | null
+  last_subject: string | null
+  days_since: number
+  suggested_context: string
+}
+
+export interface Decision {
+  id: string
+  subject: string
+  sender: string
+  date: string
+  direction: 'mine' | 'theirs'
+  days_waiting: number
+  snippet: string
 }
 
 export interface TimelineEvent {

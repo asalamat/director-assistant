@@ -10,7 +10,7 @@ set -e
 
 APP_NAME="Director Assistant"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-APP_VERSION=$(python3 -c "import json; print(json.load(open('$SCRIPT_DIR/../version.json'))['version'])" 2>/dev/null || echo "3.38.2")
+APP_VERSION=$(python3 -c "import json; print(json.load(open('$SCRIPT_DIR/../version.json'))['version'])" 2>/dev/null || cat "$SCRIPT_DIR/../version.json" 2>/dev/null | grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' | grep -o '"[0-9.]*"' | tr -d '"' || echo "unknown")
 INSTALL_DIR="$HOME/Applications/DirectorAssistant"
 PYTHON_MIN="3.11"
 NODE_MIN="18"

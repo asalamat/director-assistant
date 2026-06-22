@@ -276,6 +276,16 @@ function ExecutiveTools() {
       <P><strong>Export:</strong> use <strong>📋 Copy</strong> to copy the full brief to your clipboard, or <strong>↓ .md</strong> to download it as a Markdown file.</P>
       <P><strong>Send to inbox:</strong> click <strong>Send to inbox</strong> to email yourself a formatted HTML copy of the brief — useful when you're away from the app.</P>
 
+      <H3>Inbox Zero Sprint <Tag color="green">New</Tag></H3>
+      <P>Click <strong>⚡ Sprint</strong> in the inbox toolbar to enter Sprint Mode — AI reads your unread emails and sorts them into four buckets so you can act on each group in bulk:</P>
+      <UL>
+        <Li><strong>🟢 Reply Now</strong> — emails that need a direct reply or quick acknowledgement (under 2 minutes)</Li>
+        <Li><strong>🟡 Needs Thought</strong> — emails requiring research, a considered response, or a decision</Li>
+        <Li><strong>📦 Archive</strong> — newsletters, FYI threads, notifications — no action needed</Li>
+        <Li><strong>👥 Delegate</strong> — emails that should be handled by someone else</Li>
+      </UL>
+      <P>Each column has a <strong>Mark all read</strong> button to clear it in one click. Sprint analyzes up to 60 unread emails per run.</P>
+
       <H3>Smart Daily Triage (Focus Tab)</H3>
       <P>Switch to <strong>Focus</strong> to see your top 7 priority unread emails, AI-scored using 7 signals:</P>
       <UL>
@@ -289,14 +299,14 @@ function ExecutiveTools() {
       </UL>
       <P>Score badges <strong>!</strong> / <strong>!!</strong> / <strong>!!!</strong> and reason tags explain exactly why each email was flagged. Hover the numeric score badge (e.g. <strong>8</strong>) to see a tooltip listing every scoring reason in detail. Click any to jump directly to it. Refreshes every 5 minutes.</P>
 
-      <H3>Chase Queue (Follow-up Drafts) <Tag color="orange">New</Tag></H3>
+      <H3>Chase Queue (Follow-up Drafts)</H3>
       <P>Go to the <strong>Chase</strong> tab to see all emails you sent with no reply after 3+ days.</P>
       <UL>
         <Li>Color-coded urgency: 3+ days (neutral) / 7+ days (amber) / 14+ days (red)</Li>
         <Li>Adjust the threshold with the dropdown (2 / 3 / 7 / 14+ days)</Li>
-        <Li>Click <strong>✎ Write follow-up</strong> to generate an AI polite chase draft</Li>
-        <Li>Open in Compose or copy to clipboard in one click</Li>
-        <Li><strong>Automatic reminders</strong> — a background task runs hourly and adds any sent email still unanswered past the threshold (default 3 days) to this queue for you, deduplicated so nothing is added twice. No manual scan needed.</Li>
+        <Li>Click <strong>✍</strong> to generate an AI follow-up draft — it opens directly in Compose pre-addressed and pre-written</Li>
+        <Li>Snooze any item (clock icon) or add private notes (📝) that only you see</Li>
+        <Li><strong>Automatic reminders</strong> — a background task runs hourly and adds any sent email still unanswered past the threshold to this queue, deduplicated so nothing is added twice. No manual scan needed.</Li>
       </UL>
 
       <H3>Daily Brief</H3>
@@ -476,14 +486,14 @@ function KnowledgeSection() {
       </UL>
       <P>Each item has an urgency badge (high / medium / low). Filter by type — buttons show live counts including dismissed items. Mark items as resolved with the ✓ button; restore them from the Dismissed section.</P>
 
-      <H3>Projects (AI Clusters)</H3>
-      <P>AI automatically groups your emails into 6–12 topic clusters representing ongoing projects or recurring threads. Click <strong>"✦ Generate Clusters"</strong> to run — no briefing required. Each cluster shows:</P>
+      <H3>AI Clusters</H3>
+      <P>AI automatically groups your emails into 6–12 topic clusters representing ongoing projects or recurring threads. Click <strong>"✦ Generate Clusters"</strong> to run — no briefing required. Each cluster card shows:</P>
       <UL>
         <Li>Status: Active / Dormant / Resolved</Li>
         <Li>Email count and last activity date</Li>
         <Li>Top keywords</Li>
       </UL>
-      <P>Click any cluster to jump to its Timeline view. Use <strong>↺ Regenerate</strong> to refresh after new emails arrive.</P>
+      <P>Click <strong>↺ Regenerate</strong> to rebuild after new emails arrive. Click any cluster card to jump to its <strong>Timeline</strong> view showing all related emails in chronological order. On job-related clusters, a <strong>"🎯 Interview Prep"</strong> button appears — click it to generate a one-click prep brief from the emails in that cluster.</P>
 
       <H3>Email Cluster Map</H3>
       <P>Intelligence → 📍 Email Map — a 2D scatter plot of up to 1500 indexed emails projected by semantic similarity (PCA). Emails with similar content cluster together.</P>
@@ -511,10 +521,66 @@ function KnowledgeSection() {
       </UL>
 
       <H3>Topic Timeline</H3>
-      <P>Search any keyword or topic to see all related emails in chronological order — oldest to newest. Useful for reconstructing how a situation evolved: "what happened with the contract renewal?" or "how did the hiring process unfold?"</P>
+      <P>Search any keyword or topic to see all related emails in chronological order — oldest to newest. Useful for reconstructing how a situation evolved: "what happened with the contract renewal?" or "how did the hiring process unfold?" Also accessed by clicking any AI Cluster card.</P>
 
-      <H3>Executive Briefing</H3>
-      <P>Click <strong>"Brief me on this role"</strong> in the Briefing tab to generate an AI-powered overview covering active projects, key relationships, open commitments, and recommended first-week actions. Scans up to 300 recent emails. Takes 30–60 seconds the first time; cached for 10 minutes.</P>
+      <H3>Role Transition Briefing</H3>
+      <P>Click <strong>"Brief me on this role"</strong> in the Briefing tab to generate an AI-powered executive summary of your entire email history: key relationships, active projects, open commitments, and a 3-paragraph executive narrative with recommended first-week actions. Scans up to 300 recent emails. Takes 30–60 seconds the first time; cached for 10 minutes and auto-runs once per day.</P>
+
+      <H3>Relationship Nudges <Tag color="green">New</Tag></H3>
+      <P>Go to <strong>Knowledge → Nudges</strong> to see contacts you haven't reached out to recently. The engine checks your VIP contacts and top frequent senders, finds who has gone silent, and surfaces them as nudge cards.</P>
+      <UL>
+        <Li>Threshold selector at the top: <strong>14d / 21d / 30d</strong> — contacts quiet for longer than this appear</Li>
+        <Li>Each card shows: name, days since last contact (amber 14–30d, red 30d+), last subject, VIP badge if applicable</Li>
+        <Li><strong>Email now</strong> — opens Compose pre-addressed to that contact</Li>
+        <Li><strong>Dismiss</strong> — hides the nudge for this session (no API call — reappears next visit)</Li>
+      </UL>
+      <Note>No AI cost — Nudges are computed from your email history in pure SQL, so they load instantly.</Note>
+
+      <H3>Decision Tracker <Tag color="green">New</Tag></H3>
+      <P>Go to <strong>Knowledge → ⚖️ Decisions</strong> to track every decision thread across your inbox. The engine scans emails for decision-language ("we decided", "let's go with", "approved", "confirmed", "pending your approval") and groups them into two piles:</P>
+      <UL>
+        <Li><strong>Needs My Decision</strong> — emails where someone is waiting on you. Badge turns amber after 3 days, red after 7.</Li>
+        <Li><strong>Waiting on Others</strong> — decisions you've delegated and are pending a reply.</Li>
+        <Li><strong>Generate Brief</strong> — click on any card to open a modal and have AI write a one-paragraph context brief about the decision thread using your full email history with that contact.</Li>
+      </UL>
+      <Note>No AI cost for the list — only Generate Brief uses an AI call.</Note>
+
+      <H3>Escalation Radar <Tag color="green">New</Tag></H3>
+      <P>Go to <strong>Knowledge → 🚨 Escalations</strong> to see which email threads are trending toward urgency. The radar scores each thread on 5 signals: follow-up count, urgency words ("asap", "critical", "deadline"), VIP sender, days since last reply, and recipient count. Threads scoring 40+ surface here.</P>
+      <UL>
+        <Li>Score bar shows 0–100 heat. Color: green &lt; 40, amber 40–69, red 70+.</Li>
+        <Li>Signal badges (e.g. "3 follow-ups", "VIP sender") explain why a thread ranked high.</Li>
+        <Li><strong>View Timeline</strong> — jumps to the Timeline tab filtered to that thread so you can read the full context.</Li>
+      </UL>
+      <Note>No AI cost — escalation scoring is computed in pure SQL from email metadata.</Note>
+
+      <H3>Stakeholder Influence Map <Tag color="green">New</Tag></H3>
+      <P>Go to <strong>Knowledge → 🌐 Influence</strong> to see a ranked influence map of every contact you interact with. Influence score combines: email volume, reply rate, whether they are a VIP, and thread importance weighting.</P>
+      <UL>
+        <Li>Cards are sorted by influence score (highest first) — your most strategically important contacts at the top.</Li>
+        <Li>Badges: <strong>VIP</strong> (gold), <strong>Active</strong> (green, emailed in the past 7d), <strong>Silent</strong> (amber, no exchange in 30d+).</Li>
+        <Li><strong>Email</strong> button — opens Compose pre-addressed to that contact.</Li>
+        <Li>Expand a card to see last subject and recent activity count.</Li>
+      </UL>
+      <Note>No AI cost — influence scoring is pure SQL, loads instantly.</Note>
+
+      <H3>Job Tracker <Tag color="green">New</Tag></H3>
+      <P>Go to <strong>Knowledge → Job Tracker</strong> to manage job applications as a Kanban board across five stages: <strong>Applied → Interview Scheduled → Interviewed → Offer → Rejected</strong>.</P>
+      <UL>
+        <Li><strong>"+ Add Application"</strong> — manually enter a company, role, contact, and notes</Li>
+        <Li><strong>"Scan Emails"</strong> — AI scans your inbox for application confirmations, recruiter messages, and interview invites and suggests cards to add; a confirmation modal lets you pick which ones to import</Li>
+        <Li><strong>🔗 LinkedIn</strong> — every card has a LinkedIn button that opens a pre-built people/company search in a new tab</Li>
+        <Li><strong>✉ Thank-You</strong> — on Interviewed or Offer cards, click to generate an AI post-interview thank-you email; it opens in Compose pre-addressed and pre-written using your email history with that company</Li>
+        <Li>Move any card to the next stage with the stage dropdown; delete with ×</Li>
+      </UL>
+
+      <H3>Daily Focus Email <Tag color="green">New</Tag></H3>
+      <P>Director Assistant can send you an 8am summary email every morning so you start the day focused. Enable it in <strong>Settings → App Settings</strong>:</P>
+      <UL>
+        <Li>Set <code className="bg-gray-100 px-1 rounded text-xs">daily_focus_enabled</code> to <strong>true</strong></Li>
+        <Li>Set <code className="bg-gray-100 px-1 rounded text-xs">report_email_to</code> to the email address to send the brief to</Li>
+      </UL>
+      <P>The email includes: <strong>overdue follow-ups</strong> (past their due date), <strong>items due today</strong>, and the <strong>open loops count</strong> (threads waiting on your action). Sent using your configured SMTP account. Fires once at 8am and waits ~23 hours before the next send.</P>
 
       <H3>Ask — Second Brain Search</H3>
       <P>The <strong>Ask</strong> tab uses hybrid search (dense vector + full-text) to answer natural-language questions across <strong>emails, documents, and contact notes</strong>:</P>
@@ -742,9 +808,24 @@ function TipsSection() {
       <P>If you see many Python processes consuming excessive RAM after repeated restarts, they are cleaned up automatically on the next server start. You can also restart the app from the LaunchAgent to trigger cleanup immediately.</P>
       <Tip>The app automatically kills stale background workers on startup. If memory still seems high, quit Director Assistant (Settings → Quit) and relaunch it.</Tip>
 
-      <H3>Windows installation</H3>
+      <H3>Install &amp; Update — macOS</H3>
+      <div className="mb-4">
+        <FeatureRow label="Install" desc="Run bash scripts/install-mac.sh from the repo folder, or use the one-line curl command from the README." />
+        <FeatureRow label="Update" desc="Use the in-app 'Update Available' popup, or run bash scripts/release.sh from the repo folder." />
+        <FeatureRow label="App location" desc="~/Applications/DirectorAssistant" />
+        <FeatureRow label="Logs" desc="/tmp/director-assistant.log" />
+      </div>
+
+      <H3>Install &amp; Update — Windows</H3>
       <P>Run <code className="bg-gray-100 px-1 rounded text-xs">install.bat</code> from your <strong>Downloads</strong> folder or Desktop — <em>not</em> from <code className="bg-gray-100 px-1 rounded text-xs">C:\Windows\System32</code>. Running from a system folder causes 32-to-64-bit path redirection that breaks the Python virtual environment. The installer will warn you and redirect automatically if it detects a protected path.</P>
       <Note><strong>Python version:</strong> Use <strong>Python 3.12</strong> (recommended). Python 3.14 is not yet supported on Windows because some required packages (scipy, chromadb) do not have pre-built Windows binaries for 3.14. The installer will detect this and show a link to Python 3.12. Always check <strong>Add Python to PATH</strong> during Python install.</Note>
+      <div className="mb-4">
+        <FeatureRow label="Install" desc="Right-click install.bat → 'Run as administrator', or double-click from your Downloads folder." />
+        <FeatureRow label="Update" desc="Use the in-app 'Install Update' popup — it downloads the latest ZIP from GitHub automatically. If that fails, re-run install.bat." />
+        <FeatureRow label="App location" desc="%USERPROFILE%\DirectorAssistant" />
+        <FeatureRow label="Logs" desc="%TEMP%\director-assistant-update.log" />
+        <FeatureRow label="Microsoft 365 login" desc="Shows a device code — go to the URL shown, enter the code to complete sign-in." />
+      </div>
       <Tip>After installing Python 3.12, close and reopen your terminal or run <code className="bg-gray-100 px-1 rounded text-xs">install.bat</code> again — it will pick up the new version automatically.</Tip>
 
       <H3>Contact</H3>

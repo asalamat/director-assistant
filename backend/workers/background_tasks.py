@@ -682,6 +682,109 @@ async def _followup_reminder_loop(app: "object") -> None:
             print(f"[followup-reminder] {e}")
 
 
+async def daily_focus_task(app) -> None:
+    """Send a daily focus email at 8am with overdue actions, today's due items, and open loops count."""
+    from datetime import datetime, date as _date
+    import email.mime.text
+    import email.mime.multipart
+    import asyncio
+
+    await asyncio.sleep(120)  # let server settle
+    while True:
+        try:
+            from routers.config import load_app_config
+            cfg = load_app_config()
+            if not cfg.get("daily_focus_enabled", False):
+                await asyncio.sleep(3600)
+                continue
+
+            now = datetime.now()
+            if now.hour != 8:
+                # Sleep until roughly the next check (check every 30 min)
+                await asyncio.sleep(1800)
+                continue
+
+            to_email = cfg.get("report_email_to", "").strip()
+            if not to_email:
+                await asyncio.sleep(3600)
+                continue
+
+            cache = app.state.cache
+            today = _date.today().isoformat()
+
+            with cache._conn() as conn:
+                overdue = conn.execute(
+                    "SELECT subject, due_date FROM followups WHERE due_date < ? AND status != 'done' ORDER BY due_date",
+                    (today,),
+                ).fetchall()
+                due_today = conn.execute(
+                    "SELECT subject, due_date FROM followups WHERE due_date = ? AND status != 'done'",
+                    (today,),
+                ).fetchall()
+
+            svc = getattr(app.state, "intelligence", None)
+            open_loops_count = 0
+            if svc:
+                try:
+                    loops = await svc.get_open_loops(max_emails=50)
+                    open_loops_count = len(loops) if isinstance(loops, list) else 0
+                except Exception:
+                    pass
+
+            lines = [
+                f"Director Assistant — Daily Focus",
+                f"{'=' * 40}",
+                "",
+            ]
+
+            if overdue:
+                lines.append(f"OVERDUE ({len(overdue)}):")
+                for r in overdue:
+                    lines.append(f"  - {r['subject']} (was due {r['due_date']})")
+                lines.append("")
+
+            if due_today:
+                lines.append(f"DUE TODAY ({len(due_today)}):")
+                for r in due_today:
+                    lines.append(f"  - {r['subject']}")
+                lines.append("")
+
+            lines.append(f"OPEN LOOPS: {open_loops_count} threads waiting on action")
+            lines.append("")
+            lines.append("---")
+            lines.append("Sent by Director Assistant")
+
+            body_text = "\n".join(lines)
+            subject = f"Daily Focus — {_date.today().strftime('%A, %B %d')}"
+
+            accounts = cache.list_accounts()
+            smtp_acc = next((a for a in accounts if getattr(a, "password", None)), None)
+            if not smtp_acc:
+                print("[daily-focus] no SMTP account found — cannot send")
+                await asyncio.sleep(3600)
+                continue
+
+            msg = email.mime.multipart.MIMEMultipart()
+            msg["From"] = smtp_acc.username
+            msg["To"] = to_email
+            msg["Subject"] = subject
+            msg.attach(email.mime.text.MIMEText(body_text, "plain"))
+
+            loop = asyncio.get_event_loop()
+            from routers.email_send import _smtp_send
+            await loop.run_in_executor(None, _smtp_send, smtp_acc, msg)
+            print(f"[daily-focus] sent to {to_email}")
+
+            # Sleep ~23h to avoid double-firing on the same day
+            await asyncio.sleep(82800)
+
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            print(f"[daily-focus] error: {e}")
+            await asyncio.sleep(3600)
+
+
 async def _rules_loop(app: "object") -> None:
     """Apply all enabled email rules every 30 minutes."""
     await asyncio.sleep(60)  # let startup settle

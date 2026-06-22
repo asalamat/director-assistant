@@ -2,7 +2,7 @@
 
 > **Your AI-powered executive email intelligence platform.** Connects to Gmail, Microsoft 365, Yahoo, or any IMAP mailbox and uses Claude AI to help you triage faster, never miss a commitment, and stay on top of every relationship that matters.
 
-**Current version: 3.40.0** · [Releases](https://github.com/asalamat/director-assistant/releases) · MIT License
+**Current version: 3.46.0** · [Releases](https://github.com/asalamat/director-assistant/releases) · MIT License
 
 ---
 
@@ -27,7 +27,7 @@ Everything runs **locally on your machine**. Your emails never leave your device
 | **Health** | Live system status — IMAP connection, AI provider, RAG database, polling loop |
 | **Knowledge** | Hub with left sidebar navigation containing 10 sub-sections across two groups: |
 | ↳ Intelligence | Role Briefing · People Graph · Open Loops · AI Clusters · Topic Timeline |
-| ↳ Tools | Weekly Brief · Chase Queue · Projects Tracker · **🎙 Meetings** · **💼 CRM** · **📋 Board Report** · **🎯 Coaching** · Analytics · Templates · PST/OLM Import |
+| ↳ Tools | Weekly Brief · Chase Queue · Projects Tracker · **Job Tracker** · **🎙 Meetings** · **💼 CRM** · **📋 Board Report** · **🎯 Coaching** · Analytics · Templates · PST/OLM Import |
 | **Dashboard** | Full-screen executive brief at `/api/dashboard` — 7 KPI tiles, VIP alerts, Chase Queue, Projects, calendar, actions, and live action buttons |
 
 ---
@@ -108,9 +108,10 @@ Everything runs **locally on your machine**. Your emails never leave your device
   - **✕ button** on each card — hides that contact from the list; "N hidden — show" toggle lets you restore them with ↩
 - **Consolidate duplicate accounts** — if the same email address was added twice (e.g., IMAP + OAuth), a **⚡ Consolidate duplicates** button appears in Settings → Email Accounts to merge them and re-attribute all emails to the surviving account
 - **Open Loops** — AI detects unresolved commitments, awaited responses, and deadlines; filterable by type with live counts including dismissed items
-- **Project Clusters** — AI groups emails into ongoing project topics with status and keywords
-- **Topic Timeline** — search any topic to see all related emails in chronological order
-- **Executive Briefing** — AI narrative of role state, key relationships, and recommended first-week actions
+- **AI Clusters** — AI groups emails into 6–12 topic clusters representing ongoing projects/topics; click any cluster card to drill into a Timeline view of all related emails; job-related clusters show a "🎯 Interview Prep" one-click brief button; click ↺ Regenerate to rebuild after new emails arrive
+- **Job Application Tracker** — Kanban board (Applied → Interviewing → Offer → Closed); "Scan Emails" auto-populates cards from application confirmations and recruiter messages in your inbox
+- **Topic Timeline** — search any topic to see all related emails in chronological order; also accessed by clicking an AI Cluster card
+- **Role Transition Briefing** — AI executive summary of your entire email corpus: key relationships, active projects, open commitments, and a 3-paragraph narrative with first-week recommendations; auto-runs once per day, cached for 10 minutes
 - **Contact Relationship Tracker** — click any sender for an AI relationship summary, response-time stats, and unreplied count
 - **🎙 Live Meeting Intelligence** — open Knowledge → Meetings, hit Record, speak, hit Stop. Whisper transcribes it, Claude extracts action items (save to action board in one click) and drafts the follow-up email. Requires OpenAI API key.
 - **💼 Email-native CRM** — open Knowledge → CRM for a 5-column Kanban pipeline (Prospect → Active → Negotiating → Won → Lost). **✨ AI Extract Deals** scans recent emails and suggests deal entries. Create deals manually or move them between stages with one click.
@@ -134,12 +135,33 @@ Everything runs **locally on your machine**. Your emails never leave your device
 - **Meeting Prep Brief** — click any calendar event in the Dashboard for an AI-generated agenda, talking points, and prior email context from all attendees
 - **Scheduled Send** — compose now, schedule delivery for any future date and time
 
-### New Features (v3.39–v3.40 — 2026-06-18)
+### New Features (v3.47.0 — 2026-06-21)
+- **⚖️ Decision Tracker** — Knowledge → Decisions scans your inbox for decision-language threads ("we decided", "approved", "pending your approval") and splits them into **Needs My Decision** (waiting on you) and **Waiting on Others**; days-waiting badge turns amber at 3d, red at 7d; "Generate Brief" writes an AI context summary of the full decision thread
+- **🚨 Escalation Radar** — Knowledge → Escalations scores every thread 0–100 across 5 signals (follow-up count, urgency words, VIP sender, days since reply, recipient count); threads scoring 40+ surface with a heat bar, signal badges, and a **View Timeline** jump button — zero AI cost, pure SQL
+- **🌐 Stakeholder Influence Map** — Knowledge → Influence ranks every contact by a composite influence score (volume, reply rate, VIP status, thread importance); VIP / Active / Silent badges; **Email** button opens Compose pre-addressed — zero AI cost, loads instantly
+- **AI Cluster error visibility** — Generate Clusters now returns the actual AI error message to the UI instead of a silent empty state; displayed in a red banner so users know to configure an AI provider in Settings
+
+### New Features (v3.46.0 — 2026-06-21)
+- **⚡ Inbox Zero Sprint** — click Sprint in the inbox toolbar; AI buckets your unread emails into Reply Now / Needs Thought / Archive / Delegate columns; bulk "Mark all read" on each column clears the group in one click
+- **🔔 Relationship Nudges** — Knowledge → Nudges tab surfaces VIPs and frequent contacts gone silent for 14/21/30+ days (pure SQL, zero AI cost); each card has an "Email now" button that opens Compose pre-addressed
+- **🔗 Job Tracker LinkedIn enrichment** — every Job Tracker card gets a LinkedIn search button; Interviewed/Offer cards get a "✉ Thank-You" button that generates an AI post-interview thank-you using the email thread history and opens it in Compose
+
+### Features (v3.45.0 — 2026-06-21)
+- **Job Application Tracker** — Kanban board (Applied → Interview Scheduled → Interviewed → Offer → Rejected) in Knowledge → Job Tracker; "Scan Emails" auto-detects application confirmations, recruiter messages, and interview invites from your inbox
+- **One-Click Thread Summary** — click ✦ Summarize thread in the email viewer to get a structured digest: summary, key bullet points, outcome, and participant list; cached per thread so re-opening is instant
+- **Smart Follow-Up Drafts (Chase Queue)** — click the ✍ icon on any chased email to generate an AI follow-up draft pre-filled in Compose; also available via the ✎ Write follow-up button in the Dashboard
+- **Interview Prep from AI Cluster** — job-related AI clusters (interview / recruiter / position / hiring) show a purple "Interview Prep" button; click to get a one-click brief with conversation history, open questions, and talking points
+- **Daily Focus Email** — background task sends an 8am email to your configured address with overdue follow-ups, today's due actions, and open loops count; enable via Settings → App Settings (`daily_focus_enabled: true`, `report_email_to: your@email.com`)
+- **AI Clusters → exact Timeline** — clicking a cluster now passes the exact email IDs (not text keywords); Timeline shows only the true cluster members, never unrelated emails
+- **System email filter** — app-generated emails (Weekly Brief, Digests, Daily Focus) are excluded from all intelligence results (Briefing, People Graph, Open Loops, AI Clusters, Timeline)
+
+### Recent Features (v3.38.x–v3.43.x)
 - **Action Items inbox scan** — AI scans received emails and surfaces requests others are making of you (complements the existing sent-mail commitment scan)
 - **Draft Reply from Action Item** — click the pencil icon on any action item to generate an AI reply draft pre-filled in compose
 - **Send Brief to Inbox** — "Send to inbox" button in Weekly Brief emails you a formatted HTML digest of your brief
 - **Smart Contact Groups** — AI auto-clusters your top contacts into groups (Clients, Team, Vendors, etc.); new Groups tab in the sidebar; click Search on any member to filter emails
 - **Client Interaction Timeline** — Timeline tab in every contact card shows your full chronological email history with that person (↓ received / ↑ sent)
+- **Role Transition Briefing** — AI executive summary of your full email corpus with key relationships, active projects, and open commitments; auto-runs once daily
 
 ### Bug Fixes & Polish (v3.38.x — 2026-06-17)
 - **Windows installer — Python 3.14 blocked** — `install.bat` now detects Python 3.14+ and exits with a clear message (use Python 3.12); pre-built wheels (`--prefer-binary`) used for all packages to prevent Cython/Meson compile errors
@@ -204,7 +226,7 @@ Everything runs **locally on your machine**. Your emails never leave your device
 - **Dual AI with auto-fallback** — Claude primary; automatically falls back to OpenAI on rate limits or errors
 - **Document Q&A** — index local PDFs, Word docs, and spreadsheets; searchable alongside emails in the Ask tab
 - **Dashboard** — live KPIs, calendar, OneDrive recent files, Teams chats, email volume charts; each item opens an AI action panel
-- **Auto-update** — checks GitHub for new releases every 60 minutes; one-click update applies in ~30 seconds
+- **Auto-update** — checks GitHub for new releases every 60 minutes; macOS: in-app popup or run `bash scripts/release.sh`; Windows: in-app "Install Update" popup downloads the latest ZIP from GitHub automatically (requires internet — if blocked by firewall, re-run `install.bat`)
 - **Budget Mode** — use Claude Haiku for routine tasks to reduce API costs
 - **macOS Dock badge** — unread count updated automatically
 - **Desktop notifications** — new email alerts with sender name and 1-sentence AI summary
@@ -226,34 +248,21 @@ Everything runs **locally on your machine**. Your emails never leave your device
 
 ## Install — macOS
 
-### One-line install (recommended)
+### From the repo (recommended)
+
+```bash
+git clone https://github.com/asalamat/director-assistant
+cd director-assistant
+bash scripts/install-mac.sh
+```
+
+### One-line install (no Git needed)
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/asalamat/director-assistant/main/scripts/install-mac.sh | bash
 ```
 
-That's it — the script checks prerequisites, installs dependencies, builds the frontend, and starts the app.
-
-### Manual install (from ZIP)
-
-```bash
-# 1. Download the latest release
-curl -sSL https://api.github.com/repos/asalamat/director-assistant/releases/latest \
-  | python3 -c "import sys,json; print([a['browser_download_url'] for a in json.load(sys.stdin).get('assets',[]) if 'mac' in a['name']][0])" \
-  | xargs curl -L -o director-assistant-mac.zip
-
-# 2. Extract and install
-unzip director-assistant-mac.zip
-cd DirectorAssistant
-bash scripts/install-mac.sh
-```
-
-The installer will:
-- Check and install Python 3.11+ and Node.js 18+ via Homebrew if missing
-- Create a Python virtual environment and install all dependencies
-- Build the frontend and embed it in the backend
-- Create `~/Applications/Director Assistant.app`
-- Install a LaunchAgent so the app auto-starts on login
+The installer checks prerequisites, installs dependencies, builds the frontend, and starts the app.
 
 ### 3. Open
 
@@ -279,11 +288,18 @@ launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.director-assistant.app
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.director-assistant.app.plist
 ```
 
+**App location:** `~/Applications/DirectorAssistant`  
+**Logs:** `/tmp/director-assistant.log`
+
 ---
 
 ## Install — Windows 10/11
 
 > **All-in-one installer** — `install.bat` automatically downloads **Python 3.12** and **Node.js 20 LTS** if they are not already installed. No admin rights required.
+
+**App location:** `%USERPROFILE%\DirectorAssistant`  
+**Logs:** `%TEMP%\director-assistant-update.log`  
+**Microsoft 365 login:** shows a device code — go to the URL shown in the browser and enter the code to complete sign-in.
 
 ### Option A — From GitHub (recommended)
 

@@ -1,7 +1,11 @@
 """Smart Daily Triage: surfaces top-priority unread emails."""
 
 import asyncio
-from fastapi import APIRouter, Request
+import json
+import re
+
+from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/triage", tags=["triage"])
 
@@ -32,3 +36,89 @@ async def priority_sorted(request: Request, folder: str = "INBOX", limit: int = 
                  "score": 0, "reasons": []}
                 for s in summaries if s.id not in scored_ids]
     return {"emails": scored + unscored}
+
+
+class SprintRequest(BaseModel):
+    limit: int = 60
+
+
+_SPRINT_BUCKETS = ("reply_now", "needs_thought", "fyi_archive", "delegate")
+
+
+@router.post("/sprint")
+async def sprint(req: SprintRequest, request: Request):
+    """Bucket unread emails into 4 action groups using AI for Inbox Zero Sprint."""
+    cache = request.app.state.cache
+    advisor = getattr(request.app.state, "advisor", None)
+
+    empty = {b: [] for b in _SPRINT_BUCKETS}
+    if not advisor:
+        raise HTTPException(503, "AI service not available")
+
+    limit = max(1, min(req.limit, 200))
+    with cache._conn() as conn:
+        rows = conn.execute(
+            "SELECT id, sender, subject, body, date FROM emails "
+            "WHERE is_read = 0 ORDER BY date DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+
+    if not rows:
+        return {"buckets": empty, "total": 0}
+
+    snippets = "\n".join(
+        f"{i}: FROM {r['sender']} | {r['subject']} | {(r['body'] or '')[:150]}"
+        for i, r in enumerate(rows)
+    )
+
+    prompt = f"""Categorize each email below into exactly one bucket:
+- reply_now: needs a direct reply, quick answer, or acknowledgement (< 2 min)
+- needs_thought: requires research, a considered response, or has a decision
+- fyi_archive: newsletters, notifications, FYI threads, no action needed
+- delegate: should be handled by someone else
+
+Return a JSON object with keys reply_now, needs_thought, fyi_archive, delegate.
+Each value is an array of 0-based indices (integers) from the list below.
+Return ONLY the JSON, no markdown.
+
+{snippets}"""
+
+    ant = getattr(advisor.ai, "_anthropic", None)
+    try:
+        if ant:
+            resp = await ant.messages.create(
+                model="claude-haiku-4-5-20251001", max_tokens=1200,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            text = resp.content[0].text.strip()
+        else:
+            resp = await advisor.ai.messages.create(
+                model="claude-haiku-4-5-20251001", max_tokens=1200,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            text = resp.content[0].text.strip()
+    except Exception as exc:
+        raise HTTPException(500, str(exc))
+
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError:
+        match = re.search(r"\{.*\}", text, re.DOTALL)
+        if not match:
+            raise HTTPException(502, "AI returned unparseable response")
+        try:
+            parsed = json.loads(match.group(0))
+        except json.JSONDecodeError:
+            raise HTTPException(502, "AI returned unparseable response")
+
+    buckets = {b: [] for b in _SPRINT_BUCKETS}
+    for b in _SPRINT_BUCKETS:
+        for idx in parsed.get(b, []):
+            if isinstance(idx, int) and 0 <= idx < len(rows):
+                r = rows[idx]
+                buckets[b].append({
+                    "id": r["id"], "sender": r["sender"],
+                    "subject": r["subject"], "date": r["date"],
+                })
+
+    return {"buckets": buckets, "total": len(rows)}

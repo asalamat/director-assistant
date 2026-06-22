@@ -4,6 +4,7 @@ import type { EmailSummary, EmailThread } from '../types'
 import type { SortBy, SortOrder } from '../hooks/useEmails'
 import { api } from '../api/client'
 import { Avatar, Badge, Input } from './ui'
+import { InboxSprint } from './InboxSprint'
 
 const SEARCH_HISTORY_KEY = 'email_search_history'
 const MAX_HISTORY = 10
@@ -124,6 +125,7 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [showBulkSnooze, setShowBulkSnooze] = useState(false)
   const [bulkSnoozeDate, setBulkSnoozeDate] = useState('')
+  const [showSprint, setShowSprint] = useState(false)
   const [threadView, setThreadView] = useState(false)
   const [threads, setThreads] = useState<EmailThread[]>([])
   const [threadsLoading, setThreadsLoading] = useState(false)
@@ -470,6 +472,14 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
               )}
             </button>
           )}
+          <button
+            type="button"
+            onClick={() => setShowSprint(true)}
+            title="Inbox Zero Sprint — AI buckets your unread mail"
+            className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-all flex-shrink-0"
+          >
+            ⚡ Sprint
+          </button>
           {showHistory && history.length > 0 && (
             <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1">
               {history.map((h, i) => (
@@ -979,6 +989,7 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
           <div className="text-center text-gray-400 text-xs py-3">Loading…</div>
         )}
       </div>
+      <InboxSprint open={showSprint} onClose={() => setShowSprint(false)} onChanged={() => onSearch(query)} />
     </div>
   )
 }

@@ -17,6 +17,7 @@ import type {
   AIProvider,
   AIProviderSave,
   ForgotReplyEmail,
+  SprintEmail,
 } from '../types'
 
 const BASE = '/api'
@@ -213,6 +214,17 @@ export const api = {
   snoozeEmail(emailId: string, wakeDate: string): Promise<void> {
     return request(`/snooze/${encodeURIComponent(emailId)}`, { method: 'POST', body: JSON.stringify({ wake_date: wakeDate }) })
   },
+  sprintTriage(limit?: number): Promise<{
+    buckets: {
+      reply_now: SprintEmail[]
+      needs_thought: SprintEmail[]
+      fyi_archive: SprintEmail[]
+      delegate: SprintEmail[]
+    }
+    total: number
+  }> {
+    return request('/triage/sprint', { method: 'POST', body: JSON.stringify({ limit: limit ?? 60 }) })
+  },
   unsnoozeEmail(emailId: string): Promise<void> {
     return request(`/snooze/${encodeURIComponent(emailId)}`, { method: 'DELETE' })
   },
@@ -396,14 +408,49 @@ export const api = {
   getClusters(): Promise<{ clusters: import('../types').Cluster[] }> {
     return request('/intelligence/clusters')
   },
-  generateClusters(): Promise<{ clusters: import('../types').Cluster[] }> {
+  generateClusters(): Promise<{ clusters: import('../types').Cluster[]; error?: string }> {
     return request('/intelligence/clusters/generate', { method: 'POST' })
   },
-  getTimeline(q: string, limit = 60): Promise<{ events: import('../types').TimelineEvent[] }> {
+  getTimeline(q: string, limit = 60, ids?: string[]): Promise<{ events: import('../types').TimelineEvent[] }> {
+    if (ids && ids.length > 0)
+      return request(`/intelligence/timeline?ids=${encodeURIComponent(ids.join(','))}&limit=${limit}`)
     return request(`/intelligence/timeline?q=${encodeURIComponent(q)}&limit=${limit}`)
   },
   getOpenLoops(): Promise<{ loops: import('../types').OpenLoop[] }> {
     return request('/intelligence/loops', { method: 'POST' })
+  },
+  getNudges(days = 21): Promise<{ nudges: import('../types').RelationshipNudge[]; total: number }> {
+    return request(`/intelligence/relationship-nudges?days=${days}`)
+  },
+  getStakeholders(days = 90): Promise<{
+    stakeholders: { name: string; email: string; received_count: number; sent_count: number; total_interactions: number; influence_score: number; last_contact: string | null; is_vip: boolean }[]
+    total: number
+    days: number
+  }> {
+    return request(`/intelligence/stakeholders?days=${days}`)
+  },
+  getDecisions(days = 30): Promise<{ decisions: import('../types').Decision[]; mine_count: number; theirs_count: number }> {
+    return request(`/intelligence/decisions?days=${days}`)
+  },
+  getDecisionBrief(emailId: string): Promise<{ brief: string; subject: string; sender: string }> {
+    return request('/intelligence/decisions/brief', { method: 'POST', body: JSON.stringify({ email_id: emailId }) })
+  },
+  getEscalations(days = 14): Promise<{
+    escalations: {
+      thread_key: string
+      subject: string
+      reply_count: number
+      participant_count: number
+      has_urgency: boolean
+      last_reply: string
+      hours_since_last: number
+      escalation_score: number
+      latest_email_id: string
+      senders_preview: string[]
+    }[]
+    total: number
+  }> {
+    return request(`/intelligence/escalations?days=${days}`)
   },
   streamBriefing(onEvent: (section: string, content: unknown) => void): () => void {
     const es = new EventSource('/api/intelligence/briefing')
@@ -793,6 +840,9 @@ export const api = {
   generateChaseDraft(emailId: string): Promise<{ draft: string; subject: string; to: string; email_id: string }> {
     return request(`/followups/chase-draft/${encodeURIComponent(emailId)}`, { method: 'POST' })
   },
+  draftFollowup(data: { email_id: string; subject: string; sender: string; original_body: string }): Promise<{ draft: string; to: string; subject: string }> {
+    return request('/intelligence/draft-followup', { method: 'POST', body: JSON.stringify(data) })
+  },
 
   // Projects
   getProjects(): Promise<{ projects: any[] }> {
@@ -1128,5 +1178,10 @@ export const api = {
   },
   getEmailRulesLastRun(): Promise<{ ran_at: string; labeled: number; archived: number; marked: number; deleted: number } | null> {
     return request('/email-rules/last-run')
+  },
+
+  // Job Tracker
+  draftThankYou(jobId: number): Promise<{ subject: string; body: string; to: string }> {
+    return request(`/jobs/${jobId}/thank-you`, { method: 'POST' })
   },
 }

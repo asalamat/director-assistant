@@ -465,7 +465,7 @@ async def recommend(request: Request, email_id: str, folder: str = Query("INBOX"
     # Return cached result if within cooldown window (TTLCache auto-evicts after _REC_COOLDOWN)
     cached_rec = _rec_cache.get(email_id)
     if cached_rec is not None:
-        return cached_rec
+        return cached_rec[1]
 
     # Fetch from cache first, fall back to IMAP
     email = cache.get(email_id)

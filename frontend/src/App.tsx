@@ -762,7 +762,7 @@ export default function App() {
       {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
       <ComposeModal
         open={showCompose}
-        onClose={() => { setShowCompose(false); openCompose() }}
+        onClose={() => setShowCompose(false)}
         accounts={accounts as any}
         initialTo={composePrefill.to ?? ''}
         initialSubject={composePrefill.subject ?? ''}

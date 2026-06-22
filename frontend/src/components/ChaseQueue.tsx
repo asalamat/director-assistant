@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { api } from '../api/client'
 import { EmptyState, Spinner, Button } from './ui'
+import { useUIContext } from '../contexts/UIContext'
 
 interface WaitingEmail {
   id: string; subject: string; sender: string; recipient: string
@@ -46,11 +47,13 @@ function isSnoozed(snoozed: Record<string, string>, id: string): boolean {
 }
 
 export function ChaseQueue({ onOpenCompose }: { onOpenCompose?: (opts: { to: string; subject: string; body: string }) => void }) {
+  const { openCompose } = useUIContext()
   const [emails, setEmails] = useState<WaitingEmail[]>([])
   const [loading, setLoading] = useState(true)
   const [days, setDays] = useState(3)
   const [drafts, setDrafts] = useState<Record<string, Draft>>({})
   const [generating, setGenerating] = useState<string | null>(null)
+  const [draftingFollowup, setDraftingFollowup] = useState<string | null>(null)
   const [dismissed, setDismissed] = useState<Set<string>>(loadDismissed)
   const [showDismissed, setShowDismissed] = useState(false)
   const [snoozed, setSnoozed] = useState<Record<string, string>>(loadSnoozed)
@@ -125,6 +128,20 @@ export function ChaseQueue({ onOpenCompose }: { onOpenCompose?: (opts: { to: str
     setGenerating(null)
   }
 
+  const draftReply = async (email: WaitingEmail) => {
+    setDraftingFollowup(email.id)
+    try {
+      const r = await api.draftFollowup({
+        email_id: email.id,
+        subject: email.subject,
+        sender: email.recipient || email.sender,
+        original_body: '',
+      })
+      openCompose({ to: r.to, subject: r.subject, body: r.draft })
+    } catch { /* silent */ }
+    setDraftingFollowup(null)
+  }
+
   const urgencyColor = (d: number) =>
     d >= 14 ? 'border-red-200 bg-red-50' :
     d >= 7  ? 'border-amber-200 bg-amber-50' :
@@ -186,6 +203,14 @@ export function ChaseQueue({ onOpenCompose }: { onOpenCompose?: (opts: { to: str
                 <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${urgencyBadge(email.days_waiting)}`}>
                   {email.days_waiting}d waiting
                 </span>
+                <button
+                  onClick={() => draftReply(email)}
+                  disabled={draftingFollowup === email.id}
+                  title="Draft a follow-up reply"
+                  className="text-[10px] text-gray-400 hover:text-accent hover:bg-blue-50 rounded px-1.5 py-0.5 transition-colors leading-none disabled:opacity-50 flex items-center gap-0.5"
+                >
+                  {draftingFollowup === email.id ? <Spinner size="sm" /> : '✍'}
+                </button>
                 <button
                   onClick={() => editingId === email.id ? setEditingId(null) : openEdit(email)}
                   title="Edit — snooze or add note"

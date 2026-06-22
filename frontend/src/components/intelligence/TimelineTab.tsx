@@ -4,28 +4,44 @@ import type { TimelineEvent } from '../../types'
 
 interface TimelineTabProps {
   initialQuery?: string
+  initialIds?: string[]
 }
 
-export function TimelineTab({ initialQuery = '' }: TimelineTabProps) {
+export function TimelineTab({ initialQuery = '', initialIds }: TimelineTabProps) {
   const [query, setQuery] = useState(initialQuery)
   const [inputVal, setInputVal] = useState(initialQuery)
+  const [ids, setIds] = useState<string[] | undefined>(initialIds)
   const [events, setEvents] = useState<TimelineEvent[]>([])
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    if (initialQuery) {
-      setInputVal(initialQuery)
-      setQuery(initialQuery)
-    }
-  }, [initialQuery])
+    setInputVal(initialQuery)
+    setQuery(initialQuery)
+    setIds(initialIds)
+  }, [initialQuery, initialIds])
 
   useEffect(() => {
+    // If we have exact IDs, fetch by IDs (precise cluster membership)
+    if (ids && ids.length > 0) {
+      setLoading(true)
+      api.getTimeline('', 60, ids)
+        .then(r => setEvents(r.events))
+        .catch(() => setEvents([]))
+        .finally(() => setLoading(false))
+      return
+    }
     if (!query.trim()) return
     setLoading(true)
-    api.getTimeline(query).then(r => setEvents(r.events)).catch(() => setEvents([])).finally(() => setLoading(false))
-  }, [query])
+    api.getTimeline(query)
+      .then(r => setEvents(r.events))
+      .catch(() => setEvents([]))
+      .finally(() => setLoading(false))
+  }, [query, ids])
 
-  const search = () => setQuery(inputVal.trim())
+  const search = () => {
+    setIds(undefined)  // manual search clears cluster IDs
+    setQuery(inputVal.trim())
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -45,7 +61,7 @@ export function TimelineTab({ initialQuery = '' }: TimelineTabProps) {
 
       {loading && <div className="flex justify-center py-16"><div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" /></div>}
 
-      {!loading && events.length === 0 && !query && (
+      {!loading && events.length === 0 && !query && !ids?.length && (
         <div className="text-center py-16 text-gray-400">
           <div className="text-4xl mb-3">📅</div>
           <p className="text-sm">Search a topic to see its chronological history</p>
@@ -53,7 +69,7 @@ export function TimelineTab({ initialQuery = '' }: TimelineTabProps) {
         </div>
       )}
 
-      {!loading && events.length === 0 && query && (
+      {!loading && events.length === 0 && (query || ids?.length) && (
         <p className="text-sm text-gray-400 text-center py-8">No emails found for "{query}"</p>
       )}
 

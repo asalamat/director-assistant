@@ -138,8 +138,7 @@ function AddProviderForm({
 
   const save = async () => {
     setSaving(true)
-    await onSave(form, false)
-    setSaving(false)
+    try { await onSave(form, false) } finally { setSaving(false) }
   }
 
   return (

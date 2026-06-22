@@ -50,9 +50,10 @@ class IntelligenceService:
             "subjects": [], "last_contact": ""
         })
 
+        sys_filter = self._system_email_filter()
         with self.cache._conn() as conn:
             rows = conn.execute(
-                "SELECT sender, recipients, subject, date FROM emails ORDER BY date DESC"
+                f"SELECT sender, recipients, subject, date FROM emails WHERE 1=1 {sys_filter} ORDER BY date DESC"
             ).fetchall()
 
         for row in rows:
@@ -132,9 +133,11 @@ class IntelligenceService:
         if cached is not None:
             return cached
 
+        sys_filter = self._system_email_filter()
         with self.cache._conn() as conn:
             rows = conn.execute(
-                """SELECT id, subject, sender, body, date FROM emails
+                f"""SELECT id, subject, sender, body, date FROM emails
+                   WHERE 1=1 {sys_filter}
                    ORDER BY date ASC LIMIT ?""",
                 (max_emails,)
             ).fetchall()
@@ -196,14 +199,20 @@ class IntelligenceService:
     # ── Project Clusters ──────────────────────────────────────────────────────
 
     async def get_clusters(self, max_emails: int = 400) -> list[dict]:
-        """Group emails into project/topic clusters using AI subject analysis."""
+        """Group emails into project/topic clusters using AI subject analysis.
+
+        The AI assigns line indices per cluster; we resolve those to real email IDs
+        so Timeline can fetch exact members without any text search.
+        """
         cached = _cached("clusters", ttl=600)
         if cached is not None:
             return cached
 
+        sys_filter = self._system_email_filter()
         with self.cache._conn() as conn:
             rows = conn.execute(
-                """SELECT subject, sender, date FROM emails
+                f"""SELECT id, subject, sender, date FROM emails
+                   WHERE 1=1 {sys_filter}
                    ORDER BY date DESC LIMIT ?""",
                 (max_emails,)
             ).fetchall()
@@ -211,64 +220,156 @@ class IntelligenceService:
         if not rows:
             return []
 
+        sample = rows[:300]
         subjects_text = "\n".join(
-            f"{r['date'] or '?'} | {r['subject'] or '(no subject)'} | {r['sender'] or ''}"
-            for r in rows[:300]
+            f"{i}: {r['date'] or '?'} | {r['subject'] or '(no subject)'} | {r['sender'] or ''}"
+            for i, r in enumerate(sample)
         )
 
         prompt = (
-            "Analyze these email subjects and group them into 6-12 meaningful project/topic clusters.\n"
+            "Analyze these indexed email subjects and group them into 6-12 meaningful project/topic clusters.\n"
             "Each cluster = a distinct ongoing thread, project, or recurring topic.\n\n"
-            "Return ONLY a JSON array. Each cluster object has keys:\n"
+            "Return ONLY a JSON array. Each cluster object has these keys:\n"
             "- id: short kebab-case slug\n"
             "- name: cluster name (2-5 words)\n"
             "- description: one-sentence summary of what this cluster is about\n"
-            "- email_count: estimated number of emails (integer)\n"
+            "- member_indices: array of integer line indices (the numbers before the colon) that belong to this cluster\n"
             "- last_activity: most recent date string seen in this cluster\n"
             "- keywords: array of 3-5 search keywords for this cluster\n"
             "- status: 'active' | 'dormant' | 'resolved'\n\n"
-            "Email subjects (date | subject | sender):\n" + subjects_text
+            "IMPORTANT: member_indices must be exact integers from the numbered list below.\n\n"
+            "Emails (index: date | subject | sender):\n" + subjects_text
         )
 
         try:
             resp = await self.ai.messages.create(
                 model="claude-haiku-4-5-20251001",
-                max_tokens=1500,
+                max_tokens=4000,
                 messages=[{"role": "user", "content": prompt}]
             )
             text = resp.content[0].text.strip()
             m = re.search(r'\[.*\]', text, re.DOTALL)
-            if m:
-                clusters = json.loads(m.group())
-                if isinstance(clusters, list):
-                    _store("clusters", clusters)
-                    return clusters
+            if not m:
+                logger.warning("[intelligence] clusters: no JSON array found in AI response")
+                return []
+            clusters = json.loads(m.group())
+            if not isinstance(clusters, list):
+                return []
+            # Resolve member_indices → actual email IDs
+            for cluster in clusters:
+                indices = cluster.pop("member_indices", []) or []
+                email_ids = []
+                for idx in indices:
+                    if isinstance(idx, int) and 0 <= idx < len(sample):
+                        email_ids.append(sample[idx]["id"])
+                cluster["email_ids"] = email_ids
+                cluster["email_count"] = len(email_ids) or cluster.get("email_count", 0)
+            _store("clusters", clusters)
+            return clusters
         except Exception as e:
             logger.warning(f"[intelligence] clusters failed: {e}")
-
-        return []
+            raise
 
     # ── Timeline ──────────────────────────────────────────────────────────────
 
-    def get_timeline(self, query: str, limit: int = 60) -> list[dict]:
-        """Chronological timeline of emails matching a topic/cluster query."""
+    def get_emails_by_ids(self, email_ids: list[str], limit: int = 60) -> list[dict]:
+        """Fetch emails by exact ID list — used for cluster member lookup."""
+        if not email_ids:
+            return []
+        ids = email_ids[:limit]
+        placeholders = ",".join("?" * len(ids))
         with self.cache._conn() as conn:
-            try:
-                rows = conn.execute(
-                    """SELECT e.id, e.subject, e.sender, e.date, e.body
-                       FROM emails e
-                       JOIN emails_fts f ON e.rowid = f.rowid
-                       WHERE emails_fts MATCH ?
-                       ORDER BY e.date ASC LIMIT ?""",
-                    (query, limit)
-                ).fetchall()
-            except Exception:
-                rows = conn.execute(
-                    """SELECT id, subject, sender, date, body FROM emails
-                       WHERE subject LIKE ? OR body LIKE ?
-                       ORDER BY date ASC LIMIT ?""",
-                    (f"%{query}%", f"%{query}%", limit)
-                ).fetchall()
+            rows = conn.execute(
+                f"""SELECT id, subject, sender, date, body FROM emails
+                   WHERE id IN ({placeholders})
+                   ORDER BY date ASC""",
+                ids
+            ).fetchall()
+        return [
+            {
+                "id": r["id"],
+                "subject": r["subject"] or "",
+                "sender": r["sender"] or "",
+                "date": r["date"] or "",
+                "snippet": (r["body"] or "")[:200].replace("\n", " "),
+            }
+            for r in rows
+        ]
+
+    # Subjects of emails the app generates and sends to itself — exclude from searches
+    _SYSTEM_SUBJECT_PREFIXES = (
+        "weekly brief — director assistant",
+        "director assistant digest",
+        "your director assistant weekly brief",
+        "director assistant webhook",
+    )
+
+    def _system_email_filter(self) -> str:
+        """SQL fragment excluding app-generated emails from result sets."""
+        clauses = " AND ".join(
+            f"LOWER(subject) NOT LIKE '{p}%'" for p in self._SYSTEM_SUBJECT_PREFIXES
+        )
+        return f"AND ({clauses})"
+
+    def get_timeline(self, query: str, limit: int = 60) -> list[dict]:
+        """Chronological timeline of emails matching a topic/cluster query.
+
+        Strictness-first: never broaden to OR — false positives are worse than no results.
+        1. FTS5 exact phrase       → "choice properties interview"
+        2. FTS5 AND all tokens     → choice AND properties AND interview AND automation
+        3. FTS5 AND top-2 tokens   → choice AND automation  (2 longest/most distinctive)
+        4. LIKE subject only on single rarest token (longest, no common words)
+        """
+        sys_filter = self._system_email_filter()
+        _stop = {'the', 'and', 'for', 'from', 'with', 'this', 'that', 'are',
+                 'was', 'has', 'have', 'not', 'but', 'all', 'our', 'can',
+                 'will', 'been', 'your', 'their', 'they', 'about', 'also',
+                 'email', 'hello', 'dear', 'please', 'regards', 'thank',
+                 'just', 'like', 'more', 'some', 'than', 'what', 'when'}
+        tokens = [t.strip('.,!?') for t in query.split()
+                  if len(t.strip('.,!?')) > 3 and t.lower().strip('.,!?') not in _stop]
+
+        rows: list = []
+        with self.cache._conn() as conn:
+            def _fts(q: str) -> list:
+                try:
+                    return conn.execute(
+                        f"""SELECT e.id, e.subject, e.sender, e.date, e.body
+                           FROM emails e JOIN emails_fts f ON e.rowid = f.rowid
+                           WHERE emails_fts MATCH ?
+                           {sys_filter}
+                           ORDER BY e.date ASC LIMIT ?""",
+                        (q, limit)
+                    ).fetchall()
+                except Exception:
+                    return []
+
+            # 1. Exact phrase
+            rows = _fts(f'"{query}"')
+
+            # 2. AND all tokens — requires every token to be present
+            if not rows and len(tokens) > 1:
+                rows = _fts(" AND ".join(tokens))
+
+            # 3. AND with only the 2 longest (most distinctive) tokens
+            if not rows and len(tokens) > 2:
+                top2 = sorted(tokens, key=len, reverse=True)[:2]
+                rows = _fts(" AND ".join(top2))
+
+            # 4. LIKE subject-only on the single longest token — NO OR, stays precise
+            if not rows and tokens:
+                anchor = sorted(tokens, key=len, reverse=True)[0]
+                if len(anchor) > 5:  # skip generic short words even if they're longest
+                    try:
+                        rows = conn.execute(
+                            f"""SELECT id, subject, sender, date, body FROM emails
+                               WHERE subject LIKE ?
+                               {sys_filter}
+                               ORDER BY date ASC LIMIT ?""",
+                            (f"%{anchor}%", limit)
+                        ).fetchall()
+                    except Exception:
+                        rows = []
 
         return [
             {
@@ -313,9 +414,10 @@ class IntelligenceService:
 
         yield evt("status", "Generating executive summary…")
 
+        sys_filter = self._system_email_filter()
         with self.cache._conn() as conn:
             stats = conn.execute(
-                "SELECT COUNT(*) as cnt, MIN(date) as oldest, MAX(date) as newest FROM emails"
+                f"SELECT COUNT(*) as cnt, MIN(date) as oldest, MAX(date) as newest FROM emails WHERE 1=1 {sys_filter}"
             ).fetchone()
 
         email_count = stats["cnt"] if stats else 0
