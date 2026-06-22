@@ -61,6 +61,7 @@ from routers import snippets as snippets_router
 from routers import rag as rag_router
 from routers import knowledge_graph as knowledge_graph_router
 from routers import jobs as jobs_router
+from routers import social as social_router
 from routers.proactive import push_alert
 from services.intelligence_service import IntelligenceService
 from workers.background_tasks import (
@@ -564,6 +565,7 @@ app.include_router(snippets_router.router)
 app.include_router(rag_router.router)
 app.include_router(knowledge_graph_router.router)
 app.include_router(jobs_router.router)
+app.include_router(social_router.router)
 
 
 @app.get("/health")

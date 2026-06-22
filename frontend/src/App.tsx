@@ -18,6 +18,7 @@ import UpdatePopup from './components/UpdatePopup'
 import { ComposeModal } from './components/ComposeModal'
 import { VIPPanel } from './components/VIPPanel'
 import { ContactGroupsPanel } from './components/ContactGroupsPanel'
+import { SocialPanel } from './components/social/SocialPanel'
 import { ShortcutHelp } from './components/ShortcutHelp'
 import { CommandPalette } from './components/CommandPalette'
 import { useRecommendation } from './hooks/useEmails'
@@ -74,6 +75,11 @@ const Icons: Partial<Record<Tab, JSX.Element>> = {
       <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v1h8v-1zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 15a1 1 0 00-1-1h-.025A5.97 5.97 0 0115 13a5.97 5.97 0 00-.975-3.25A3.001 3.001 0 0118 12v3h-2zM4.025 14H4a1 1 0 00-1 1v3H1v-3a3.001 3.001 0 013.975-2.75A5.97 5.97 0 005 13c0 .76.14 1.49.39 2.165A1 1 0 004.025 14z" />
     </svg>
   ),
+  social: (
+    <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+      <path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z"/>
+    </svg>
+  ),
 }
 
 const TABS: { id: Tab; label: string }[] = [
@@ -86,6 +92,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'digest',    label: 'Brief' },
   { id: 'health',    label: 'Health' },
   { id: 'knowledge', label: 'Knowledge' },
+  { id: 'social',    label: 'Social' },
 ]
 
 export default function App() {
@@ -720,6 +727,7 @@ export default function App() {
           {activeTab === 'digest' && <DigestView />}
           {activeTab === 'health' && <HealthPanel />}
           {activeTab === 'knowledge' && <IntelligencePanel />}
+          {activeTab === 'social'    && <SocialPanel />}
           {activeTab === 'vip' && <VIPPanel />}
           {activeTab === 'groups' && <ContactGroupsPanel onSearch={(q) => { setAskContext(`Show me recent emails with ${q}`); setActiveTab('ask') }} />}
         </div>

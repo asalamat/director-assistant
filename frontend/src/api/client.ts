@@ -1184,4 +1184,33 @@ export const api = {
   draftThankYou(jobId: number): Promise<{ subject: string; body: string; to: string }> {
     return request(`/jobs/${jobId}/thank-you`, { method: 'POST' })
   },
+
+  // LinkedIn
+  getLinkedInTrends(subject: string): Promise<{ trends: { title: string; description: string; engagement: string; hashtags: string[] }[] }> {
+    return request('/social/linkedin/trends', { method: 'POST', body: JSON.stringify({ subject }) })
+  },
+  generateLinkedInPost(params: { topic: string; audience: string; tone: string; subject: string }): Promise<{ post: string; hashtags: string[]; char_count: number }> {
+    return request('/social/linkedin/generate-post', { method: 'POST', body: JSON.stringify(params) })
+  },
+  generateLinkedInImages(params: { topic: string; post_text: string; custom_prompt?: string }): Promise<{ images: { url: string; prompt: string }[]; error?: string }> {
+    return request('/social/linkedin/generate-images', { method: 'POST', body: JSON.stringify(params) })
+  },
+  saveLinkedInDraft(data: object): Promise<{ id: string }> {
+    return request('/social/linkedin/save-draft', { method: 'POST', body: JSON.stringify(data) })
+  },
+  publishLinkedInPost(data: { id?: string; post_text: string; image_url?: string; content_type: string; scheduled_at?: string }): Promise<{ status: string; linkedin_post_id?: string }> {
+    return request('/social/linkedin/publish', { method: 'POST', body: JSON.stringify(data) })
+  },
+  getLinkedInHistory(): Promise<{ posts: { id: string; subject: string; topic: string; post_text: string; audience: string; tone: string; image_url: string | null; content_type: string; scheduled_at: string | null; published_at: string | null; linkedin_post_id: string | null; status: string; created_at: string }[] }> {
+    return request('/social/linkedin/history')
+  },
+  deleteLinkedInPost(id: string): Promise<void> {
+    return request(`/social/linkedin/history/${id}`, { method: 'DELETE' })
+  },
+  getLinkedInSettings(): Promise<{ client_id: string; client_secret: string; access_token: string; user_id: string; custom_prompts: string[] }> {
+    return request('/social/linkedin/settings')
+  },
+  saveLinkedInSettings(data: { client_id?: string; client_secret?: string; access_token?: string; user_id?: string; custom_prompts?: string[] }): Promise<void> {
+    return request('/social/linkedin/settings', { method: 'POST', body: JSON.stringify(data) })
+  },
 }

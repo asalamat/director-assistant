@@ -297,6 +297,10 @@ export function Settings({ onConnected, initialTab }: Props) {
                   {comp}
                 </section>
               ))}
+              <section>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">LinkedIn</p>
+                <LinkedInSettingsPanel />
+              </section>
             </div>
           )}
 
@@ -434,6 +438,118 @@ function SectionHeader({ title, desc }: { title: string; desc: string }) {
     <div className="border-b border-gray-100 pb-4">
       <h2 className="text-base font-semibold text-gray-900">{title}</h2>
       <p className="text-xs text-gray-500 mt-0.5">{desc}</p>
+    </div>
+  )
+}
+
+function LinkedInSettingsPanel() {
+  const [clientId, setClientId] = useState('')
+  const [clientSecret, setClientSecret] = useState('')
+  const [accessToken, setAccessToken] = useState('')
+  const [userId, setUserId] = useState('')
+  const [customPromptsRaw, setCustomPromptsRaw] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    api.getLinkedInSettings()
+      .then(r => {
+        setClientId(r.client_id || '')
+        setClientSecret(r.client_secret || '')
+        setAccessToken(r.access_token || '')
+        setUserId(r.user_id || '')
+        setCustomPromptsRaw((r.custom_prompts || []).join('\n'))
+      })
+      .catch(() => {})
+  }, [])
+
+  const save = async () => {
+    setSaving(true)
+    setError('')
+    try {
+      const prompts = customPromptsRaw.split('\n').map(s => s.trim()).filter(Boolean)
+      await api.saveLinkedInSettings({
+        client_id: clientId, client_secret: clientSecret,
+        access_token: accessToken, user_id: userId, custom_prompts: prompts,
+      })
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Save failed')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="border border-gray-200 rounded-xl p-4 space-y-4">
+      <p className="text-xs text-gray-400 leading-relaxed">
+        To connect LinkedIn, create an app at <span className="font-mono text-gray-600">developer.linkedin.com</span>, add the <em>Share on LinkedIn</em> and <em>OpenID Connect</em> products, then generate an access token.
+      </p>
+
+      <div className="space-y-3">
+        <div>
+          <label className="text-xs font-medium text-gray-600 block mb-1">Client ID</label>
+          <input
+            type="text" value={clientId} onChange={e => setClientId(e.target.value)}
+            placeholder="86xyz..."
+            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent"
+          />
+        </div>
+
+        <div>
+          <label className="text-xs font-medium text-gray-600 block mb-1">Client Secret</label>
+          <input
+            type="password" value={clientSecret} onChange={e => setClientSecret(e.target.value)}
+            placeholder="••••••••"
+            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent"
+          />
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-xs font-medium text-gray-600">Access Token</label>
+            <span className="text-[10px] text-gray-400 bg-gray-50 border border-gray-200 rounded px-1.5 py-0.5">
+              Get from LinkedIn Developer portal → OAuth 2.0 tools
+            </span>
+          </div>
+          <input
+            type="password" value={accessToken} onChange={e => setAccessToken(e.target.value)}
+            placeholder="••••••••"
+            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent"
+          />
+        </div>
+
+        <div>
+          <label className="text-xs font-medium text-gray-600 block mb-1">Your LinkedIn User ID</label>
+          <input
+            type="text" value={userId} onChange={e => setUserId(e.target.value)}
+            placeholder="urn:li:person:XXXXXXXX"
+            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent font-mono"
+          />
+        </div>
+
+        <div>
+          <label className="text-xs font-medium text-gray-600 block mb-1">Custom Image Prompts</label>
+          <p className="text-xs text-gray-400 mb-1.5">One prompt per line — these appear as quick-select options in the image generation step.</p>
+          <textarea
+            value={customPromptsRaw} onChange={e => setCustomPromptsRaw(e.target.value)}
+            rows={4}
+            placeholder={"Professional headshot on white background\nModern tech office with team"}
+            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent resize-none"
+          />
+        </div>
+      </div>
+
+      {error && <p className="text-xs text-red-500">{error}</p>}
+
+      <button
+        onClick={save} disabled={saving}
+        className="w-full bg-accent text-white text-sm font-medium py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+      >
+        {saving ? 'Saving…' : saved ? 'Saved' : 'Save LinkedIn Settings'}
+      </button>
     </div>
   )
 }
