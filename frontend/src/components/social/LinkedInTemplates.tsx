@@ -371,7 +371,7 @@ export function LinkedInTemplates() {
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Built-in Styles</p>
           <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-medium rounded-full">{builtin.length} styles</span>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {builtin.map(t => (
             <div key={t.id} className="border border-gray-200 rounded-2xl overflow-hidden bg-gray-50">
               <div className="p-3">
@@ -422,7 +422,7 @@ export function LinkedInTemplates() {
             <p className="text-xs text-gray-400 mt-0.5">Add one below to use your own visual style</p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {user.map(t => (
               <div key={t.id}>
                 {editingId === t.id ? (
@@ -432,48 +432,47 @@ export function LinkedInTemplates() {
                     onCancel={() => setEditingId(null)}
                   />
                 ) : (
-                  <div className="border border-gray-200 rounded-2xl overflow-hidden bg-white group">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-0">
-                      <div className="p-3 border-b sm:border-b-0 sm:border-r border-gray-100">
-                        <PostMockup sampleImage={t.sample_image || undefined} name={t.name} />
+                  <div className="border border-gray-200 rounded-2xl overflow-hidden bg-white">
+                    <div className="p-3">
+                      <PostMockup sampleImage={t.sample_image || undefined} name={t.name} />
+                    </div>
+                    <div className="px-4 pb-4 space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-sm text-gray-900 flex-1">{t.name}</span>
+                        <span className="px-1.5 py-0.5 bg-green-50 text-green-600 text-[10px] font-medium rounded">Custom</span>
                       </div>
-                      <div className="px-4 py-4 flex flex-col gap-2">
-                        <div className="flex items-start gap-2">
-                          <span className="font-semibold text-sm text-gray-900 flex-1">{t.name}</span>
-                        </div>
-                        <p className="text-[11px] text-gray-500 leading-relaxed flex-1">{t.prompt}</p>
-                        <div className="flex gap-2 mt-auto pt-2 flex-wrap">
-                          <button
-                            onClick={() => setEditingId(t.id)}
-                            className="px-3 py-1.5 text-xs font-medium text-accent border border-accent rounded-lg hover:bg-blue-50 transition"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => aiImprove?.id === t.id ? setAiImprove(null) : openAI(t)}
-                            className="px-3 py-1.5 text-xs font-medium text-purple-600 border border-purple-200 rounded-lg hover:bg-purple-50 transition"
-                          >
-                            ✨ AI
-                          </button>
-                          <button
-                            onClick={() => remove(t.id)}
-                            className="px-3 py-1.5 text-xs text-red-400 border border-red-200 rounded-lg hover:bg-red-50 transition"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                        {aiImprove?.id === t.id && (
-                          <AIImprovePanel
-                            state={aiImprove}
-                            isBuiltin={false}
-                            currentPrompt={t.prompt}
-                            onChange={v => setAiImprove(s => s ? { ...s, instruction: v } : s)}
-                            onRun={() => runImprove(t.prompt)}
-                            onAccept={() => acceptImproved(t.id, false)}
-                            onClose={() => setAiImprove(null)}
-                          />
-                        )}
+                      <p className="text-[11px] text-gray-500 leading-relaxed line-clamp-3">{t.prompt}</p>
+                      <div className="flex gap-1.5 pt-1 flex-wrap">
+                        <button
+                          onClick={() => setEditingId(t.id)}
+                          className="px-2.5 py-1 text-xs font-medium text-accent border border-accent rounded-lg hover:bg-blue-50 transition"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => aiImprove?.id === t.id ? setAiImprove(null) : openAI(t)}
+                          className="px-2.5 py-1 text-xs font-medium text-purple-600 border border-purple-200 rounded-lg hover:bg-purple-50 transition"
+                        >
+                          ✨ AI
+                        </button>
+                        <button
+                          onClick={() => remove(t.id)}
+                          className="px-2.5 py-1 text-xs text-red-400 border border-red-200 rounded-lg hover:bg-red-50 transition"
+                        >
+                          Delete
+                        </button>
                       </div>
+                      {aiImprove?.id === t.id && (
+                        <AIImprovePanel
+                          state={aiImprove}
+                          isBuiltin={false}
+                          currentPrompt={t.prompt}
+                          onChange={v => setAiImprove(s => s ? { ...s, instruction: v } : s)}
+                          onRun={() => runImprove(t.prompt)}
+                          onAccept={() => acceptImproved(t.id, false)}
+                          onClose={() => setAiImprove(null)}
+                        />
+                      )}
                     </div>
                   </div>
                 )}

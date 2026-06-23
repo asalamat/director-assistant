@@ -1248,4 +1248,30 @@ export const api = {
   verifyLinkedIn(): Promise<{ linkedin: { ok: boolean; message: string }; openai: { ok: boolean; message: string }; ai_provider: { ok: boolean; message: string } }> {
     return request('/social/linkedin/verify', { method: 'POST' })
   },
+
+  // Instagram
+  getInstagramSettings(): Promise<{ access_token: string; ig_user_id: string; image_model: string }> {
+    return request('/instagram/settings')
+  },
+  saveInstagramSettings(data: { access_token?: string; ig_user_id?: string; image_model?: string }): Promise<void> {
+    return request('/instagram/settings', { method: 'POST', body: JSON.stringify(data) })
+  },
+  generateInstagramCaption(data: { topic: string; tone: string; hashtag_count: number }): Promise<{ caption: string; hashtags: string[] }> {
+    return request('/instagram/generate-caption', { method: 'POST', body: JSON.stringify(data) })
+  },
+  generateInstagramImage(data: { topic: string; caption: string; custom_prompt?: string }): Promise<{ url: string; prompt: string }> {
+    return request('/instagram/generate-image', { method: 'POST', body: JSON.stringify(data) })
+  },
+  publishInstagramPost(data: { caption: string; hashtags: string[]; image_url?: string; content_type: string; scheduled_at?: string }): Promise<{ status: string; ig_media_id?: string }> {
+    return request('/instagram/publish', { method: 'POST', body: JSON.stringify(data) })
+  },
+  getInstagramHistory(): Promise<{ posts: { id: string; caption: string; hashtags: string[]; image_url: string | null; content_type: string; status: string; ig_media_id: string | null; scheduled_at: string | null; published_at: string | null; created_at: string }[] }> {
+    return request('/instagram/history')
+  },
+  deleteInstagramPost(id: string): Promise<void> {
+    return request(`/instagram/history/${id}`, { method: 'DELETE' })
+  },
+  verifyInstagram(): Promise<{ instagram: { ok: boolean; message: string } }> {
+    return request('/instagram/verify', { method: 'POST' })
+  },
 }

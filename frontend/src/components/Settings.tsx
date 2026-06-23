@@ -301,6 +301,10 @@ export function Settings({ onConnected, initialTab }: Props) {
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">LinkedIn</p>
                 <LinkedInSettingsPanel />
               </section>
+              <section>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Instagram</p>
+                <InstagramSettingsPanel />
+              </section>
             </div>
           )}
 
@@ -619,6 +623,91 @@ function LinkedInSettingsPanel() {
           })}
         </div>
       )}
+    </div>
+  )
+}
+
+function InstagramSettingsPanel() {
+  const [accessToken, setAccessToken] = useState('')
+  const [igUserId, setIgUserId] = useState('')
+  const [imageModel, setImageModel] = useState('dall-e-3')
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [error, setError] = useState('')
+  const [verifying, setVerifying] = useState(false)
+  const [verifyResult, setVerifyResult] = useState<{ ok: boolean; message: string } | null>(null)
+
+  useEffect(() => {
+    api.getInstagramSettings()
+      .then((r: any) => { setAccessToken(r.access_token || ''); setIgUserId(r.ig_user_id || ''); setImageModel(r.image_model || 'dall-e-3') })
+      .catch(() => {})
+  }, [])
+
+  const save = async () => {
+    setSaving(true); setError('')
+    try {
+      await api.saveInstagramSettings({ access_token: accessToken, ig_user_id: igUserId, image_model: imageModel })
+      setSaved(true); setTimeout(() => setSaved(false), 2000)
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Save failed') }
+    finally { setSaving(false) }
+  }
+
+  const verify = async () => {
+    setVerifying(true); setVerifyResult(null); setError('')
+    try {
+      const r = await api.verifyInstagram()
+      setVerifyResult(r.instagram)
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Verification failed') }
+    finally { setVerifying(false) }
+  }
+
+  return (
+    <div className="border border-gray-200 rounded-xl p-4 space-y-4">
+      <p className="text-xs text-gray-400 leading-relaxed">
+        Requires an <strong>Instagram Business or Creator account</strong> linked to a Facebook Page.
+        Get your access token and Business Account ID from <span className="font-mono text-gray-600">developers.facebook.com</span> → Graph API Explorer.
+      </p>
+      <div className="space-y-3">
+        <div>
+          <label className="text-xs font-medium text-gray-600 block mb-1">Instagram Business Account ID</label>
+          <input type="text" value={igUserId} onChange={e => setIgUserId(e.target.value)}
+            placeholder="17841400123456789"
+            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent" />
+          <p className="text-[11px] text-gray-400 mt-1">Numeric ID — found via Graph API Explorer: <span className="font-mono">me/accounts → instagram_business_account → id</span></p>
+        </div>
+        <div>
+          <label className="text-xs font-medium text-gray-600 block mb-1">Access Token</label>
+          <input type="password" value={accessToken} onChange={e => setAccessToken(e.target.value)}
+            placeholder="EAABsbCS..."
+            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent" />
+          <p className="text-[11px] text-gray-400 mt-1">Long-lived page access token with <span className="font-mono">instagram_basic, instagram_content_publish</span> permissions</p>
+        </div>
+        <div>
+          <label className="text-xs font-medium text-gray-600 block mb-1">Image Model</label>
+          <select value={imageModel} onChange={e => setImageModel(e.target.value)}
+            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent bg-white">
+            <option value="dall-e-3">DALL-E 3 (recommended)</option>
+            <option value="dall-e-2">DALL-E 2</option>
+          </select>
+        </div>
+      </div>
+      {error && <p className="text-xs text-red-500">{error}</p>}
+      {verifyResult && (
+        <div className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg ${verifyResult.ok ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>
+          <span>{verifyResult.ok ? '✓' : '✕'}</span>
+          <span>{verifyResult.message}</span>
+        </div>
+      )}
+      <div className="flex gap-2 pt-1">
+        <button onClick={save} disabled={saving}
+          className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:opacity-90 disabled:opacity-50 transition-colors">
+          {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save Instagram Settings'}
+        </button>
+        <button onClick={verify} disabled={verifying || !igUserId || !accessToken}
+          className="px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 disabled:opacity-50 transition-colors">
+          {verifying ? 'Verifying…' : 'Verify'}
+        </button>
+      </div>
     </div>
   )
 }
