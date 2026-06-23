@@ -35,10 +35,52 @@ def _get_instagram_settings() -> dict:
     cfg = load_app_config()
     ig = cfg.get("instagram", {}) or {}
     return {
+        "app_id": ig.get("app_id", ""),
+        "app_secret": ig.get("app_secret", ""),
         "access_token": ig.get("access_token", ""),
         "ig_user_id": ig.get("ig_user_id", ""),
         "image_model": ig.get("image_model", "dall-e-3"),
+        "username": ig.get("username", ""),
+        "ftp_host": ig.get("ftp_host", ""),
+        "ftp_user": ig.get("ftp_user", ""),
+        "ftp_pass": ig.get("ftp_pass", ""),
+        "ftp_path": ig.get("ftp_path", ""),
+        "ftp_public_url": ig.get("ftp_public_url", ""),
     }
+
+
+async def _upload_to_ftp(data_uri: str, settings: dict) -> str:
+    """Upload a base64 data URI via FTP and return the public HTTP URL."""
+    import base64
+    import ftplib
+    import io
+
+    host = settings.get("ftp_host", "")
+    user = settings.get("ftp_user", "")
+    passwd = settings.get("ftp_pass", "")
+    path = settings.get("ftp_path", "/").rstrip("/") + "/"
+    public_url = settings.get("ftp_public_url", "").rstrip("/")
+
+    if not (host and user and public_url):
+        return ""
+
+    if "," in data_uri:
+        b64 = data_uri.split(",", 1)[1]
+    else:
+        b64 = data_uri
+
+    img_bytes = base64.b64decode(b64)
+    filename = f"{uuid.uuid4().hex}.png"
+
+    def _ftp_upload():
+        ftp = ftplib.FTP(host)
+        ftp.login(user, passwd)
+        ftp.storbinary(f"STOR {path}{filename}", io.BytesIO(img_bytes))
+        ftp.quit()
+
+    import asyncio
+    await asyncio.to_thread(_ftp_upload)
+    return f"{public_url}/{filename}"
 
 
 def _get_openai_key() -> str:
@@ -77,7 +119,8 @@ async def get_settings(request: Request):
 async def save_settings(body: dict, request: Request):
     cfg = load_app_config()
     ig = cfg.get("instagram", {}) or {}
-    for key in ("access_token", "ig_user_id", "image_model"):
+    for key in ("app_id", "app_secret", "access_token", "ig_user_id", "image_model", "username",
+                "ftp_host", "ftp_user", "ftp_pass", "ftp_path", "ftp_public_url"):
         if key in body and body[key] is not None:
             ig[key] = body[key]
     cfg["instagram"] = ig
@@ -162,28 +205,46 @@ async def generate_image(body: dict, request: Request):
         if not full_prompt:
             return {"url": "", "prompt": "", "error": "Could not generate image prompt"}
 
-    model = _get_instagram_settings().get("image_model", "dall-e-3") or "dall-e-3"
+    _IMAGE_MODELS = ("dall-e-3", "gpt-image-1", "gpt-5.5", "dall-e-2")
+    _SKIP = ("does not exist", "not supported", "not available", "no access", "model_not_found")
+
+    preferred = _get_instagram_settings().get("image_model", "dall-e-3") or "dall-e-3"
+    fallback_list = [preferred] + [m for m in _IMAGE_MODELS if m != preferred]
     headers = {"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"}
-    payload = {"model": model, "prompt": full_prompt[:4000], "n": 1, "size": "1024x1024", "quality": "standard"}
-    try:
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            r = await client.post("https://api.openai.com/v1/images/generations", headers=headers, json=payload)
-    except Exception as e:
-        return {"url": "", "prompt": full_prompt, "error": f"Request failed: {e}"}
 
-    if r.status_code != 200:
-        eb = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
-        msg = eb.get("error", {}).get("message", r.text[:300])
-        return {"url": "", "prompt": full_prompt, "error": f"OpenAI {r.status_code}: {msg}"}
+    last_error = ""
+    result_url = ""
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        for mdl in fallback_list:
+            payload: dict = {"model": mdl, "prompt": full_prompt[:4000], "n": 1, "size": "1024x1024"}
+            try:
+                r = await client.post("https://api.openai.com/v1/images/generations", headers=headers, json=payload)
+            except Exception as e:
+                last_error = f"Request failed: {e}"
+                break
+            if r.status_code == 200:
+                item = r.json().get("data", [{}])[0]
+                result_url = item.get("url") or (f"data:image/png;base64,{item['b64_json']}" if item.get("b64_json") else "")
+                if result_url:
+                    # Auto-upload data URIs via FTP so Instagram Graph API gets a public URL
+                    if result_url.startswith("data:"):
+                        ig_settings = _get_instagram_settings()
+                        if ig_settings.get("ftp_host"):
+                            try:
+                                ftp_url = await _upload_to_ftp(result_url, ig_settings)
+                                if ftp_url:
+                                    result_url = ftp_url
+                            except Exception:
+                                pass  # leave as data URI; publish will show the helpful error
+                    return {"url": result_url, "prompt": full_prompt, "model_used": mdl}
+                last_error = f"{mdl} returned no image data"
+                break
+            eb = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
+            last_error = eb.get("error", {}).get("message", r.text[:300])
+            if not any(p in last_error.lower() for p in _SKIP):
+                break  # real error, not a model-access issue
 
-    item = r.json().get("data", [{}])[0]
-    url = item.get("url", "")
-    b64 = item.get("b64_json", "")
-    if url:
-        return {"url": url, "prompt": full_prompt}
-    if b64:
-        return {"url": f"data:image/png;base64,{b64}", "prompt": full_prompt}
-    return {"url": "", "prompt": full_prompt, "error": "OpenAI returned no image data"}
+    return {"url": "", "prompt": full_prompt, "error": last_error or "Image generation failed"}
 
 
 async def _publish_to_instagram(settings: dict, image_url: str, full_caption: str) -> dict:
@@ -325,3 +386,43 @@ async def verify_instagram(request: Request):
         return {"instagram": {"ok": False, "message": f"HTTP {r.status_code}: {msg}"}}
     except Exception as e:
         return {"instagram": {"ok": False, "message": str(e)}}
+
+
+@router.post("/verify-ftp")
+async def verify_ftp(request: Request):
+    """Test FTP connection and write/delete a probe file."""
+    import ftplib
+    import asyncio
+
+    s = _get_instagram_settings()
+    host = s.get("ftp_host", "")
+    user = s.get("ftp_user", "")
+    passwd = s.get("ftp_pass", "")
+    path = (s.get("ftp_path", "/") or "/").rstrip("/") + "/"
+    public_url = (s.get("ftp_public_url", "") or "").rstrip("/")
+
+    if not host:
+        return {"ok": False, "message": "FTP host not configured"}
+    if not user:
+        return {"ok": False, "message": "FTP username not configured"}
+    if not public_url:
+        return {"ok": False, "message": "Public URL base not configured"}
+
+    probe = f"da_probe_{uuid.uuid4().hex[:8]}.txt"
+
+    def _test():
+        ftp = ftplib.FTP()
+        ftp.connect(host, timeout=10)
+        ftp.login(user, passwd)
+        import io
+        ftp.storbinary(f"STOR {path}{probe}", io.BytesIO(b"ok"))
+        ftp.delete(f"{path}{probe}")
+        ftp.quit()
+
+    try:
+        await asyncio.to_thread(_test)
+        return {"ok": True, "message": f"FTP connected. Files will be served at {public_url}/"}
+    except ftplib.all_errors as e:
+        return {"ok": False, "message": f"FTP error: {e}"}
+    except Exception as e:
+        return {"ok": False, "message": str(e)}

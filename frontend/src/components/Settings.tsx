@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { api } from '../api/client'
 import type { EmailProvider, Account, IngestProgress } from '../types'
 import { ConfigPanel } from './ConfigPanel'
@@ -628,84 +628,221 @@ function LinkedInSettingsPanel() {
 }
 
 function InstagramSettingsPanel() {
-  const [accessToken, setAccessToken] = useState('')
+  const [appId, setAppId] = useState('')
+  const [appSecret, setAppSecret] = useState('')
   const [igUserId, setIgUserId] = useState('')
   const [imageModel, setImageModel] = useState('dall-e-3')
+  const [ftpHost, setFtpHost] = useState('')
+  const [ftpUser, setFtpUser] = useState('')
+  const [ftpPass, setFtpPass] = useState('')
+  const [ftpPath, setFtpPath] = useState('')
+  const [ftpPublicUrl, setFtpPublicUrl] = useState('')
+  const [connectedUsername, setConnectedUsername] = useState('')
+  const [hasToken, setHasToken] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
-  const [verifying, setVerifying] = useState(false)
-  const [verifyResult, setVerifyResult] = useState<{ ok: boolean; message: string } | null>(null)
+  const [ftpVerifying, setFtpVerifying] = useState(false)
+  const [ftpVerifyMsg, setFtpVerifyMsg] = useState<{ok: boolean; message: string} | null>(null)
+  const [oauthStatus, setOauthStatus] = useState<'idle' | 'waiting' | 'done' | 'error'>('idle')
+  const [oauthMsg, setOauthMsg] = useState('')
+  const popupRef = useRef<Window | null>(null)
 
   useEffect(() => {
     api.getInstagramSettings()
-      .then((r: any) => { setAccessToken(r.access_token || ''); setIgUserId(r.ig_user_id || ''); setImageModel(r.image_model || 'dall-e-3') })
+      .then((r: any) => {
+        setAppId(r.app_id || '')
+        setAppSecret(r.app_secret || '')
+        setIgUserId(r.ig_user_id || '')
+        setImageModel(r.image_model || 'dall-e-3')
+        setFtpHost(r.ftp_host || '')
+        setFtpUser(r.ftp_user || '')
+        setFtpPass(r.ftp_pass || '')
+        setFtpPath(r.ftp_path || '')
+        setFtpPublicUrl(r.ftp_public_url || '')
+        setConnectedUsername(r.username || '')
+        setHasToken(!!(r.access_token))
+      })
       .catch(() => {})
   }, [])
+
+  const verifyFtp = async () => {
+    setFtpVerifying(true); setFtpVerifyMsg(null)
+    try {
+      const r = await fetch('/api/instagram/verify-ftp', { method: 'POST' }).then(x => x.json())
+      setFtpVerifyMsg({ ok: r.ok, message: r.message })
+    } catch { setFtpVerifyMsg({ ok: false, message: 'Request failed' }) }
+    finally { setFtpVerifying(false) }
+  }
 
   const save = async () => {
     setSaving(true); setError('')
     try {
-      await api.saveInstagramSettings({ access_token: accessToken, ig_user_id: igUserId, image_model: imageModel })
+      await api.saveInstagramSettings({ app_id: appId, app_secret: appSecret, ig_user_id: igUserId, image_model: imageModel, ftp_host: ftpHost, ftp_user: ftpUser, ftp_pass: ftpPass, ftp_path: ftpPath, ftp_public_url: ftpPublicUrl } as any)
       setSaved(true); setTimeout(() => setSaved(false), 2000)
     } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Save failed') }
     finally { setSaving(false) }
   }
 
-  const verify = async () => {
-    setVerifying(true); setVerifyResult(null); setError('')
+  const connect = async () => {
+    if (!appId || !appSecret) { setError('Save your App ID and App Secret first'); return }
+    setOauthStatus('waiting'); setOauthMsg(''); setError('')
     try {
-      const r = await api.verifyInstagram()
-      setVerifyResult(r.instagram)
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Verification failed') }
-    finally { setVerifying(false) }
+      const { url } = await fetch('/api/oauth/instagram/auth-url').then(r => r.json())
+      const popup = window.open(url, 'igauth', 'width=600,height=700,left=200,top=80')
+      popupRef.current = popup
+      if (!popup) { setOauthStatus('error'); setOauthMsg('Popup blocked — allow popups and try again'); return }
+      const onMsg = (e: MessageEvent) => {
+        if (e.data?.type === 'ig-oauth-complete') {
+          window.removeEventListener('message', onMsg)
+          setOauthStatus('done')
+          setHasToken(true)
+          if (e.data.username) {
+            setConnectedUsername(e.data.username)
+            setOauthMsg(`Connected as @${e.data.username}`)
+          } else {
+            setOauthMsg('Token saved — enter your Instagram Business Account ID below to complete setup')
+          }
+          // reload settings to get updated ig_user_id if auto-detected
+          api.getInstagramSettings().then((r: any) => { setIgUserId(r.ig_user_id || ''); setConnectedUsername(r.username || '') }).catch(() => {})
+        } else if (e.data?.type === 'ig-oauth-error') {
+          window.removeEventListener('message', onMsg)
+          setOauthStatus('error'); setOauthMsg(e.data.message || 'Connection failed')
+        }
+      }
+      window.addEventListener('message', onMsg)
+      const t = setInterval(() => {
+        if (popupRef.current?.closed) {
+          clearInterval(t); window.removeEventListener('message', onMsg)
+          setOauthStatus(s => s === 'waiting' ? 'idle' : s)
+        }
+      }, 800)
+    } catch (e: unknown) { setOauthStatus('error'); setOauthMsg(e instanceof Error ? e.message : 'Failed') }
   }
 
   return (
     <div className="border border-gray-200 rounded-xl p-4 space-y-4">
       <p className="text-xs text-gray-400 leading-relaxed">
-        Requires an <strong>Instagram Business or Creator account</strong> linked to a Facebook Page.
-        Get your access token and Business Account ID from <span className="font-mono text-gray-600">developers.facebook.com</span> → Graph API Explorer.
+        Requires a <strong>Facebook App</strong> with Instagram Graph API enabled and an{' '}
+        <strong>Instagram Business or Creator account</strong> linked to a Facebook Page.
+        Create your app at <span className="font-mono text-gray-600">developers.facebook.com</span> and add{' '}
+        <span className="font-mono text-[11px]">http://localhost:8000/api/oauth/instagram/callback</span> as a Valid OAuth Redirect URI.
       </p>
+
+      {connectedUsername && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg">
+          <span className="text-green-600 text-sm">✓</span>
+          <span className="text-sm font-medium text-green-700">Connected as @{connectedUsername}</span>
+          <button onClick={() => { setConnectedUsername(''); api.saveInstagramSettings({ username: '' } as any).catch(() => {}) }}
+            className="ml-auto text-xs text-gray-400 hover:text-gray-600">Disconnect</button>
+        </div>
+      )}
+
       <div className="space-y-3">
         <div>
-          <label className="text-xs font-medium text-gray-600 block mb-1">Instagram Business Account ID</label>
-          <input type="text" value={igUserId} onChange={e => setIgUserId(e.target.value)}
-            placeholder="17841400123456789"
+          <label className="text-xs font-medium text-gray-600 block mb-1">Facebook App ID</label>
+          <input type="text" value={appId} onChange={e => setAppId(e.target.value)}
+            placeholder="1234567890123456"
             className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent" />
-          <p className="text-[11px] text-gray-400 mt-1">Numeric ID — found via Graph API Explorer: <span className="font-mono">me/accounts → instagram_business_account → id</span></p>
         </div>
         <div>
-          <label className="text-xs font-medium text-gray-600 block mb-1">Access Token</label>
-          <input type="password" value={accessToken} onChange={e => setAccessToken(e.target.value)}
-            placeholder="EAABsbCS..."
+          <label className="text-xs font-medium text-gray-600 block mb-1">App Secret</label>
+          <input type="password" value={appSecret} onChange={e => setAppSecret(e.target.value)}
+            placeholder="••••••••••••••••"
             className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent" />
-          <p className="text-[11px] text-gray-400 mt-1">Long-lived page access token with <span className="font-mono">instagram_basic, instagram_content_publish</span> permissions</p>
         </div>
+        {(hasToken && !connectedUsername) && (
+          <div>
+            <label className="text-xs font-medium text-gray-600 block mb-1">
+              Instagram Business Account ID
+              <span className="text-gray-400 font-normal ml-1">(required — auto-detect failed)</span>
+            </label>
+            <input type="text" value={igUserId} onChange={e => setIgUserId(e.target.value)}
+              placeholder="17841400123456789"
+              className="w-full text-sm border border-amber-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-400 bg-amber-50" />
+            <p className="text-[11px] text-gray-400 mt-1">
+              Find it: Graph API Explorer → run <span className="font-mono">me/accounts</span> → click your Page → run <span className="font-mono">{"?fields=instagram_business_account"}</span> → copy the <span className="font-mono">id</span>
+            </p>
+          </div>
+        )}
         <div>
           <label className="text-xs font-medium text-gray-600 block mb-1">Image Model</label>
           <select value={imageModel} onChange={e => setImageModel(e.target.value)}
             className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent bg-white">
-            <option value="dall-e-3">DALL-E 3 (recommended)</option>
-            <option value="dall-e-2">DALL-E 2</option>
+            {IMAGE_MODELS.map(m => (
+              <option key={m.value} value={m.value}>{m.label}</option>
+            ))}
           </select>
+          <p className="text-[11px] text-gray-400 mt-1">DALL-E 3 / DALL-E 2 return a public URL directly. GPT Image 1 / GPT-5.5 return base64 — configure FTP below to auto-upload and get a public URL.</p>
+        </div>
+
+        <div className="border-t border-gray-100 pt-3">
+          <p className="text-xs font-semibold text-gray-500 mb-2">FTP Image Hosting <span className="font-normal text-gray-400">(for GPT Image 1 / GPT-5.5)</span></p>
+          <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">FTP Host</label>
+                <input type="text" value={ftpHost} onChange={e => setFtpHost(e.target.value)}
+                  placeholder="ftp.example.com"
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Username</label>
+                <input type="text" value={ftpUser} onChange={e => setFtpUser(e.target.value)}
+                  placeholder="ftpuser"
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent" />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">Password</label>
+              <input type="password" value={ftpPass} onChange={e => setFtpPass(e.target.value)}
+                placeholder="••••••••"
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">Upload Path</label>
+              <input type="text" value={ftpPath} onChange={e => setFtpPath(e.target.value)}
+                placeholder="/public_html/uploads/"
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">Public URL Base</label>
+              <input type="text" value={ftpPublicUrl} onChange={e => setFtpPublicUrl(e.target.value)}
+                placeholder="https://example.com/uploads"
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent" />
+              <p className="text-[11px] text-gray-400 mt-1">The HTTP URL where uploaded files are publicly accessible.</p>
+            </div>
+            <div className="flex items-center gap-3 pt-1">
+              <button onClick={verifyFtp} disabled={ftpVerifying || !ftpHost}
+                className="px-3 py-1.5 text-xs font-medium border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors">
+                {ftpVerifying ? 'Testing…' : 'Verify FTP'}
+              </button>
+              {ftpVerifyMsg && (
+                <span className={`text-xs ${ftpVerifyMsg.ok ? 'text-green-600' : 'text-red-500'}`}>
+                  {ftpVerifyMsg.ok ? '✓ ' : '✗ '}{ftpVerifyMsg.message}
+                </span>
+              )}
+            </div>
+          </div>
         </div>
       </div>
+
       {error && <p className="text-xs text-red-500">{error}</p>}
-      {verifyResult && (
-        <div className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg ${verifyResult.ok ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>
-          <span>{verifyResult.ok ? '✓' : '✕'}</span>
-          <span>{verifyResult.message}</span>
-        </div>
+      {oauthMsg && (
+        <p className={`text-xs ${oauthStatus === 'done' ? 'text-green-600' : oauthStatus === 'error' ? 'text-red-500' : 'text-gray-500'}`}>
+          {oauthStatus === 'waiting' ? '⏳ ' : ''}{oauthMsg}
+        </p>
       )}
-      <div className="flex gap-2 pt-1">
+
+      <div className="flex gap-2 pt-1 flex-wrap">
         <button onClick={save} disabled={saving}
           className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:opacity-90 disabled:opacity-50 transition-colors">
-          {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save Instagram Settings'}
+          {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save'}
         </button>
-        <button onClick={verify} disabled={verifying || !igUserId || !accessToken}
-          className="px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 disabled:opacity-50 transition-colors">
-          {verifying ? 'Verifying…' : 'Verify'}
+        <button onClick={connect} disabled={oauthStatus === 'waiting' || !appId}
+          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-sm font-medium rounded-lg hover:opacity-90 disabled:opacity-50 transition">
+          <span>📸</span>
+          {oauthStatus === 'waiting' ? 'Connecting…' : connectedUsername ? 'Reconnect Instagram' : 'Connect with Instagram'}
         </button>
       </div>
     </div>

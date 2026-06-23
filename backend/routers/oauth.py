@@ -643,3 +643,169 @@ async def google_oauth_callback(
         background_tasks.add_task(_bg)
 
     return HTMLResponse(_callback_page(success=True, username=username))
+
+
+# ── Instagram (Facebook) OAuth2 ───────────────────────────────────────────────
+
+_FACEBOOK_AUTH = "https://www.facebook.com/v19.0/dialog/oauth"
+_FACEBOOK_TOKEN = "https://graph.facebook.com/v19.0/oauth/access_token"
+_GRAPH_IG_BASE = "https://graph.facebook.com/v19.0"
+_IG_SCOPES = "instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement"
+_ig_states: dict[str, dict] = {}
+
+
+def _ig_app_creds() -> tuple[str, str]:
+    from routers.config import load_app_config
+    cfg = load_app_config().get("instagram", {}) or {}
+    return (cfg.get("app_id") or "").strip(), (cfg.get("app_secret") or "").strip()
+
+
+def _ig_redirect_uri(request: Request) -> str:
+    return str(request.base_url).rstrip("/") + "/api/oauth/instagram/callback"
+
+
+def _ig_callback_page(success: bool, username: str = "", message: str = "", note: str = "") -> str:
+    import html as _h
+    if success:
+        data = json.dumps({"type": "ig-oauth-complete", "username": username, "note": note})
+        sub = f"@{_h.escape(username)}" if username else (_h.escape(note) if note else "Token saved successfully")
+        body = (
+            f'<div style="text-align:center;padding:60px;font-family:system-ui,sans-serif">'
+            f'<div style="font-size:48px">✓</div>'
+            f'<h2 style="color:#16a34a;margin:16px 0 8px">Instagram connected</h2>'
+            f'<p style="color:#6b7280">{sub}</p>'
+            f'<p style="color:#9ca3af;font-size:13px;margin-top:24px">This window will close automatically…</p>'
+            f'</div>'
+        )
+    else:
+        data = json.dumps({"type": "ig-oauth-error", "message": message})
+        body = (
+            f'<div style="text-align:center;padding:60px;font-family:system-ui,sans-serif">'
+            f'<div style="font-size:48px">✗</div>'
+            f'<h2 style="color:#dc2626;margin:16px 0 8px">Connection failed</h2>'
+            f'<p style="color:#6b7280">{_h.escape(message)}</p>'
+            f'<button onclick="window.close()" style="margin-top:24px;padding:8px 20px;border-radius:8px;'
+            f'border:1px solid #d1d5db;background:#f9fafb;cursor:pointer;font-size:14px">Close</button>'
+            f'</div>'
+        )
+    return (
+        f'<!DOCTYPE html><html><head><meta charset="utf-8"><title>Instagram Connect</title></head>'
+        f'<body style="margin:0;background:#f9fafb">{body}'
+        f'<script>var data={data};'
+        f'try{{window.opener&&window.opener.postMessage(data,window.location.origin);}}catch(e){{}}'
+        f'if(data.type==="ig-oauth-complete"){{setTimeout(function(){{window.close();}},1200);}}'
+        f'</script></body></html>'
+    )
+
+
+@router.get("/instagram/auth-url")
+async def get_instagram_auth_url(request: Request):
+    app_id, _ = _ig_app_creds()
+    if not app_id:
+        raise HTTPException(400, "Facebook App ID not configured — add it in Settings → Instagram → App ID")
+    state = secrets.token_urlsafe(20)
+    _ig_states[state] = {}
+    if len(_ig_states) > 100:
+        for k in list(_ig_states.keys())[:50]:
+            _ig_states.pop(k, None)
+    params = {
+        "client_id": app_id, "redirect_uri": _ig_redirect_uri(request),
+        "scope": _IG_SCOPES, "state": state, "response_type": "code",
+    }
+    return {"url": _FACEBOOK_AUTH + "?" + urllib.parse.urlencode(params)}
+
+
+@router.get("/instagram/callback")
+async def instagram_oauth_callback(
+    request: Request,
+    code: str = "", state: str = "", error: str = "", error_description: str = "",
+):
+    if error:
+        return HTMLResponse(_ig_callback_page(False, message=error_description or error))
+    if not code:
+        return HTMLResponse(_ig_callback_page(False, message="No authorization code received"))
+    if state not in _ig_states:
+        return HTMLResponse(_ig_callback_page(False, message="Invalid or expired session — please try again"))
+    _ig_states.pop(state)
+    app_id, app_secret = _ig_app_creds()
+
+    # Step 1: code → short-lived token
+    try:
+        async with httpx.AsyncClient(timeout=15) as c:
+            r = await c.get(_FACEBOOK_TOKEN, params={
+                "client_id": app_id, "client_secret": app_secret,
+                "redirect_uri": _ig_redirect_uri(request), "code": code,
+            })
+        tok_data = r.json()
+    except Exception as e:
+        return HTMLResponse(_ig_callback_page(False, message=f"Token exchange failed: {e}"))
+    if "access_token" not in tok_data:
+        msg = (tok_data.get("error") or {}).get("message") or tok_data.get("error_description") or "Token exchange failed"
+        return HTMLResponse(_ig_callback_page(False, message=msg))
+    short_token = tok_data["access_token"]
+
+    # Step 2: short → long-lived token (60 days)
+    try:
+        async with httpx.AsyncClient(timeout=15) as c:
+            r = await c.get(f"{_GRAPH_IG_BASE}/oauth/access_token", params={
+                "grant_type": "fb_exchange_token", "client_id": app_id,
+                "client_secret": app_secret, "fb_exchange_token": short_token,
+            })
+        long_token = r.json().get("access_token", short_token)
+    except Exception:
+        long_token = short_token
+
+    # Step 3: find Instagram Business/Creator Account ID — three attempts
+    ig_user_id = ""
+    ig_username = ""
+
+    # Attempt A: via Facebook Pages (standard Business accounts)
+    try:
+        async with httpx.AsyncClient(timeout=15) as c:
+            pages_r = await c.get(f"{_GRAPH_IG_BASE}/me/accounts",
+                params={"access_token": long_token, "fields": "id,name,instagram_business_account"})
+        for page in pages_r.json().get("data", []):
+            ib = page.get("instagram_business_account") or {}
+            if ib.get("id"):
+                ig_user_id = ib["id"]
+                async with httpx.AsyncClient(timeout=10) as c:
+                    pu = await c.get(f"{_GRAPH_IG_BASE}/{ig_user_id}",
+                        params={"fields": "username", "access_token": long_token})
+                ig_username = pu.json().get("username", "")
+                break
+    except Exception:
+        pass
+
+    # Attempt B: direct user node (works for some Creator accounts)
+    if not ig_user_id:
+        try:
+            async with httpx.AsyncClient(timeout=10) as c:
+                me_r = await c.get(f"{_GRAPH_IG_BASE}/me",
+                    params={"access_token": long_token, "fields": "id,name,instagram_business_account"})
+            ib = me_r.json().get("instagram_business_account") or {}
+            if ib.get("id"):
+                ig_user_id = ib["id"]
+                async with httpx.AsyncClient(timeout=10) as c:
+                    pu = await c.get(f"{_GRAPH_IG_BASE}/{ig_user_id}",
+                        params={"fields": "username", "access_token": long_token})
+                ig_username = pu.json().get("username", "")
+        except Exception:
+            pass
+
+    # Step 4: persist token regardless — user can enter Account ID manually if auto-detect failed
+    from routers.config import load_app_config, save_app_config
+    cfg = load_app_config()
+    ig_cfg = cfg.get("instagram", {}) or {}
+    ig_cfg["access_token"] = long_token
+    if ig_user_id:
+        ig_cfg["ig_user_id"] = ig_user_id
+        ig_cfg["username"] = ig_username
+    cfg["instagram"] = ig_cfg
+    save_app_config(cfg)
+
+    if ig_user_id:
+        return HTMLResponse(_ig_callback_page(True, username=ig_username))
+
+    # Token saved but account not auto-detected — ask user to enter Account ID manually
+    return HTMLResponse(_ig_callback_page(True, username="",
+        note="Token saved — Instagram account ID not auto-detected. Enter it manually in Settings."))
