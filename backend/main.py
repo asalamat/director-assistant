@@ -69,7 +69,8 @@ from workers.background_tasks import (
     _auto_sentiment_escalation, _commitment_scan_loop,
     _relationship_health_loop, _auto_label_loop, _scheduled_send_loop,
     _scheduled_report_loop, _overnight_triage_loop, _rules_loop,
-    _followup_reminder_loop, daily_focus_task,
+    _followup_reminder_loop, daily_focus_task, _linkedin_scheduler_loop,
+    _linkedin_autopilot_loop,
 )
 from routers.config import get_effective_api_key, load_app_config
 from services.ai_client import AIClient
@@ -493,11 +494,14 @@ async def lifespan(app: FastAPI):
     app.state.rules_task = asyncio.create_task(_rules_loop(app))
     app.state.followup_reminder_task = asyncio.create_task(_followup_reminder_loop(app))
     app.state.daily_focus_task = asyncio.create_task(daily_focus_task(app))
+    app.state.linkedin_scheduler_task = asyncio.create_task(_linkedin_scheduler_loop(app))
+    app.state.linkedin_autopilot_task = asyncio.create_task(_linkedin_autopilot_loop(app))
     app.state.restart_poll = lambda: asyncio.create_task(_restart_poll(app))
     yield
     for task_name in ("digest_task", "poll_task", "commitment_task", "relationship_task",
                       "scheduled_send_task", "auto_label_task", "report_task", "overnight_task",
-                      "rules_task", "followup_reminder_task", "daily_focus_task"):
+                      "rules_task", "followup_reminder_task", "daily_focus_task",
+                      "linkedin_scheduler_task", "linkedin_autopilot_task"):
         task = getattr(app.state, task_name, None)
         if task:
             task.cancel()

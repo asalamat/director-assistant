@@ -2,8 +2,9 @@ import { useState } from 'react'
 import { LinkedInWizard } from './LinkedInWizard'
 import { PostHistory } from './PostHistory'
 import { LinkedInTemplates } from './LinkedInTemplates'
+import { LinkedInAutopilot } from './LinkedInAutopilot'
 
-type TabId = 'linkedin' | 'instagram' | 'twitter' | 'history' | 'templates'
+type TabId = 'linkedin' | 'instagram' | 'twitter' | 'history' | 'templates' | 'autopilot'
 
 const TABS: { id: TabId; icon: string; label: string; disabled?: boolean }[] = [
   { id: 'linkedin', icon: '💼', label: 'LinkedIn' },
@@ -43,6 +44,15 @@ export function SocialPanel() {
 
           <div className="mt-2 border-t border-gray-100 pt-2 flex flex-col gap-0.5">
             <button
+              onClick={() => setActiveTab('autopilot')}
+              className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-left transition-colors ${
+                activeTab === 'autopilot' ? 'bg-blue-50 text-accent' : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <span>🤖</span>
+              <span>Autopilot</span>
+            </button>
+            <button
               onClick={() => setActiveTab('history')}
               className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-left transition-colors ${
                 activeTab === 'history' ? 'bg-blue-50 text-accent' : 'text-gray-600 hover:bg-gray-100'
@@ -72,6 +82,7 @@ export function SocialPanel() {
             onManageTemplates={() => setActiveTab('templates')}
           />
         )}
+        {activeTab === 'autopilot' && <LinkedInAutopilot />}
         {activeTab === 'history' && <PostHistory />}
         {activeTab === 'templates' && <LinkedInTemplates />}
         {(activeTab === 'instagram' || activeTab === 'twitter') && (

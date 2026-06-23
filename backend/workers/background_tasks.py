@@ -367,6 +367,195 @@ async def _scheduled_send_loop(app: "object") -> None:
         await asyncio.sleep(60)
 
 
+async def _linkedin_scheduler_loop(app: "object") -> None:
+    """Publish scheduled LinkedIn posts when their scheduled_at time arrives."""
+    import asyncio
+    while True:
+        try:
+            cache = app.state.cache
+            from datetime import datetime, timedelta
+            now = datetime.now()
+            now_str = now.strftime("%Y-%m-%dT%H:%M")
+            cutoff_str = (now - timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M")
+            with cache._conn() as conn:
+                rows = conn.execute(
+                    "SELECT * FROM linkedin_posts WHERE status='scheduled' AND scheduled_at <= ? ORDER BY scheduled_at LIMIT 10",
+                    (now_str,),
+                ).fetchall()
+            for row in rows:
+                try:
+                    # Posts more than 1 hour overdue were stuck due to missing scheduler — mark failed
+                    if (row["scheduled_at"] or "") < cutoff_str:
+                        with cache._conn() as conn:
+                            conn.execute(
+                                "UPDATE linkedin_posts SET status='missed' WHERE id=?",
+                                (row["id"],),
+                            )
+                        print(f"[linkedin-scheduler] missed (overdue) id={row['id']} was={row['scheduled_at']}")
+                        continue
+                    from routers.social import _publish_to_linkedin, _get_linkedin_settings
+                    settings = _get_linkedin_settings()
+                    result = await _publish_to_linkedin(
+                        row["post_text"],
+                        settings,
+                        row["image_url"] or "",
+                        row["content_type"] or "image+text",
+                    )
+                    with cache._conn() as conn:
+                        if "error" in result:
+                            conn.execute(
+                                "UPDATE linkedin_posts SET status='failed' WHERE id=?",
+                                (row["id"],),
+                            )
+                            print(f"[linkedin-scheduler] failed id={row['id']}: {result['error']}")
+                        else:
+                            conn.execute(
+                                """UPDATE linkedin_posts
+                                   SET status='published', published_at=datetime('now'),
+                                       linkedin_post_id=?
+                                   WHERE id=?""",
+                                (result.get("linkedin_post_id", ""), row["id"]),
+                            )
+                            print(f"[linkedin-scheduler] published id={row['id']}")
+                except Exception as e:
+                    print(f"[linkedin-scheduler] error id={row['id']}: {e}")
+        except Exception as e:
+            print(f"[linkedin-scheduler] loop error: {e}")
+        await asyncio.sleep(60)
+
+
+async def _linkedin_autopilot_loop(app: "object") -> None:
+    """Generate and publish LinkedIn posts on autopilot schedule."""
+    import asyncio, json, uuid
+    while True:
+        try:
+            cache = app.state.cache
+            from datetime import datetime, timedelta
+            from routers.social import _get_linkedin_settings, _get_openai_key, _publish_to_linkedin
+
+            with cache._conn() as conn:
+                row = conn.execute(
+                    "SELECT * FROM linkedin_autopilot WHERE enabled=1 ORDER BY id LIMIT 1"
+                ).fetchone()
+
+            if not row:
+                await asyncio.sleep(300)
+                continue
+
+            now = datetime.now()
+            now_str = now.strftime("%Y-%m-%dT%H:%M")
+            next_post_at = row["next_post_at"] or ""
+
+            if next_post_at and next_post_at > now_str:
+                await asyncio.sleep(60)
+                continue
+
+            topics = json.loads(row["topics"] or "[]")
+            if not topics:
+                await asyncio.sleep(300)
+                continue
+
+            topic_index = int(row["topic_index"] or 0)
+            topic = topics[topic_index % len(topics)]
+            content_type = row["content_type"] or "image+text"
+            template_prompt = row["template_prompt"] or ""
+
+            # Generate post text
+            advisor = app.state.advisor
+            ant = getattr(advisor.ai, "_anthropic", None)
+            post_system = (
+                "You are a LinkedIn post writer. Output ONLY the post text — "
+                "no JSON, no code blocks, no labels, no introductions."
+            )
+            if template_prompt:
+                post_prompt = f"{template_prompt}\n\nTopic: {topic}\n\nOutput ONLY the post text."
+            else:
+                post_prompt = (
+                    f"Write a professional LinkedIn post about: {topic}.\n"
+                    "Engaging, well-structured with real line breaks. Emojis sparingly. "
+                    "Do NOT include hashtags. Output ONLY the post text."
+                )
+            try:
+                ai_call = ant.messages.create if ant else advisor.ai.messages.create
+                resp = await ai_call(model="claude-sonnet-4-6", max_tokens=1200,
+                                     system=post_system,
+                                     messages=[{"role": "user", "content": post_prompt}])
+                post_text = resp.content[0].text.strip()
+            except Exception as e:
+                print(f"[linkedin-autopilot] post generation failed for '{topic}': {e}")
+                await asyncio.sleep(300)
+                continue
+
+            # Append hashtags
+            try:
+                ht_prompt = f"Give 5 LinkedIn hashtags for: {topic}. Return ONLY comma-separated words without #."
+                ht_resp = await ai_call(model="claude-haiku-4-5-20251001", max_tokens=80,
+                                        messages=[{"role": "user", "content": ht_prompt}])
+                tags = [h.strip().lstrip("#") for h in ht_resp.content[0].text.split(",") if h.strip()][:5]
+                if tags:
+                    post_text += "\n\n" + " ".join(f"#{t}" for t in tags)
+            except Exception:
+                pass
+
+            # Generate image
+            image_url = ""
+            if content_type in ("image", "image+text"):
+                openai_key = _get_openai_key()
+                if openai_key and openai_key.startswith("sk-"):
+                    dalle_prompt = (
+                        f"{template_prompt}. Topic: {topic}." if template_prompt
+                        else f"Professional LinkedIn post image for: {topic}. Clean, modern, business-appropriate."
+                    )
+                    try:
+                        import httpx
+                        async with httpx.AsyncClient(timeout=120.0) as http:
+                            ir = await http.post(
+                                "https://api.openai.com/v1/images/generations",
+                                headers={"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"},
+                                json={"model": "dall-e-3", "prompt": dalle_prompt[:4000], "n": 1, "size": "1024x1024"},
+                            )
+                            if ir.status_code == 200:
+                                image_url = ir.json().get("data", [{}])[0].get("url", "")
+                    except Exception as e:
+                        print(f"[linkedin-autopilot] image generation failed: {e}")
+
+            # Publish
+            settings = _get_linkedin_settings()
+            result = await _publish_to_linkedin(post_text, settings, image_url, content_type)
+            if "error" in result:
+                print(f"[linkedin-autopilot] publish failed for '{topic}': {result['error']}")
+                await asyncio.sleep(300)
+                continue
+
+            # Save to post history
+            post_id = str(uuid.uuid4())
+            with cache._conn() as conn:
+                conn.execute(
+                    """INSERT INTO linkedin_posts (id, topic, post_text, image_url, content_type, status, published_at, linkedin_post_id)
+                       VALUES (?, ?, ?, ?, ?, 'published', datetime('now'), ?)""",
+                    (post_id, topic, post_text, image_url, content_type, result.get("linkedin_post_id", "")),
+                )
+
+            # Advance topic index and calculate next post time
+            new_index = (topic_index + 1) % len(topics)
+            interval_days = int(row["interval_days"] or 7)
+            post_time = row["post_time"] or "09:00"
+            h, m = (post_time + ":00").split(":")[:2]
+            next_dt = now + timedelta(days=interval_days)
+            next_post_at_new = next_dt.strftime(f"%Y-%m-%dT{h.zfill(2)}:{m.zfill(2)}")
+
+            with cache._conn() as conn:
+                conn.execute(
+                    "UPDATE linkedin_autopilot SET topic_index=?, last_post_at=?, next_post_at=? WHERE id=?",
+                    (new_index, now_str, next_post_at_new, row["id"]),
+                )
+            print(f"[linkedin-autopilot] posted '{topic}' → next: {next_post_at_new} (topic {new_index + 1}/{len(topics)})")
+
+        except Exception as e:
+            print(f"[linkedin-autopilot] loop error: {e}")
+        await asyncio.sleep(300)
+
+
 # ── Scheduled report email ─────────────────────────────────────────────────────
 
 def _next_fire_seconds(schedule_str: str) -> float:

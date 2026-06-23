@@ -1207,6 +1207,18 @@ export const api = {
   deleteLinkedInPost(id: string): Promise<void> {
     return request(`/social/linkedin/history/${id}`, { method: 'DELETE' })
   },
+  rescheduleLinkedInPost(id: string, scheduled_at: string): Promise<{ status: string; scheduled_for: string }> {
+    return request(`/social/linkedin/history/${id}/reschedule`, { method: 'POST', body: JSON.stringify({ scheduled_at }) })
+  },
+  getLinkedInAutopilot(): Promise<{ config: { id: number; topics: string[]; template_id: string | null; content_type: string; interval_days: number; post_time: string; enabled: number; topic_index: number; last_post_at: string | null; next_post_at: string | null } | null }> {
+    return request('/social/linkedin/autopilot')
+  },
+  saveLinkedInAutopilot(data: { topics: string[]; template_id?: string | null; content_type: string; interval_days: number; post_time: string; enabled: boolean; next_post_at?: string; topic_index?: number }): Promise<{ status: string }> {
+    return request('/social/linkedin/autopilot', { method: 'POST', body: JSON.stringify(data) })
+  },
+  deleteLinkedInAutopilot(): Promise<{ status: string }> {
+    return request('/social/linkedin/autopilot', { method: 'DELETE' })
+  },
   getLinkedInSettings(): Promise<{ client_id: string; client_secret: string; access_token: string; user_id: string; custom_prompts: string[] }> {
     return request('/social/linkedin/settings')
   },

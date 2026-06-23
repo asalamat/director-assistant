@@ -96,6 +96,22 @@ def _ensure_tables(cache):
                 created_at TEXT DEFAULT (datetime('now'))
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS linkedin_autopilot (
+                id INTEGER PRIMARY KEY,
+                topics TEXT NOT NULL DEFAULT '[]',
+                template_id TEXT,
+                template_prompt TEXT,
+                content_type TEXT DEFAULT 'image+text',
+                interval_days INTEGER DEFAULT 7,
+                post_time TEXT DEFAULT '09:00',
+                enabled INTEGER DEFAULT 1,
+                topic_index INTEGER DEFAULT 0,
+                last_post_at TEXT,
+                next_post_at TEXT,
+                created_at TEXT DEFAULT (datetime('now'))
+            )
+        """)
 
 
 def _get_linkedin_settings() -> dict:
@@ -599,6 +615,23 @@ async def delete_history(post_id: str, request: Request):
     return {"status": "deleted"}
 
 
+@router.post("/linkedin/history/{post_id}/reschedule")
+async def reschedule_post(post_id: str, body: dict, request: Request):
+    """Set a new scheduled_at time and reset status to 'scheduled'."""
+    cache = request.app.state.cache
+    _ensure_tables(cache)
+    scheduled_at = (body.get("scheduled_at") or "").strip()
+    if not scheduled_at:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="scheduled_at is required")
+    with cache._conn() as conn:
+        conn.execute(
+            "UPDATE linkedin_posts SET status='scheduled', scheduled_at=? WHERE id=?",
+            (scheduled_at, post_id),
+        )
+    return {"status": "scheduled", "scheduled_for": scheduled_at}
+
+
 @router.post("/linkedin/ask")
 async def ask_about_post(body: dict, request: Request):
     """Ask an AI question about a past post topic."""
@@ -748,3 +781,71 @@ async def verify_linkedin(request: Request):
         results["ai_provider"] = {"ok": False, "message": str(e)}
 
     return results
+
+
+# ── LinkedIn Autopilot ─────────────────────────────────────────────────────────
+
+@router.get("/linkedin/autopilot")
+async def get_autopilot(request: Request):
+    cache = request.app.state.cache
+    _ensure_tables(cache)
+    with cache._conn() as conn:
+        row = conn.execute("SELECT * FROM linkedin_autopilot ORDER BY id LIMIT 1").fetchone()
+    if not row:
+        return {"config": None}
+    d = dict(row)
+    d["topics"] = json.loads(d.get("topics") or "[]")
+    return {"config": d}
+
+
+@router.post("/linkedin/autopilot")
+async def save_autopilot(body: dict, request: Request):
+    cache = request.app.state.cache
+    _ensure_tables(cache)
+    topics = body.get("topics") or []
+    template_id = body.get("template_id") or None
+    content_type = body.get("content_type", "image+text")
+    interval_days = int(body.get("interval_days") or 7)
+    post_time = body.get("post_time") or "09:00"
+    enabled = 1 if body.get("enabled", True) else 0
+    next_post_at = body.get("next_post_at") or None
+    topic_index = int(body.get("topic_index") or 0)
+
+    # Fetch template prompt if a template is selected
+    template_prompt = ""
+    if template_id:
+        with cache._conn() as conn:
+            t = conn.execute("SELECT prompt FROM linkedin_templates WHERE id=?", (template_id,)).fetchone()
+            if t:
+                template_prompt = t["prompt"]
+
+    topics_json = json.dumps(topics)
+    with cache._conn() as conn:
+        existing = conn.execute("SELECT id FROM linkedin_autopilot LIMIT 1").fetchone()
+        if existing:
+            conn.execute(
+                """UPDATE linkedin_autopilot SET topics=?, template_id=?, template_prompt=?,
+                   content_type=?, interval_days=?, post_time=?, enabled=?, next_post_at=?,
+                   topic_index=? WHERE id=?""",
+                (topics_json, template_id, template_prompt, content_type, interval_days,
+                 post_time, enabled, next_post_at, topic_index, existing["id"]),
+            )
+        else:
+            conn.execute(
+                """INSERT INTO linkedin_autopilot
+                   (topics, template_id, template_prompt, content_type, interval_days,
+                    post_time, enabled, next_post_at, topic_index)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (topics_json, template_id, template_prompt, content_type, interval_days,
+                 post_time, enabled, next_post_at, topic_index),
+            )
+    return {"status": "saved"}
+
+
+@router.delete("/linkedin/autopilot")
+async def delete_autopilot(request: Request):
+    cache = request.app.state.cache
+    _ensure_tables(cache)
+    with cache._conn() as conn:
+        conn.execute("DELETE FROM linkedin_autopilot")
+    return {"status": "deleted"}

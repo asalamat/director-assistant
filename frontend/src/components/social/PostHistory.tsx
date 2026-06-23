@@ -22,12 +22,14 @@ const STATUS_STYLES: Record<string, string> = {
   scheduled: 'bg-amber-100 text-amber-700',
   published: 'bg-green-100 text-green-700',
   failed:    'bg-red-100 text-red-600',
+  missed:    'bg-orange-100 text-orange-700',
 }
 
 function statusLabel(post: LinkedInPost): string {
   if (post.status === 'scheduled' && post.scheduled_at) {
     return `Scheduled ${new Date(post.scheduled_at).toLocaleDateString()}`
   }
+  if (post.status === 'missed') return 'Missed'
   return post.status.charAt(0).toUpperCase() + post.status.slice(1)
 }
 
@@ -45,6 +47,10 @@ export function PostHistory() {
   const [deleting, setDeleting] = useState<Set<string>>(new Set())
   const [retrying, setRetrying] = useState<Set<string>>(new Set())
   const [retryError, setRetryError] = useState<Record<string, string>>({})
+  const [rescheduling, setRescheduling] = useState<Set<string>>(new Set())
+  const [rescheduleDate, setRescheduleDate] = useState<Record<string, string>>({})
+  const [rescheduleOpen, setRescheduleOpen] = useState<Set<string>>(new Set())
+  const [rescheduleError, setRescheduleError] = useState<Record<string, string>>({})
   // Ask AI state
   const [askOpen, setAskOpen] = useState<Set<string>>(new Set())
   const [askInput, setAskInput] = useState<Record<string, string>>({})
@@ -138,6 +144,35 @@ export function PostHistory() {
     }
   }
 
+  const toggleReschedule = (id: string) => {
+    setRescheduleOpen(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+    setRescheduleError(prev => { const n = {...prev}; delete n[id]; return n })
+  }
+
+  const handleReschedule = async (post: LinkedInPost) => {
+    const date = rescheduleDate[post.id] || ''
+    if (!date) return
+    setRescheduling(prev => new Set(prev).add(post.id))
+    setRescheduleError(prev => { const n = {...prev}; delete n[post.id]; return n })
+    try {
+      const r = await (api as any).rescheduleLinkedInPost(post.id, date)
+      if (r.error) {
+        setRescheduleError(prev => ({...prev, [post.id]: r.error}))
+      } else {
+        setPosts(prev => prev.map(p => p.id === post.id ? {...p, status: 'scheduled', scheduled_at: date} : p))
+        setRescheduleOpen(prev => { const next = new Set(prev); next.delete(post.id); return next })
+      }
+    } catch (e) {
+      setRescheduleError(prev => ({...prev, [post.id]: (e as Error).message}))
+    } finally {
+      setRescheduling(prev => { const next = new Set(prev); next.delete(post.id); return next })
+    }
+  }
+
   return (
     <div className="flex flex-col h-full overflow-y-auto p-6 max-w-3xl mx-auto space-y-5">
       <div>
@@ -202,6 +237,37 @@ export function PostHistory() {
                 <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2 leading-relaxed">{retryError[post.id]}</p>
               )}
 
+              {/* Reschedule panel */}
+              {rescheduleOpen.has(post.id) && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
+                  <p className="text-xs font-medium text-amber-800">Pick a new date & time</p>
+                  <div className="flex gap-2 items-center">
+                    <input
+                      type="datetime-local"
+                      className="flex-1 px-3 py-1.5 border border-amber-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-400"
+                      value={rescheduleDate[post.id] || ''}
+                      onChange={e => setRescheduleDate(prev => ({...prev, [post.id]: e.target.value}))}
+                    />
+                    <button
+                      onClick={() => handleReschedule(post)}
+                      disabled={rescheduling.has(post.id) || !rescheduleDate[post.id]}
+                      className="px-3 py-1.5 bg-amber-500 text-white rounded-lg text-xs font-medium hover:opacity-90 disabled:opacity-50 transition"
+                    >
+                      {rescheduling.has(post.id) ? 'Saving…' : 'Confirm'}
+                    </button>
+                    <button
+                      onClick={() => toggleReschedule(post.id)}
+                      className="text-xs text-gray-400 hover:text-gray-600"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                  {rescheduleError[post.id] && (
+                    <p className="text-xs text-red-500">{rescheduleError[post.id]}</p>
+                  )}
+                </div>
+              )}
+
               {/* Ask AI panel */}
               {isAskOpen && (
                 <div className="bg-gray-50 rounded-xl p-3 space-y-2">
@@ -240,13 +306,25 @@ export function PostHistory() {
                     View on LinkedIn
                   </a>
                 )}
+                {(post.status === 'scheduled' || post.status === 'missed' || post.status === 'failed') && (
+                  <button
+                    onClick={() => toggleReschedule(post.id)}
+                    className={`text-xs font-medium px-3 py-1 rounded-lg border transition ${
+                      rescheduleOpen.has(post.id)
+                        ? 'border-amber-400 text-amber-700 bg-amber-50'
+                        : 'border-amber-300 text-amber-700 hover:bg-amber-50'
+                    }`}
+                  >
+                    ↻ Reschedule
+                  </button>
+                )}
                 {post.status !== 'scheduled' && (
                   <button
                     onClick={() => handleRetry(post)}
                     disabled={retrying.has(post.id)}
                     className="text-xs font-medium text-white bg-accent px-3 py-1 rounded-lg hover:opacity-90 disabled:opacity-50 transition"
                   >
-                    {retrying.has(post.id) ? 'Posting…' : post.status === 'published' ? '↺ Post Again' : '↺ Retry'}
+                    {retrying.has(post.id) ? 'Posting…' : post.status === 'published' ? '↺ Post Again' : '↺ Post Now'}
                   </button>
                 )}
                 <button
