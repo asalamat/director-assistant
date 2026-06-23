@@ -50,6 +50,8 @@ export function LinkedInAutopilot() {
   const [intervalDays, setIntervalDays] = useState(7)
   const [postTime, setPostTime] = useState('09:00')
   const [firstPostAt, setFirstPostAt] = useState('')
+  const [extracting, setExtracting] = useState(false)
+  const [extractError, setExtractError] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -77,6 +79,23 @@ export function LinkedInAutopilot() {
   }
 
   const topics = topicsText.split('\n').map(t => t.trim()).filter(Boolean)
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setExtracting(true); setExtractError('')
+    try {
+      const r = await (api as any).extractTopicsFromFile(file)
+      if (r.error) { setExtractError(r.error); return }
+      const newTopics = (r.topics as string[]).join('\n')
+      setTopicsText(prev => prev ? prev + '\n' + newTopics : newTopics)
+    } catch (e) {
+      setExtractError((e as Error).message)
+    } finally {
+      setExtracting(false)
+      e.target.value = ''
+    }
+  }
 
   const handleSave = async (enabled: boolean) => {
     if (topics.length === 0) { setError('Add at least one topic'); return }
@@ -251,7 +270,22 @@ export function LinkedInAutopilot() {
               value={topicsText}
               onChange={e => setTopicsText(e.target.value)}
             />
-            <p className="text-[11px] text-gray-400 mt-1">{topics.length} topic{topics.length !== 1 ? 's' : ''} · cycles repeatedly</p>
+            <div className="flex items-center justify-between mt-1.5">
+              <p className="text-[11px] text-gray-400">{topics.length} topic{topics.length !== 1 ? 's' : ''} · cycles repeatedly</p>
+              <label className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium cursor-pointer transition ${
+                extracting ? 'border-gray-200 text-gray-400 cursor-not-allowed' : 'border-accent/40 text-accent hover:bg-blue-50'
+              }`}>
+                <input
+                  type="file"
+                  accept=".pdf,.docx,.txt,.md,.rtf"
+                  className="hidden"
+                  onChange={handleFileUpload}
+                  disabled={extracting}
+                />
+                {extracting ? '⏳ Reading file…' : '📄 Upload resume / file'}
+              </label>
+            </div>
+            {extractError && <p className="text-xs text-red-500 mt-1">{extractError}</p>}
           </div>
 
           {/* Template */}

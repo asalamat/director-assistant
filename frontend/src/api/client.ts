@@ -1219,6 +1219,13 @@ export const api = {
   deleteLinkedInAutopilot(): Promise<{ status: string }> {
     return request('/social/linkedin/autopilot', { method: 'DELETE' })
   },
+  async extractTopicsFromFile(file: File): Promise<{ topics: string[]; error?: string }> {
+    const form = new FormData()
+    form.append('file', file)
+    const res = await fetch(`${BASE}/social/linkedin/autopilot/extract-topics`, { method: 'POST', body: form })
+    if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || 'Upload failed') }
+    return res.json()
+  },
   getLinkedInSettings(): Promise<{ client_id: string; client_secret: string; access_token: string; user_id: string; custom_prompts: string[] }> {
     return request('/social/linkedin/settings')
   },

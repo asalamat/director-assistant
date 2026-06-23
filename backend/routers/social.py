@@ -718,6 +718,43 @@ async def delete_template(template_id: str, request: Request):
     return {"status": "deleted"}
 
 
+@router.post("/linkedin/templates/improve-prompt")
+async def improve_template_prompt(body: dict, request: Request):
+    """Use AI to rewrite/improve a DALL-E image prompt for a LinkedIn template."""
+    current_prompt = (body.get("prompt") or "").strip()
+    instruction = (body.get("instruction") or "").strip()
+    if not current_prompt:
+        return {"error": "prompt is required"}
+
+    system = (
+        "You are an expert DALL-E prompt engineer specializing in LinkedIn professional imagery. "
+        "You rewrite image-style prompts to be more vivid, specific, and effective for AI image generation. "
+        "Keep prompts concise (2-4 sentences). Do NOT include text, words, or letters in the image description. "
+        "Return ONLY the improved prompt — no explanation, no preamble."
+    )
+    user_msg = f"Current prompt:\n{current_prompt}"
+    if instruction:
+        user_msg += f"\n\nImprovement instruction: {instruction}"
+    else:
+        user_msg += "\n\nImprove this prompt to be more specific, evocative, and effective for DALL-E."
+
+    advisor = getattr(request.app.state, "advisor", None)
+    if not advisor:
+        return {"error": "AI advisor not available"}
+    ant = getattr(advisor.ai, "_anthropic", None)
+    kwargs = dict(model="claude-haiku-4-5-20251001", max_tokens=400, system=system,
+                  messages=[{"role": "user", "content": user_msg}])
+    try:
+        if ant:
+            resp = await ant.messages.create(**kwargs)
+        else:
+            resp = await advisor.ai.messages.create(**kwargs)
+        improved = resp.content[0].text.strip()
+        return {"improved_prompt": improved}
+    except Exception as e:
+        return {"error": str(e)}
+
+
 # ── Connectivity Verification ──────────────────────────────────────────────────
 
 @router.post("/linkedin/verify")
@@ -849,3 +886,107 @@ async def delete_autopilot(request: Request):
     with cache._conn() as conn:
         conn.execute("DELETE FROM linkedin_autopilot")
     return {"status": "deleted"}
+
+
+@router.post("/linkedin/autopilot/extract-topics")
+async def extract_topics_from_file(request: Request):
+    """Upload a resume/PDF/DOCX and extract LinkedIn post topics from it using AI."""
+    import tempfile, os
+    from fastapi import UploadFile
+    form = await request.form()
+    file: UploadFile = form.get("file")  # type: ignore
+    if not file:
+        return {"topics": [], "error": "No file uploaded"}
+
+    suffix = os.path.splitext(file.filename or "file.txt")[1].lower() or ".txt"
+    if suffix not in (".pdf", ".docx", ".txt", ".md", ".rtf"):
+        return {"topics": [], "error": f"Unsupported file type: {suffix}. Use PDF, DOCX, or TXT."}
+
+    content = await file.read()
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        tmp.write(content)
+        tmp_path = tmp.name
+
+    import subprocess, glob as _glob, shutil
+
+    text = ""
+    extract_error = ""
+    try:
+        if suffix == ".pdf":
+            # Tier 1: pdfminer (text-based PDFs)
+            from pdfminer.high_level import extract_text as _pdf_extract
+            text = (_pdf_extract(tmp_path) or "").strip()
+
+            # Tier 2: pdftotext from poppler (handles more PDF variants)
+            if len(text) < 30:
+                pt = shutil.which("pdftotext") or "/opt/homebrew/bin/pdftotext"
+                if os.path.exists(pt):
+                    r = subprocess.run([pt, tmp_path, "-"], capture_output=True, timeout=30)
+                    text = (r.stdout.decode("utf-8", errors="replace") or "").strip()
+
+            # Tier 3: OCR via pdftoppm + tesseract (scanned/image PDFs)
+            if len(text) < 30:
+                pdftoppm = shutil.which("pdftoppm") or "/opt/homebrew/bin/pdftoppm"
+                tesseract = shutil.which("tesseract") or "/opt/homebrew/bin/tesseract"
+                if os.path.exists(pdftoppm) and os.path.exists(tesseract):
+                    import tempfile as _tf
+                    with _tf.TemporaryDirectory() as ocr_dir:
+                        prefix = os.path.join(ocr_dir, "page")
+                        subprocess.run(
+                            [pdftoppm, "-r", "150", "-png", "-l", "4", tmp_path, prefix],
+                            capture_output=True, timeout=60
+                        )
+                        parts = []
+                        for img in sorted(_glob.glob(prefix + "-*.png"))[:4]:
+                            r2 = subprocess.run(
+                                [tesseract, img, "stdout", "-l", "eng"],
+                                capture_output=True, timeout=30
+                            )
+                            parts.append(r2.stdout.decode("utf-8", errors="replace"))
+                        text = "\n".join(parts).strip()
+
+        elif suffix == ".docx":
+            import docx as _docx
+            doc = _docx.Document(tmp_path)
+            parts = [p.text for p in doc.paragraphs if p.text.strip()]
+            for table in doc.tables:
+                for row in table.rows:
+                    for cell in row.cells:
+                        if cell.text.strip():
+                            parts.append(cell.text.strip())
+            text = "\n".join(parts)
+        else:
+            text = open(tmp_path, encoding="utf-8", errors="replace").read()
+    except Exception as e:
+        extract_error = str(e)
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except Exception:
+            pass
+
+    if extract_error:
+        return {"topics": [], "error": f"Could not read file: {extract_error}"}
+    if not text or len(text.strip()) < 30:
+        return {"topics": [], "error": "File appears empty or unreadable. Ensure the PDF is not password-protected."}
+
+    prompt = (
+        "You are a LinkedIn content strategist. Analyze the following document (resume, bio, or profile) "
+        "and generate 10 highly relevant LinkedIn post topics this person should write about based on their "
+        "expertise, experience, skills, and industry.\n\n"
+        "Rules:\n"
+        "- Each topic must be specific and engaging (not generic like 'Leadership')\n"
+        "- Topics should leverage their actual skills/experience from the document\n"
+        "- Mix thought leadership, lessons learned, how-tos, and personal stories\n"
+        "- Return ONLY a JSON array of strings, e.g.: [\"Topic 1\", \"Topic 2\", ...]\n\n"
+        f"DOCUMENT:\n{text[:4000]}"
+    )
+    try:
+        content_text = await _ai_complete(request, prompt, max_tokens=600)
+        topics = _extract_json(content_text)
+        if not isinstance(topics, list):
+            return {"topics": [], "error": "AI could not parse topics from document"}
+        topics = [str(t).strip() for t in topics if str(t).strip()][:15]
+        return {"topics": topics}
+    except Exception as e:
+        return {"topics": [], "error": str(e)}

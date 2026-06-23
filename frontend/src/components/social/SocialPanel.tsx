@@ -4,16 +4,11 @@ import { PostHistory } from './PostHistory'
 import { LinkedInTemplates } from './LinkedInTemplates'
 import { LinkedInAutopilot } from './LinkedInAutopilot'
 
-type TabId = 'linkedin' | 'instagram' | 'twitter' | 'history' | 'templates' | 'autopilot'
-
-const TABS: { id: TabId; icon: string; label: string; disabled?: boolean }[] = [
-  { id: 'linkedin', icon: '💼', label: 'LinkedIn' },
-  { id: 'instagram', icon: '📸', label: 'Instagram', disabled: true },
-  { id: 'twitter', icon: '🐦', label: 'Twitter', disabled: true },
-]
+type TabId = 'linkedin' | 'autopilot' | 'instagram' | 'twitter' | 'history' | 'templates'
 
 export function SocialPanel() {
   const [activeTab, setActiveTab] = useState<TabId>('linkedin')
+  const linkedInActive = activeTab === 'linkedin' || activeTab === 'autopilot' || activeTab === 'history' || activeTab === 'templates'
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -21,54 +16,52 @@ export function SocialPanel() {
       <div className="w-44 flex-shrink-0 border-r border-gray-100 flex flex-col pt-4 pb-2 bg-white">
         <p className="px-4 mb-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Social Media</p>
         <nav className="flex flex-col gap-0.5 px-2">
-          {TABS.map(tab => (
+
+          {/* LinkedIn + sub-items */}
+          <button
+            onClick={() => setActiveTab('linkedin')}
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-left transition-colors ${
+              activeTab === 'linkedin' ? 'bg-blue-50 text-accent' : 'text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            <span>💼</span>
+            <span>LinkedIn</span>
+          </button>
+
+          {/* LinkedIn sub-items */}
+          {([
+            { id: 'autopilot', icon: '🤖', label: 'Autopilot' },
+            { id: 'history',   icon: '📋', label: 'History' },
+            { id: 'templates', icon: '📚', label: 'Templates' },
+          ] as { id: TabId; icon: string; label: string }[]).map(({ id, icon, label }) => (
             <button
-              key={tab.id}
-              disabled={tab.disabled}
-              onClick={() => { if (!tab.disabled) setActiveTab(tab.id) }}
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-left transition-colors ${
-                tab.disabled
-                  ? 'text-gray-300 cursor-not-allowed'
-                  : activeTab === tab.id
-                  ? 'bg-blue-50 text-accent'
-                  : 'text-gray-600 hover:bg-gray-100'
+              key={id}
+              onClick={() => setActiveTab(id)}
+              className={`flex items-center gap-2 pl-8 pr-3 py-1.5 rounded-lg text-xs font-medium text-left transition-colors ${
+                activeTab === id ? 'bg-blue-50 text-accent' : 'text-gray-500 hover:bg-gray-100'
               }`}
             >
-              <span>{tab.icon}</span>
-              <span>{tab.label}</span>
-              {tab.disabled && (
-                <span className="ml-auto text-[10px] text-gray-300 font-normal">Soon</span>
-              )}
+              <span>{icon}</span>
+              <span>{label}</span>
             </button>
           ))}
 
           <div className="mt-2 border-t border-gray-100 pt-2 flex flex-col gap-0.5">
             <button
-              onClick={() => setActiveTab('autopilot')}
-              className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-left transition-colors ${
-                activeTab === 'autopilot' ? 'bg-blue-50 text-accent' : 'text-gray-600 hover:bg-gray-100'
-              }`}
+              disabled
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-left text-gray-300 cursor-not-allowed"
             >
-              <span>🤖</span>
-              <span>Autopilot</span>
+              <span>📸</span>
+              <span>Instagram</span>
+              <span className="ml-auto text-[10px] font-normal">Soon</span>
             </button>
             <button
-              onClick={() => setActiveTab('history')}
-              className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-left transition-colors ${
-                activeTab === 'history' ? 'bg-blue-50 text-accent' : 'text-gray-600 hover:bg-gray-100'
-              }`}
+              disabled
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-left text-gray-300 cursor-not-allowed"
             >
-              <span>📋</span>
-              <span>History</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('templates')}
-              className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-left transition-colors ${
-                activeTab === 'templates' ? 'bg-blue-50 text-accent' : 'text-gray-600 hover:bg-gray-100'
-              }`}
-            >
-              <span>📚</span>
-              <span>Templates</span>
+              <span>🐦</span>
+              <span>Twitter</span>
+              <span className="ml-auto text-[10px] font-normal">Soon</span>
             </button>
           </div>
         </nav>
