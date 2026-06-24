@@ -966,6 +966,54 @@ function SocialSection() {
         <Li><strong>"No posts in history"</strong> — posts are recorded when you click Publish. If no posts appear, you haven't published yet in this session, or posts failed before being saved.</Li>
         <Li><strong>Token expires after 60 days</strong> — LinkedIn tokens are not permanent. Re-generate a new one from developer.linkedin.com every 60 days. The Verify button will show ✗ when it has expired.</Li>
       </UL>
+
+      <H2>Social Media — Instagram</H2>
+      <P>Write AI-generated captions, generate images, and publish directly to your Instagram Business account — all from inside Director Assistant. Includes Autopilot for automatic recurring posts.</P>
+
+      <H3>One-time setup</H3>
+      <Step n={1}><strong>Create a Meta Developer App</strong> — go to <strong>developers.facebook.com</strong>, create an app, and add the <strong>Instagram</strong> product. Choose <strong>"API Setup with Instagram Business Login"</strong>.</Step>
+      <Step n={2}><strong>Add your Instagram account as a tester</strong> — in the Roles tab of your app, add your Instagram account as an Instagram Tester and accept the invite from within the Instagram app.</Step>
+      <Step n={3}><strong>Generate a token</strong> — on the "API Setup with Instagram Business Login" page, click <strong>Generate token</strong> next to your account. Copy the token.</Step>
+      <Step n={4}><strong>Save in Director Assistant</strong> — open <strong>Settings → Instagram</strong>. Enter your Instagram App ID and App Secret in the <strong>Instagram Login</strong> section, paste the token in <strong>Paste Access Token</strong>, set your Instagram Business Account ID (shown on the same page as the token, e.g. 17841402904564641), and click <strong>Save</strong>.</Step>
+      <Step n={5}><strong>Done</strong> — go to <strong>Social → Instagram</strong> and start creating posts.</Step>
+
+      <Note><strong>No Facebook Page required.</strong> Director Assistant uses Instagram Business Login, which authenticates directly with Instagram. You do not need to link your Instagram account to a Facebook Page.</Note>
+      <Note><strong>Image hosting:</strong> Instagram requires a public image URL. If you use GPT Image 1 or GPT-5.5 (which return base64), configure FTP in Settings → Instagram → FTP Image Hosting so images are automatically uploaded and given a public URL before posting.</Note>
+
+      <H3>Creating a post — 4-step wizard</H3>
+      <P>Click <strong>Social → Instagram → Post Wizard</strong> and follow the 4 steps:</P>
+      <Step n={1}><strong>Choose a template</strong> — pick from 6 built-in styles (Motivational, Behind the Scenes, etc.) or your custom templates, or click "No Template" to skip.</Step>
+      <Step n={2}><strong>Your post</strong> — type what you want to post about in "Your Description". Optionally click <strong>Search the Web</strong> to find real-time news: enter a search query, check the results you want to include, and they feed into caption generation. Click <strong>Generate Caption</strong> — the caption and hashtags appear. Edit freely before continuing.</Step>
+      <Step n={3}><strong>Image</strong> — optionally add a custom style note, then click <strong>Generate Image</strong> (uses DALL-E). The template's visual style (e.g. "use lion and sun flag") is automatically included. Toggle <strong>📝 Message on image</strong> (ON by default) and edit the short message that will be burned into the image; click <strong>✏️ Apply text to current image</strong> to burn it instantly without regenerating. Toggle <strong>Also post to Story</strong> to publish the same image as an Instagram Story.</Step>
+      <Step n={4}><strong>Preview &amp; Post</strong> — review the Instagram-style preview (and Story preview if enabled). Optionally set a schedule time, or click <strong>Post Now</strong> to publish immediately.</Step>
+
+      <H3>Instagram Autopilot</H3>
+      <P>Autopilot auto-generates and publishes Instagram posts on a recurring schedule — no manual work required.</P>
+      <UL>
+        <Li>Go to <strong>Social → Instagram → Autopilot</strong> and click <strong>Enable Autopilot</strong></Li>
+        <Li>Add a list of topics (one per line) — the app cycles through them in order</Li>
+        <Li>Choose a tone, hashtag count, content type, and how often to post (e.g. every 3 days)</Li>
+        <Li>Set a time of day — the post goes out at that time on the schedule</Li>
+        <Li>Toggle the switch at any time to pause or resume</Li>
+      </UL>
+
+      <H3>Caption Templates</H3>
+      <P>Templates define a caption style that can be reused across posts.</P>
+      <UL>
+        <Li>Go to <strong>Social → Instagram → Templates</strong></Li>
+        <Li><strong>6 built-in styles</strong>: Motivational, Behind the Scenes, Product Spotlight, Educational Tip, Personal Story, Community Question</Li>
+        <Li>Click <strong>+ New</strong> to create a custom template with a name, icon, tone, and caption style prompt</Li>
+        <Li>Optionally upload a sample image to preview how posts will look</Li>
+      </UL>
+
+      <H3>Troubleshooting</H3>
+      <UL>
+        <Li><strong>"(#10) Application does not have permission"</strong> — this means your token is not from Instagram Business Login. Use the <strong>Generate token</strong> button in the Meta Developer Portal (API Setup with Instagram Business Login page) to get the correct token. Do not use Facebook OAuth for this.</Li>
+        <Li><strong>"Media is not ready for publishing"</strong> — Instagram processes uploaded images asynchronously. Director Assistant automatically waits up to 30 seconds for the container to be ready before publishing. If this persists, your image URL may not be publicly accessible.</Li>
+        <Li><strong>Image preview not showing</strong> — if your image was generated as a base64 (GPT Image 1/GPT-5.5), it needs to be uploaded to FTP first. Configure FTP in Settings → Instagram → FTP Image Hosting and verify the connection with Verify FTP.</Li>
+        <Li><strong>Token expires</strong> — the token generated via Instagram Business Login is valid for 60 days. Re-generate it from the Meta Developer Portal when it expires.</Li>
+        <Li><strong>Text not appearing on image</strong> — make sure the "📝 Message on image" toggle is ON and a message is entered in Step 3, then click "✏️ Apply text to current image". The overlay requires the image to already be generated.</Li>
+      </UL>
     </div>
   )
 }

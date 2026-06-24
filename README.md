@@ -2,7 +2,7 @@
 
 > **Your AI-powered executive email intelligence platform.** Connects to Gmail, Microsoft 365, Yahoo, or any IMAP mailbox and uses Claude AI to help you triage faster, never miss a commitment, and stay on top of every relationship that matters.
 
-**Current version: 3.46.0** · [Releases](https://github.com/asalamat/director-assistant/releases) · MIT License
+**Current version: 3.52.10** · [Releases](https://github.com/asalamat/director-assistant/releases) · MIT License
 
 ---
 
@@ -134,6 +134,20 @@ Everything runs **locally on your machine**. Your emails never leave your device
 - **Calendar Event Creator** — pre-filled event form on any email; creates directly in Microsoft Calendar via Graph API
 - **Meeting Prep Brief** — click any calendar event in the Dashboard for an AI-generated agenda, talking points, and prior email context from all attendees
 - **Scheduled Send** — compose now, schedule delivery for any future date and time
+
+### New Features (v3.52.x — 2026-06-24)
+- **📸 Instagram Post Wizard — 4-Step Redesign** — completely rebuilt Instagram post wizard: Step 1 picks a template (visual card grid, 6 built-ins + custom); Step 2 has a **"Your Description"** textarea plus **"Search the Web"** — enter a query, browse live news results, check specific results to include in your post; Step 3 handles image generation with style prompt, message-on-image text overlay, and "Also post to Story" toggle; Step 4 is the preview and publish screen with schedule picker
+- **🌐 Web Search for News** — search DuckDuckGo for real-time news inside the Instagram wizard; results show title, source, date, and snippet with checkboxes; checked results feed into the AI caption so posts reflect current events
+- **📝 Message on image (text overlay)** — Step 3 has a "📝 Message on image" panel (ON by default); type a short phrase (e.g. "Freedom for Iran · Justice for Mahsa"); click **"✏️ Apply text to current image"** to burn it into the bottom of the already-generated image instantly — no re-generation needed; gradient background, centred bold white text with drop shadow
+- **🦁 Template visual elements in image** — template's caption prompt (e.g. "use lion and sun flag") is now also passed to DALL-E so visual directives appear in the generated image, not just the caption
+- **🎨 Caption variation** — 10 random opening styles injected per caption so you never get the same post twice; caption is fed directly to DALL-E (no Claude intermediary) for more accurate, emotionally-matched imagery
+
+### New Features (v3.51.0 — 2026-06-23)
+- **📸 Instagram Autopilot** — auto-generate and publish Instagram posts on a recurring schedule; add topics (one per line), choose tone and hashtag count, set interval (e.g. every 3 days) and time of day; app cycles through topics, generates AI caption + hashtags + image, and publishes automatically; pause/resume with one toggle
+- **📚 Instagram Caption Templates** — 6 built-in templates (Motivational, Behind the Scenes, Product Spotlight, Educational Tip, Personal Story, Community Question) + create custom templates with name, icon, tone, caption prompt, and optional sample image
+- **🔐 Instagram Direct Login** — Settings → Instagram now has a dedicated Instagram Login section (no Facebook Page required); enter Instagram App ID and App Secret, click Connect — authenticates directly with Instagram's OAuth, no Facebook Page linking needed
+- **Fix: Instagram (&#35;10) permission error** — root cause was wrong OAuth flow (Facebook Login instead of Instagram Business Login); now uses `graph.instagram.com` directly with Instagram Login tokens
+- **Fix: "Media not ready for publishing"** — added automatic polling of container status (up to 30s) before calling media_publish; Instagram processes images asynchronously
 
 ### New Features (v3.50.0 — 2026-06-22)
 - **🎨 Style-first image wizard** — LinkedIn wizard now has 7 steps; Step 4 (Style) shows all templates as a visual grid before any generation happens — pick a style and click "Generate with this Style →", or skip for no style; Step 5 shows the 3 generated images. Previously images were generated immediately before you could choose a style.
@@ -339,6 +353,16 @@ Requires [Git for Windows](https://git-scm.com/download/win). Python and Node.js
 
 > ⚠️ Python **3.14+** is not supported — scipy and chromadb have no Windows wheels yet.
 > The installer blocks 3.14+ with a clear message and links to 3.12.
+
+### Option C — PowerShell one-liner (no Git, no download needed)
+
+Open **PowerShell** (Win+X → Windows PowerShell) and paste:
+
+```powershell
+powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/asalamat/director-assistant/main/install.ps1 | iex"
+```
+
+This downloads the repo, extracts it, and runs `install.bat` automatically — Python and Node.js are downloaded if missing. No admin rights required.
 
 ### Manual install (without Git)
 
