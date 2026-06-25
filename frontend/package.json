@@ -1,6 +1,6 @@
 {
   "name": "director-assistant",
-  "version": "3.52.14",
+  "version": "3.53.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
