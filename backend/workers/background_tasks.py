@@ -459,6 +459,8 @@ async def _linkedin_autopilot_loop(app: "object") -> None:
             topic = topics[topic_index % len(topics)]
             content_type = row["content_type"] or "image+text"
             template_prompt = row["template_prompt"] or ""
+            require_review = int(row["require_review"] or 0) if "require_review" in row.keys() else 0
+            fixed_hashtags = json.loads(row["fixed_hashtags"] or "[]") if "fixed_hashtags" in row.keys() else []
 
             # Generate post text
             advisor = app.state.advisor
@@ -486,26 +488,39 @@ async def _linkedin_autopilot_loop(app: "object") -> None:
                 await asyncio.sleep(300)
                 continue
 
-            # Append hashtags
+            # Append hashtags — fixed (always included) + AI-generated
             try:
                 ht_prompt = f"Give 5 LinkedIn hashtags for: {topic}. Return ONLY comma-separated words without #."
                 ht_resp = await ai_call(model="claude-haiku-4-5-20251001", max_tokens=80,
                                         messages=[{"role": "user", "content": ht_prompt}])
-                tags = [h.strip().lstrip("#") for h in ht_resp.content[0].text.split(",") if h.strip()][:5]
-                if tags:
-                    post_text += "\n\n" + " ".join(f"#{t}" for t in tags)
+                ai_tags = [h.strip().lstrip("#") for h in ht_resp.content[0].text.split(",") if h.strip()][:5]
             except Exception:
-                pass
+                ai_tags = []
+            all_tags = list(dict.fromkeys(fixed_hashtags + ai_tags))  # fixed first, deduped
+            if all_tags:
+                post_text += "\n\n" + " ".join(f"#{t.lstrip('#')}" for t in all_tags)
 
-            # Generate image
+            # Generate image with AI-crafted DALL-E prompt
             image_url = ""
             if content_type in ("image", "image+text"):
                 openai_key = _get_openai_key()
                 if openai_key and openai_key.startswith("sk-"):
-                    dalle_prompt = (
-                        f"{template_prompt}. Topic: {topic}." if template_prompt
-                        else f"Professional LinkedIn post image for: {topic}. Clean, modern, business-appropriate."
-                    )
+                    # Ask AI to write a high-quality DALL-E prompt tailored to topic + template style
+                    try:
+                        style_context = f" Visual style reference: {template_prompt}." if template_prompt else ""
+                        dp_prompt = (
+                            f"Write a concise DALL-E image generation prompt for a professional LinkedIn post about: {topic}.{style_context} "
+                            "Requirements: cinematic lighting, clean modern composition, no text, no logos, no people's faces, business-appropriate. "
+                            "Return ONLY the prompt text, 1-2 sentences."
+                        )
+                        dp_resp = await ai_call(model="claude-haiku-4-5-20251001", max_tokens=120,
+                                                messages=[{"role": "user", "content": dp_prompt}])
+                        dalle_prompt = dp_resp.content[0].text.strip()
+                    except Exception:
+                        dalle_prompt = (
+                            f"{template_prompt} {topic}." if template_prompt
+                            else f"Professional LinkedIn post image for: {topic}. Clean, modern, business-appropriate."
+                        )
                     try:
                         import httpx
                         async with httpx.AsyncClient(timeout=120.0) as http:
@@ -516,25 +531,36 @@ async def _linkedin_autopilot_loop(app: "object") -> None:
                             )
                             if ir.status_code == 200:
                                 image_url = ir.json().get("data", [{}])[0].get("url", "")
+                            else:
+                                print(f"[linkedin-autopilot] DALL-E {ir.status_code}: {ir.text[:200]}")
                     except Exception as e:
                         print(f"[linkedin-autopilot] image generation failed: {e}")
 
-            # Publish
-            settings = _get_linkedin_settings()
-            result = await _publish_to_linkedin(post_text, settings, image_url, content_type)
-            if "error" in result:
-                print(f"[linkedin-autopilot] publish failed for '{topic}': {result['error']}")
-                await asyncio.sleep(300)
-                continue
-
-            # Save to post history
+            # If require_review: save as pending_review instead of publishing
             post_id = str(uuid.uuid4())
-            with cache._conn() as conn:
-                conn.execute(
-                    """INSERT INTO linkedin_posts (id, topic, post_text, image_url, content_type, status, published_at, linkedin_post_id)
-                       VALUES (?, ?, ?, ?, ?, 'published', datetime('now'), ?)""",
-                    (post_id, topic, post_text, image_url, content_type, result.get("linkedin_post_id", "")),
-                )
+            if require_review:
+                with cache._conn() as conn:
+                    conn.execute(
+                        """INSERT INTO linkedin_posts (id, topic, post_text, image_url, content_type, status, created_at)
+                           VALUES (?, ?, ?, ?, ?, 'pending_review', datetime('now'))""",
+                        (post_id, topic, post_text, image_url, content_type),
+                    )
+                print(f"[linkedin-autopilot] '{topic}' queued for review (post {post_id})")
+            else:
+                # Publish immediately
+                settings = _get_linkedin_settings()
+                result = await _publish_to_linkedin(post_text, settings, image_url, content_type)
+                if "error" in result:
+                    print(f"[linkedin-autopilot] publish failed for '{topic}': {result['error']}")
+                    await asyncio.sleep(300)
+                    continue
+
+                with cache._conn() as conn:
+                    conn.execute(
+                        """INSERT INTO linkedin_posts (id, topic, post_text, image_url, content_type, status, published_at, linkedin_post_id)
+                           VALUES (?, ?, ?, ?, ?, 'published', datetime('now'), ?)""",
+                        (post_id, topic, post_text, image_url, content_type, result.get("linkedin_post_id", "")),
+                    )
 
             # Advance topic index and calculate next post time
             new_index = (topic_index + 1) % len(topics)

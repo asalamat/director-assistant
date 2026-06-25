@@ -49,6 +49,7 @@ export default function JobTracker() {
   const [extractChecked, setExtractChecked] = useState<Set<number>>(new Set());
   const [scanning, setScanning] = useState(false);
   const [showExtractModal, setShowExtractModal] = useState(false);
+  const [scanMeta, setScanMeta] = useState<{ deduped: number; excluded: number } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -100,10 +101,29 @@ export default function JobTracker() {
       const found: Partial<Job>[] = data.jobs || [];
       setExtractedJobs(found);
       setExtractChecked(new Set(found.map((_, i) => i)));
+      setScanMeta({ deduped: data.deduped ?? 0, excluded: data.excluded ?? 0 });
       setShowExtractModal(true);
     } finally {
       setScanning(false);
     }
+  };
+
+  const handleExclude = async (i: number) => {
+    const job = extractedJobs[i];
+    await fetch("/api/jobs/exclude-scan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ company: job.company, role: job.role }),
+    });
+    setExtractedJobs(prev => prev.filter((_, idx) => idx !== i));
+    setExtractChecked(prev => {
+      const next = new Set<number>();
+      prev.forEach(idx => {
+        if (idx < i) next.add(idx);
+        else if (idx > i) next.add(idx - 1);
+      });
+      return next;
+    });
   };
 
   const handleAddSelected = async () => {
@@ -260,9 +280,18 @@ export default function JobTracker() {
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-lg w-full max-w-lg max-h-[80vh] flex flex-col">
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
-              <span className="text-sm font-semibold text-gray-800">
-                Found {extractedJobs.length} job application{extractedJobs.length !== 1 ? "s" : ""} in emails
-              </span>
+              <div>
+                <span className="text-sm font-semibold text-gray-800">
+                  Found {extractedJobs.length} new job{extractedJobs.length !== 1 ? "s" : ""} in emails
+                </span>
+                {scanMeta && (scanMeta.deduped > 0 || scanMeta.excluded > 0) && (
+                  <div className="text-xs text-gray-400 mt-0.5">
+                    {scanMeta.deduped > 0 && <span>{scanMeta.deduped} already on board</span>}
+                    {scanMeta.deduped > 0 && scanMeta.excluded > 0 && <span> · </span>}
+                    {scanMeta.excluded > 0 && <span>{scanMeta.excluded} excluded</span>}
+                  </div>
+                )}
+              </div>
               <button
                 onClick={() => setShowExtractModal(false)}
                 className="text-gray-400 hover:text-gray-600 text-lg leading-none"
@@ -273,7 +302,7 @@ export default function JobTracker() {
                 <p className="text-xs text-gray-500 text-center py-4">No job applications detected in recent emails.</p>
               ) : (
                 extractedJobs.map((job, i) => (
-                  <label key={i} className="flex items-start gap-2 cursor-pointer bg-gray-50 rounded-lg p-3 border border-gray-200 hover:border-blue-200 transition-colors">
+                  <div key={i} className="flex items-start gap-2 bg-gray-50 rounded-lg p-3 border border-gray-200 hover:border-blue-200 transition-colors">
                     <input
                       type="checkbox"
                       checked={extractChecked.has(i)}
@@ -282,15 +311,22 @@ export default function JobTracker() {
                         e.target.checked ? next.add(i) : next.delete(i);
                         setExtractChecked(next);
                       }}
-                      className="mt-0.5 flex-shrink-0"
+                      className="mt-0.5 flex-shrink-0 cursor-pointer"
                     />
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <div className="text-xs font-semibold text-gray-800">{job.company}</div>
                       {job.role && <div className="text-xs text-gray-500">{job.role}</div>}
                       {job.contact && <div className="text-xs text-gray-400">{job.contact}{job.contact_email ? ` · ${job.contact_email}` : ""}</div>}
                       {job.notes && <div className="text-xs text-gray-400 mt-1 line-clamp-2">{job.notes}</div>}
                     </div>
-                  </label>
+                    <button
+                      onClick={() => handleExclude(i)}
+                      title="Don't show this again"
+                      className="flex-shrink-0 text-[11px] text-gray-400 hover:text-red-500 hover:bg-red-50 px-1.5 py-1 rounded transition-colors"
+                    >
+                      ✕ hide
+                    </button>
+                  </div>
                 ))
               )}
             </div>

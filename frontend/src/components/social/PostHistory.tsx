@@ -57,6 +57,11 @@ export function PostHistory() {
   const [askLoading, setAskLoading] = useState<Set<string>>(new Set())
   const [askAnswer, setAskAnswer] = useState<Record<string, string>>({})
 
+  // Engagement stats
+  const [statsOpen, setStatsOpen] = useState<Set<string>>(new Set())
+  const [statsData, setStatsData] = useState<Record<string, {linkedin_url: string | null, api_available: boolean, error?: string}>>({})
+  const [statsLoading, setStatsLoading] = useState<Set<string>>(new Set())
+
   useEffect(() => {
     let cancelled = false
     setLoading(true)
@@ -141,6 +146,23 @@ export function PostHistory() {
       // silently restore
     } finally {
       setDeleting(prev => { const next = new Set(prev); next.delete(id); return next })
+    }
+  }
+
+  const toggleStats = async (id: string) => {
+    const next = new Set(statsOpen)
+    if (next.has(id)) { next.delete(id); setStatsOpen(next); return }
+    next.add(id); setStatsOpen(next)
+    if (statsData[id]) return  // already loaded
+    setStatsLoading(prev => new Set(prev).add(id))
+    try {
+      const res = await fetch(`/api/social/linkedin/history/${id}/stats`)
+      const data = await res.json()
+      setStatsData(prev => ({ ...prev, [id]: data }))
+    } catch (e) {
+      setStatsData(prev => ({ ...prev, [id]: { linkedin_url: null, api_available: false, error: 'Failed to load' } }))
+    } finally {
+      setStatsLoading(prev => { const n = new Set(prev); n.delete(id); return n })
     }
   }
 
@@ -294,6 +316,31 @@ export function PostHistory() {
                 </div>
               )}
 
+              {/* Engagement stats panel */}
+              {statsOpen.has(post.id) && (
+                <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 space-y-1.5">
+                  {statsLoading.has(post.id) ? (
+                    <p className="text-xs text-gray-400">Loading…</p>
+                  ) : statsData[post.id]?.linkedin_url ? (
+                    <>
+                      <p className="text-xs text-gray-600">
+                        LinkedIn's analytics API requires partnership access — view your full stats (impressions, likes, comments, reposts) directly on LinkedIn:
+                      </p>
+                      <a
+                        href={statsData[post.id].linkedin_url!}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 text-xs font-medium text-accent hover:underline"
+                      >
+                        📊 View post analytics on LinkedIn →
+                      </a>
+                    </>
+                  ) : (
+                    <p className="text-xs text-gray-500 italic">No LinkedIn post ID — post may not have published successfully.</p>
+                  )}
+                </div>
+              )}
+
               {/* Action buttons */}
               <div className="flex items-center gap-2 flex-wrap pt-0.5">
                 {post.status === 'published' && post.linkedin_post_id && (
@@ -305,6 +352,18 @@ export function PostHistory() {
                   >
                     View on LinkedIn
                   </a>
+                )}
+                {post.status === 'published' && (
+                  <button
+                    onClick={() => toggleStats(post.id)}
+                    className={`text-xs font-medium px-3 py-1 rounded-lg border transition ${
+                      statsOpen.has(post.id)
+                        ? 'border-blue-300 text-blue-700 bg-blue-50'
+                        : 'border-gray-200 text-gray-600 hover:border-blue-300 hover:text-blue-600'
+                    }`}
+                  >
+                    📊 Stats
+                  </button>
                 )}
                 {(post.status === 'scheduled' || post.status === 'missed' || post.status === 'failed') && (
                   <button

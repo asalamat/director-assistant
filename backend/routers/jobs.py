@@ -24,6 +24,19 @@ def _ensure_table(conn):
     conn.commit()
 
 
+def _ensure_excluded_table(conn):
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS job_scan_excluded (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            company_key TEXT NOT NULL,
+            role_key TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(company_key, role_key)
+        )
+    """)
+    conn.commit()
+
+
 class JobCreate(BaseModel):
     company: str
     role: Optional[str] = None
@@ -44,6 +57,11 @@ class JobPatch(BaseModel):
     applied_date: Optional[str] = None
     last_contact: Optional[str] = None
     notes: Optional[str] = None
+
+
+class ExcludeScanJob(BaseModel):
+    company: str
+    role: Optional[str] = None
 
 
 @router.get("")
@@ -167,9 +185,60 @@ async def extract_jobs(request: Request):
         if not m:
             return {"jobs": [], "scanned": len(rows)}
         jobs = json.loads(m.group())
-        return {"jobs": jobs[:30], "scanned": len(rows)}
+
+        # Filter out jobs already on the board and user-excluded entries
+        with cache._conn() as conn:
+            _ensure_table(conn)
+            _ensure_excluded_table(conn)
+            existing_keys = {
+                r[0] for r in conn.execute(
+                    "SELECT lower(trim(company)) FROM job_applications"
+                ).fetchall()
+            }
+            excl_rows = conn.execute(
+                "SELECT company_key, role_key FROM job_scan_excluded"
+            ).fetchall()
+        excl_set = {(r[0], r[1]) for r in excl_rows}
+
+        filtered, deduped, excl_count = [], 0, 0
+        for j in jobs:
+            ck = (j.get("company") or "").lower().strip()
+            rk = (j.get("role") or "").lower().strip() or None
+            if ck in existing_keys:
+                deduped += 1
+                continue
+            if (ck, rk) in excl_set or (ck, None) in excl_set:
+                excl_count += 1
+                continue
+            filtered.append(j)
+
+        return {
+            "jobs": filtered[:30],
+            "scanned": len(rows),
+            "total_found": len(jobs),
+            "deduped": deduped,
+            "excluded": excl_count,
+        }
     except Exception as exc:
         return {"jobs": [], "error": str(exc), "scanned": len(rows)}
+
+
+@router.post("/exclude-scan")
+async def exclude_scan_job(body: ExcludeScanJob, request: Request):
+    """Mark a company+role combination so it never appears in scan results again."""
+    cache = request.app.state.cache
+    ck = (body.company or "").lower().strip()
+    rk = (body.role or "").lower().strip() or None
+    if not ck:
+        raise HTTPException(400, "company is required")
+    with cache._conn() as conn:
+        _ensure_excluded_table(conn)
+        conn.execute(
+            "INSERT OR IGNORE INTO job_scan_excluded (company_key, role_key) VALUES (?, ?)",
+            (ck, rk),
+        )
+        conn.commit()
+    return {"ok": True}
 
 
 @router.post("/{job_id}/thank-you")

@@ -109,9 +109,17 @@ def _ensure_tables(cache):
                 topic_index INTEGER DEFAULT 0,
                 last_post_at TEXT,
                 next_post_at TEXT,
+                require_review INTEGER DEFAULT 0,
+                fixed_hashtags TEXT DEFAULT '[]',
                 created_at TEXT DEFAULT (datetime('now'))
             )
         """)
+        # Migrate existing rows — safe no-op if column already exists
+        for col, defval in [("require_review", "0"), ("fixed_hashtags", "'[]'")]:
+            try:
+                conn.execute(f"ALTER TABLE linkedin_autopilot ADD COLUMN {col} INTEGER DEFAULT {defval}")
+            except Exception:
+                pass
 
 
 def _get_linkedin_settings() -> dict:
@@ -502,17 +510,23 @@ async def _publish_to_linkedin(post_text: str, settings: dict, image_url: str = 
             "https://api.linkedin.com/v2/posts", headers=api_headers, json=new_payload
         )
 
-    # If new API failed, try legacy ugcPosts (text-only fallback)
+    # If new API failed, try legacy ugcPosts — include image_urn if available
     if resp.status_code in (400, 403, 422):
+        if image_urn:
+            share_content: dict = {
+                "shareCommentary": {"text": post_text},
+                "shareMediaCategory": "IMAGE",
+                "media": [{"status": "READY", "media": image_urn}],
+            }
+        else:
+            share_content = {
+                "shareCommentary": {"text": post_text},
+                "shareMediaCategory": "NONE",
+            }
         legacy_payload = {
             "author": author,
             "lifecycleState": "PUBLISHED",
-            "specificContent": {
-                "com.linkedin.ugc.ShareContent": {
-                    "shareCommentary": {"text": post_text},
-                    "shareMediaCategory": "NONE",
-                }
-            },
+            "specificContent": {"com.linkedin.ugc.ShareContent": share_content},
             "visibility": {"com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"},
         }
         async with httpx.AsyncClient(timeout=30.0) as http:
@@ -832,6 +846,7 @@ async def get_autopilot(request: Request):
         return {"config": None}
     d = dict(row)
     d["topics"] = json.loads(d.get("topics") or "[]")
+    d["fixed_hashtags"] = json.loads(d.get("fixed_hashtags") or "[]")
     return {"config": d}
 
 
@@ -847,6 +862,8 @@ async def save_autopilot(body: dict, request: Request):
     enabled = 1 if body.get("enabled", True) else 0
     next_post_at = body.get("next_post_at") or None
     topic_index = int(body.get("topic_index") or 0)
+    require_review = 1 if body.get("require_review") else 0
+    fixed_hashtags = json.dumps(body.get("fixed_hashtags") or [])
 
     # Fetch template prompt if a template is selected
     template_prompt = ""
@@ -863,18 +880,19 @@ async def save_autopilot(body: dict, request: Request):
             conn.execute(
                 """UPDATE linkedin_autopilot SET topics=?, template_id=?, template_prompt=?,
                    content_type=?, interval_days=?, post_time=?, enabled=?, next_post_at=?,
-                   topic_index=? WHERE id=?""",
+                   topic_index=?, require_review=?, fixed_hashtags=? WHERE id=?""",
                 (topics_json, template_id, template_prompt, content_type, interval_days,
-                 post_time, enabled, next_post_at, topic_index, existing["id"]),
+                 post_time, enabled, next_post_at, topic_index, require_review, fixed_hashtags,
+                 existing["id"]),
             )
         else:
             conn.execute(
                 """INSERT INTO linkedin_autopilot
                    (topics, template_id, template_prompt, content_type, interval_days,
-                    post_time, enabled, next_post_at, topic_index)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    post_time, enabled, next_post_at, topic_index, require_review, fixed_hashtags)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (topics_json, template_id, template_prompt, content_type, interval_days,
-                 post_time, enabled, next_post_at, topic_index),
+                 post_time, enabled, next_post_at, topic_index, require_review, fixed_hashtags),
             )
     return {"status": "saved"}
 
@@ -886,6 +904,102 @@ async def delete_autopilot(request: Request):
     with cache._conn() as conn:
         conn.execute("DELETE FROM linkedin_autopilot")
     return {"status": "deleted"}
+
+
+@router.get("/linkedin/autopilot/review-queue")
+async def get_review_queue(request: Request):
+    """Get posts awaiting approval before publishing."""
+    cache = request.app.state.cache
+    _ensure_tables(cache)
+    with cache._conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM linkedin_posts WHERE status='pending_review' ORDER BY created_at DESC"
+        ).fetchall()
+    return {"posts": [dict(r) for r in rows]}
+
+
+@router.post("/linkedin/autopilot/review/{post_id}/approve")
+async def approve_review_post(post_id: str, request: Request):
+    """Publish a pending-review post immediately."""
+    cache = request.app.state.cache
+    _ensure_tables(cache)
+    with cache._conn() as conn:
+        row = conn.execute("SELECT * FROM linkedin_posts WHERE id=?", (post_id,)).fetchone()
+    if not row:
+        from fastapi import HTTPException
+        raise HTTPException(404, "Post not found")
+    post = dict(row)
+    settings = _get_linkedin_settings()
+    result = await _publish_to_linkedin(
+        post["post_text"], settings,
+        post.get("image_url") or "", post.get("content_type") or "image+text"
+    )
+    if "error" in result:
+        return {"error": result["error"]}
+    linkedin_post_id = result.get("linkedin_post_id", "")
+    with cache._conn() as conn:
+        conn.execute(
+            "UPDATE linkedin_posts SET status='published', published_at=datetime('now'), linkedin_post_id=? WHERE id=?",
+            (linkedin_post_id, post_id),
+        )
+    return {"status": "published", "linkedin_post_id": linkedin_post_id}
+
+
+@router.post("/linkedin/autopilot/review/{post_id}/edit-approve")
+async def edit_approve_review_post(post_id: str, body: dict, request: Request):
+    """Update post text then publish."""
+    cache = request.app.state.cache
+    _ensure_tables(cache)
+    new_text = (body.get("post_text") or "").strip()
+    if not new_text:
+        from fastapi import HTTPException
+        raise HTTPException(400, "post_text is required")
+    with cache._conn() as conn:
+        conn.execute("UPDATE linkedin_posts SET post_text=? WHERE id=?", (new_text, post_id))
+        row = conn.execute("SELECT * FROM linkedin_posts WHERE id=?", (post_id,)).fetchone()
+    if not row:
+        from fastapi import HTTPException
+        raise HTTPException(404, "Post not found")
+    post = dict(row)
+    settings = _get_linkedin_settings()
+    result = await _publish_to_linkedin(
+        new_text, settings,
+        post.get("image_url") or "", post.get("content_type") or "image+text"
+    )
+    if "error" in result:
+        return {"error": result["error"]}
+    linkedin_post_id = result.get("linkedin_post_id", "")
+    with cache._conn() as conn:
+        conn.execute(
+            "UPDATE linkedin_posts SET status='published', published_at=datetime('now'), linkedin_post_id=? WHERE id=?",
+            (linkedin_post_id, post_id),
+        )
+    return {"status": "published", "linkedin_post_id": linkedin_post_id}
+
+
+@router.post("/linkedin/autopilot/review/{post_id}/reject")
+async def reject_review_post(post_id: str, request: Request):
+    """Reject and discard a pending-review post."""
+    cache = request.app.state.cache
+    _ensure_tables(cache)
+    with cache._conn() as conn:
+        conn.execute("UPDATE linkedin_posts SET status='rejected' WHERE id=?", (post_id,))
+    return {"status": "rejected"}
+
+
+@router.get("/linkedin/history/{post_id}/stats")
+async def get_post_stats(post_id: str, request: Request):
+    """Return LinkedIn post URL for viewing analytics in-browser (API analytics require LinkedIn partnership)."""
+    cache = request.app.state.cache
+    _ensure_tables(cache)
+    with cache._conn() as conn:
+        row = conn.execute("SELECT linkedin_post_id FROM linkedin_posts WHERE id=?", (post_id,)).fetchone()
+    if not row or not row["linkedin_post_id"]:
+        return {"linkedin_url": None, "api_available": False}
+    linkedin_urn = row["linkedin_post_id"]
+    # Build the direct LinkedIn post URL
+    linkedin_url = f"https://www.linkedin.com/feed/update/{linkedin_urn}"
+    return {"linkedin_url": linkedin_url, "api_available": False}
 
 
 @router.post("/linkedin/autopilot/extract-topics")

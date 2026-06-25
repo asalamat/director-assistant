@@ -12,6 +12,17 @@ interface AutopilotConfig {
   topic_index: number
   last_post_at: string | null
   next_post_at: string | null
+  require_review: number
+  fixed_hashtags: string[]
+}
+
+interface ReviewPost {
+  id: string
+  topic: string
+  post_text: string
+  image_url: string | null
+  content_type: string
+  created_at: string
 }
 
 interface Template {
@@ -50,8 +61,20 @@ export function LinkedInAutopilot() {
   const [intervalDays, setIntervalDays] = useState(7)
   const [postTime, setPostTime] = useState('09:00')
   const [firstPostAt, setFirstPostAt] = useState('')
+  const [requireReview, setRequireReview] = useState(false)
+  const [fixedHashtagsText, setFixedHashtagsText] = useState('')
   const [extracting, setExtracting] = useState(false)
   const [extractError, setExtractError] = useState('')
+
+  // Review queue
+  const [reviewPosts, setReviewPosts] = useState<ReviewPost[]>([])
+  const [reviewLoading, setReviewLoading] = useState(false)
+  const [editingReview, setEditingReview] = useState<{id: string, text: string} | null>(null)
+  const [reviewAction, setReviewAction] = useState<{[id: string]: string}>({})
+
+  // Engagement stats
+  const [stats, setStats] = useState<{[postId: string]: {likes: number, comments: number, reposts: number}}>({})
+  const [statsLoading, setStatsLoading] = useState<{[postId: string]: boolean}>({})
 
   useEffect(() => {
     let cancelled = false
@@ -76,6 +99,63 @@ export function LinkedInAutopilot() {
     setIntervalDays(c.interval_days || 7)
     setPostTime(c.post_time || '09:00')
     setFirstPostAt(c.next_post_at || '')
+    setRequireReview(!!c.require_review)
+    setFixedHashtagsText((c.fixed_hashtags || []).join(' '))
+  }
+
+  const loadReviewQueue = async () => {
+    setReviewLoading(true)
+    try {
+      const res = await fetch('/api/social/linkedin/autopilot/review-queue')
+      const data = await res.json()
+      setReviewPosts(data.posts || [])
+    } finally {
+      setReviewLoading(false)
+    }
+  }
+
+  useEffect(() => { if (config?.require_review) loadReviewQueue() }, [config?.require_review])
+
+  const handleApprove = async (postId: string) => {
+    setReviewAction(p => ({ ...p, [postId]: 'approving' }))
+    const res = await fetch(`/api/social/linkedin/autopilot/review/${postId}/approve`, { method: 'POST' })
+    const data = await res.json()
+    if (data.error) { setError(data.error); setReviewAction(p => ({ ...p, [postId]: '' })); return }
+    setReviewPosts(prev => prev.filter(p => p.id !== postId))
+    setReviewAction(p => ({ ...p, [postId]: '' }))
+  }
+
+  const handleEditApprove = async (postId: string) => {
+    if (!editingReview || editingReview.id !== postId) return
+    setReviewAction(p => ({ ...p, [postId]: 'publishing' }))
+    const res = await fetch(`/api/social/linkedin/autopilot/review/${postId}/edit-approve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ post_text: editingReview.text }),
+    })
+    const data = await res.json()
+    if (data.error) { setError(data.error); setReviewAction(p => ({ ...p, [postId]: '' })); return }
+    setReviewPosts(prev => prev.filter(p => p.id !== postId))
+    setEditingReview(null)
+    setReviewAction(p => ({ ...p, [postId]: '' }))
+  }
+
+  const handleReject = async (postId: string) => {
+    setReviewAction(p => ({ ...p, [postId]: 'rejecting' }))
+    await fetch(`/api/social/linkedin/autopilot/review/${postId}/reject`, { method: 'POST' })
+    setReviewPosts(prev => prev.filter(p => p.id !== postId))
+    setReviewAction(p => ({ ...p, [postId]: '' }))
+  }
+
+  const fetchStats = async (postId: string) => {
+    setStatsLoading(p => ({ ...p, [postId]: true }))
+    try {
+      const res = await fetch(`/api/social/linkedin/history/${postId}/stats`)
+      const data = await res.json()
+      if (!data.error) setStats(p => ({ ...p, [postId]: data }))
+    } finally {
+      setStatsLoading(p => ({ ...p, [postId]: false }))
+    }
   }
 
   const topics = topicsText.split('\n').map(t => t.trim()).filter(Boolean)
@@ -102,6 +182,7 @@ export function LinkedInAutopilot() {
     setSaving(true); setError('')
     try {
       const next = firstPostAt || nextPostFromNow(intervalDays, postTime)
+      const fixedTags = fixedHashtagsText.split(/[\s,]+/).map(t => t.trim().replace(/^#/, '')).filter(Boolean)
       await (api as any).saveLinkedInAutopilot({
         topics,
         template_id: templateId || null,
@@ -111,6 +192,8 @@ export function LinkedInAutopilot() {
         enabled,
         next_post_at: next,
         topic_index: config?.topic_index ?? 0,
+        require_review: requireReview,
+        fixed_hashtags: fixedTags,
       })
       const ap = await (api as any).getLinkedInAutopilot()
       setConfig(ap.config)
@@ -238,6 +321,72 @@ export function LinkedInAutopilot() {
             </p>
           )}
 
+          {/* Review queue */}
+          {config.require_review && (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-medium text-gray-500">Review queue</p>
+                <button onClick={loadReviewQueue} className="text-[11px] text-gray-400 hover:text-accent">↺ Refresh</button>
+              </div>
+              {reviewLoading ? (
+                <p className="text-xs text-gray-400">Loading…</p>
+              ) : reviewPosts.length === 0 ? (
+                <p className="text-xs text-gray-400 italic">No posts awaiting review.</p>
+              ) : reviewPosts.map(post => (
+                <div key={post.id} className="border border-amber-200 bg-amber-50 rounded-xl p-3 mb-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[11px] font-medium text-amber-800 truncate flex-1">{post.topic}</span>
+                    <span className="text-[10px] text-gray-400 ml-2 flex-shrink-0">
+                      {new Date(post.created_at).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}
+                    </span>
+                  </div>
+                  {post.image_url && (
+                    <img src={post.image_url} alt="" className="w-full h-24 object-cover rounded-lg mb-2" />
+                  )}
+                  {editingReview?.id === post.id ? (
+                    <textarea
+                      value={editingReview.text}
+                      onChange={e => setEditingReview({ id: post.id, text: e.target.value })}
+                      rows={5}
+                      className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-blue-400 mb-2"
+                    />
+                  ) : (
+                    <p className="text-xs text-gray-700 whitespace-pre-line line-clamp-4 mb-2">{post.post_text}</p>
+                  )}
+                  <div className="flex flex-wrap gap-1.5">
+                    {editingReview?.id === post.id ? (
+                      <>
+                        <button
+                          onClick={() => handleEditApprove(post.id)}
+                          disabled={!!reviewAction[post.id]}
+                          className="text-[11px] px-2.5 py-1 rounded-lg bg-accent text-white hover:opacity-90 disabled:opacity-50"
+                        >{reviewAction[post.id] === 'publishing' ? '…' : '✓ Publish edited'}</button>
+                        <button onClick={() => setEditingReview(null)} className="text-[11px] px-2.5 py-1 rounded-lg border border-gray-200 text-gray-500">Cancel</button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => handleApprove(post.id)}
+                          disabled={!!reviewAction[post.id]}
+                          className="text-[11px] px-2.5 py-1 rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
+                        >{reviewAction[post.id] === 'approving' ? '…' : '✓ Approve & Publish'}</button>
+                        <button
+                          onClick={() => setEditingReview({ id: post.id, text: post.post_text })}
+                          className="text-[11px] px-2.5 py-1 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50"
+                        >✏️ Edit</button>
+                        <button
+                          onClick={() => handleReject(post.id)}
+                          disabled={!!reviewAction[post.id]}
+                          className="text-[11px] px-2.5 py-1 rounded-lg border border-red-200 text-red-500 hover:bg-red-50 disabled:opacity-50"
+                        >{reviewAction[post.id] === 'rejecting' ? '…' : '✕ Reject'}</button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="flex gap-2 pt-1">
             <button
               onClick={() => { setEditing(true); populateForm(config) }}
@@ -360,6 +509,34 @@ export function LinkedInAutopilot() {
               onChange={e => setFirstPostAt(e.target.value)}
             />
           </div>
+
+          {/* Fixed hashtags */}
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1.5">
+              Fixed hashtags <span className="text-gray-400 font-normal">(always included — space or comma separated)</span>
+            </label>
+            <input
+              type="text"
+              placeholder="#leadership #ai #innovation"
+              className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent"
+              value={fixedHashtagsText}
+              onChange={e => setFixedHashtagsText(e.target.value)}
+            />
+          </div>
+
+          {/* Review toggle */}
+          <label className="flex items-center justify-between px-4 py-3 bg-gray-50 rounded-xl border border-gray-200 cursor-pointer">
+            <div>
+              <p className="text-sm font-medium text-gray-700">Require review before publishing</p>
+              <p className="text-xs text-gray-400 mt-0.5">Posts go to a review queue — you approve, edit, or reject each one before it goes live</p>
+            </div>
+            <div
+              onClick={() => setRequireReview(v => !v)}
+              className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors ${requireReview ? 'bg-accent' : 'bg-gray-300'}`}
+            >
+              <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${requireReview ? 'translate-x-4' : 'translate-x-0.5'}`} />
+            </div>
+          </label>
 
           <div className="flex gap-2 pt-1">
             <button
