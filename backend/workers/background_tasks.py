@@ -1040,3 +1040,154 @@ async def _rules_loop(app: "object") -> None:
             print(f"[rules-loop] rules run: labeled={labeled} archived={archived} marked={marked} deleted={deleted}")
         except Exception as e:
             print(f"[rules-loop] error: {e}")
+
+
+async def _instagram_autopilot_loop(app: "object") -> None:
+    """Generate and publish Instagram posts on autopilot schedule."""
+    import asyncio, json, uuid
+    while True:
+        try:
+            cache = app.state.cache
+            from datetime import datetime, timedelta
+            from routers.instagram import (
+                _get_instagram_settings, _get_openai_key,
+                _publish_to_instagram, _upload_to_ftp, _ensure_tables,
+            )
+
+            _ensure_tables(cache)
+            with cache._conn() as conn:
+                row = conn.execute(
+                    "SELECT * FROM instagram_autopilot WHERE enabled=1 ORDER BY id LIMIT 1"
+                ).fetchone()
+
+            if not row:
+                await asyncio.sleep(300)
+                continue
+
+            now = datetime.now()
+            now_str = now.strftime("%Y-%m-%dT%H:%M")
+            next_post_at = row["next_post_at"] or ""
+
+            if next_post_at and next_post_at > now_str:
+                await asyncio.sleep(60)
+                continue
+
+            topics = json.loads(row["topics"] or "[]")
+            if not topics:
+                await asyncio.sleep(300)
+                continue
+
+            topic_index = int(row["topic_index"] or 0)
+            topic = topics[topic_index % len(topics)]
+            tone = row["tone"] or "Inspiring"
+            hashtag_count = int(row["hashtag_count"] or 15)
+            content_type = row["content_type"] or "image+text"
+
+            advisor = app.state.advisor
+            ant = getattr(advisor.ai, "_anthropic", None)
+            ai_call = ant.messages.create if ant else advisor.ai.messages.create
+
+            # Generate caption
+            caption_system = (
+                "You are an Instagram caption writer. Output ONLY the caption text — "
+                "no JSON, no code blocks, no labels, no hashtags in the body."
+            )
+            caption_prompt = (
+                f"Write an engaging Instagram caption about: {topic}.\n"
+                f"Tone: {tone}. Use line breaks and emojis where natural. "
+                "Do NOT include hashtags. Output ONLY the caption text."
+            )
+            try:
+                resp = await ai_call(model="claude-haiku-4-5-20251001", max_tokens=600,
+                                     system=caption_system,
+                                     messages=[{"role": "user", "content": caption_prompt}])
+                caption = resp.content[0].text.strip()
+            except Exception as e:
+                print(f"[ig-autopilot] caption generation failed for '{topic}': {e}")
+                await asyncio.sleep(300)
+                continue
+
+            # Generate hashtags
+            hashtags: list = []
+            try:
+                ht_prompt = (
+                    f"Give {hashtag_count} Instagram hashtags for a post about: {topic}. "
+                    "Return ONLY comma-separated words without the # symbol."
+                )
+                ht_resp = await ai_call(model="claude-haiku-4-5-20251001", max_tokens=120,
+                                        messages=[{"role": "user", "content": ht_prompt}])
+                hashtags = [h.strip().lstrip("#") for h in ht_resp.content[0].text.split(",")
+                            if h.strip() and len(h.strip()) < 35][:hashtag_count]
+            except Exception:
+                pass
+
+            # Generate image
+            image_url = ""
+            if content_type in ("image", "image+text"):
+                openai_key = _get_openai_key()
+                if openai_key and openai_key.startswith("sk-"):
+                    ig_settings = _get_instagram_settings()
+                    img_prompt = (
+                        f"Vibrant square Instagram image for a post about: {topic}. "
+                        f"Tone: {tone}. Instagram-appropriate, no text overlays."
+                    )
+                    import httpx
+                    async with httpx.AsyncClient(timeout=120.0) as http:
+                        for mdl in ("dall-e-3", "dall-e-2"):
+                            ir = await http.post(
+                                "https://api.openai.com/v1/images/generations",
+                                headers={"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"},
+                                json={"model": mdl, "prompt": img_prompt[:4000], "n": 1, "size": "1024x1024"},
+                            )
+                            if ir.status_code == 200:
+                                item = ir.json().get("data", [{}])[0]
+                                raw_url = item.get("url") or (
+                                    f"data:image/png;base64,{item['b64_json']}" if item.get("b64_json") else ""
+                                )
+                                if raw_url:
+                                    if raw_url.startswith("data:") and ig_settings.get("ftp_host"):
+                                        try:
+                                            raw_url = await _upload_to_ftp(raw_url, ig_settings)
+                                        except Exception:
+                                            raw_url = ""
+                                    image_url = raw_url
+                                    break
+
+            # Publish
+            hashtag_line = " ".join(f"#{h}" for h in hashtags)
+            full_caption = caption + ("\n\n" + hashtag_line if hashtag_line else "")
+            settings = _get_instagram_settings()
+            result = await _publish_to_instagram(settings, image_url, full_caption)
+            if "error" in result:
+                print(f"[ig-autopilot] publish failed for '{topic}': {result['error']}")
+                await asyncio.sleep(300)
+                continue
+
+            # Save to history
+            post_id = str(uuid.uuid4())
+            with cache._conn() as conn:
+                conn.execute(
+                    """INSERT INTO instagram_history
+                       (id, caption, hashtags, image_url, content_type, status, published_at, ig_media_id)
+                       VALUES (?, ?, ?, ?, ?, 'published', datetime('now'), ?)""",
+                    (post_id, caption, json.dumps(hashtags), image_url, content_type,
+                     result.get("ig_media_id", "")),
+                )
+
+            # Advance schedule
+            new_index = (topic_index + 1) % len(topics)
+            interval_days = int(row["interval_days"] or 3)
+            post_time = row["post_time"] or "09:00"
+            h, m = (post_time + ":00").split(":")[:2]
+            next_dt = now + timedelta(days=interval_days)
+            next_post_at_new = next_dt.strftime(f"%Y-%m-%dT{h.zfill(2)}:{m.zfill(2)}")
+            with cache._conn() as conn:
+                conn.execute(
+                    "UPDATE instagram_autopilot SET topic_index=?, last_post_at=?, next_post_at=? WHERE id=?",
+                    (new_index, now_str, next_post_at_new, row["id"]),
+                )
+            print(f"[ig-autopilot] posted '{topic}' → next: {next_post_at_new} (topic {new_index + 1}/{len(topics)})")
+
+        except Exception as e:
+            print(f"[ig-autopilot] loop error: {e}")
+        await asyncio.sleep(300)

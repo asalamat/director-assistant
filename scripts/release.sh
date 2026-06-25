@@ -50,6 +50,12 @@ if [[ -d "$INSTALL_DIR" ]]; then
     rm -rf "$INSTALL_DIR/backend/static"
     cp -r "$REPO_DIR/frontend/dist" "$INSTALL_DIR/backend/static"
     echo "    Installed version.json, dist, and backend synced"
+    # Install any new requirements into the venv
+    VENV="$INSTALL_DIR/backend/.venv"
+    if [[ -f "$VENV/bin/pip" ]]; then
+        "$VENV/bin/pip" install -q -r "$INSTALL_DIR/backend/requirements.txt" 2>&1 | tail -3 || true
+        echo "    Requirements synced"
+    fi
     # Restart uvicorn so new code takes effect; watchdog will revive it
     pkill -f "uvicorn main:app" 2>/dev/null || true
     echo "    Uvicorn restarted (watchdog will revive it)"

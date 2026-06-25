@@ -630,6 +630,8 @@ function LinkedInSettingsPanel() {
 function InstagramSettingsPanel() {
   const [appId, setAppId] = useState('')
   const [appSecret, setAppSecret] = useState('')
+  const [igLoginAppId, setIgLoginAppId] = useState('')
+  const [igLoginAppSecret, setIgLoginAppSecret] = useState('')
   const [igUserId, setIgUserId] = useState('')
   const [imageModel, setImageModel] = useState('dall-e-3')
   const [ftpHost, setFtpHost] = useState('')
@@ -637,6 +639,7 @@ function InstagramSettingsPanel() {
   const [ftpPass, setFtpPass] = useState('')
   const [ftpPath, setFtpPath] = useState('')
   const [ftpPublicUrl, setFtpPublicUrl] = useState('')
+  const [manualToken, setManualToken] = useState('')
   const [connectedUsername, setConnectedUsername] = useState('')
   const [hasToken, setHasToken] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -644,15 +647,24 @@ function InstagramSettingsPanel() {
   const [error, setError] = useState('')
   const [ftpVerifying, setFtpVerifying] = useState(false)
   const [ftpVerifyMsg, setFtpVerifyMsg] = useState<{ok: boolean; message: string} | null>(null)
+  const [imgKeyTesting, setImgKeyTesting] = useState(false)
+  const [imgKeyResult, setImgKeyResult] = useState<{ok: boolean; working_models?: string[]; results?: any[]} | null>(null)
+  const [detecting, setDetecting] = useState(false)
+  const [detectMsg, setDetectMsg] = useState<{ok: boolean; message: string} | null>(null)
   const [oauthStatus, setOauthStatus] = useState<'idle' | 'waiting' | 'done' | 'error'>('idle')
   const [oauthMsg, setOauthMsg] = useState('')
+  const [oauthDirectStatus, setOauthDirectStatus] = useState<'idle' | 'waiting' | 'done' | 'error'>('idle')
+  const [oauthDirectMsg, setOauthDirectMsg] = useState('')
   const popupRef = useRef<Window | null>(null)
+  const popupDirectRef = useRef<Window | null>(null)
 
   useEffect(() => {
     api.getInstagramSettings()
       .then((r: any) => {
         setAppId(r.app_id || '')
         setAppSecret(r.app_secret || '')
+        setIgLoginAppId(r.ig_login_app_id || '')
+        setIgLoginAppSecret(r.ig_login_app_secret || '')
         setIgUserId(r.ig_user_id || '')
         setImageModel(r.image_model || 'dall-e-3')
         setFtpHost(r.ftp_host || '')
@@ -666,6 +678,29 @@ function InstagramSettingsPanel() {
       .catch(() => {})
   }, [])
 
+  const detectAccount = async () => {
+    setDetecting(true); setDetectMsg(null)
+    try {
+      const r = await fetch('/api/instagram/detect-account', { method: 'POST' }).then(x => x.json())
+      setDetectMsg({ ok: r.ok, message: r.message })
+      if (r.ok) {
+        if (r.ig_user_id) setIgUserId(r.ig_user_id)
+        if (r.username) setConnectedUsername(r.username)
+      }
+    } catch { setDetectMsg({ ok: false, message: 'Request failed' }) }
+    finally { setDetecting(false) }
+  }
+
+  const testImageKey = async () => {
+    setImgKeyTesting(true); setImgKeyResult(null)
+    try {
+      const r = await fetch('/api/instagram/test-image-key', { method: 'POST',
+        headers: { 'Content-Type': 'application/json' }, body: '{}' }).then(x => x.json())
+      setImgKeyResult(r)
+    } catch { setImgKeyResult({ ok: false }) }
+    finally { setImgKeyTesting(false) }
+  }
+
   const verifyFtp = async () => {
     setFtpVerifying(true); setFtpVerifyMsg(null)
     try {
@@ -678,7 +713,7 @@ function InstagramSettingsPanel() {
   const save = async () => {
     setSaving(true); setError('')
     try {
-      await api.saveInstagramSettings({ app_id: appId, app_secret: appSecret, ig_user_id: igUserId, image_model: imageModel, ftp_host: ftpHost, ftp_user: ftpUser, ftp_pass: ftpPass, ftp_path: ftpPath, ftp_public_url: ftpPublicUrl } as any)
+      await api.saveInstagramSettings({ app_id: appId, app_secret: appSecret, ig_login_app_id: igLoginAppId, ig_login_app_secret: igLoginAppSecret, ig_user_id: igUserId, image_model: imageModel, ftp_host: ftpHost, ftp_user: ftpUser, ftp_pass: ftpPass, ftp_path: ftpPath, ftp_public_url: ftpPublicUrl, ...(manualToken ? { access_token: manualToken } : {}) } as any)
       setSaved(true); setTimeout(() => setSaved(false), 2000)
     } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Save failed') }
     finally { setSaving(false) }
@@ -720,13 +755,48 @@ function InstagramSettingsPanel() {
     } catch (e: unknown) { setOauthStatus('error'); setOauthMsg(e instanceof Error ? e.message : 'Failed') }
   }
 
+  const connectDirect = async () => {
+    if (!igLoginAppId || !igLoginAppSecret) { setError('Save your Instagram App ID and App Secret first'); return }
+    setOauthDirectStatus('waiting'); setOauthDirectMsg(''); setError('')
+    try {
+      const { url } = await fetch('/api/oauth/instagram-login/auth-url').then(r => r.json())
+      const popup = window.open(url, 'igdirectauth', 'width=600,height=700,left=200,top=80')
+      popupDirectRef.current = popup
+      if (!popup) { setOauthDirectStatus('error'); setOauthDirectMsg('Popup blocked — allow popups and try again'); return }
+      const onMsg = (e: MessageEvent) => {
+        if (e.data?.type === 'ig-oauth-complete') {
+          window.removeEventListener('message', onMsg)
+          setOauthDirectStatus('done')
+          setHasToken(true)
+          if (e.data.username) {
+            setConnectedUsername(e.data.username)
+            setOauthDirectMsg(`Connected as @${e.data.username}`)
+          } else {
+            setOauthDirectMsg('Token saved')
+          }
+          api.getInstagramSettings().then((r: any) => { setIgUserId(r.ig_user_id || ''); setConnectedUsername(r.username || '') }).catch(() => {})
+        } else if (e.data?.type === 'ig-oauth-error') {
+          window.removeEventListener('message', onMsg)
+          setOauthDirectStatus('error'); setOauthDirectMsg(e.data.message || 'Connection failed')
+        }
+      }
+      window.addEventListener('message', onMsg)
+      const t = setInterval(() => {
+        if (popupDirectRef.current?.closed) {
+          clearInterval(t); window.removeEventListener('message', onMsg)
+          setOauthDirectStatus(s => s === 'waiting' ? 'idle' : s)
+        }
+      }, 800)
+    } catch (e: unknown) { setOauthDirectStatus('error'); setOauthDirectMsg(e instanceof Error ? e.message : 'Failed') }
+  }
+
   return (
     <div className="border border-gray-200 rounded-xl p-4 space-y-4">
       <p className="text-xs text-gray-400 leading-relaxed">
-        Requires a <strong>Facebook App</strong> with Instagram Graph API enabled and an{' '}
-        <strong>Instagram Business or Creator account</strong> linked to a Facebook Page.
-        Create your app at <span className="font-mono text-gray-600">developers.facebook.com</span> and add{' '}
-        <span className="font-mono text-[11px]">http://localhost:8000/api/oauth/instagram/callback</span> as a Valid OAuth Redirect URI.
+        <strong>Recommended:</strong> Use <strong>Instagram Login</strong> below — no Facebook Page linking required.
+        Create an app at <span className="font-mono text-gray-600">developers.facebook.com</span>, add{' '}
+        <strong>Instagram</strong> product with <em>Business Login</em>, and add{' '}
+        <span className="font-mono text-[11px]">http://localhost:8000/api/oauth/instagram-login/callback</span> as a redirect URI.
       </p>
 
       {connectedUsername && (
@@ -739,32 +809,93 @@ function InstagramSettingsPanel() {
       )}
 
       <div className="space-y-3">
-        <div>
-          <label className="text-xs font-medium text-gray-600 block mb-1">Facebook App ID</label>
-          <input type="text" value={appId} onChange={e => setAppId(e.target.value)}
-            placeholder="1234567890123456"
-            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent" />
-        </div>
-        <div>
-          <label className="text-xs font-medium text-gray-600 block mb-1">App Secret</label>
-          <input type="password" value={appSecret} onChange={e => setAppSecret(e.target.value)}
-            placeholder="••••••••••••••••"
-            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent" />
-        </div>
-        {(hasToken && !connectedUsername) && (
+        {/* ── Instagram Login (Direct — Recommended) ── */}
+        <div className="border border-pink-100 bg-pink-50/40 rounded-lg p-3 space-y-2">
+          <p className="text-xs font-semibold text-pink-700">Instagram Login <span className="font-normal text-pink-500">(Recommended — no Facebook Page required)</span></p>
           <div>
-            <label className="text-xs font-medium text-gray-600 block mb-1">
-              Instagram Business Account ID
-              <span className="text-gray-400 font-normal ml-1">(required — auto-detect failed)</span>
-            </label>
-            <input type="text" value={igUserId} onChange={e => setIgUserId(e.target.value)}
-              placeholder="17841400123456789"
-              className="w-full text-sm border border-amber-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-400 bg-amber-50" />
-            <p className="text-[11px] text-gray-400 mt-1">
-              Find it: Graph API Explorer → run <span className="font-mono">me/accounts</span> → click your Page → run <span className="font-mono">{"?fields=instagram_business_account"}</span> → copy the <span className="font-mono">id</span>
-            </p>
+            <label className="text-xs font-medium text-gray-600 block mb-1">Instagram App ID</label>
+            <input type="text" value={igLoginAppId} onChange={e => setIgLoginAppId(e.target.value)}
+              placeholder="2524321461354080"
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-pink-400 bg-white" />
           </div>
-        )}
+          <div>
+            <label className="text-xs font-medium text-gray-600 block mb-1">Instagram App Secret</label>
+            <input type="password" value={igLoginAppSecret} onChange={e => setIgLoginAppSecret(e.target.value)}
+              placeholder="••••••••••••••••"
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-pink-400 bg-white" />
+          </div>
+          <p className="text-[11px] text-gray-400">
+            Callback URL to add in Meta Developer Portal:{' '}
+            <span className="font-mono select-all">http://localhost:8000/api/oauth/instagram-login/callback</span>
+          </p>
+          {oauthDirectMsg && (
+            <p className={`text-xs ${oauthDirectStatus === 'done' ? 'text-green-600' : oauthDirectStatus === 'error' ? 'text-red-500' : 'text-gray-500'}`}>
+              {oauthDirectStatus === 'waiting' ? '⏳ ' : ''}{oauthDirectMsg}
+            </p>
+          )}
+          <button onClick={connectDirect} disabled={oauthDirectStatus === 'waiting' || !igLoginAppId}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-pink-500 to-purple-600 text-white text-sm font-medium rounded-lg hover:opacity-90 disabled:opacity-50 transition">
+            <span>📸</span>
+            {oauthDirectStatus === 'waiting' ? 'Connecting…' : connectedUsername ? 'Reconnect Instagram' : 'Connect with Instagram'}
+          </button>
+        </div>
+
+        {/* ── Access Token Manual Paste ── */}
+        <div>
+          <label className="text-xs font-medium text-gray-600 block mb-1">
+            Paste Access Token
+            <span className="text-gray-400 font-normal ml-1">(from Meta Developer Portal → Generate token)</span>
+          </label>
+          <input type="password" value={manualToken} onChange={e => setManualToken(e.target.value)}
+            placeholder="Paste token here — overrides OAuth token"
+            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent" />
+          <p className="text-[11px] text-gray-400 mt-1">
+            In Meta Developer Portal → your app → Instagram (Added Products) → "Generate token" next to your account → copy and paste here.
+          </p>
+        </div>
+
+        {/* ── Legacy Facebook OAuth (hidden by default) ── */}
+        <details className="border border-gray-100 rounded-lg">
+          <summary className="px-3 py-2 text-xs font-medium text-gray-400 cursor-pointer hover:text-gray-600 select-none">
+            Advanced: Facebook OAuth (requires Facebook Page link)
+          </summary>
+          <div className="px-3 pb-3 pt-1 space-y-2">
+            <div>
+              <label className="text-xs font-medium text-gray-600 block mb-1">Facebook App ID</label>
+              <input type="text" value={appId} onChange={e => setAppId(e.target.value)}
+                placeholder="1234567890123456"
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-600 block mb-1">App Secret</label>
+              <input type="password" value={appSecret} onChange={e => setAppSecret(e.target.value)}
+                placeholder="••••••••••••••••"
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent" />
+            </div>
+            {oauthMsg && (
+              <p className={`text-xs ${oauthStatus === 'done' ? 'text-green-600' : oauthStatus === 'error' ? 'text-red-500' : 'text-gray-500'}`}>
+                {oauthStatus === 'waiting' ? '⏳ ' : ''}{oauthMsg}
+              </p>
+            )}
+            <button onClick={connect} disabled={oauthStatus === 'waiting' || !appId}
+              className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-50 disabled:opacity-50 transition">
+              <span>📘</span>
+              {oauthStatus === 'waiting' ? 'Connecting…' : 'Connect via Facebook'}
+            </button>
+          </div>
+        </details>
+        <div>
+          <label className="text-xs font-medium text-gray-600 block mb-1">
+            Instagram Business Account ID
+            {igUserId ? <span className="text-green-600 font-normal ml-1">✓ set</span> : <span className="text-amber-500 font-normal ml-1">(required)</span>}
+          </label>
+          <input type="text" value={igUserId} onChange={e => setIgUserId(e.target.value)}
+            placeholder="17841400123456789"
+            className={`w-full text-sm border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 ${igUserId ? 'border-gray-200 focus:ring-accent' : 'border-amber-300 focus:ring-amber-400 bg-amber-50'}`} />
+          <p className="text-[11px] text-gray-400 mt-1">
+            Auto-filled by Re-detect, or find manually: <span className="font-mono">developers.facebook.com/tools/explorer</span> → <span className="font-mono">GET /{'{page-id}'}?fields=instagram_business_account</span> → copy the <span className="font-mono">id</span>
+          </p>
+        </div>
         <div>
           <label className="text-xs font-medium text-gray-600 block mb-1">Image Model</label>
           <select value={imageModel} onChange={e => setImageModel(e.target.value)}
@@ -774,6 +905,20 @@ function InstagramSettingsPanel() {
             ))}
           </select>
           <p className="text-[11px] text-gray-400 mt-1">DALL-E 3 / DALL-E 2 return a public URL directly. GPT Image 1 / GPT-5.5 return base64 — configure FTP below to auto-upload and get a public URL.</p>
+          <button onClick={testImageKey} disabled={imgKeyTesting}
+            className="mt-2 px-3 py-1.5 text-xs font-medium rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 transition disabled:opacity-50">
+            {imgKeyTesting ? 'Testing…' : '🔑 Test OpenAI image key'}
+          </button>
+          {imgKeyResult && (
+            <div className={`mt-2 p-2 rounded-lg text-xs ${imgKeyResult.ok ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+              {imgKeyResult.ok
+                ? `✓ Working — models: ${imgKeyResult.working_models?.join(', ')}`
+                : (imgKeyResult.results || []).map((r: any) => (
+                    <div key={r.model}>{r.model}: {r.ok ? '✓ OK' : `✗ ${r.error?.split('\n')[0]}`}</div>
+                  ))
+              }
+            </div>
+          )}
         </div>
 
         <div className="border-t border-gray-100 pt-3">
@@ -828,23 +973,24 @@ function InstagramSettingsPanel() {
       </div>
 
       {error && <p className="text-xs text-red-500">{error}</p>}
-      {oauthMsg && (
-        <p className={`text-xs ${oauthStatus === 'done' ? 'text-green-600' : oauthStatus === 'error' ? 'text-red-500' : 'text-gray-500'}`}>
-          {oauthStatus === 'waiting' ? '⏳ ' : ''}{oauthMsg}
-        </p>
-      )}
 
       <div className="flex gap-2 pt-1 flex-wrap">
         <button onClick={save} disabled={saving}
           className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:opacity-90 disabled:opacity-50 transition-colors">
           {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save'}
         </button>
-        <button onClick={connect} disabled={oauthStatus === 'waiting' || !appId}
-          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-sm font-medium rounded-lg hover:opacity-90 disabled:opacity-50 transition">
-          <span>📸</span>
-          {oauthStatus === 'waiting' ? 'Connecting…' : connectedUsername ? 'Reconnect Instagram' : 'Connect with Instagram'}
-        </button>
+        {hasToken && (
+          <button onClick={detectAccount} disabled={detecting}
+            className="px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors">
+            {detecting ? 'Detecting…' : '🔍 Re-detect Account ID'}
+          </button>
+        )}
       </div>
+      {detectMsg && (
+        <p className={`text-xs mt-1 ${detectMsg.ok ? 'text-green-600' : 'text-red-500'}`}>
+          {detectMsg.ok ? '✓ ' : '✗ '}{detectMsg.message}
+        </p>
+      )}
     </div>
   )
 }

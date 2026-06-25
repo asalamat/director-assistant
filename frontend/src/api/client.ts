@@ -1274,4 +1274,25 @@ export const api = {
   verifyInstagram(): Promise<{ instagram: { ok: boolean; message: string } }> {
     return request('/instagram/verify', { method: 'POST' })
   },
+  getInstagramAutopilot(): Promise<{ config: any }> {
+    return request('/instagram/autopilot')
+  },
+  saveInstagramAutopilot(data: object): Promise<void> {
+    return request('/instagram/autopilot', { method: 'POST', body: JSON.stringify(data) })
+  },
+  deleteInstagramAutopilot(): Promise<void> {
+    return request('/instagram/autopilot', { method: 'DELETE' })
+  },
+  getInstagramTemplates(): Promise<{ templates: any[] }> {
+    return request('/instagram/templates')
+  },
+  saveInstagramTemplate(data: object): Promise<{ id: string }> {
+    return request('/instagram/templates', { method: 'POST', body: JSON.stringify(data) })
+  },
+  updateInstagramTemplate(id: string, data: object): Promise<void> {
+    return request(`/instagram/templates/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+  },
+  deleteInstagramTemplate(id: string): Promise<void> {
+    return request(`/instagram/templates/${id}`, { method: 'DELETE' })
+  },
 }

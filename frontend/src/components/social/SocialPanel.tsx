@@ -4,13 +4,15 @@ import { PostHistory } from './PostHistory'
 import { LinkedInTemplates } from './LinkedInTemplates'
 import { LinkedInAutopilot } from './LinkedInAutopilot'
 import { InstagramWizard } from './InstagramWizard'
+import { InstagramAutopilot } from './InstagramAutopilot'
+import { InstagramTemplates } from './InstagramTemplates'
 
-type TabId = 'linkedin' | 'autopilot' | 'instagram' | 'ig-history' | 'twitter' | 'history' | 'templates'
+type TabId = 'linkedin' | 'autopilot' | 'instagram' | 'ig-autopilot' | 'ig-history' | 'ig-templates' | 'twitter' | 'history' | 'templates'
 
 export function SocialPanel() {
   const [activeTab, setActiveTab] = useState<TabId>('linkedin')
   const linkedInActive = activeTab === 'linkedin' || activeTab === 'autopilot' || activeTab === 'history' || activeTab === 'templates'
-  const instagramActive = activeTab === 'instagram' || activeTab === 'ig-history'
+  const instagramActive = activeTab === 'instagram' || activeTab === 'ig-autopilot' || activeTab === 'ig-history' || activeTab === 'ig-templates'
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -59,15 +61,18 @@ export function SocialPanel() {
               <span>📸</span>
               <span>Instagram</span>
             </button>
-            <button
-              onClick={() => setActiveTab('ig-history')}
-              className={`flex items-center gap-2 pl-8 pr-3 py-1.5 rounded-lg text-xs font-medium text-left transition-colors ${
-                activeTab === 'ig-history' ? 'bg-pink-50 text-pink-600' : 'text-gray-500 hover:bg-gray-100'
-              }`}
-            >
-              <span>📋</span>
-              <span>IG History</span>
-            </button>
+            {([
+              { id: 'ig-autopilot',  icon: '🤖', label: 'Autopilot' },
+              { id: 'ig-templates',  icon: '📚', label: 'Templates' },
+              { id: 'ig-history',    icon: '📋', label: 'History' },
+            ] as { id: TabId; icon: string; label: string }[]).map(({ id, icon, label }) => (
+              <button key={id} onClick={() => setActiveTab(id)}
+                className={`flex items-center gap-2 pl-8 pr-3 py-1.5 rounded-lg text-xs font-medium text-left transition-colors ${
+                  activeTab === id ? 'bg-pink-50 text-pink-600' : 'text-gray-500 hover:bg-gray-100'
+                }`}>
+                <span>{icon}</span><span>{label}</span>
+              </button>
+            ))}
           </div>
 
           {/* Twitter (coming soon) */}
@@ -94,6 +99,8 @@ export function SocialPanel() {
         {activeTab === 'history' && <PostHistory />}
         {activeTab === 'templates' && <LinkedInTemplates />}
         {activeTab === 'instagram' && <InstagramWizard onViewHistory={() => setActiveTab('ig-history')} />}
+        {activeTab === 'ig-autopilot' && <InstagramAutopilot />}
+        {activeTab === 'ig-templates' && <InstagramTemplates />}
         {activeTab === 'ig-history' && <InstagramHistory />}
         {activeTab === 'twitter' && (
           <div className="flex items-center justify-center h-full text-gray-400 text-sm">Coming soon</div>
@@ -106,6 +113,8 @@ export function SocialPanel() {
 function InstagramHistory() {
   const [posts, setPosts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [reposting, setReposting] = useState<string | null>(null)
+  const [repostMsg, setRepostMsg] = useState<{ id: string; ok: boolean; text: string } | null>(null)
 
   useState(() => {
     fetch('/api/instagram/history').then(r => r.json())
@@ -117,6 +126,28 @@ function InstagramHistory() {
   const remove = async (id: string) => {
     await fetch(`/api/instagram/history/${id}`, { method: 'DELETE' })
     setPosts(prev => prev.filter(p => p.id !== id))
+  }
+
+  const repost = async (p: any) => {
+    setReposting(p.id); setRepostMsg(null)
+    try {
+      const hashtags = typeof p.hashtags === 'string' ? JSON.parse(p.hashtags) : (p.hashtags || [])
+      const r = await fetch('/api/instagram/publish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ caption: p.caption, hashtags, image_url: p.image_url, content_type: p.content_type }),
+      }).then(x => x.json())
+      if (r.error) {
+        setRepostMsg({ id: p.id, ok: false, text: r.error })
+      } else {
+        setRepostMsg({ id: p.id, ok: true, text: r.status === 'published' ? 'Reposted!' : `Scheduled for ${r.scheduled_for}` })
+        fetch('/api/instagram/history').then(x => x.json()).then(d => setPosts(d.posts || [])).catch(() => {})
+      }
+    } catch (e) {
+      setRepostMsg({ id: p.id, ok: false, text: (e as Error).message })
+    } finally {
+      setReposting(null)
+    }
   }
 
   if (loading) return <div className="p-6 text-sm text-gray-400">Loading…</div>
@@ -132,6 +163,7 @@ function InstagramHistory() {
             <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
               p.status === 'published' ? 'bg-green-100 text-green-700' :
               p.status === 'scheduled' ? 'bg-blue-100 text-blue-700' :
+              p.status === 'failed' ? 'bg-red-100 text-red-600' :
               'bg-gray-100 text-gray-500'
             }`}>{p.status}</span>
             <span className="text-xs text-gray-400 ml-auto">{new Date(p.created_at).toLocaleDateString()}</span>
@@ -143,7 +175,19 @@ function InstagramHistory() {
               {(typeof p.hashtags === 'string' ? JSON.parse(p.hashtags) : p.hashtags).map((h: string) => `#${h}`).join(' ')}
             </p>
           )}
-          <button onClick={() => remove(p.id)} className="text-xs text-red-400 hover:text-red-600">Delete</button>
+          {repostMsg?.id === p.id && repostMsg && (
+            <p className={`text-xs ${repostMsg.ok ? 'text-green-600' : 'text-red-500'}`}>{repostMsg.text}</p>
+          )}
+          <div className="flex items-center gap-3 pt-1">
+            <button
+              onClick={() => repost(p)}
+              disabled={reposting === p.id}
+              className="text-xs font-medium text-purple-600 hover:text-purple-800 disabled:opacity-50"
+            >
+              {reposting === p.id ? 'Reposting…' : '🔁 Repost'}
+            </button>
+            <button onClick={() => remove(p.id)} className="text-xs text-red-400 hover:text-red-600">Delete</button>
+          </div>
         </div>
       ))}
     </div>

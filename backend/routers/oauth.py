@@ -650,7 +650,7 @@ async def google_oauth_callback(
 _FACEBOOK_AUTH = "https://www.facebook.com/v19.0/dialog/oauth"
 _FACEBOOK_TOKEN = "https://graph.facebook.com/v19.0/oauth/access_token"
 _GRAPH_IG_BASE = "https://graph.facebook.com/v19.0"
-_IG_SCOPES = "instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement"
+_IG_SCOPES = "instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement,pages_manage_metadata,business_management"
 _ig_states: dict[str, dict] = {}
 
 
@@ -809,3 +809,111 @@ async def instagram_oauth_callback(
     # Token saved but account not auto-detected — ask user to enter Account ID manually
     return HTMLResponse(_ig_callback_page(True, username="",
         note="Token saved — Instagram account ID not auto-detected. Enter it manually in Settings."))
+
+
+# ── Instagram Direct Login (no Facebook Page required) ────────────────────────
+
+_IG_LOGIN_AUTH = "https://api.instagram.com/oauth/authorize"
+_IG_LOGIN_TOKEN = "https://api.instagram.com/oauth/access_token"
+_IG_LOGIN_GRAPH = "https://graph.instagram.com/v21.0"
+_IG_LOGIN_SCOPES = "instagram_business_basic,instagram_business_content_publish"
+_ig_login_states: dict[str, dict] = {}
+
+
+def _ig_login_app_creds() -> tuple[str, str]:
+    from routers.config import load_app_config
+    cfg = load_app_config().get("instagram", {}) or {}
+    return (cfg.get("ig_login_app_id") or "").strip(), (cfg.get("ig_login_app_secret") or "").strip()
+
+
+def _ig_login_redirect_uri(request: Request) -> str:
+    return str(request.base_url).rstrip("/") + "/api/oauth/instagram-login/callback"
+
+
+@router.get("/instagram-login/auth-url")
+async def get_instagram_login_auth_url(request: Request):
+    app_id, _ = _ig_login_app_creds()
+    if not app_id:
+        raise HTTPException(400, "Instagram App ID not configured — add it in Settings → Instagram → Instagram Login section")
+    state = secrets.token_urlsafe(20)
+    _ig_login_states[state] = {}
+    if len(_ig_login_states) > 100:
+        for k in list(_ig_login_states.keys())[:50]:
+            _ig_login_states.pop(k, None)
+    params = {
+        "client_id": app_id, "redirect_uri": _ig_login_redirect_uri(request),
+        "scope": _IG_LOGIN_SCOPES, "state": state, "response_type": "code",
+    }
+    return {"url": _IG_LOGIN_AUTH + "?" + urllib.parse.urlencode(params)}
+
+
+@router.get("/instagram-login/callback")
+async def instagram_login_callback(
+    request: Request,
+    code: str = "", state: str = "", error: str = "", error_description: str = "",
+):
+    if error:
+        return HTMLResponse(_ig_callback_page(False, message=error_description or error))
+    if not code:
+        return HTMLResponse(_ig_callback_page(False, message="No authorization code received"))
+    if state not in _ig_login_states:
+        return HTMLResponse(_ig_callback_page(False, message="Invalid or expired session — please try again"))
+    _ig_login_states.pop(state)
+    app_id, app_secret = _ig_login_app_creds()
+
+    # Step 1: code → short-lived token (POST to api.instagram.com)
+    try:
+        async with httpx.AsyncClient(timeout=15) as c:
+            r = await c.post(_IG_LOGIN_TOKEN, data={
+                "client_id": app_id, "client_secret": app_secret,
+                "grant_type": "authorization_code",
+                "redirect_uri": _ig_login_redirect_uri(request), "code": code,
+            })
+        tok_data = r.json()
+    except Exception as e:
+        return HTMLResponse(_ig_callback_page(False, message=f"Token exchange failed: {e}"))
+    if "access_token" not in tok_data:
+        msg = tok_data.get("error_message") or tok_data.get("error_description") or str(tok_data)[:300]
+        return HTMLResponse(_ig_callback_page(False, message=msg))
+    short_token = tok_data["access_token"]
+
+    # Step 2: exchange for long-lived token (60 days)
+    try:
+        async with httpx.AsyncClient(timeout=15) as c:
+            r = await c.get(f"{_IG_LOGIN_GRAPH}/access_token", params={
+                "grant_type": "ig_exchange_token", "client_id": app_id,
+                "client_secret": app_secret, "access_token": short_token,
+            })
+        long_token = r.json().get("access_token", short_token)
+    except Exception:
+        long_token = short_token
+
+    # Step 3: get IG user ID and username directly — no Facebook Page needed
+    ig_user_id = ""
+    ig_username = ""
+    try:
+        async with httpx.AsyncClient(timeout=10) as c:
+            me_r = await c.get(f"{_IG_LOGIN_GRAPH}/me",
+                params={"fields": "id,username", "access_token": long_token})
+        me_data = me_r.json()
+        ig_user_id = me_data.get("id", "")
+        ig_username = me_data.get("username", "")
+    except Exception:
+        pass
+
+    # Step 4: persist
+    from routers.config import load_app_config, save_app_config
+    cfg = load_app_config()
+    ig_cfg = cfg.get("instagram", {}) or {}
+    ig_cfg["access_token"] = long_token
+    ig_cfg["token_type"] = "instagram_login"
+    if ig_user_id:
+        ig_cfg["ig_user_id"] = ig_user_id
+        ig_cfg["username"] = ig_username
+    cfg["instagram"] = ig_cfg
+    save_app_config(cfg)
+
+    if ig_user_id:
+        return HTMLResponse(_ig_callback_page(True, username=ig_username))
+    return HTMLResponse(_ig_callback_page(True, username="",
+        note="Token saved — enter your Instagram Account ID in Settings if not auto-filled."))

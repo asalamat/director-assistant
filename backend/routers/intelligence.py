@@ -973,9 +973,12 @@ async def get_escalations(request: Request, days: int = 14, limit: int = 20):
         last_reply = row["last_reply"]
         if last_reply:
             try:
-                last = datetime.fromisoformat(last_reply.replace("Z", "").replace("+00:00", ""))
+                last = datetime.fromisoformat(last_reply.replace("Z", "+00:00"))
+                # Strip tzinfo so subtraction against naive now() always works
+                if last.tzinfo is not None:
+                    last = last.replace(tzinfo=None)
                 hours_ago = (now - last).total_seconds() / 3600
-            except (ValueError, AttributeError):
+            except (ValueError, AttributeError, TypeError):
                 pass
         if hours_ago < 24:
             score += 15
