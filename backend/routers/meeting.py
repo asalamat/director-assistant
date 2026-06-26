@@ -66,6 +66,111 @@ async def _split_and_transcribe(oai_client, audio_path: str, suffix: str) -> str
 router = APIRouter(prefix="/api/meeting", tags=["meeting"])
 
 
+class AnalyzeNotesRequest(BaseModel):
+    notes: str
+    title: Optional[str] = ""
+
+
+@router.post("/analyze-notes")
+async def analyze_notes(req: AnalyzeNotesRequest, request: Request):
+    """Analyze pasted meeting notes: extract action items, decisions, follow-up emails, calendar events."""
+    if not req.notes.strip():
+        raise HTTPException(400, "Notes cannot be empty")
+
+    advisor = request.app.state.advisor
+    cache = request.app.state.cache
+    title = req.title.strip() or (req.notes[:60].split('\n')[0].strip() + '…')
+
+    prompt = f"""You are an executive assistant analyzing meeting notes.
+
+MEETING TITLE: {title}
+
+MEETING NOTES:
+{req.notes[:8000]}
+
+Extract all of the following and respond with ONLY valid JSON (no markdown fences):
+
+{{
+  "summary": "2-3 sentence plain-English summary of the meeting",
+  "action_items": [
+    {{"task": "clear action text", "owner": "person name or 'TBD'", "deadline": "YYYY-MM-DD or 'TBD'", "priority": "high|medium|low"}}
+  ],
+  "decisions": ["Decision text", "..."],
+  "follow_up_emails": [
+    {{"to": "recipient name or email if mentioned", "subject": "email subject", "body": "professional email body 2-3 paragraphs"}}
+  ],
+  "calendar_events": [
+    {{"title": "event title", "date_hint": "date/time mentioned or 'TBD'", "duration_mins": 60, "attendees": ["name1", "name2"]}}
+  ]
+}}
+
+Rules:
+- action_items: max 10, each under 120 chars
+- decisions: only firm decisions made, not suggestions
+- follow_up_emails: only if follow-up emails are clearly needed
+- calendar_events: only if next meetings or dates are mentioned
+- All arrays may be empty []
+"""
+
+    try:
+        ant = getattr(advisor.ai, "_anthropic", None)
+        if ant:
+            resp = await ant.messages.create(
+                model="claude-haiku-4-5-20251001", max_tokens=2000,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            raw = resp.content[0].text.strip()
+        else:
+            resp = await advisor.ai.messages.create(
+                model="claude-haiku-4-5-20251001", max_tokens=2000,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            raw = resp.content[0].text.strip()
+
+        s, e = raw.find("{"), raw.rfind("}") + 1
+        data = json.loads(raw[s:e]) if s >= 0 else {}
+    except Exception as exc:
+        raise HTTPException(502, f"AI analysis failed: {exc}") from exc
+
+    result = {
+        "title": title,
+        "summary": data.get("summary", ""),
+        "action_items": data.get("action_items", []),
+        "decisions": data.get("decisions", []),
+        "follow_up_emails": data.get("follow_up_emails", []),
+        "calendar_events": data.get("calendar_events", []),
+    }
+
+    # Auto-save to meeting_recordings table so it appears in history
+    try:
+        action_texts = [a.get("task", "") for a in result["action_items"]]
+        with cache._conn() as conn:
+            cur = conn.execute(
+                """INSERT INTO meeting_recordings (transcript, action_items, draft_email, title)
+                   VALUES (?,?,?,?)""",
+                (req.notes, json.dumps(action_texts),
+                 result["follow_up_emails"][0]["body"] if result["follow_up_emails"] else "",
+                 title),
+            )
+            result["id"] = cur.lastrowid
+        rag = request.app.state.rag
+        rag._proxy.upsert(
+            ids=[f"meeting__{result['id']}"],
+            documents=[f"Meeting notes: {title}\n\n{req.notes[:6000]}"],
+            metadatas=[{
+                "email_id": f"meeting__{result['id']}",
+                "source_type": "meeting",
+                "subject": f"Meeting: {title}",
+                "sender": "meeting", "date": "",
+                "meeting_id": str(result["id"]), "meeting_title": title,
+            }],
+        )
+    except Exception:
+        pass
+
+    return result
+
+
 class SaveRecordingRequest(BaseModel):
     transcript: str
     action_items: list[str] = []

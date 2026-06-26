@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { api } from '../api/client'
 
 interface UpdateInfo {
@@ -13,9 +13,12 @@ export default function UpdatePopup() {
   const [applying, setApplying] = useState(false)
   const [message, setMessage] = useState('')
   const [isError, setIsError] = useState(false)
+  const [showLog, setShowLog] = useState(false)
+  const [logText, setLogText] = useState('')
+  const [logPath, setLogPath] = useState('')
+  const logRef = useRef<HTMLPreElement>(null)
 
   useEffect(() => {
-    // Check once on load, then every 60 minutes
     const check = () => {
       api.checkUpdate().then(res => {
         if (res.update_available && res.latest) {
@@ -28,13 +31,33 @@ export default function UpdatePopup() {
     return () => clearInterval(interval)
   }, [])
 
+  // Poll log while update is running
+  useEffect(() => {
+    if (!applying) return
+    const poll = setInterval(() => {
+      api.getUpdateLog().then(res => {
+        if (res.log) {
+          setLogText(res.log)
+          setLogPath(res.path)
+          // Auto-scroll log
+          if (logRef.current) {
+            logRef.current.scrollTop = logRef.current.scrollHeight
+          }
+        }
+      }).catch(() => {})
+    }, 2000)
+    return () => clearInterval(poll)
+  }, [applying])
+
   if (!update || dismissed) return null
 
   const handleUpdate = async () => {
-    setApplying(true); setIsError(false)
+    setApplying(true); setIsError(false); setShowLog(true)
     setMessage('Starting update…')
+    setLogText('')
     try {
-      await api.applyUpdate()
+      const res = await api.applyUpdate()
+      if (res.log_path) setLogPath(res.log_path)
       setMessage('Update running — reloading when ready…')
       await new Promise<void>(resolve => {
         const start = Date.now()
@@ -50,14 +73,19 @@ export default function UpdatePopup() {
       window.location.reload()
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Update failed'
-      // If it's a setup error (no repo/venv), guide the user to reinstall
       const isSetup = msg.includes('repo') || msg.includes('venv') || msg.includes('environment') || msg.includes('install')
       setIsError(true)
       setMessage(isSetup
-        ? `${msg} — re-run install.bat on Windows or install-mac.sh on Mac to fix.`
-        : `${msg} — check %TEMP%\\director-assistant-update.log (Windows) or /tmp/director-assistant-update.log (Mac).`)
+        ? `${msg} — re-run install.bat (Windows) or install-mac.sh (Mac) to fix.`
+        : `${msg} — see log below for details.`)
       setApplying(false)
     }
+  }
+
+  const fetchLog = async () => {
+    const res = await api.getUpdateLog().catch(() => null)
+    if (res?.log) { setLogText(res.log); setLogPath(res.path) }
+    setShowLog(true)
   }
 
   return (
@@ -80,6 +108,7 @@ export default function UpdatePopup() {
           >×</button>
         )}
       </div>
+
       {!applying ? (
         <div className="mt-3 flex gap-2">
           <button
@@ -89,10 +118,10 @@ export default function UpdatePopup() {
             {isError ? 'Retry' : 'Install Update'}
           </button>
           <button
-            onClick={() => setDismissed(true)}
+            onClick={isError ? fetchLog : () => setDismissed(true)}
             className="flex-1 text-xs text-gray-500 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
           >
-            {isError ? 'Dismiss' : 'Later'}
+            {isError ? 'View Log' : 'Later'}
           </button>
         </div>
       ) : (
@@ -101,6 +130,24 @@ export default function UpdatePopup() {
             <div className="bg-blue-500 h-1.5 rounded-full animate-pulse w-3/4" />
           </div>
           <p className="text-xs text-gray-400 mt-1 text-center">{message || 'Reloading when server is ready…'}</p>
+          <button
+            onClick={() => setShowLog(v => !v)}
+            className="mt-1 text-xs text-blue-500 hover:underline w-full text-center"
+          >
+            {showLog ? 'Hide log' : 'Show log'}
+          </button>
+        </div>
+      )}
+
+      {showLog && (
+        <div className="mt-2">
+          {logPath && <p className="text-xs text-gray-400 mb-1 truncate" title={logPath}>Log: {logPath}</p>}
+          <pre
+            ref={logRef}
+            className="text-xs bg-gray-900 text-green-400 rounded p-2 h-32 overflow-y-auto whitespace-pre-wrap font-mono"
+          >
+            {logText || 'Waiting for log…'}
+          </pre>
         </div>
       )}
     </div>

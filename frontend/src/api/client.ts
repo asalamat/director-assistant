@@ -518,6 +518,16 @@ export const api = {
     return request(`/meeting/recordings/${id}`, { method: 'DELETE' })
   },
 
+  analyzeMeetingNotes(notes: string, title?: string): Promise<{
+    id?: number; title: string; summary: string;
+    action_items: { task: string; owner: string; deadline: string; priority: string }[];
+    decisions: string[];
+    follow_up_emails: { to: string; subject: string; body: string }[];
+    calendar_events: { title: string; date_hint: string; duration_mins: number; attendees: string[] }[];
+  }> {
+    return request('/meeting/analyze-notes', { method: 'POST', body: JSON.stringify({ notes, title }) })
+  },
+
   importVCard(file: File): Promise<{ imported: number; skipped: number; total: number; message: string }> {
     const form = new FormData()
     form.append('file', file)
@@ -690,8 +700,12 @@ export const api = {
     return request('/update/check')
   },
 
-  applyUpdate(): Promise<{ status: string; message: string }> {
+  applyUpdate(): Promise<{ status: string; message: string; log_path?: string; log_hint?: string }> {
     return request('/update/apply', { method: 'POST' })
+  },
+
+  getUpdateLog(): Promise<{ log: string | null; path: string; message?: string }> {
+    return request('/update/log')
   },
 
   // Ask history

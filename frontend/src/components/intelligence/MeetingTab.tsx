@@ -1,5 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { api } from '../../api/client'
+import { MeetingNotesPanel } from '../MeetingNotesPanel'
+
+type MeetingMode = 'notes' | 'record'
 
 type RecState = 'idle' | 'recording' | 'processing' | 'done' | 'error'
 
@@ -27,6 +30,7 @@ interface RecordingDetail {
 }
 
 export function MeetingTab() {
+  const [mode, setMode] = useState<MeetingMode>('notes')
   const [state, setState] = useState<RecState>('idle')
   const [timer, setTimer] = useState(0)
   const [result, setResult] = useState<MeetingResult | null>(null)
@@ -147,8 +151,26 @@ export function MeetingTab() {
     setDeletingId(null)
   }
 
+  if (mode === 'notes') {
+    return (
+      <div className="flex flex-col h-full overflow-hidden">
+        <div className="flex items-center gap-1 px-4 pt-3 pb-0 border-b border-gray-100 dark:border-gray-700">
+          <button onClick={() => setMode('notes')} className="text-xs font-medium px-3 py-2 border-b-2 border-blue-500 text-blue-600 transition-colors">Notes</button>
+          <button onClick={() => setMode('record')} className="text-xs font-medium px-3 py-2 border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition-colors">Record</button>
+        </div>
+        <div className="flex-1 overflow-hidden min-h-0">
+          <MeetingNotesPanel />
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col h-full overflow-y-auto p-6 max-w-3xl mx-auto space-y-6">
+      <div className="flex items-center gap-1 border-b border-gray-100 pb-3">
+        <button onClick={() => setMode('notes')} className="text-xs font-medium px-3 py-1.5 border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition-colors">Notes</button>
+        <button onClick={() => setMode('record')} className="text-xs font-medium px-3 py-1.5 border-b-2 border-blue-500 text-blue-600 transition-colors">Record</button>
+      </div>
       <div>
         <h2 className="text-base font-semibold text-gray-900">Meeting Intelligence</h2>
         <p className="text-xs text-gray-500 mt-0.5">Record a meeting or call — AI transcribes it and extracts action items + follow-up draft.</p>

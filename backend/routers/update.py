@@ -172,10 +172,15 @@ async def apply_update():
 
     if IS_WINDOWS:
         _apply_windows(repo, install_dir, python, node_path, env)
+        log_path = _win_log_path(install_dir)
+        return {"status": "updating",
+                "message": "Update started. The app will restart in ~60 seconds.",
+                "log_path": log_path,
+                "log_hint": f"Progress log: {log_path}"}
     else:
         _apply_macos(repo, install_dir, python, node_path, env)
-
-    return {"status": "updating", "message": "Update started. The app will restart in ~60 seconds."}
+        return {"status": "updating", "message": "Update started. The app will restart in ~60 seconds.",
+                "log_path": "/tmp/director-assistant-update.log"}
 
 
 def _apply_macos(repo: Path, install_dir: str, python: str, node_path: str, env: dict):
@@ -205,22 +210,35 @@ def _apply_macos(repo: Path, install_dir: str, python: str, node_path: str, env:
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env)
 
 
+def _win_log_path(install_dir: str) -> str:
+    """Return the Windows update log path inside the install dir (easy to find)."""
+    return f"{install_dir}\\update.log"
+
+
 def _apply_windows(repo: Path, install_dir: str, python: str, node_path: str, env: dict):
     """Windows update via GitHub ZIP download — no git or npm required on target machine."""
     zip_url = "https://github.com/asalamat/director-assistant/archive/refs/heads/main.zip"
+    log_path = _win_log_path(install_dir)
 
     ps = f"""
-$log = "$env:TEMP\\director-assistant-update.log"
-function Log($msg) {{ Add-Content $log "$(Get-Date -f 'yyyy-MM-dd HH:mm:ss') $msg" }}
+$log = '{log_path}'
+function Log($msg) {{
+    $line = "$(Get-Date -f 'yyyy-MM-dd HH:mm:ss') $msg"
+    Add-Content -Path $log -Value $line -Encoding UTF8
+    Write-Host $line
+}}
 
-Log '--- Update started (ZIP method)'
+# Touch the log immediately so it exists even if we crash
+"" | Out-File -FilePath $log -Append -Encoding UTF8
+
+Log '--- Update started (ZIP method) ---'
 try {{
     $ErrorActionPreference = 'Stop'
     $zip = "$env:TEMP\\da_update.zip"
     $tmp = "$env:TEMP\\da_update_src"
 
-    # 1. Download latest release
-    Log 'Downloading...'
+    # 1. Download latest code
+    Log 'Downloading latest version from GitHub...'
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     Invoke-WebRequest -Uri '{zip_url}' -OutFile $zip -UseBasicParsing
     Log 'Download complete'
@@ -230,10 +248,10 @@ try {{
     Expand-Archive -Path $zip -DestinationPath $tmp -Force
     Remove-Item $zip -Force
     $src = (Get-ChildItem $tmp -Directory | Select-Object -First 1).FullName
-    Log "Extracted: $src"
+    Log "Extracted to: $src"
 
     # 3. Copy backend files (skip .venv and __pycache__)
-    # robocopy exit 0-7 = success; suppress non-zero to avoid false Stop
+    # robocopy exit codes 0-7 are success
     $ErrorActionPreference = 'Continue'
     robocopy "$src\\backend" '{install_dir}\\backend' /E /XD .venv __pycache__ /NFL /NDL /NJH /NJS | Out-Null
     $ErrorActionPreference = 'Stop'
@@ -243,11 +261,11 @@ try {{
     & '{python}' -m pip install -q --upgrade -r '{install_dir}\\backend\\requirements.txt'
     Log 'pip install done'
 
-    # 5. Copy pre-built frontend dist (no npm needed — dist is committed to the repo)
+    # 5. Copy pre-built frontend dist (dist is committed — no npm needed)
     $static = '{install_dir}\\backend\\static'
     if (Test-Path $static) {{ Remove-Item $static -Recurse -Force }}
     Copy-Item "$src\\frontend\\dist" $static -Recurse
-    Log 'Frontend copied'
+    Log 'Frontend dist copied'
 
     # 6. Update version.json
     Copy-Item "$src\\version.json" '{install_dir}\\version.json' -Force
@@ -257,9 +275,9 @@ try {{
     # 7. Cleanup temp
     Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
 
-    Log '--- Update complete. Restarting...'
+    Log '--- Update complete. Restarting app... ---'
 
-    # 8. Kill python/uvicorn processes — taskkill + CIM fallback (avoids deprecated WMI)
+    # 8. Kill python/uvicorn processes
     $ErrorActionPreference = 'Continue'
     taskkill /F /FI "WINDOWTITLE eq Director Assistant*" 2>$null | Out-Null
     taskkill /F /FI "IMAGENAME eq uvicorn.exe" 2>$null | Out-Null
@@ -276,22 +294,43 @@ try {{
     # 9. Restart via start.bat
     $startBat = '{install_dir}\\start.bat'
     if (Test-Path $startBat) {{
-        Start-Process cmd -ArgumentList "/c `"$startBat`"" -WindowStyle Hidden
-        Log '--- restart done'
+        Start-Process cmd -ArgumentList "/c `"$startBat`"" -WindowStyle Normal
+        Log 'Restart command sent — browser will open in a few seconds'
     }} else {{
-        Log "WARNING: start.bat not found at $startBat — restart manually"
+        Log "WARNING: start.bat not found at $startBat — please restart manually"
     }}
 }} catch {{
     Log "ERROR: $_"
+    Log "--- Update FAILED. Check the error above and try again. ---"
 }}
 """
-    ps_path = Path(os.environ.get("TEMP", "C:\\Windows\\Temp")) / "da_update.ps1"
+    temp_dir = Path(os.environ.get("TEMP", "C:\\Windows\\Temp"))
+    ps_path = temp_dir / "da_update.ps1"
     ps_path.write_text(ps, encoding="utf-8")
 
-    subprocess.Popen(
-        ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
-         "-Command", f"Start-Sleep 2; & '{ps_path}'"],
-        start_new_session=True,
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env,
-        creationflags=subprocess.CREATE_NO_WINDOW if IS_WINDOWS else 0,
-    )
+    # Try pwsh first (PowerShell 7+), fall back to powershell (Windows PowerShell 5)
+    for ps_exe in ["pwsh", "powershell"]:
+        try:
+            subprocess.Popen(
+                [ps_exe, "-NoProfile", "-ExecutionPolicy", "Bypass",
+                 "-File", str(ps_path)],
+                start_new_session=True,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env,
+                creationflags=subprocess.CREATE_NO_WINDOW if IS_WINDOWS else 0,
+            )
+            break
+        except FileNotFoundError:
+            continue
+
+
+@router.get("/log")
+async def get_update_log():
+    """Return the Windows update log so users can see progress without opening a terminal."""
+    repo = _source_repo()
+    install_dir = _effective_install_dir(repo)
+    log_file = install_dir / "update.log"
+    if not log_file.exists():
+        return {"log": None, "path": str(log_file),
+                "message": "No update log found yet. Click 'Apply Update' to start."}
+    content = log_file.read_text(encoding="utf-8", errors="replace")
+    return {"log": content, "path": str(log_file)}
