@@ -518,6 +518,16 @@ export const api = {
     return request(`/meeting/recordings/${id}`, { method: 'DELETE' })
   },
 
+  buildAgenda(data: { title: string; attendees: string[]; duration_mins: number; context_notes?: string }): Promise<{
+    title: string; attendees: string[]; duration_mins: number;
+    pre_meeting_prep: string[];
+    agenda_items: { title: string; duration_mins: number; type: string; points: string[]; questions: string[] }[];
+    success_criteria: string;
+    follow_up_template: string;
+  }> {
+    return request('/meeting/build-agenda', { method: 'POST', body: JSON.stringify(data) })
+  },
+
   analyzeMeetingNotes(notes: string, title?: string): Promise<{
     id?: number; title: string; summary: string;
     action_items: { task: string; owner: string; deadline: string; priority: string }[];

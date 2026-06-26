@@ -6,7 +6,7 @@ import os
 import tempfile
 from fastapi import APIRouter, HTTPException, Request, UploadFile, File
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 
 MAX_WHISPER_BYTES = 24 * 1024 * 1024  # 24 MB safety margin
 
@@ -64,6 +64,133 @@ async def _split_and_transcribe(oai_client, audio_path: str, suffix: str) -> str
         return await _transcribe_file(oai_client, audio_path)
 
 router = APIRouter(prefix="/api/meeting", tags=["meeting"])
+
+
+class BuildAgendaRequest(BaseModel):
+    title: str
+    attendees: List[str] = []
+    duration_mins: int = 60
+    context_notes: Optional[str] = ""
+
+
+@router.post("/build-agenda")
+async def build_agenda(req: BuildAgendaRequest, request: Request):
+    """Build a structured meeting agenda from attendees + context pulled from emails/chase queue."""
+    if not req.title.strip():
+        raise HTTPException(400, "Meeting title is required")
+
+    advisor = request.app.state.advisor
+    cache = request.app.state.cache
+    rag = request.app.state.rag
+
+    # 1. Pull email context for each attendee via RAG
+    attendee_context: list[str] = []
+    for person in req.attendees[:6]:
+        try:
+            results = rag.semantic_search(person, n=4)
+            snippets = []
+            for doc, meta in zip(results.get("documents", [[]])[0], results.get("metadatas", [[]])[0]):
+                subj = meta.get("subject", "")
+                sender = meta.get("sender", "")
+                snippet = doc[:200].replace("\n", " ") if doc else ""
+                if snippet:
+                    snippets.append(f"[{subj} / {sender}] {snippet}")
+            if snippets:
+                attendee_context.append(f"Recent emails about {person}:\n" + "\n".join(snippets[:3]))
+        except Exception:
+            pass
+
+    # 2. Pull open follow-ups / chase items
+    open_items: list[str] = []
+    try:
+        with cache._conn() as conn:
+            rows = conn.execute(
+                """SELECT subject, note, sender FROM email_followups
+                   WHERE done=0 ORDER BY due_date ASC LIMIT 15"""
+            ).fetchall()
+            for r in rows:
+                line = r[0] or ""
+                if r[1]: line += f" ({r[1]})"
+                open_items.append(line)
+    except Exception:
+        pass
+
+    # Build context block for the prompt
+    context_parts = []
+    if attendee_context:
+        context_parts.append("EMAIL CONTEXT:\n" + "\n\n".join(attendee_context))
+    if open_items:
+        context_parts.append("OPEN FOLLOW-UPS / CHASE ITEMS:\n" + "\n".join(f"- {i}" for i in open_items[:10]))
+    if req.context_notes and req.context_notes.strip():
+        context_parts.append("ORGANIZER NOTES:\n" + req.context_notes.strip())
+
+    context_block = "\n\n".join(context_parts) if context_parts else "No additional context available."
+
+    attendees_str = ", ".join(req.attendees) if req.attendees else "unspecified"
+
+    prompt = f"""You are an executive assistant. Build a structured meeting agenda.
+
+MEETING: {req.title}
+ATTENDEES: {attendees_str}
+DURATION: {req.duration_mins} minutes
+
+CONTEXT:
+{context_block}
+
+Create a practical agenda. Respond with ONLY valid JSON (no markdown fences):
+
+{{
+  "pre_meeting_prep": ["action the organizer should do before the meeting", "..."],
+  "agenda_items": [
+    {{
+      "title": "agenda item title",
+      "duration_mins": 10,
+      "type": "update|decision|discussion|action-review|intro|wrap-up",
+      "points": ["talking point", "..."],
+      "questions": ["question to ask attendees", "..."]
+    }}
+  ],
+  "success_criteria": "one sentence: what does a good outcome look like?",
+  "follow_up_template": "brief follow-up email template to send after the meeting"
+}}
+
+Rules:
+- Total duration_mins across all agenda items must equal {req.duration_mins}
+- Maximum 6 agenda items
+- Include at least 5 min for wrap-up / next steps
+- If email context shows pending issues with attendees, include them
+- prep_actions: max 4 items, each under 80 chars
+"""
+
+    try:
+        ant = getattr(advisor.ai, "_anthropic", None)
+        if ant:
+            resp = await ant.messages.create(
+                model="claude-haiku-4-5-20251001", max_tokens=1800,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            raw = resp.content[0].text.strip()
+        else:
+            resp = await advisor.ai.messages.create(
+                model="claude-haiku-4-5-20251001", max_tokens=1800,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            raw = resp.content[0].text.strip()
+
+        s, e = raw.find("{"), raw.rfind("}") + 1
+        data = json.loads(raw[s:e]) if s >= 0 else {}
+    except Exception as exc:
+        raise HTTPException(502, f"AI agenda generation failed: {exc}") from exc
+
+    return {
+        "title": req.title,
+        "attendees": req.attendees,
+        "duration_mins": req.duration_mins,
+        "pre_meeting_prep": data.get("pre_meeting_prep", []),
+        "agenda_items": data.get("agenda_items", []),
+        "success_criteria": data.get("success_criteria", ""),
+        "follow_up_template": data.get("follow_up_template", ""),
+    }
 
 
 class AnalyzeNotesRequest(BaseModel):
