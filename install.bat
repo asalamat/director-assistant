@@ -132,28 +132,39 @@ set "FRONTEND=!INSTALL_DIR!\frontend"
 :: Write source_repo.txt so auto-update can locate the repo
 echo !INSTALL_DIR!> "!INSTALL_DIR!\source_repo.txt"
 
-:: ── 4. Python virtual environment + packages ─────────────────────
+:: -- 4. Python virtual environment + packages ---------------------
 echo [4/6] Installing Python packages...
-echo        ^(First run downloads ~500 MB including PyTorch - this can take 5-15 min^)
-echo        ^(You will see each package being downloaded - it is NOT frozen^)
+echo        ^(First run downloads ~500 MB - this can take 5-15 min^)
+echo        ^(You will see each package downloading - it is NOT frozen^)
 echo.
 cd /d "!BACKEND!"
-if not exist ".venv\Scripts\activate.bat" (
+:: Check for actual python.exe, not just activate.bat.
+:: A previously-cancelled install can leave activate.bat with no python.exe inside.
+if not exist ".venv\Scripts\python.exe" (
+    if exist ".venv" (
+        echo        Removing incomplete virtual environment from previous run...
+        rmdir /s /q ".venv"
+    )
+    echo        Creating virtual environment with !PYTHON_CMD!...
     "!PYTHON_CMD!" -m venv .venv
     if errorlevel 1 (
         echo [ERROR] Failed to create Python virtual environment.
         echo         Try Python 3.12: https://www.python.org/downloads/release/python-3129/
         pause & exit /b 1
     )
+    echo        Virtual environment created.
 )
-:: Upgrade pip first — old pip has slow wheel resolution on Windows
+:: Upgrade pip using explicit venv python to avoid activation issues
 "!BACKEND!\.venv\Scripts\python.exe" -m pip install --upgrade pip --quiet --disable-pip-version-check
-:: Use explicit venv pip path — more reliable than relying on activate.bat in cmd.exe
+if errorlevel 1 (
+    echo [WARN]  pip upgrade skipped - continuing with existing pip version
+)
+:: Install packages using explicit venv pip
 "!BACKEND!\.venv\Scripts\pip.exe" install -r "!BACKEND!\requirements.txt" --prefer-binary --disable-pip-version-check
 if errorlevel 1 (
     echo.
-    echo [ERROR] Package install failed.
-    echo         Make sure Python is 3.11-3.13 (not 3.14+).
+    echo [ERROR] Package install failed. See error above.
+    echo         Make sure Python is 3.11-3.13 ^(not 3.14+^).
     echo         Python 3.12 download: https://www.python.org/downloads/release/python-3129/
     echo.
     pause & exit /b 1
