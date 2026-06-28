@@ -6,8 +6,9 @@ import { LinkedInAutopilot } from './LinkedInAutopilot'
 import { InstagramWizard } from './InstagramWizard'
 import { InstagramAutopilot } from './InstagramAutopilot'
 import { InstagramTemplates } from './InstagramTemplates'
+import { CardStudio } from './CardStudio'
 
-type TabId = 'linkedin' | 'autopilot' | 'instagram' | 'ig-autopilot' | 'ig-history' | 'ig-templates' | 'twitter' | 'history' | 'templates'
+type TabId = 'linkedin' | 'autopilot' | 'instagram' | 'ig-autopilot' | 'ig-history' | 'ig-templates' | 'card-studio' | 'twitter' | 'history' | 'templates'
 
 export function SocialPanel() {
   const [activeTab, setActiveTab] = useState<TabId>('linkedin')
@@ -75,6 +76,13 @@ export function SocialPanel() {
             ))}
           </div>
 
+          {/* Card Studio */}
+          <div className="mt-1">
+            <button onClick={() => setActiveTab('card-studio')} className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-left transition-colors ${activeTab === 'card-studio' ? 'bg-purple-50 text-purple-600' : 'text-gray-600 hover:bg-gray-100'}`}>
+              <span>🎨</span><span>Card Studio</span>
+            </button>
+          </div>
+
           {/* Twitter (coming soon) */}
           <button
             disabled
@@ -102,6 +110,7 @@ export function SocialPanel() {
         {activeTab === 'ig-autopilot' && <InstagramAutopilot />}
         {activeTab === 'ig-templates' && <InstagramTemplates />}
         {activeTab === 'ig-history' && <InstagramHistory />}
+        {activeTab === 'card-studio' && <CardStudio />}
         {activeTab === 'twitter' && (
           <div className="flex items-center justify-center h-full text-gray-400 text-sm">Coming soon</div>
         )}

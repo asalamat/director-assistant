@@ -530,11 +530,30 @@ async def _linkedin_autopilot_loop(app: "object") -> None:
                                 json={"model": "dall-e-3", "prompt": dalle_prompt[:4000], "n": 1, "size": "1024x1024"},
                             )
                             if ir.status_code == 200:
-                                image_url = ir.json().get("data", [{}])[0].get("url", "")
+                                raw_url = ir.json().get("data", [{}])[0].get("url", "")
+                                # Convert to base64 immediately — DALL-E URLs expire after ~1h,
+                                # which breaks require_review flow when post is approved later.
+                                if raw_url:
+                                    try:
+                                        import base64 as _b64
+                                        dl = await http.get(raw_url, follow_redirects=True)
+                                        if dl.status_code == 200:
+                                            image_url = "data:image/png;base64," + _b64.b64encode(dl.content).decode()
+                                        else:
+                                            print(f"[linkedin-autopilot] image download failed {dl.status_code}")
+                                    except Exception as _de:
+                                        print(f"[linkedin-autopilot] image download error: {_de}")
                             else:
                                 print(f"[linkedin-autopilot] DALL-E {ir.status_code}: {ir.text[:200]}")
                     except Exception as e:
                         print(f"[linkedin-autopilot] image generation failed: {e}")
+
+            # If image was required but generation failed, skip this cycle rather than
+            # silently posting text-only.
+            if content_type in ("image", "image+text") and not image_url:
+                print(f"[linkedin-autopilot] image required but generation failed for '{topic}', will retry next cycle")
+                await asyncio.sleep(300)
+                continue
 
             # If require_review: save as pending_review instead of publishing
             post_id = str(uuid.uuid4())

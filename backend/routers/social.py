@@ -485,8 +485,9 @@ async def _publish_to_linkedin(post_text: str, settings: dict, image_url: str = 
     img_upload_error = ""
     if image_url:
         image_urn, img_upload_error = await _upload_image_to_linkedin(access_token, author, image_url)
-        # If image-only and upload failed, return error rather than posting blank text
-        if img_upload_error and content_type == "image":
+        # If upload failed, always surface the error — never silently post text-only
+        # when the caller explicitly requested an image.
+        if img_upload_error:
             return {"error": f"Image upload failed: {img_upload_error}"}
 
     # Build new /v2/posts payload

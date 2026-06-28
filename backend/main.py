@@ -63,6 +63,7 @@ from routers import knowledge_graph as knowledge_graph_router
 from routers import jobs as jobs_router
 from routers import social as social_router
 from routers import instagram as instagram_router
+from routers import card_studio as card_studio_router
 from routers.proactive import push_alert
 from services.intelligence_service import IntelligenceService
 from workers.background_tasks import (
@@ -575,6 +576,7 @@ app.include_router(knowledge_graph_router.router)
 app.include_router(jobs_router.router)
 app.include_router(social_router.router)
 app.include_router(instagram_router.router)
+app.include_router(card_studio_router.router)
 
 
 @app.get("/health")

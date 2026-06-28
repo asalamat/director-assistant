@@ -1273,6 +1273,23 @@ export const api = {
     return request('/social/linkedin/verify', { method: 'POST' })
   },
 
+  // Card Studio
+  getBrandKit(): Promise<{ primary_color: string; accent_color: string; text_color: string; bg_style: string; logo_url: string; author_name: string; tagline: string }> {
+    return request('/social/card/brand-kit')
+  },
+  saveBrandKit(data: object): Promise<{ saved: boolean }> {
+    return request('/social/card/brand-kit', { method: 'POST', body: JSON.stringify(data) })
+  },
+  generateCard(data: { card_type: string; content: object; brand: object }): Promise<{ image_b64: string }> {
+    return request('/social/card/generate', { method: 'POST', body: JSON.stringify(data) })
+  },
+  generateCardCaption(data: { card_type: string; content: object; platform: string; tone: string }): Promise<{ caption: string; hashtags: string[] }> {
+    return request('/social/card/generate-caption', { method: 'POST', body: JSON.stringify(data) })
+  },
+  postCard(data: { image_b64: string; caption: string; hashtags: string[]; platforms: string[] }): Promise<{ results: { platform: string; status: string; error?: string }[] }> {
+    return request('/social/card/post', { method: 'POST', body: JSON.stringify(data) })
+  },
+
   // Instagram
   getInstagramSettings(): Promise<{ access_token: string; ig_user_id: string; image_model: string }> {
     return request('/instagram/settings')
