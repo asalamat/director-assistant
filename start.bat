@@ -1,10 +1,10 @@
 @echo off
 :: ============================================================
-:: Director Assistant — Windows Start Script
+:: Director Assistant - Windows Start Script
 :: ============================================================
 :: Usage:
-::   start.bat           — production mode (port 8000, built frontend)
-::   start.bat dev       — dev mode (backend 8000 + frontend 5173 hot-reload)
+::   start.bat           - production mode (port 8000, built frontend)
+::   start.bat dev       - dev mode (backend 8000 + frontend 5173 hot-reload)
 :: ============================================================
 
 setlocal enabledelayedexpansion
@@ -24,7 +24,7 @@ echo   Director Assistant
 echo ============================================
 echo.
 
-:: ── Check prerequisites ─────────────────────────────────────
+:: -- Check prerequisites -------------------------------------
 
 where python >nul 2>&1
 if errorlevel 1 (
@@ -33,9 +33,9 @@ if errorlevel 1 (
     exit /b 1
 )
 
-:: ── Check / create virtual environment ──────────────────────
+:: -- Check / create virtual environment ----------------------
 
-if not exist "%BACKEND%\.venv\Scripts\activate.bat" (
+if not exist "%BACKEND%\.venv\Scripts\python.exe" (
     echo [INFO]  Creating Python virtual environment...
     cd /d "%BACKEND%"
     python -m venv .venv
@@ -45,21 +45,21 @@ if not exist "%BACKEND%\.venv\Scripts\activate.bat" (
         exit /b 1
     )
     echo [OK]    Virtual environment created
+
+    :: Install dependencies only when venv is freshly created
+    echo [INFO]  Installing backend dependencies ^(first run only^)...
+    "%BACKEND%\.venv\Scripts\pip.exe" install -r "%BACKEND%\requirements.txt" --prefer-binary --disable-pip-version-check
+    if errorlevel 1 (
+        echo [ERROR] Failed to install backend dependencies. See error above.
+        pause
+        exit /b 1
+    )
+    echo [OK]    Backend dependencies ready
+) else (
+    echo [OK]    Virtual environment ready
 )
 
-:: ── Install backend dependencies ────────────────────────────
-
-echo [INFO]  Checking backend dependencies...
-call "%BACKEND%\.venv\Scripts\activate.bat"
-pip install -r "%BACKEND%\requirements.txt" --quiet
-if errorlevel 1 (
-    echo [ERROR] Failed to install backend dependencies.
-    pause
-    exit /b 1
-)
-echo [OK]    Backend dependencies ready
-
-:: ── PRODUCTION MODE ─────────────────────────────────────────
+:: -- PRODUCTION MODE -----------------------------------------
 
 if /i NOT "%MODE%"=="dev" (
 
@@ -94,7 +94,7 @@ if /i NOT "%MODE%"=="dev" (
 
     echo.
     echo ============================================
-    echo   Director Assistant — Production
+    echo   Director Assistant - Production
     echo   http://localhost:8000
     echo   Press Ctrl+C to stop
     echo ============================================
@@ -104,11 +104,11 @@ if /i NOT "%MODE%"=="dev" (
     start "" cmd /c "timeout /t 3 >nul && start http://localhost:8000"
 
     cd /d "%BACKEND%"
-    python -m uvicorn main:app --host 0.0.0.0 --port 8000
+    "%BACKEND%\.venv\Scripts\python.exe" -m uvicorn main:app --host 0.0.0.0 --port 8000
 
 ) else (
 
-    :: ── DEV MODE ────────────────────────────────────────────
+    :: -- DEV MODE --------------------------------------------
 
     :: Kill anything on port 8000
     for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":8000 "') do (
@@ -131,7 +131,7 @@ if /i NOT "%MODE%"=="dev" (
 
     echo.
     echo ============================================
-    echo   Director Assistant — Dev Mode
+    echo   Director Assistant - Dev Mode
     echo   Frontend: http://localhost:5173
     echo   Backend:  http://localhost:8000
     echo   Close this window to stop both
@@ -139,7 +139,8 @@ if /i NOT "%MODE%"=="dev" (
     echo.
 
     :: Start backend in a new window
-    start "Director Assistant - Backend" cmd /k "cd /d "%BACKEND%" && call .venv\Scripts\activate.bat && python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
+    :: /D sets the working directory so relative venv paths work without nested quotes
+    start "Director Assistant - Backend" /D "%BACKEND%" cmd /k "call .venv\Scripts\activate.bat && .venv\Scripts\python.exe -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
 
     :: Open browser after 4 seconds
     start "" cmd /c "timeout /t 4 >nul && start http://localhost:5173"
