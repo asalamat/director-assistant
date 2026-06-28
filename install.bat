@@ -133,7 +133,10 @@ set "FRONTEND=!INSTALL_DIR!\frontend"
 echo !INSTALL_DIR!> "!INSTALL_DIR!\source_repo.txt"
 
 :: ── 4. Python virtual environment + packages ─────────────────────
-echo [4/6] Installing Python packages ^(first run: 2-3 min^)...
+echo [4/6] Installing Python packages...
+echo        ^(First run downloads ~500 MB including PyTorch - this can take 5-15 min^)
+echo        ^(You will see each package being downloaded - it is NOT frozen^)
+echo.
 cd /d "!BACKEND!"
 if not exist ".venv\Scripts\activate.bat" (
     "!PYTHON_CMD!" -m venv .venv
@@ -143,8 +146,10 @@ if not exist ".venv\Scripts\activate.bat" (
         pause & exit /b 1
     )
 )
-call "!BACKEND!\.venv\Scripts\activate.bat"
-pip install -r "!BACKEND!\requirements.txt" --prefer-binary --quiet --disable-pip-version-check
+:: Upgrade pip first — old pip has slow wheel resolution on Windows
+"!BACKEND!\.venv\Scripts\python.exe" -m pip install --upgrade pip --quiet --disable-pip-version-check
+:: Use explicit venv pip path — more reliable than relying on activate.bat in cmd.exe
+"!BACKEND!\.venv\Scripts\pip.exe" install -r "!BACKEND!\requirements.txt" --prefer-binary --disable-pip-version-check
 if errorlevel 1 (
     echo.
     echo [ERROR] Package install failed.
