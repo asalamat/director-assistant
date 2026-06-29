@@ -137,13 +137,11 @@ def _get_linkedin_settings() -> dict:
 
 def _get_openai_key() -> str:
     cfg = load_app_config()
-    key = cfg.get("openai_api_key", "")
-    if key:
-        return key
+    # Check ai_providers first — it's the actively managed list and always up-to-date
     for p in cfg.get("ai_providers", []):
         if p.get("type") == "openai" and p.get("key"):
             return p["key"]
-    return ""
+    return cfg.get("openai_api_key", "")
 
 
 async def _ai_complete(request: Request, prompt: str, max_tokens: int = 800, system: str = "") -> str:
