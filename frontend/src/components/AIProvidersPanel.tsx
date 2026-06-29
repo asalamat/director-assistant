@@ -329,10 +329,19 @@ export function AIProvidersPanel() {
     const next = [...providers]
     next[editIdx] = { ...next[editIdx], ...form,
       key_preview: form.key ? form.key.slice(0, 4) + '…' : next[editIdx].key_preview }
-    if (form.key) setKeys(prev => ({ ...prev, [editIdx]: form.key }))
     setProviders(next)
     setEditIdx(null)
-    await saveAll()
+    // Build list directly with the new key — don't rely on setKeys async state update
+    const list: AIProviderSave[] = next.map((p, i) => ({
+      type: p.type,
+      label: p.label || p.type,
+      key: i === editIdx ? form.key : (keys[i] || ''),
+      enabled: p.enabled,
+      priority: i + 1,
+      base_url: p.base_url || '',
+      model_override: p.model_override || '',
+    }))
+    await saveAll(list)
   }
 
   if (loading) return <div className="flex justify-center py-8"><Spinner size="sm" /></div>
