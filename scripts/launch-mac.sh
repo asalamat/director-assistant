@@ -14,4 +14,10 @@ if [ ! -d "$INSTALL_DIR/backend/static" ]; then
   cp -r dist "$INSTALL_DIR/backend/static"
 fi
 
+# Install rumps if missing (needed for menu bar icon)
+if ! "$INSTALL_DIR/backend/.venv/bin/python" -c "import rumps" 2>/dev/null; then
+  echo "Installing rumps for menu bar support…"
+  "$INSTALL_DIR/backend/.venv/bin/pip" install rumps --quiet
+fi
+
 exec "$INSTALL_DIR/backend/.venv/bin/python" "$INSTALL_DIR/scripts/menubar.py" --open
