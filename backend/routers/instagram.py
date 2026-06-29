@@ -102,6 +102,7 @@ def _ensure_tables(cache):
 def _get_instagram_settings() -> dict:
     cfg = load_app_config()
     ig = cfg.get("instagram", {}) or {}
+    raw_key = ig.get("openai_key", "")
     return {
         "app_id": ig.get("app_id", ""),
         "app_secret": ig.get("app_secret", ""),
@@ -116,6 +117,7 @@ def _get_instagram_settings() -> dict:
         "ftp_pass": ig.get("ftp_pass", ""),
         "ftp_path": ig.get("ftp_path", ""),
         "ftp_public_url": ig.get("ftp_public_url", ""),
+        "openai_key_preview": (raw_key[:8] + "…") if raw_key else "",
     }
 
 
@@ -274,11 +276,15 @@ def _billing_msg(raw: str, provider: str, fix_url: str) -> str:
 
 def _get_openai_key() -> str:
     cfg = load_app_config()
-    # Check ai_providers first — it's the actively managed list and always up-to-date
+    # 1. Dedicated Instagram OpenAI key (set directly in Instagram settings — most specific)
+    ig_key = cfg.get("instagram", {}).get("openai_key", "")
+    if ig_key:
+        return ig_key
+    # 2. Active AI providers list
     for p in cfg.get("ai_providers", []):
         if p.get("type") == "openai" and p.get("key"):
             return p["key"]
-    # Fall back to legacy top-level field
+    # 3. Legacy top-level field
     return cfg.get("openai_api_key", "")
 
 
@@ -309,7 +315,8 @@ async def save_settings(body: dict, request: Request):
     ig = cfg.get("instagram", {}) or {}
     for key in ("app_id", "app_secret", "ig_login_app_id", "ig_login_app_secret",
                 "access_token", "ig_user_id", "image_model", "username",
-                "ftp_host", "ftp_user", "ftp_pass", "ftp_path", "ftp_public_url"):
+                "ftp_host", "ftp_user", "ftp_pass", "ftp_path", "ftp_public_url",
+                "openai_key"):
         if key in body and body[key] is not None:
             ig[key] = body[key]
     cfg["instagram"] = ig

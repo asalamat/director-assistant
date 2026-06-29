@@ -633,6 +633,8 @@ function InstagramSettingsPanel() {
   const [igLoginAppId, setIgLoginAppId] = useState('')
   const [igLoginAppSecret, setIgLoginAppSecret] = useState('')
   const [igUserId, setIgUserId] = useState('')
+  const [openaiKey, setOpenaiKey] = useState('')
+  const [openaiKeyPreview, setOpenaiKeyPreview] = useState('')
   const [imageModel, setImageModel] = useState('dall-e-3')
   const [ftpHost, setFtpHost] = useState('')
   const [ftpUser, setFtpUser] = useState('')
@@ -667,6 +669,7 @@ function InstagramSettingsPanel() {
         setIgLoginAppSecret(r.ig_login_app_secret || '')
         setIgUserId(r.ig_user_id || '')
         setImageModel(r.image_model || 'dall-e-3')
+        setOpenaiKeyPreview(r.openai_key_preview || '')
         setFtpHost(r.ftp_host || '')
         setFtpUser(r.ftp_user || '')
         setFtpPass(r.ftp_pass || '')
@@ -694,8 +697,9 @@ function InstagramSettingsPanel() {
   const testImageKey = async () => {
     setImgKeyTesting(true); setImgKeyResult(null)
     try {
+      const body = openaiKey ? JSON.stringify({ key: openaiKey }) : '{}'
       const r = await fetch('/api/instagram/test-image-key', { method: 'POST',
-        headers: { 'Content-Type': 'application/json' }, body: '{}' }).then(x => x.json())
+        headers: { 'Content-Type': 'application/json' }, body }).then(x => x.json())
       setImgKeyResult(r)
     } catch { setImgKeyResult({ ok: false }) }
     finally { setImgKeyTesting(false) }
@@ -713,7 +717,8 @@ function InstagramSettingsPanel() {
   const save = async () => {
     setSaving(true); setError('')
     try {
-      await api.saveInstagramSettings({ app_id: appId, app_secret: appSecret, ig_login_app_id: igLoginAppId, ig_login_app_secret: igLoginAppSecret, ig_user_id: igUserId, image_model: imageModel, ftp_host: ftpHost, ftp_user: ftpUser, ftp_pass: ftpPass, ftp_path: ftpPath, ftp_public_url: ftpPublicUrl, ...(manualToken ? { access_token: manualToken } : {}) } as any)
+      await api.saveInstagramSettings({ app_id: appId, app_secret: appSecret, ig_login_app_id: igLoginAppId, ig_login_app_secret: igLoginAppSecret, ig_user_id: igUserId, image_model: imageModel, ftp_host: ftpHost, ftp_user: ftpUser, ftp_pass: ftpPass, ftp_path: ftpPath, ftp_public_url: ftpPublicUrl, ...(openaiKey ? { openai_key: openaiKey } : {}), ...(manualToken ? { access_token: manualToken } : {}) } as any)
+      if (openaiKey) { setOpenaiKeyPreview(openaiKey.slice(0, 8) + '…'); setOpenaiKey('') }
       setSaved(true); setTimeout(() => setSaved(false), 2000)
     } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Save failed') }
     finally { setSaving(false) }
@@ -895,6 +900,17 @@ function InstagramSettingsPanel() {
           <p className="text-[11px] text-gray-400 mt-1">
             Auto-filled by Re-detect, or find manually: <span className="font-mono">developers.facebook.com/tools/explorer</span> → <span className="font-mono">GET /{'{page-id}'}?fields=instagram_business_account</span> → copy the <span className="font-mono">id</span>
           </p>
+        </div>
+        <div>
+          <label className="text-xs font-medium text-gray-600 block mb-1">OpenAI API Key <span className="font-normal text-gray-400">(for image generation)</span></label>
+          <input
+            type="password"
+            value={openaiKey}
+            onChange={e => setOpenaiKey(e.target.value)}
+            placeholder={openaiKeyPreview ? `Current: ${openaiKeyPreview} — paste new key to replace` : 'sk-…  paste your OpenAI key here'}
+            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent font-mono"
+          />
+          <p className="text-[11px] text-gray-400 mt-1">Get your key at platform.openai.com/api-keys — paste and click Save below.</p>
         </div>
         <div>
           <label className="text-xs font-medium text-gray-600 block mb-1">Image Model</label>
