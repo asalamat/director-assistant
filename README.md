@@ -2,7 +2,7 @@
 
 > **Your AI-powered executive email intelligence platform.** Connects to Gmail, Microsoft 365, Yahoo, or any IMAP mailbox and uses Claude AI to help you triage faster, never miss a commitment, and stay on top of every relationship that matters.
 
-**Current version: 3.52.10** · [Releases](https://github.com/asalamat/director-assistant/releases) · MIT License
+**Current version: 3.64.0** · [Releases](https://github.com/asalamat/director-assistant/releases) · MIT License
 
 ---
 
@@ -135,6 +135,46 @@ Everything runs **locally on your machine**. Your emails never leave your device
 - **Meeting Prep Brief** — click any calendar event in the Dashboard for an AI-generated agenda, talking points, and prior email context from all attendees
 - **Scheduled Send** — compose now, schedule delivery for any future date and time
 
+### New Features (v3.64.0 — 2026-07-02: Settings Redesign)
+- **⚙️ Settings 5-tab layout** — Settings now organized in 5 tabs: **AI · Email · Features · Integrations · General**
+- **Clear toggle status** — all toggles show **green (On) / red (Off)** so you can see at a glance what's enabled
+- **Daily News config moved to Features tab** — appears as the first card, prominent and easy to find
+
+### New Features (v3.63.0 — 2026-07-02: AI Model Upgrade)
+- **Default model → `claude-sonnet-4-6`** — upgraded across all features for higher-quality output
+- **Budget mode** still uses `claude-haiku` / `gpt-4o-mini` to save costs on routine tasks
+- **Consistent model behavior** across all service calls (advisor, classifier, digest, RAG, intelligence)
+
+### New Features (v3.62.0 — 2026-07-01: Daily News)
+- **📰 News tab** — AI-scored headlines for your configured topics
+- **Configurable topics** — set up to 10 topics in Settings → Features → Daily News
+- **DuckDuckGo News + AI scoring** — fetches via DuckDuckGo News; AI scores and summarizes each headline's relevance to your topics
+- **Auto-refresh** every 10 minutes, plus manual refresh
+- **No API key required** for news — just configure topics
+
+### New Features (v3.61.2 — 2026-07-01: Security Hardening)
+- **🔐 Encrypted at rest** — all usernames, passwords, OAuth tokens, and API keys now stored in the **macOS Keychain / Windows Credential Store**
+- **Localhost-only binding** — API server bound to `127.0.0.1` only (was `0.0.0.0`); no longer accessible from other devices on the network
+- **XSS sanitization** — DOMPurify applied to all HTML email rendering
+- **Zip Slip protection** on backup restore
+- **Request hardening** — 50 MB body size limit and security headers on all API endpoints
+- **Instagram secrets masked** in GET responses
+
+### New Features (v3.61.0 — 2026-07-01)
+- **🌤️ Weather in header** — set your location in Settings → App Settings → Weather (city search powered by Open-Meteo, free/no API key); a live temperature chip appears in the header showing current conditions; click it to toggle °C / °F instantly, hover for feels-like/humidity/wind; auto-refreshes every 15 minutes
+
+### New Features (v3.60.0 — 2026-06-30)
+- **🔔 Snooze & Set-Aside** — snooze emails to return at a chosen time (afternoon, tomorrow, next week, custom); Set Aside removes them from inbox with no wake time
+- **📝 Commitment Tracker** — AI extracts "you owe / they owe" promises from threads; two-column view in Intelligence with "Scan Recent" button
+- **🎯 AI Tone Coach** — real-time tone indicator while composing (good/warning/issue); one-click rewrites (Warmer, More Direct, More Formal, Shorter)
+- **🗣️ Voice-Matched Drafts** — learns your writing style from sent emails; "Use My Voice" toggle generates replies that sound like you
+- **🎤 Voice Dictation** — microphone button in compose to dictate emails via Whisper transcription
+- **📱 Unified Social Inbox** — read and reply to Instagram DMs/comments and LinkedIn comments in one stream; hit ↻ Sync to pull latest (note: requires elevated API permissions — Instagram needs `instagram_manage_comments` scope, LinkedIn needs Partner API access; if permissions are missing the app shows a direct link to each platform's notification page)
+- **🎙️ LinkedIn Voice Profiling** — learns your LinkedIn post style; "Use My Voice" toggle in post generator with Voice tab in Social settings
+- **⭐ Post Performance Scoring** — scores posts before publishing (length, hashtags, hook, timing) with tips to improve
+- **⌨️ Natural-Language Inbox Commands** — Cmd+K Command Palette with "Inbox Command" tab: type plain English like "Archive all newsletters from last week" with preview and undo support
+- **🎪 CRM Pipeline** — Kanban deal pipeline in Intelligence → CRM; auto-logs linked emails; stage-based view with AI Follow-Up drafts
+
 ### New Features (v3.52.x — 2026-06-24)
 - **📸 Instagram Post Wizard — 4-Step Redesign** — completely rebuilt Instagram post wizard: Step 1 picks a template (visual card grid, 6 built-ins + custom); Step 2 has a **"Your Description"** textarea plus **"Search the Web"** — enter a query, browse live news results, check specific results to include in your post; Step 3 handles image generation with style prompt, message-on-image text overlay, and "Also post to Story" toggle; Step 4 is the preview and publish screen with schedule picker
 - **🌐 Web Search for News** — search DuckDuckGo for real-time news inside the Instagram wizard; results show title, source, date, and snippet with checkboxes; checked results feed into the AI caption so posts reflect current events
@@ -245,6 +285,24 @@ Everything runs **locally on your machine**. Your emails never leave your device
 - **Task Export** — push action items directly to **Notion** (creates a page), **Jira** (creates a Task issue), or **Todoist** (creates a task with optional due date); "📤 Export" button on every action item once configured
 - **Scheduled Report Email** — configure a day/time (e.g. Monday 7:00 AM) and destination address; app generates and emails the weekly brief automatically; "Send now" button for instant test
 
+### Social
+- **Social Inbox** — unified view of LinkedIn + Instagram DMs in the Inbox
+- **LinkedIn Autopilot** — review queue for auto-generated posts with DALL-E images
+- **Card Studio** — branded 1080×1080 post card builder with 4 card types, AI captions, Pillow rendering
+- **Instagram Post Wizard** — 4-step wizard (template → description/web-search → image + text overlay → preview/publish) with autopilot scheduling and caption templates
+- **LinkedIn Post Wizard** — style-first image wizard with prompt template library, image model selector, and voice-matched drafts
+
+### Productivity
+- **CRM Pipeline** — Kanban-style deal tracker with stages, notes, estimated value
+- **Job Tracker** — Kanban board for job applications with status tracking
+- **Decision Tracker** — log decisions with rationale and outcome
+- **Escalation Radar** — flags emails/threads that need escalation
+- **Commitment Tracker** — extracts and tracks promises made in emails
+- **Daily News** — AI-scored headlines for configurable topics (see v3.62.0)
+- **Smart Agenda Builder** — Knowledge → Meetings → AI-generated agenda/notes/record
+- **Meeting Notes AI** — transcribe and summarize meeting notes
+- **Sprint Tracker** — sprint planning and velocity tracking
+
 ### Platform & Integration
 - **Multiple accounts** — Gmail (OAuth2 or App Password), Microsoft 365 / Hotmail (OAuth2), Yahoo, Office 365, or any IMAP server; all searched together in one view
 - **Gmail OAuth2** — sign in with Google in one click; no App Password required
@@ -304,6 +362,12 @@ Or double-click **Director Assistant.app** in `~/Applications`.
 2. Go to **Settings → Email Accounts → Add Account** → connect your mailbox
 3. Click **Ingest** to download and index your emails
 
+### macOS behavior
+
+- **Auto-update** — the app checks GitHub every 60 minutes; click the **"Install Update"** popup when a new version is available, or run `bash scripts/release.sh <version>` to build and release
+- **Menu bar** — Director Assistant appears in the macOS menu bar while running
+- **Dock badge** — your unread email count is shown in the Dock badge automatically
+
 ### Stop / Start manually
 
 ```bash
@@ -322,6 +386,14 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.director-assistant.a
 ## Install — Windows 10/11
 
 > **All-in-one installer** — `install.bat` automatically downloads **Python 3.12** and **Node.js 20 LTS** if they are not already installed. No admin rights required.
+
+### Windows quick reference
+
+- **Use Python 3.12** — not 3.13 or 3.14 (scipy/chromadb have no Windows wheels yet)
+- **Run `install.bat`** as Administrator, or from a non-system directory (**not** `C:\Windows\System32`)
+- **One-liner install:** `powershell -ExecutionPolicy Bypass -c "iwr https://raw.githubusercontent.com/asalamat/director-assistant/main/install.ps1 | iex"`
+- **Auto-update:** the in-app **"Install Update"** popup downloads the latest ZIP automatically from GitHub
+- **Manual update:** run `git pull` in the DirectorAssistant folder, then re-run `install.bat`
 
 **App location:** `%USERPROFILE%\DirectorAssistant`  
 **Logs:** `%TEMP%\director-assistant-update.log`  
