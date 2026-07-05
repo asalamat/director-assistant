@@ -8,7 +8,7 @@ import { ProjectsPanel } from './ProjectsPanel'
 import { PSTImport } from './PSTImport'
 import { BriefingTab, PeopleTab, LoopsTab, ProjectsTab, TimelineTab, EmbeddingMap, KnowledgeGraph } from './IntelligenceTabs'
 import { MeetingTab } from './intelligence/MeetingTab'
-import { CRMTab } from './intelligence/CRMTab'
+import { CRMPipeline } from './CRMPipeline'
 import { BoardReportTab } from './intelligence/BoardReportTab'
 import { CoachingTab } from './intelligence/CoachingTab'
 import { NudgesTab } from './intelligence/NudgesTab'
@@ -16,12 +16,16 @@ import { DecisionsTab } from './intelligence/DecisionsTab'
 import { StakeholderMap } from './intelligence/StakeholderMap'
 import { EscalationTab } from './intelligence/EscalationTab'
 import JobTracker from './JobTracker'
+import { CommitmentTracker } from './CommitmentTracker'
+import { NewsPanel } from './NewsPanel'
+import { MorningBriefTab } from './intelligence/MorningBriefTab'
 import { useUIContext } from '../contexts/UIContext'
 
-type SubTab = 'briefing' | 'people' | 'stakeholders' | 'loops' | 'nudges' | 'decisions' | 'escalations' | 'ai-projects' | 'timeline' | 'email-map' | 'kg' | 'weekly' | 'chase' | 'analytics' | 'templates' | 'projects' | 'pst' | 'meetings' | 'crm' | 'board' | 'coaching' | 'jobs'
+type SubTab = 'morning-brief' | 'briefing' | 'people' | 'stakeholders' | 'loops' | 'nudges' | 'decisions' | 'escalations' | 'ai-projects' | 'timeline' | 'email-map' | 'kg' | 'news' | 'weekly' | 'chase' | 'commitments' | 'analytics' | 'templates' | 'projects' | 'pst' | 'meetings' | 'crm' | 'board' | 'coaching' | 'jobs'
 
 const SUB_TABS: { id: SubTab; label: string; icon: string; group?: string }[] = [
   // Intelligence
+  { id: 'morning-brief', label: 'Morning Brief', icon: '☀️', group: 'intel' },
   { id: 'briefing',    label: 'Briefing',    icon: '🧭', group: 'intel' },
   { id: 'people',      label: 'People',      icon: '👥', group: 'intel' },
   { id: 'stakeholders', label: 'Influence',  icon: '🌐', group: 'intel' },
@@ -33,9 +37,11 @@ const SUB_TABS: { id: SubTab; label: string; icon: string; group?: string }[] = 
   { id: 'timeline',    label: 'Timeline',    icon: '📅', group: 'intel' },
   { id: 'email-map',   label: 'Email Map',   icon: '🗺', group: 'intel' },
   { id: 'kg',          label: 'Knowledge Graph', icon: '🕸', group: 'intel' },
+  { id: 'news',        label: 'News',        icon: '📰', group: 'intel' },
   // Tools
   { id: 'weekly',      label: 'Weekly Brief', icon: '📊', group: 'tools' },
   { id: 'chase',       label: 'Chase Queue',  icon: '⏰', group: 'tools' },
+  { id: 'commitments', label: 'Commitments',  icon: '🤝', group: 'tools' },
   { id: 'projects',    label: 'Projects',     icon: '📁', group: 'tools' },
   { id: 'meetings',    label: 'Meetings',     icon: '🎙', group: 'tools' },
   { id: 'crm',         label: 'CRM',          icon: '💼', group: 'tools' },
@@ -49,7 +55,7 @@ const SUB_TABS: { id: SubTab; label: string; icon: string; group?: string }[] = 
 
 export function IntelligencePanel() {
   const { openCompose } = useUIContext()
-  const [activeTab, setActiveTab] = useState<SubTab>('briefing')
+  const [activeTab, setActiveTab] = useState<SubTab>('morning-brief')
   const [timelineQuery, setTimelineQuery] = useState('')
   const [timelineIds, setTimelineIds] = useState<string[] | undefined>(undefined)
 
@@ -108,6 +114,7 @@ export function IntelligencePanel() {
 
       {/* Content area */}
       <div className="flex-1 overflow-hidden min-h-0">
+        {activeTab === 'morning-brief' && <div className="h-full overflow-y-auto"><MorningBriefTab /></div>}
         {activeTab === 'briefing'    && <div className="h-full overflow-y-auto min-h-0"><BriefingTab /></div>}
         {activeTab === 'people'      && <PeopleTab />}
         {activeTab === 'stakeholders' && <StakeholderMap onEmailContact={email => openCompose({ to: email })} />}
@@ -119,11 +126,13 @@ export function IntelligencePanel() {
         {activeTab === 'timeline'    && <TimelineTab initialQuery={timelineQuery} initialIds={timelineIds} />}
         {activeTab === 'email-map'   && <div className="h-full overflow-hidden"><EmbeddingMap onSearch={q => { setTimelineQuery(q); setActiveTab('timeline') }} /></div>}
         {activeTab === 'kg'          && <div className="h-full overflow-hidden"><KnowledgeGraph onSearchPerson={name => { setTimelineQuery(name); setActiveTab('timeline') }} /></div>}
+        {activeTab === 'news'        && <div className="h-full overflow-y-auto"><NewsPanel /></div>}
         {activeTab === 'weekly'      && <WeeklyBriefPanel />}
         {activeTab === 'chase'       && <ChaseQueue />}
+        {activeTab === 'commitments' && <div className="h-full overflow-y-auto p-4"><CommitmentTracker /></div>}
         {activeTab === 'projects'    && <ProjectsPanel />}
         {activeTab === 'meetings'    && <MeetingTab />}
-        {activeTab === 'crm'         && <CRMTab />}
+        {activeTab === 'crm'         && <CRMPipeline onDraft={d => openCompose({ to: d.to, subject: d.subject, body: d.body })} />}
         {activeTab === 'board'       && <BoardReportTab />}
         {activeTab === 'coaching'    && <CoachingTab />}
         {activeTab === 'jobs'        && <div className="h-full overflow-y-auto"><JobTracker /></div>}

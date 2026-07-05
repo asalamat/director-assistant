@@ -21,6 +21,7 @@ import { ContactGroupsPanel } from './components/ContactGroupsPanel'
 import { SocialPanel } from './components/social/SocialPanel'
 import { ShortcutHelp } from './components/ShortcutHelp'
 import { CommandPalette } from './components/CommandPalette'
+import { WeatherWidget } from './components/WeatherWidget'
 import { useRecommendation } from './hooks/useEmails'
 import { useEmailContext } from './contexts/EmailContext'
 import { useUIContext, type Tab } from './contexts/UIContext'
@@ -351,9 +352,9 @@ export default function App() {
     }
   }
 
-  const handleSnooze = async (emailId: string, wakeDate: string) => {
+  const handleSnooze = async (emailId: string, wakeDate?: string, setAside?: boolean) => {
     try {
-      await api.snoozeEmail(emailId, wakeDate)
+      await api.snoozeEmail(emailId, wakeDate, setAside)
       removeEmail(emailId)
       clearSelectedEmail()
       setTimeout(() => mergeRefresh(), 800)
@@ -509,6 +510,7 @@ export default function App() {
         </div>
 
         <div className="flex items-center gap-1">
+          <WeatherWidget />
           <button
             onClick={() => setShowCompose(true)}
             title="Compose new email (⌘N)"

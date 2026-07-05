@@ -362,6 +362,9 @@ export const api = {
   refreshNews(): Promise<NewsResponse> {
     return request('/news/refresh', { method: 'POST' })
   },
+  getMorningBrief(force?: boolean): Promise<import('../types').MorningBrief> {
+    return request(`/morning-brief${force ? '?force=true' : ''}`)
+  },
   summarizeNews(articles: { url: string; title: string; body: string }[]): Promise<{ summaries: { url: string; what: string; why: string; takeaway: string }[] }> {
     return request('/news/summarize', { method: 'POST', body: JSON.stringify({ articles }) })
   },

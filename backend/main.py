@@ -14,6 +14,8 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response as StarletteResponse
 from services.rag_engine import RAGEngine
 from services.ai_advisor import AIAdvisor
 from services.email_cache import EmailCache
@@ -64,6 +66,12 @@ from routers import jobs as jobs_router
 from routers import social as social_router
 from routers import instagram as instagram_router
 from routers import card_studio as card_studio_router
+from routers import nl_commands as nl_commands_router
+from routers import commitments as commitments_router
+from routers import social_inbox as social_inbox_router
+from routers import weather as weather_router
+from routers import news as news_router
+from routers.morning_brief import router as morning_brief_router
 from routers.proactive import push_alert
 from services.intelligence_service import IntelligenceService
 from workers.background_tasks import (
@@ -79,6 +87,36 @@ from routers.config import get_effective_api_key, load_app_config
 from services.ai_client import AIClient
 
 load_dotenv()
+
+MAX_BODY_BYTES = 50 * 1024 * 1024  # 50 MB
+
+
+class BodySizeLimitMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        cl = request.headers.get("content-length")
+        if cl and int(cl) > MAX_BODY_BYTES:
+            return StarletteResponse("Request body too large", status_code=413)
+        return await call_next(request)
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline'; "
+            "style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data: https:; "
+            "connect-src 'self'; "
+            "frame-ancestors 'none'; "
+            "object-src 'none'"
+        )
+        return response
+
 
 NEW_EMAIL_POLL_SECONDS = int(os.getenv("POLL_INTERVAL_SECONDS", "60"))
 POLL_RECENT_N = 20
@@ -346,6 +384,13 @@ async def _do_poll_cycle_inner(rag: RAGEngine, cache: EmailCache, app=None) -> t
                 except Exception:
                     pass
 
+    try:
+        woken = cache.wake_due_snoozed()
+        if woken:
+            print(f"[poll] woke {len(woken)} snoozed email(s)")
+    except Exception as e:
+        print(f"[poll] wake-due check failed: {e}")
+
     _last_poll_new = new_total
     _last_poll_error = "; ".join(errors) if errors else ""
     _last_poll_time = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -471,6 +516,11 @@ async def lifespan(app: FastAPI):
         providers=ai_providers,  # None = use legacy two-key mode
     )
     app.state.cache = EmailCache()
+    try:
+        from routers.snooze import _ensure_schema
+        _ensure_schema(app.state.cache)
+    except Exception:
+        pass
     app.state.rag = RAGEngine(client, app.state.cache)
     app.state.advisor = AIAdvisor(client, rag=app.state.rag)
     app.state.digest = DigestService(client)
@@ -518,6 +568,25 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Director Assistant API", lifespan=lifespan)
 
+
+@app.exception_handler(RuntimeError)
+async def ai_runtime_error_handler(request: Request, exc: RuntimeError):
+    """Convert AI provider failures to user-friendly HTTP errors instead of 500s."""
+    from fastapi.responses import JSONResponse
+    msg = str(exc).lower()
+    if "credit balance" in msg or "billing" in msg or "purchase credits" in msg:
+        return JSONResponse(
+            status_code=402,
+            content={"detail": "AI credits exhausted — please top up your Anthropic account at console.anthropic.com/settings/billing"},
+        )
+    if "all ai providers failed" in msg or "no ai provider" in msg or "no streaming-capable provider" in msg:
+        return JSONResponse(
+            status_code=503,
+            content={"detail": "AI service unavailable — check your API keys in Settings → AI Providers"},
+        )
+    raise exc
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://localhost:5173", "http://localhost:8000"],
@@ -525,6 +594,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.add_middleware(BodySizeLimitMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
 
 app.include_router(connection.router)
 app.include_router(email_list_router.router)
@@ -577,6 +649,12 @@ app.include_router(jobs_router.router)
 app.include_router(social_router.router)
 app.include_router(instagram_router.router)
 app.include_router(card_studio_router.router)
+app.include_router(nl_commands_router.router)
+app.include_router(commitments_router.router)
+app.include_router(social_inbox_router.router)
+app.include_router(weather_router.router)
+app.include_router(news_router.router)
+app.include_router(morning_brief_router)
 
 
 @app.get("/health")
