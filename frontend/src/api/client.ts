@@ -12,12 +12,23 @@ import type {
   AnalyticsResponse,
   Account,
   AppConfig,
+  WeatherResult,
+  WeatherData,
+  NewsResponse,
   AskHistoryEntry,
   EmailThread,
   AIProvider,
   AIProviderSave,
   ForgotReplyEmail,
   SprintEmail,
+  ToneReport,
+  RewriteOption,
+  SnoozeEntry,
+  SocialMessage,
+  PostScore,
+  LinkedInVoiceProfile,
+  CRMDeal,
+  CRMDealEmail,
 } from '../types'
 
 const BASE = '/api'
@@ -211,8 +222,20 @@ export const api = {
   },
 
   // Snooze
-  snoozeEmail(emailId: string, wakeDate: string): Promise<void> {
-    return request(`/snooze/${encodeURIComponent(emailId)}`, { method: 'POST', body: JSON.stringify({ wake_date: wakeDate }) })
+  snoozeEmail(emailId: string, wakeDate?: string, setAside?: boolean): Promise<{ ok: boolean }> {
+    return request(`/snooze/${encodeURIComponent(emailId)}`, {
+      method: 'POST',
+      body: JSON.stringify({ wake_date: wakeDate ?? null, set_aside: setAside ?? false }),
+    })
+  },
+  listSnoozed(): Promise<{ snoozed: SnoozeEntry[] }> {
+    return request('/snooze')
+  },
+  listSetAside(): Promise<{ emails: SnoozeEntry[] }> {
+    return request('/snooze/set-aside')
+  },
+  wakeSnoozesDue(): Promise<{ woken: string[] }> {
+    return request('/snooze/wake-due', { method: 'POST' })
   },
   sprintTriage(limit?: number): Promise<{
     buckets: {
@@ -225,7 +248,7 @@ export const api = {
   }> {
     return request('/triage/sprint', { method: 'POST', body: JSON.stringify({ limit: limit ?? 60 }) })
   },
-  unsnoozeEmail(emailId: string): Promise<void> {
+  unsnoozeEmail(emailId: string): Promise<{ ok: boolean }> {
     return request(`/snooze/${encodeURIComponent(emailId)}`, { method: 'DELETE' })
   },
 
@@ -327,6 +350,21 @@ export const api = {
   testApiKey(key: string): Promise<{ valid: boolean; model?: string; error?: string }> {
     return request('/config/test-key', { method: 'POST', body: JSON.stringify({ anthropic_api_key: key }) })
   },
+  searchWeatherLocation(q: string): Promise<{ results: WeatherResult[] }> {
+    return request(`/weather/search?q=${encodeURIComponent(q)}`)
+  },
+  getWeather(): Promise<WeatherData> {
+    return request('/weather')
+  },
+  getNews(force?: boolean): Promise<NewsResponse> {
+    return request(`/news${force ? '?force=true' : ''}`)
+  },
+  refreshNews(): Promise<NewsResponse> {
+    return request('/news/refresh', { method: 'POST' })
+  },
+  summarizeNews(articles: { url: string; title: string; body: string }[]): Promise<{ summaries: { url: string; what: string; why: string; takeaway: string }[] }> {
+    return request('/news/summarize', { method: 'POST', body: JSON.stringify({ articles }) })
+  },
   testOpenAIKey(key: string): Promise<{ valid: boolean; model?: string; error?: string }> {
     return request('/config/test-openai-key', { method: 'POST', body: JSON.stringify({ openai_api_key: key }) })
   },
@@ -340,6 +378,9 @@ export const api = {
   },
   testProvider(p: { type: string; key: string; base_url?: string; model?: string }): Promise<{ valid: boolean; model?: string; provider?: string; error?: string }> {
     return request('/config/providers/test', { method: 'POST', body: JSON.stringify(p) })
+  },
+  getProviderStatuses(): Promise<{ statuses: { index: number; type: string; label: string; status: string; detail: string; balance: string | null; billing_url: string }[] }> {
+    return request('/config/providers/status')
   },
 
   // Accounts
@@ -605,6 +646,17 @@ export const api = {
     return request(`/emails/${encodeURIComponent(emailId)}/smart-draft`, { method: 'POST' })
   },
 
+  // Voice-Matched Auto-Drafts
+  learnWritingStyle(sampleCount = 50): Promise<{ style: import('../types').StyleProfile; samples_used: number }> {
+    return request('/drafts/learn-style', { method: 'POST', body: JSON.stringify({ account_id: 0, sample_count: sampleCount }) })
+  },
+  getStyleProfile(): Promise<{ style: import('../types').StyleProfile | null; computed_at: string | null; sample_count: number }> {
+    return request('/drafts/style-profile?account_id=0')
+  },
+  generateVoiceDraft(emailId: string, context?: string): Promise<{ draft: string; subject: string; to: string; style_applied: boolean }> {
+    return request('/drafts/voice-draft', { method: 'POST', body: JSON.stringify({ email_id: emailId, context: context || null, account_id: 0 }) })
+  },
+
   summarizeThread(emailId: string): Promise<{ summary: string; key_points: string[]; outcome: string; participants: string[]; message_count: number }> {
     return request(`/emails/${encodeURIComponent(emailId)}/summarize-thread`, { method: 'POST' })
   },
@@ -621,6 +673,29 @@ export const api = {
 
   detectSentCommitments(): Promise<{ detected: { email_id: string; subject: string; date: string; commitments: string[] }[]; scanned: number }> {
     return request('/actions/detect-from-sent', { method: 'POST' })
+  },
+
+  // Commitment Tracker
+  getCommitments(params?: { direction?: 'i_owe' | 'they_owe'; status?: 'open' | 'fulfilled' | 'expired' }): Promise<{ commitments: import('../types').Commitment[] }> {
+    const qs = new URLSearchParams()
+    if (params?.direction) qs.set('direction', params.direction)
+    if (params?.status) qs.set('status', params.status)
+    const q = qs.toString()
+    return request(`/commitments${q ? '?' + q : ''}`)
+  },
+  scanCommitmentsBulk(days = 7): Promise<{ scanned: number; found: number }> {
+    return request('/commitments/scan-bulk', { method: 'POST', body: JSON.stringify({ days }) })
+  },
+  fulfillCommitment(id: number, status: 'open' | 'fulfilled' | 'expired'): Promise<{ ok: boolean; status: string }> {
+    return request(`/commitments/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) })
+  },
+
+  // Voice dictation — transcribe recorded audio
+  transcribeAudio(blob: Blob, filename: string): Promise<{ transcript: string; cleaned: string; duration_hint?: string }> {
+    const form = new FormData()
+    form.append('audio', blob, filename)
+    return fetch(`${BASE}/voice/transcribe`, { method: 'POST', body: form })
+      .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(new Error(e.detail || 'Transcription failed'))))
   },
 
   draftFromActionItem(itemId: number): Promise<{ to: string; subject: string; body: string }> {
@@ -746,6 +821,14 @@ export const api = {
   // Tone adjuster
   adjustTone(text: string, tone: 'formal' | 'casual' | 'shorter' | 'friendlier' | 'direct' | 'improve'): Promise<{ result: string }> {
     return request('/emails/adjust-tone', { method: 'POST', body: JSON.stringify({ text, tone }) })
+  },
+
+  // Tone Coach
+  analyzeTone(text: string): Promise<ToneReport> {
+    return request('/emails/analyze-tone', { method: 'POST', body: JSON.stringify({ text }) })
+  },
+  getRewriteOptions(text: string, tones: string[]): Promise<{ rewrites: RewriteOption[] }> {
+    return request('/emails/rewrite-options', { method: 'POST', body: JSON.stringify({ text, tones }) })
   },
 
   // Email translation
@@ -1035,6 +1118,65 @@ export const api = {
   },
   getCRMDealHistory(id: number): Promise<{ history: { from_stage: string; to_stage: string; changed_at: string; note: string }[] }> {
     return request(`/crm/deals/${id}/history`)
+  },
+  getCRMKanban(): Promise<{ columns: { stage: string; deals: CRMDeal[] }[] }> {
+    return request('/crm/pipeline/kanban')
+  },
+  getCRMDealEmails(id: number): Promise<{ emails: CRMDealEmail[] }> {
+    return request(`/crm/deals/${id}/emails`)
+  },
+  linkEmailToDeal(dealId: number, emailId: string, direction: string): Promise<{ linked: boolean }> {
+    return request(`/crm/deals/${dealId}/emails`, {
+      method: 'POST',
+      body: JSON.stringify({ email_id: emailId, direction }),
+    })
+  },
+  unlinkDealEmail(dealId: number, emailId: string): Promise<{ unlinked: boolean }> {
+    return request(`/crm/deals/${dealId}/emails/${encodeURIComponent(emailId)}`, { method: 'DELETE' })
+  },
+  draftCRMFollowup(id: number): Promise<{ to: string; subject: string; body: string }> {
+    return request(`/crm/deals/${id}/followup-draft`, { method: 'POST' })
+  },
+
+  // Social Inbox
+  getSocialInbox(params?: { platform?: string; type?: string; unread?: boolean }): Promise<{ messages: SocialMessage[]; total: number }> {
+    const q = new URLSearchParams()
+    if (params?.platform) q.set('platform', params.platform)
+    if (params?.type) q.set('type', params.type)
+    if (params?.unread) q.set('unread', 'true')
+    const qs = q.toString()
+    return request(`/social/inbox${qs ? `?${qs}` : ''}`)
+  },
+  replySocialMessage(id: string, text: string): Promise<{ ok: boolean; reply_id?: string; error?: string }> {
+    return request(`/social/inbox/${encodeURIComponent(id)}/reply`, {
+      method: 'POST',
+      body: JSON.stringify({ text }),
+    })
+  },
+  markSocialRead(id: string): Promise<{ ok: boolean }> {
+    return request(`/social/inbox/${encodeURIComponent(id)}/read`, { method: 'POST' })
+  },
+  syncSocialInbox(platform: string): Promise<{ fetched: number; error?: string; hint?: string }> {
+    return request('/social/inbox/sync', { method: 'POST', body: JSON.stringify({ platform }) })
+  },
+  getSocialUnreadCount(): Promise<{ instagram: number; linkedin: number }> {
+    return request('/social/inbox/unread-count')
+  },
+
+  // Post performance scoring
+  scoreLinkedInPost(data: { post_text: string; hashtags: string[]; scheduled_at?: string }): Promise<PostScore> {
+    return request('/social/linkedin/score-post', { method: 'POST', body: JSON.stringify(data) })
+  },
+  scoreInstagramPost(data: { caption: string; hashtags: string[]; scheduled_at?: string }): Promise<PostScore> {
+    return request('/instagram/score-post', { method: 'POST', body: JSON.stringify(data) })
+  },
+
+  // LinkedIn voice profile
+  learnLinkedInVoice(): Promise<{ profile: LinkedInVoiceProfile | null; posts_analyzed: number; error?: string }> {
+    return request('/social/linkedin/learn-voice', { method: 'POST', body: JSON.stringify({}) })
+  },
+  getLinkedInVoiceProfile(): Promise<{ profile: LinkedInVoiceProfile | null; computed_at: string | null }> {
+    return request('/social/linkedin/voice-profile')
   },
 
   // Backup & Restore
@@ -1336,4 +1478,40 @@ export const api = {
   deleteInstagramTemplate(id: string): Promise<void> {
     return request(`/instagram/templates/${id}`, { method: 'DELETE' })
   },
+
+  // Natural-language inbox commands
+  parseNLCommand(command: string): Promise<NLCommandPreview> {
+    return request('/emails/nl-command/parse', {
+      method: 'POST',
+      body: JSON.stringify({ command }),
+    })
+  },
+  executeNLCommand(commandId: number): Promise<{ executed: number; action: string; email_ids: string[] }> {
+    return request('/emails/nl-command/execute', {
+      method: 'POST',
+      body: JSON.stringify({ command_id: commandId }),
+    })
+  },
+  undoNLCommand(commandId: number): Promise<{ undone: number; message: string }> {
+    return request('/emails/nl-command/undo', {
+      method: 'POST',
+      body: JSON.stringify({ command_id: commandId }),
+    })
+  },
+}
+
+export interface NLCommandPreviewEmail {
+  id: string
+  subject: string
+  sender: string
+  date: string | null
+}
+
+export interface NLCommandPreview {
+  action: string
+  filters: Record<string, unknown>
+  preview: NLCommandPreviewEmail[]
+  count: number
+  safe: boolean
+  command_id: number
 }
