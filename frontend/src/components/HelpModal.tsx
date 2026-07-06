@@ -702,13 +702,13 @@ function KnowledgeSection() {
       <H3>Role Transition Briefing</H3>
       <P>Click <strong>"Brief me on this role"</strong> in the Briefing tab to generate an AI-powered executive summary of your entire email history: key relationships, active projects, open commitments, and a 3-paragraph executive narrative with recommended first-week actions. Scans up to 300 recent emails. Takes 30–60 seconds the first time; cached for 10 minutes and auto-runs once per day.</P>
 
-      <H3>Relationship Nudges <Tag color="green">New</Tag></H3>
+      <H3>Relationship Nudges</H3>
       <P>Go to <strong>Knowledge → Nudges</strong> to see contacts you haven't reached out to recently. The engine checks your VIP contacts and top frequent senders, finds who has gone silent, and surfaces them as nudge cards.</P>
       <UL>
         <Li>Threshold selector at the top: <strong>14d / 21d / 30d</strong> — contacts quiet for longer than this appear</Li>
         <Li>Each card shows: name, days since last contact (amber 14–30d, red 30d+), last subject, VIP badge if applicable</Li>
         <Li><strong>Email now</strong> — opens Compose pre-addressed to that contact</Li>
-        <Li><strong>Dismiss</strong> — hides the nudge for this session (no API call — reappears next visit)</Li>
+        <Li><strong>Dismiss</strong> — click to pick a snooze duration: <strong>7 days / 30 days / 90 days</strong>. The dismissal is saved to the database and persists across restarts — the contact won't reappear until the snooze expires</Li>
       </UL>
       <Note>No AI cost — Nudges are computed from your email history in pure SQL, so they load instantly.</Note>
 
