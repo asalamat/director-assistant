@@ -660,11 +660,12 @@ function KnowledgeSection() {
       <H3>AI Clusters</H3>
       <P>AI automatically groups your emails into 6–12 topic clusters representing ongoing projects or recurring threads. Click <strong>"✦ Generate Clusters"</strong> to run — no briefing required. Each cluster card shows:</P>
       <UL>
-        <Li>Status: Active / Dormant / Resolved</Li>
+        <Li>Status badge: <strong>Active</strong> / <strong>Dormant</strong> / <strong>Resolved</strong></Li>
         <Li>Email count and last activity date</Li>
         <Li>Top keywords</Li>
+        <Li><strong>Disable / Enable button</strong> — click to deactivate a cluster per-item. Disabled clusters are hidden from all views and shown only under the <strong>"Disabled (N)"</strong> filter pill. Click <strong>Enable</strong> to restore. Status is persisted across restarts.</Li>
       </UL>
-      <P>Click <strong>↺ Regenerate</strong> to rebuild after new emails arrive. Click any cluster card to jump to its <strong>Timeline</strong> view showing all related emails in chronological order. On job-related clusters, a <strong>"🎯 Interview Prep"</strong> button appears — click it to generate a one-click prep brief from the emails in that cluster.</P>
+      <P>Filter bar: <strong>All · Active · Dormant · Resolved · Disabled</strong>. Click <strong>↺ Regenerate</strong> to rebuild after new emails arrive. Click any (non-disabled) cluster card to jump to its <strong>Timeline</strong> view. On job-related clusters, a <strong>"🎯 Interview Prep"</strong> button appears.</P>
 
       <H3>Email Cluster Map</H3>
       <P>Intelligence → 📍 Email Map — a 2D scatter plot of up to 1500 indexed emails projected by semantic similarity (PCA). Emails with similar content cluster together.</P>
@@ -1280,9 +1281,10 @@ function IntegrationsSection() {
       <P>Get the weekly brief delivered to your inbox automatically.</P>
       <UL>
         <Li>Toggle <strong>Enable</strong>, pick a <strong>day and time</strong> (e.g. Monday 7:00 AM), and enter your email address</Li>
-        <Li>The app generates the brief and emails it at the scheduled time using your connected email account</Li>
-        <Li>Click <strong>Send now</strong> to test immediately without waiting for the schedule</Li>
+        <Li>The app sends via your connected account — IMAP/SMTP (App Password) or Gmail OAuth are both supported</Li>
+        <Li>Click <strong>📬 Send now</strong> to test delivery immediately</Li>
       </UL>
+      <Note>This is a <strong>weekly</strong> email, not daily. For a daily email, use the <strong>Daily Focus</strong> feature (Settings → App Settings).</Note>
     </div>
   )
 }
