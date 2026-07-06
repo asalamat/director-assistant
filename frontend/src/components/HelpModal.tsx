@@ -3,13 +3,15 @@ import pkgJson from '../../package.json'
 
 interface Props { onClose: () => void }
 
-type Section = 'start' | 'inbox' | 'compose' | 'ai' | 'executive' | 'social' | 'contacts' | 'projects' | 'knowledge' | 'dashboard' | 'import' | 'providers' | 'integrations' | 'tips'
+type Section = 'start' | 'settings' | 'inbox' | 'compose' | 'ai' | 'news' | 'executive' | 'social' | 'contacts' | 'projects' | 'knowledge' | 'dashboard' | 'import' | 'providers' | 'integrations' | 'tips'
 
 const SECTIONS: { id: Section; icon: string; label: string }[] = [
   { id: 'start',     icon: '🚀', label: 'Getting Started' },
+  { id: 'settings',  icon: '⚙️', label: 'Settings' },
   { id: 'inbox',     icon: '📥', label: 'Inbox & Email' },
   { id: 'compose',   icon: '✏️', label: 'Composing' },
   { id: 'ai',        icon: '✦',  label: 'AI Features' },
+  { id: 'news',      icon: '📰', label: 'Daily News' },
   { id: 'executive', icon: '📊', label: 'Executive Tools' },
   { id: 'social',    icon: '💼', label: 'Social Media' },
   { id: 'contacts',  icon: '⭐', label: 'VIP & Contacts' },
@@ -94,6 +96,7 @@ function GettingStarted() {
       <Step n={2}>Paste your <strong>Anthropic API key</strong> (get one free at <em>console.anthropic.com</em>) or an OpenAI key.</Step>
       <Step n={3}>Click <strong>Save</strong>. The key is stored locally on your device and never shared.</Step>
       <Tip>Use Anthropic Claude for best results. OpenAI is the automatic fallback if Claude is unavailable.</Tip>
+      <Note><strong>Your credentials are safe.</strong> All passwords and API keys are stored in the <strong>macOS Keychain</strong> / <strong>Windows Credential Store</strong> — never in plain text. Once an account or key is saved and working, it is encrypted and persists across restarts.</Note>
 
       <H3>Step 2 — Connect your email account</H3>
       <Step n={1}>Go to <strong>Settings → Email Accounts → Add Account</strong>.</Step>
@@ -115,6 +118,86 @@ function GettingStarted() {
         <Li><strong>Weekly</strong> — generate your first weekly executive brief</Li>
         <Li><strong>Ask</strong> — ask a natural-language question about your email history</Li>
       </UL>
+    </div>
+  )
+}
+
+function SettingsSection() {
+  return (
+    <div>
+      <H2>Settings</H2>
+      <P>Open <strong>Settings</strong> from the gear icon (top right). Settings are organised into <strong>five tabs</strong>:</P>
+
+      <H3>✦ AI tab</H3>
+      <UL>
+        <Li><strong>AI Providers</strong> — add up to 7 providers (Claude, GPT, Groq, Gemini, Ollama, Kimi, custom). Set a priority order for automatic failover — see the <strong>AI Providers</strong> help section.</Li>
+        <Li><strong>Budget Mode toggle</strong> — <Tag color="green">green = On</Tag> uses the cheapest model per provider (haiku / gpt-4o-mini / llama-8b) to save token costs; <Tag color="orange">red = Off</Tag> uses full-quality models (sonnet-4-6 / gpt-4o) for best results.</Li>
+      </UL>
+
+      <H3>📥 Email tab</H3>
+      <UL>
+        <Li><strong>Auto-check interval</strong> — how often the app polls for new mail (30 s to 10 min)</Li>
+        <Li><strong>Sync window</strong> — how far back to download emails (1 day up to Unlimited). Re-run Ingest after changing.</Li>
+        <Li><strong>Provider setup guides</strong> — step-by-step help for Gmail, Microsoft 365, Yahoo, and IMAP accounts</Li>
+      </UL>
+
+      <H3>⭐ Features tab</H3>
+      <UL>
+        <Li><strong>Daily News</strong> (top card, blue border) — enable and enter topics; see the <strong>Daily News</strong> help section</Li>
+        <Li><strong>Weather</strong> — search your city for the header weather chip (°C/°F toggle)</Li>
+        <Li><strong>Scheduled Digest</strong> — email yourself the weekly brief on a chosen day/time</Li>
+        <Li><strong>ElevenLabs TTS</strong> — add an ElevenLabs key and pick a voice for high-quality text-to-speech</Li>
+      </UL>
+
+      <H3>🔗 Integrations tab</H3>
+      <UL>
+        <Li><strong>Microsoft OAuth</strong> — one-click auto-setup via Azure CLI (or paste app credentials manually)</Li>
+        <Li><strong>Google OAuth</strong> — connect Gmail and Google Calendar</Li>
+        <Li>Slack, Teams, Webhooks, task export (Notion/Jira/Todoist) — see the <strong>Integrations</strong> help section</Li>
+      </UL>
+
+      <H3>⚙️ General tab</H3>
+      <UL>
+        <Li><strong>Translation language</strong> — default target language for inline email translation</Li>
+        <Li><strong>Canned Responses / Snippets</strong> — reusable text blocks you can drop into any reply</Li>
+      </UL>
+      <Note>All keys and passwords entered in any tab are stored in the OS keychain (macOS Keychain / Windows Credential Store), never in plain text.</Note>
+    </div>
+  )
+}
+
+function NewsSection() {
+  return (
+    <div>
+      <H2>Daily News</H2>
+      <P>Get AI-curated headlines on the topics you care about. News lives inside <strong>Knowledge → Intelligence → 📰 News</strong> (the last sub-tab in the intelligence group) — only articles from the <strong>last 24 hours</strong> are shown.</P>
+
+      <H3>Set it up</H3>
+      <Step n={1}>Open <strong>Settings → ⭐ Features → Daily News</strong> (the top card, with a blue border).</Step>
+      <Step n={2}>Turn on the <strong>Enable</strong> toggle (<Tag color="green">green = On</Tag>).</Step>
+      <Step n={3}>Enter your <strong>topics</strong>, comma-separated — up to 10 (e.g. <em>"AI, finance, Toronto, cybersecurity"</em>). Click <strong>Save</strong>.</Step>
+
+      <H3>Reading the news</H3>
+      <UL>
+        <Li>Headlines appear in <strong>Knowledge → Intelligence → 📰 News</strong> — refreshed automatically every 10 minutes</Li>
+        <Li>Only articles published in the <strong>last 24 hours</strong> are shown — always fresh, never stale</Li>
+        <Li>AI scores each article for relevance to your topics (<strong>0–100</strong>) and writes a <strong>1-sentence summary</strong> so you can skim quickly</Li>
+        <Li>Click any headline to open the full article in your browser</Li>
+      </UL>
+
+      <H3>AI Summarize <Tag color="green">New</Tag></H3>
+      <P>Select one or more articles and get a structured AI breakdown of each:</P>
+      <UL>
+        <Li>Check the checkbox on any article card (or use <strong>Select all</strong> in the toolbar)</Li>
+        <Li>Click <strong>"✦ Summarize N articles"</strong> in the selection toolbar</Li>
+        <Li>Each selected article expands a colour-coded <strong>AI Breakdown</strong> panel with three rows:</Li>
+      </UL>
+      <div className="mb-4">
+        <FeatureRow label="🔵 What" desc="A plain-language explanation of what happened — the core facts." />
+        <FeatureRow label="🟡 Why it matters" desc="The broader significance — why this is relevant to you or your industry." />
+        <FeatureRow label="🟢 Takeaway" desc="One actionable insight — what to watch or do as a result." />
+      </div>
+      <Tip>Keep topics specific — "Toronto tech startups" surfaces more relevant stories than a broad word like "news".</Tip>
     </div>
   )
 }
@@ -152,7 +235,7 @@ function InboxEmail() {
         <FeatureRow label="Translate" desc="Translate the email body inline with automatic language detection. 20 languages supported." />
         <FeatureRow label="Summarize thread" desc="Click ✦ Summarize thread to distill any email chain into a structured result — summary, key bullet points, next-step outcome, and participant list. Cached per thread, so re-opening is instant." />
         <FeatureRow label="Project linker" desc="Click the Project button to link this email to any of your named projects." />
-        <FeatureRow label="Snooze" desc="Hide an email until a date you choose — it reappears automatically." />
+        <FeatureRow label="Snooze & Set-Aside" desc="Snooze hides an email until a date/time (today afternoon, tomorrow, next week, custom) and reappears automatically in sidebar. Set Aside removes from inbox with no wake time." />
         <FeatureRow label="Remind me" desc="Set a follow-up reminder for tomorrow, in 3 days, or in a week." />
         <FeatureRow label="Create event" desc="Opens an inline calendar event form pre-filled from the email; creates in Microsoft Calendar." />
         <FeatureRow label="Unsubscribe" desc="Newsletters and bulk mail are auto-detected via List-Unsubscribe headers and in-body links. An 'Unsub' button appears — click to open the unsubscribe page, or for mailto: targets the app sends the unsubscribe email for you over SMTP." />
@@ -171,6 +254,7 @@ function InboxEmail() {
       <H3>Email Rules & Filters</H3>
       <P>Go to <strong>Settings → 🛡️ Rules &amp; Filters</strong> to create rules that auto-label, archive, mark-read, or delete emails by sender, subject, or body. Rules run automatically as new mail arrives, and you can apply them to your existing inbox any time with <strong>▶ Run Now</strong>.</P>
       <div className="mb-4">
+        <FeatureRow label="✨ Plain-English Rules" desc="Type a description like 'Move LinkedIn notifications to archive' or 'Flag emails from my board as urgent' and click Generate. AI proposes one or more structured rules — review each, then Save or dismiss." />
         <FeatureRow label="🔍 Preview" desc="Before saving a new rule, click Preview to see exactly how many emails it would affect — with up to 3 sample subjects. Nothing is changed, so you can safely tune the field, condition, and value first." />
         <FeatureRow label="Last-run status" desc="Each panel shows 'Last run: X ago — labeled N, archived N, marked read N, deleted N', updated after every manual Run Now and every automatic background pass — so you always know when rules last fired and what they did." />
         <FeatureRow label="🚫 Quick rule" desc="Click '🚫 Rule' in the email toolbar to create a rule pre-filled from that email's sender or subject — choose delete / archive / mark read and save in one step." />
@@ -189,8 +273,21 @@ function CompositionSection() {
         <Li>Click <strong>CC/BCC</strong> in the compose window to reveal CC and BCC fields — enter comma-separated addresses</Li>
         <Li>Click <strong>↪ Forward</strong> in the email header toolbar to forward any email — compose opens pre-filled with the quoted original</Li>
       </UL>
-      <H3>Voice Dictation</H3>
-      <P>Click <strong>Dictate</strong> in the compose toolbar (mic icon) to speak your reply. Whisper transcribes it and appends the text to the reply body. Requires an OpenAI API key in Settings.</P>
+
+      <H3>AI Tone Coach <Tag color="green">New</Tag></H3>
+      <P>Real-time tone analysis as you compose. A tone indicator shows status (✓ good / ⚠ warning / ✕ issue). Below it are one-click rewrites to adjust your tone:</P>
+      <UL>
+        <Li><strong>Warmer</strong> — soften the message, add friendliness</Li>
+        <Li><strong>More Direct</strong> — cut to the point, remove unnecessary words</Li>
+        <Li><strong>More Formal</strong> — professional, business-appropriate language</Li>
+        <Li><strong>Shorter</strong> — reduce verbosity, tighten each sentence</Li>
+      </UL>
+
+      <H3>Voice-Matched Drafts <Tag color="green">New</Tag></H3>
+      <P>When replying to an email, a <strong>"Use My Voice"</strong> toggle learns from your past sent emails and generates replies that sound like you. Configure in <strong>Settings → App Settings</strong>.</P>
+
+      <H3>Voice Dictation <Tag color="green">New</Tag></H3>
+      <P>Click the <strong>Dictate</strong> button (mic icon) in the compose toolbar to speak your reply. OpenAI Whisper transcribes it automatically and appends the text to the reply body. Requires an OpenAI API key in Settings.</P>
     </div>
   )
 }
@@ -252,6 +349,24 @@ function AISection() {
 
       <H3>Budget Mode</H3>
       <P>Enable <strong>Budget Mode</strong> in App Settings to use Claude Haiku for routine tasks, keeping Sonnet for complex analysis. Reduces API costs by 10–20× while maintaining full capability.</P>
+
+      <H3>Weather <Tag color="green">New</Tag></H3>
+      <P>A live weather chip appears in the header showing the current temperature and conditions for your location. Set it up in <strong>Settings → App Settings → 🌤️ Weather</strong>:</P>
+      <UL>
+        <Li><strong>Search your city</strong> — type a city name and pick from the results (powered by Open-Meteo — free, no API key)</Li>
+        <Li><strong>°C / °F toggle</strong> — choose your preferred unit in Settings, or click the header chip any time to switch instantly</Li>
+        <Li><strong>Hover the chip</strong> — see feels-like temperature, humidity, and wind speed</Li>
+        <Li>Refreshes automatically every 15 minutes</Li>
+      </UL>
+
+      <H3>Commitment Tracker <Tag color="green">New</Tag></H3>
+      <P>AI automatically extracts "you owe / they owe" promises from your email threads. Access via <strong>Intelligence → Commitment Tracker</strong>:</P>
+      <UL>
+        <Li><strong>Two-column view</strong> — left shows commitments you made, right shows commitments others made to you</Li>
+        <Li><strong>Scan Recent</strong> — click to re-scan your recent emails and extract new commitments</Li>
+        <Li><strong>Mark Done</strong> — click the ✓ button when you've fulfilled a commitment or received what was promised</Li>
+        <Li>Each commitment shows the contact, the promise, and the email thread link</Li>
+      </UL>
     </div>
   )
 }
@@ -452,10 +567,52 @@ function KnowledgeSection() {
       <H3>Navigation</H3>
       <P>The Knowledge tab has a <strong>left mini-sidebar</strong> with two groups of sub-sections — all visible at once with no scrolling:</P>
       <div className="mb-4">
-        <FeatureRow label="Intelligence group" desc="Role Briefing · People Graph · Open Loops · AI Clusters · Topic Timeline" />
+        <FeatureRow label="Intelligence group" desc="☀️ Morning Brief · 📅 Calendar · ❤️ Rel. Health · 📰 News · Role Briefing · People Graph · Open Loops · AI Clusters · Topic Timeline" />
         <FeatureRow label="Tools group" desc="Weekly Brief · Chase Queue · Projects · Analytics · Templates · Import PST/OLM" />
       </div>
       <P>Click any item in the left sidebar to switch sections. The active section is highlighted with a blue left border.</P>
+
+      <H3>☀️ Morning Brief <Tag color="green">New</Tag></H3>
+      <P>Opens by default when you go to Knowledge. Click <strong>Generate Brief</strong> (or it auto-loads) to get a synthesized daily briefing from 5 sources:</P>
+      <div className="mb-4">
+        <FeatureRow label="📰 Top News" desc="Headlines from your configured news topics (last 24 h)" />
+        <FeatureRow label="📧 Priority Emails" desc="Your most urgent unread emails, scored by the triage engine" />
+        <FeatureRow label="⏰ Overdue Follow-ups" desc="Action items that are past their due date" />
+        <FeatureRow label="🤝 Open Commitments" desc="Outstanding promises you made or are waiting on" />
+        <FeatureRow label="📁 Active Projects" desc="Projects currently in an active or in-progress state" />
+      </div>
+      <P>Each section ends with a one-line AI insight (shown in blue italics). The <strong>Today's Focus</strong> card at the top summarises your single most important priority for the day. Cached for 30 minutes — click <strong>↺ Refresh</strong> to force a new generation.</P>
+
+      <H3>📅 Calendar View <Tag color="green">New</Tag></H3>
+      <P>Shows your next 7 days of calendar events pulled from your connected calendar. Requires a connected Microsoft 365 or Google account with Calendar access.</P>
+      <UL>
+        <Li>Events are grouped by day — today's group is highlighted in the accent colour with a <strong>Today</strong> chip</Li>
+        <Li>Each event card shows: time, title, Online/Attendee/Location badges, and your response status (Declined / Maybe)</Li>
+        <Li>Online meetings show a <strong>Join</strong> button that opens the meeting URL directly</Li>
+        <Li>Click <strong>Refresh</strong> to pull the latest events from your calendar API (15-minute local cache)</Li>
+        <Li>If no calendar is connected, the panel shows a prompt to add your Google or Microsoft 365 account in Settings</Li>
+      </UL>
+      <Note>Google Calendar requires a connected Google account in <strong>Settings → Integrations → Google OAuth</strong>. Microsoft Calendar requires a connected M365 account via Microsoft OAuth.</Note>
+
+      <H3>❤️ Relationship Health <Tag color="green">New</Tag></H3>
+      <P>Scores all your VIP contacts 0–100 based on email activity, sorted worst-first so fading relationships surface immediately.</P>
+      <div className="mb-4">
+        <FeatureRow label="🟢 Healthy (80+)" desc="Active, recent communication, no outstanding awaiting-reply" />
+        <FeatureRow label="🔵 Good (60–79)" desc="Regular contact, minor gaps" />
+        <FeatureRow label="🟡 Fading (40–59)" desc="Communication slowing down — consider reaching out" />
+        <FeatureRow label="🔴 At Risk (20–39)" desc="Long silence, possibly awaiting your reply" />
+        <FeatureRow label="⚫ Cold (&lt;20)" desc="No meaningful contact in a long time" />
+      </div>
+      <UL>
+        <Li><strong>Summary bar</strong> — five clickable status chips at the top (Healthy / Good / Fading / At Risk / Cold) filter the list instantly</Li>
+        <Li><strong>Pill filter tabs</strong> — All / At Risk / Awaiting Reply / Warming</Li>
+        <Li>Each contact card shows: score circle (coloured by status), trend badge (warming / cooling / stable), awaiting-reply indicator, open commitments, active deal, and days since last contact</Li>
+        <Li>Click <strong>✉ Message</strong> on any card to open Compose pre-addressed to that contact</Li>
+        <Li>Cached for 15 minutes — click <strong>↺ Refresh</strong> to recalculate</Li>
+      </UL>
+
+      <H3>📰 News (sub-tab)</H3>
+      <P>AI-curated headlines for the past 24 hours across your configured topics, with multi-select AI summarise. See the <strong>Daily News</strong> section of this Help for full details.</P>
 
       <H3>People Graph</H3>
       <P>Automatically built from your email corpus. Shows all contacts with:</P>
@@ -610,13 +767,15 @@ function KnowledgeSection() {
       </UL>
       <Note>Requires an <strong>OpenAI API key</strong> in Settings → App Settings (used for Whisper transcription only).</Note>
 
-      <H3>💼 CRM — Deal Pipeline</H3>
-      <P>Open <strong>Knowledge → 💼 CRM</strong> for a 5-column Kanban pipeline.</P>
+      <H3>💼 CRM — Deal Pipeline <Tag color="green">New</Tag></H3>
+      <P>Open <strong>Knowledge → 💼 CRM</strong> for a Kanban deal pipeline with email integration.</P>
       <UL>
         <Li>Stages: <strong>Prospect → Active → Negotiating → Won → Lost</strong></Li>
         <Li><strong>✨ AI Extract Deals</strong> — scans recent emails and suggests deals to add; approve or dismiss each suggestion</Li>
         <Li><strong>+ New Deal</strong> — manually create a deal with name, contact email, value, and notes</Li>
-        <Li>Click a deal card to expand it, then use the arrow buttons to move it to the next or previous stage, or delete it</Li>
+        <Li><strong>Auto-log linked emails</strong> — emails linked to a deal via the Project button appear in the deal's email timeline</Li>
+        <Li><strong>✎ Draft Follow-Up</strong> — click any deal to expand it, then click "✎ Generate follow-up email" to create an AI-written follow-up; opens in Compose ready to send</Li>
+        <Li>Move cards between stages with arrow buttons or drag-drop; delete with ×</Li>
       </UL>
 
       <H3>📋 Board Report</H3>
@@ -737,6 +896,18 @@ function ProvidersSection() {
 
       <H3>Budget Mode</H3>
       <P>Enable <strong>Budget Mode</strong> in App Settings to force the cheapest model on each provider: claude-haiku on Anthropic, gpt-4o-mini on OpenAI, llama-3.1-8b-instant on Groq, etc. Useful for reducing API costs on routine tasks.</P>
+
+      <H3>Live Status & Balance Check <Tag color="green">New</Tag></H3>
+      <P>Each provider card shows a live status badge that checks connectivity when you open Settings:</P>
+      <UL>
+        <Li><Tag color="green">Active</Tag> — provider is reachable and your key is valid. Shows the model name confirmed.</Li>
+        <Li><Tag color="orange">Credits exhausted</Tag> — your account has run out of credits. Top up to restore service.</Li>
+        <Li><Tag color="orange">Invalid key</Tag> — the API key is wrong or revoked. Edit the provider to paste a new key.</Li>
+        <Li><Tag color="orange">Unreachable</Tag> — network or service issue. Check your internet connection.</Li>
+        <Li>No key — provider is configured but no API key is set.</Li>
+      </UL>
+      <P><strong>Balance display:</strong> OpenAI shows your actual dollar credit balance (e.g. <code className="bg-gray-100 px-1 rounded text-xs">$12.40 available</code>). Groq shows "Free tier". Ollama shows "Local". Anthropic/Gemini/Kimi don't expose balance via API — click the <strong>↗ Billing</strong> link next to the badge to open their billing console.</P>
+      <Tip>Click the <strong>⟳ Check</strong> button in the top-right of the AI Providers section to re-test all providers at any time — useful after topping up credits.</Tip>
     </div>
   )
 }
@@ -746,11 +917,20 @@ function TipsSection() {
     <div>
       <H2>Tips & Keyboard Shortcuts</H2>
 
+      <H3>Natural-Language Inbox Commands <Tag color="green">New</Tag></H3>
+      <P>Press <KBD>⌘ K</KBD> (or <KBD>Ctrl K</KBD> on Windows) to open the Command Palette. Click the <strong>Inbox Command</strong> tab and type plain English commands:</P>
+      <UL>
+        <Li>"Archive all newsletters from last week"</Li>
+        <Li>"Delete emails from Gmail promotions folder"</Li>
+        <Li>"Mark all unread emails from January as read"</Li>
+      </UL>
+      <P>The palette shows a preview of what will be affected before you execute. Archive actions support <strong>Undo</strong> so you can easily revert mistakes.</P>
+
       <H3>Keyboard shortcuts</H3>
       <div className="space-y-2 mb-4">
         {[
           { key: '?', desc: 'Show / hide the keyboard shortcut overlay (this panel)' },
-          { key: '⌘ K / Ctrl K', desc: 'Open the command palette — type a section name and press Enter to jump' },
+          { key: '⌘ K / Ctrl K', desc: 'Open the command palette — type a section name and press Enter to jump; Inbox Command tab for natural-language commands' },
           { key: 'j / k', desc: 'Navigate to next / previous email in the list' },
           { key: 'r', desc: 'Reply to the selected email' },
           { key: 'f', desc: 'Forward the selected email' },
@@ -887,8 +1067,29 @@ sudo apt-get install readpst
 function SocialSection() {
   return (
     <div>
+      <H2>Social Media — Unified Inbox <Tag color="green">New</Tag></H2>
+      <P>Read and reply to Instagram DMs, comments, and LinkedIn comments all in one stream. Access via <strong>Social → Inbox</strong>.</P>
+      <UL>
+        <Li><strong>Unified feed</strong> — all messages from Instagram and LinkedIn appear chronologically in a single stream</Li>
+        <Li><strong>Filter by platform</strong> — All / Instagram / LinkedIn tabs; Unread-only toggle</Li>
+        <Li><strong>Reply inline</strong> — click any message to expand it, type a reply, and send — posts directly back to the platform</Li>
+        <Li><strong>↻ Sync</strong> — click to pull the latest messages from both platforms</Li>
+      </UL>
+      <Note><strong>API permissions required:</strong> Reading DMs and comments requires elevated API permissions beyond what standard posting tokens provide. Instagram requires a Facebook Business app token with <code className="text-xs bg-gray-100 px-1 rounded">instagram_manage_comments</code> + <code className="text-xs bg-gray-100 px-1 rounded">instagram_manage_messages</code> scopes. LinkedIn requires Partner API access (Community Management API) for reading comments on posts. If Sync shows 0 messages and displays a warning, the app will show a direct link to check your notifications on each platform.</Note>
+
+      <H2>Card Studio <Tag color="green">New</Tag></H2>
+      <P>Build a branded 1080×1080 post card and publish it to LinkedIn or Instagram — no design tool needed. Open <strong>Settings → Social → Card Studio</strong>.</P>
+      <UL>
+        <Li><strong>Choose a card type</strong> — Announcement, Quote, Event, or Achievement</Li>
+        <Li>Enter your content (headline, body, event details, etc.)</Li>
+        <Li>Click <strong>Generate</strong> — the app renders a branded 1080×1080 image and writes an AI caption to match</Li>
+        <Li>Post it straight to <strong>LinkedIn</strong> or <strong>Instagram</strong> from the same screen</Li>
+      </UL>
+
       <H2>Social Media — LinkedIn</H2>
       <P>Write, design, and publish professional LinkedIn posts with AI-generated text and images — all from inside Director Assistant. No copywriting or design skills needed.</P>
+      <H3>LinkedIn Autopilot</H3>
+      <P>LinkedIn Autopilot generates posts, creates DALL-E images, and queues them for review before publishing — so nothing goes live without your approval. Enable it in the LinkedIn section and review pending posts in the review queue.</P>
 
       <H3>Before you start — one-time setup</H3>
       <P>You need a <strong>LinkedIn Developer App</strong> and an <strong>Access Token</strong>. This takes about 10 minutes and only needs to be done once.</P>
@@ -902,15 +1103,25 @@ function SocialSection() {
       <Note><strong>Token expiry:</strong> LinkedIn access tokens expire after 60 days. When posting fails with a 403 error, come back to <strong>OAuth 2.0 tools</strong> and generate a fresh token, then update it in Settings → LinkedIn.</Note>
       <Note><strong>Important:</strong> Always add the <code className="text-xs bg-gray-100 px-1 rounded">w_member_social</code> scope when generating your token — this is what allows posting. If you added "Share on LinkedIn" to your app but generated the token before doing so, generate a new token to pick up the new scope.</Note>
 
-      <H3>Creating a post — 7-step wizard</H3>
+      <H3>LinkedIn Voice Profiling <Tag color="green">New</Tag></H3>
+      <P>Director Assistant can learn your LinkedIn writing style and generate posts that sound like you. Go to <strong>Social → LinkedIn → Voice</strong>.</P>
+      <UL>
+        <Li>Click <strong>Learn My Voice</strong> — AI analyses your past LinkedIn post history and extracts your vocabulary, tone, sentence length, and recurring themes</Li>
+        <Li>Your <strong>Voice Profile</strong> card shows the learned traits (e.g. "formal", "data-driven", "short paragraphs")</Li>
+        <Li>In the post wizard (Step 3), toggle <strong>Use My Voice</strong> to generate posts that match your style instead of a generic tone</Li>
+        <Li>Click <strong>Re-learn Voice</strong> any time to refresh the profile from newer posts</Li>
+      </UL>
+
+      <H3>Creating a post — 8-step wizard</H3>
       <P>Click <strong>Social → LinkedIn</strong> and follow the steps:</P>
       <Step n={1}><strong>Topic</strong> — type the subject you want to post about (e.g. "AI talent shortage in Canada"). Press Enter or click Next.</Step>
       <Step n={2}><strong>Trends</strong> — the AI suggests 3–5 trending angles on your topic. Click the one that fits best, then click <strong>"Generate Post →"</strong>.</Step>
-      <Step n={3}><strong>Write</strong> — choose your target <strong>Audience</strong> (Executives, Developers, etc.) and <strong>Tone</strong> (Professional, Inspirational, etc.), then click <strong>Generate Post</strong>. Read the result in the text box — you can edit it directly. When happy, click <strong>"Choose Image Style →"</strong>.</Step>
+      <Step n={3}><strong>Write</strong> — choose your target <strong>Audience</strong> (Executives, Developers, etc.) and <strong>Tone</strong> (Professional, Inspirational, etc.). Toggle <strong>"Use My Voice"</strong> to generate the post in your writing style (learns from your past LinkedIn posts). Click <strong>Generate Post</strong>, edit the text box freely, then click <strong>"Choose Image Style →"</strong>.</Step>
       <Step n={4}><strong>Style</strong> — pick a visual style for your image (e.g. "Professional Corporate", "Tech &amp; Innovation") or write your own description. Click <strong>"Generate with this Style →"</strong>. If you don't want an image, click <strong>"Skip — No Style"</strong>.</Step>
       <Step n={5}><strong>Images</strong> — 3 AI-generated images appear. Click the one you like to select it. To try again, change the prompt and click Regenerate. Click <strong>"No Image"</strong> if you want text-only. Then click <strong>Next →</strong>.</Step>
-      <Step n={6}><strong>Schedule</strong> — choose <strong>Post Now</strong> to publish immediately, or <strong>Schedule</strong> to pick a date and time. Click <strong>Publish</strong>.</Step>
-      <Step n={7}><strong>Done</strong> — your post is live on LinkedIn. You'll see a confirmation with a link to view it.</Step>
+      <Step n={6}><strong>Performance Score</strong> <Tag color="green">New</Tag> — the app scores your post on engagement potential (0–100): length, hashtag count, hook strength, posting time. Click <strong>Tips</strong> for specific improvements to increase the score. Then click <strong>Next →</strong>.</Step>
+      <Step n={7}><strong>Schedule</strong> — choose <strong>Post Now</strong> to publish immediately, or <strong>Schedule</strong> to pick a date and time. Click <strong>Publish</strong>.</Step>
+      <Step n={8}><strong>Done</strong> — your post is live on LinkedIn. You'll see a confirmation with a link to view it.</Step>
 
       <H3>Content types</H3>
       <UL>
@@ -980,12 +1191,13 @@ function SocialSection() {
       <Note><strong>No Facebook Page required.</strong> Director Assistant uses Instagram Business Login, which authenticates directly with Instagram. You do not need to link your Instagram account to a Facebook Page.</Note>
       <Note><strong>Image hosting:</strong> Instagram requires a public image URL. If you use GPT Image 1 or GPT-5.5 (which return base64), configure FTP in Settings → Instagram → FTP Image Hosting so images are automatically uploaded and given a public URL before posting.</Note>
 
-      <H3>Creating a post — 4-step wizard</H3>
-      <P>Click <strong>Social → Instagram → Post Wizard</strong> and follow the 4 steps:</P>
+      <H3>Creating a post — 5-step wizard</H3>
+      <P>Click <strong>Social → Instagram → Post Wizard</strong> and follow the 5 steps:</P>
       <Step n={1}><strong>Choose a template</strong> — pick from 6 built-in styles (Motivational, Behind the Scenes, etc.) or your custom templates, or click "No Template" to skip.</Step>
       <Step n={2}><strong>Your post</strong> — type what you want to post about in "Your Description". Optionally click <strong>Search the Web</strong> to find real-time news: enter a search query, check the results you want to include, and they feed into caption generation. Click <strong>Generate Caption</strong> — the caption and hashtags appear. Edit freely before continuing.</Step>
       <Step n={3}><strong>Image</strong> — optionally add a custom style note, then click <strong>Generate Image</strong> (uses DALL-E). The template's visual style (e.g. "use lion and sun flag") is automatically included. Toggle <strong>📝 Message on image</strong> (ON by default) and edit the short message that will be burned into the image; click <strong>✏️ Apply text to current image</strong> to burn it instantly without regenerating. Toggle <strong>Also post to Story</strong> to publish the same image as an Instagram Story.</Step>
-      <Step n={4}><strong>Preview &amp; Post</strong> — review the Instagram-style preview (and Story preview if enabled). Optionally set a schedule time, or click <strong>Post Now</strong> to publish immediately.</Step>
+      <Step n={4}><strong>Performance Score</strong> <Tag color="green">New</Tag> — the app scores your post (0–100): caption length, hashtag count, call-to-action hook, optimal posting time. Click <strong>Tips</strong> for suggestions to improve engagement. Then click <strong>Next →</strong>.</Step>
+      <Step n={5}><strong>Preview &amp; Post</strong> — review the Instagram-style preview (and Story preview if enabled). Optionally set a schedule time, or click <strong>Post Now</strong> to publish immediately.</Step>
 
       <H3>Instagram Autopilot</H3>
       <P>Autopilot auto-generates and publishes Instagram posts on a recurring schedule — no manual work required.</P>
@@ -1064,9 +1276,11 @@ function IntegrationsSection() {
 
 const CONTENT: Record<Section, React.ReactNode> = {
   start:        <GettingStarted />,
+  settings:     <SettingsSection />,
   inbox:        <InboxEmail />,
   compose:      <CompositionSection />,
   ai:           <AISection />,
+  news:         <NewsSection />,
   executive:    <ExecutiveTools />,
   social:       <SocialSection />,
   contacts:     <ContactsSection />,
