@@ -126,42 +126,55 @@ function SettingsSection() {
   return (
     <div>
       <H2>Settings</H2>
-      <P>Open <strong>Settings</strong> from the gear icon (top right). Settings are organised into <strong>five tabs</strong>:</P>
+      <P>Open <strong>Settings</strong> from the gear icon (top right). A sidebar groups everything into six sections:</P>
 
-      <H3>✦ AI tab</H3>
+      <H3>📧 Accounts</H3>
       <UL>
-        <Li><strong>AI Providers</strong> — add up to 7 providers (Claude, GPT, Groq, Gemini, Ollama, Kimi, custom). Set a priority order for automatic failover — see the <strong>AI Providers</strong> help section.</Li>
-        <Li><strong>Budget Mode toggle</strong> — <Tag color="green">green = On</Tag> uses the cheapest model per provider (haiku / gpt-4o-mini / llama-8b) to save token costs; <Tag color="orange">red = Off</Tag> uses full-quality models (sonnet-4-6 / gpt-4o) for best results.</Li>
+        <Li>Add, ingest, or remove email accounts (Gmail, Microsoft 365, IMAP/Yahoo)</Li>
+        <Li>Set the <strong>sync window</strong> (how far back to fetch) and <strong>auto-check interval</strong> (30 s – 10 min)</Li>
+        <Li><strong>Microsoft OAuth</strong> — one-click auto-setup via Azure CLI, or paste app credentials manually</Li>
+        <Li><strong>Google OAuth</strong> — connect Gmail and Google Calendar</Li>
       </UL>
 
-      <H3>📥 Email tab</H3>
+      <H3>📁 Documents</H3>
       <UL>
-        <Li><strong>Auto-check interval</strong> — how often the app polls for new mail (30 s to 10 min)</Li>
-        <Li><strong>Sync window</strong> — how far back to download emails (1 day up to Unlimited). Re-run Ingest after changing.</Li>
-        <Li><strong>Provider setup guides</strong> — step-by-step help for Gmail, Microsoft 365, Yahoo, and IMAP accounts</Li>
+        <Li>Add local folders or files to the RAG knowledge index for AI search and Ask mode</Li>
       </UL>
 
-      <H3>⭐ Features tab</H3>
+      <H3>⚙️ App Settings</H3>
       <UL>
-        <Li><strong>Daily News</strong> (top card, blue border) — enable and enter topics; see the <strong>Daily News</strong> help section</Li>
+        <Li><strong>AI Providers</strong> — up to 7 providers (Claude, GPT, Groq, Gemini, Ollama, Kimi, custom) with priority failover order</Li>
+        <Li><strong>Budget Mode</strong> — <Tag color="green">On</Tag> uses cheapest models (haiku / gpt-4o-mini) to cut API costs 10–20×</Li>
+        <Li><strong>Daily News</strong> — enable and enter topics; see the <strong>Daily News</strong> help section</Li>
         <Li><strong>Weather</strong> — search your city for the header weather chip (°C/°F toggle)</Li>
         <Li><strong>Scheduled Digest</strong> — email yourself the weekly brief on a chosen day/time</Li>
-        <Li><strong>ElevenLabs TTS</strong> — add an ElevenLabs key and pick a voice for high-quality text-to-speech</Li>
+        <Li><strong>ElevenLabs TTS</strong> — add a key and pick a voice for high-quality text-to-speech</Li>
+        <Li><strong>Translation language</strong> — default target for inline email translation</Li>
+        <Li><strong>Snippets</strong> — reusable text blocks you can drop into any reply</Li>
       </UL>
 
-      <H3>🔗 Integrations tab</H3>
+      <H3>🛡️ Rules &amp; Filters</H3>
       <UL>
-        <Li><strong>Microsoft OAuth</strong> — one-click auto-setup via Azure CLI (or paste app credentials manually)</Li>
-        <Li><strong>Google OAuth</strong> — connect Gmail and Google Calendar</Li>
-        <Li>Slack, Teams, Webhooks, task export (Notion/Jira/Todoist) — see the <strong>Integrations</strong> help section</Li>
+        <Li>Create auto-label, archive, mark-read, or delete rules by sender, subject, or body</Li>
+        <Li>Use plain-English input ("✨ Describe a rule") to generate rules with AI — see the <strong>Email Rules</strong> help section</Li>
       </UL>
 
-      <H3>⚙️ General tab</H3>
+      <H3>🔗 Integrations</H3>
+      <P>Integrations are grouped into three categories:</P>
       <UL>
-        <Li><strong>Translation language</strong> — default target language for inline email translation</Li>
-        <Li><strong>Canned Responses / Snippets</strong> — reusable text blocks you can drop into any reply</Li>
+        <Li><strong>Communication</strong> — Slack &amp; Teams notifications, Webhooks / Zapier</Li>
+        <Li><strong>Automation &amp; Tasks</strong> — Todoist / Jira export, Overnight Triage Agent, Scheduled Report Email</Li>
+        <Li><strong>Social Media</strong> — LinkedIn autopilot and Instagram autopilot settings</Li>
       </UL>
-      <Note>All keys and passwords entered in any tab are stored in the OS keychain (macOS Keychain / Windows Credential Store), never in plain text.</Note>
+
+      <H3>💾 Data &amp; Backup</H3>
+      <UL>
+        <Li><strong>RAG Index stats</strong> — document count, index size, embedding model</Li>
+        <Li><strong>Backup / Restore</strong> — export and import the full SQLite database</Li>
+        <Li><strong>Check for Updates</strong> — pull the latest version with one click</Li>
+        <Li><strong>Clear &amp; Re-ingest</strong> — wipe all cached emails and rebuild from scratch (irreversible)</Li>
+      </UL>
+      <Note>All keys and passwords are stored in the OS keychain (macOS Keychain / Windows Credential Store), never in plain text.</Note>
     </div>
   )
 }
