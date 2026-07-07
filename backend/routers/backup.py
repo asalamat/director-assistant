@@ -56,9 +56,27 @@ async def import_backup(request: Request, file: UploadFile = File(...)):
             if "emails.db" not in names:
                 raise HTTPException(400, "Invalid backup: missing emails.db")
 
-            # Write to temp dir first
+            # Validate all entries before extracting (prevent Zip Slip)
+            chroma_root = _CHROMA_DIR.resolve()
+            for entry in names:
+                if entry.startswith("chroma/"):
+                    candidate = (chroma_root / entry[len("chroma/"):]).resolve()
+                    if not str(candidate).startswith(str(chroma_root) + "/") and candidate != chroma_root:
+                        raise HTTPException(400, f"Invalid backup: unsafe path {entry!r}")
+                elif entry not in ("emails.db", "app-config.json"):
+                    raise HTTPException(400, f"Invalid backup: unexpected entry {entry!r}")
+
+            # Extract everything while the ZipFile is open (entries already validated)
             tmp_dir = Path(tempfile.mkdtemp())
-            zf.extractall(tmp_dir)
+            for entry in ("emails.db", "app-config.json"):
+                if entry in names:
+                    (tmp_dir / entry).write_bytes(zf.read(entry))
+
+            # Extract chroma entries here while zf is still open
+            chroma_entries: list[tuple[str, bytes]] = []
+            for name in names:
+                if name.startswith("chroma/"):
+                    chroma_entries.append((name, zf.read(name)))
 
         # Swap in the new files
         db_backup = _DB_PATH.with_suffix(".db.bak")
@@ -70,13 +88,13 @@ async def import_backup(request: Request, file: UploadFile = File(...)):
         if cfg_src.exists():
             shutil.copy2(cfg_src, _CONFIG_PATH)
 
-        if "chroma/" in names:
+        if chroma_entries:
             _CHROMA_DIR.mkdir(parents=True, exist_ok=True)
-            for name in names:
-                if name.startswith("chroma/"):
-                    target = _CHROMA_DIR / name[len("chroma/"):]
-                    target.parent.mkdir(parents=True, exist_ok=True)
-                    target.write_bytes(zf.read(name))
+            for name, data in chroma_entries:
+                # Path validated above — no traversal possible
+                target = (_CHROMA_DIR / name[len("chroma/"):]).resolve()
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(data)
 
         shutil.rmtree(tmp_dir, ignore_errors=True)
 

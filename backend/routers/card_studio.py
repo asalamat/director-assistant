@@ -2,6 +2,9 @@
 
 import io
 import base64
+import ipaddress
+import socket
+from urllib.parse import urlparse
 
 import httpx
 from fastapi import APIRouter, Request, HTTPException
@@ -10,6 +13,7 @@ from typing import Optional, List
 
 try:
     from PIL import Image, ImageDraw, ImageFont
+    Image.MAX_IMAGE_PIXELS = 50_000_000  # ~50MP, blocks decompression bombs
     PIL_AVAILABLE = True
 except ImportError:
     PIL_AVAILABLE = False
@@ -117,13 +121,36 @@ def _draw_multiline_centered(draw, lines, font, start_y, canvas_w, color, line_s
     return y
 
 
+MAX_LOGO_BYTES = 10 * 1024 * 1024
+
+
+def _safe_url(url: str) -> str:
+    """Raise ValueError if url is not a safe external http(s) URL."""
+    p = urlparse(url)
+    if p.scheme not in ("http", "https"):
+        raise ValueError(f"Disallowed scheme: {p.scheme}")
+    ip = ipaddress.ip_address(socket.gethostbyname(p.hostname or ""))
+    if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+        raise ValueError("Private/internal URL not allowed")
+    return url
+
+
 def _paste_logo(img, logo_url):
     if not logo_url:
         return
     try:
-        r = httpx.get(logo_url, timeout=10.0, follow_redirects=True)
-        r.raise_for_status()
-        logo = Image.open(io.BytesIO(r.content)).convert("RGBA").resize((80, 80))
+        _safe_url(logo_url)
+        chunks = []
+        total = 0
+        with httpx.stream("GET", logo_url, timeout=10.0, follow_redirects=True) as r:
+            r.raise_for_status()
+            for chunk in r.iter_bytes(chunk_size=65536):
+                total += len(chunk)
+                if total > MAX_LOGO_BYTES:
+                    raise ValueError("Logo image too large")
+                chunks.append(chunk)
+        logo_bytes = b"".join(chunks)
+        logo = Image.open(io.BytesIO(logo_bytes)).convert("RGBA").resize((80, 80))
         img.paste(logo, (900, 30), logo)
     except Exception:
         pass

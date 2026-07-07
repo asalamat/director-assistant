@@ -365,6 +365,11 @@ export const api = {
   getMorningBrief(force?: boolean): Promise<import('../types').MorningBrief> {
     return request(`/morning-brief${force ? '?force=true' : ''}`)
   },
+  getCalendar(days = 7, force?: boolean): Promise<import('../types').CalendarResponse> {
+    const qs = new URLSearchParams({ days: String(days) })
+    if (force) qs.set('force', 'true')
+    return request(`/calendar?${qs}`)
+  },
   summarizeNews(articles: { url: string; title: string; body: string }[]): Promise<{ summaries: { url: string; what: string; why: string; takeaway: string }[] }> {
     return request('/news/summarize', { method: 'POST', body: JSON.stringify({ articles }) })
   },
@@ -449,11 +454,18 @@ export const api = {
   getPeople(limit = 60): Promise<{ people: import('../types').Person[] }> {
     return request(`/intelligence/people?limit=${limit}`)
   },
-  getClusters(): Promise<{ clusters: import('../types').Cluster[] }> {
-    return request('/intelligence/clusters')
+  getClusters(showDisabled = false): Promise<{ clusters: import('../types').Cluster[] }> {
+    return request(`/intelligence/clusters${showDisabled ? '?show_disabled=true' : ''}`)
   },
   generateClusters(): Promise<{ clusters: import('../types').Cluster[]; error?: string }> {
     return request('/intelligence/clusters/generate', { method: 'POST' })
+  },
+  updateClusterStatus(id: string, status: string): Promise<{ status: string; cluster_id: string }> {
+    return request(`/intelligence/clusters/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    })
   },
   getTimeline(q: string, limit = 60, ids?: string[]): Promise<{ events: import('../types').TimelineEvent[] }> {
     if (ids && ids.length > 0)
@@ -465,6 +477,34 @@ export const api = {
   },
   getNudges(days = 21): Promise<{ nudges: import('../types').RelationshipNudge[]; total: number }> {
     return request(`/intelligence/relationship-nudges?days=${days}`)
+  },
+  dismissNudge(email: string, days = 30): Promise<{ dismissed: string; until: string }> {
+    return request('/intelligence/nudges/dismiss', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, days }),
+    })
+  },
+  getChaseState(): Promise<{ dismissed: string[]; snoozed: Record<string, string>; notes: Record<string, string> }> {
+    return request('/intelligence/chase/state')
+  },
+  chaseDismiss(emailId: string): Promise<{ status: string }> {
+    return request('/intelligence/chase/dismiss', { method: 'POST', body: JSON.stringify({ email_id: emailId }) })
+  },
+  chaseRestore(emailId: string): Promise<{ status: string }> {
+    return request(`/intelligence/chase/dismiss/${encodeURIComponent(emailId)}`, { method: 'DELETE' })
+  },
+  chaseClearAllDismissed(): Promise<{ status: string }> {
+    return request('/intelligence/chase/dismiss', { method: 'DELETE' })
+  },
+  chaseSnooze(emailId: string, until: string): Promise<{ status: string }> {
+    return request('/intelligence/chase/snooze', { method: 'POST', body: JSON.stringify({ email_id: emailId, until }) })
+  },
+  chaseUnsnooze(emailId: string): Promise<{ status: string }> {
+    return request(`/intelligence/chase/snooze/${encodeURIComponent(emailId)}`, { method: 'DELETE' })
+  },
+  chaseSaveNote(emailId: string, note: string): Promise<{ status: string }> {
+    return request('/intelligence/chase/note', { method: 'POST', body: JSON.stringify({ email_id: emailId, note }) })
   },
   getStakeholders(days = 90): Promise<{
     stakeholders: { name: string; email: string; received_count: number; sent_count: number; total_interactions: number; influence_score: number; last_contact: string | null; is_vip: boolean }[]
@@ -535,6 +575,9 @@ export const api = {
   },
   getContactHeatmap(email: string): Promise<{ heatmap: { date: string; count: number }[] }> {
     return request(`/intelligence/people/${encodeURIComponent(email)}/heatmap`)
+  },
+  getContactHealth(): Promise<import('../types').ContactHealthResponse> {
+    return request('/contact-health')
   },
   getRagKnowledgeGraph(): Promise<{
     nodes: { id: string; label: string; type: 'person' | 'topic' | 'project'; count: number }[]
@@ -1347,6 +1390,9 @@ export const api = {
   },
   getEmailRulesLastRun(): Promise<{ ran_at: string; labeled: number; archived: number; marked: number; deleted: number } | null> {
     return request('/email-rules/last-run')
+  },
+  rulesFromNL(description: string): Promise<{ rules: { name: string; field: string; condition: string; value: string; action: string; label: string; priority: number }[] }> {
+    return request('/email-rules/from-nl', { method: 'POST', body: JSON.stringify({ description }) })
   },
 
   // Job Tracker

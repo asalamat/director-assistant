@@ -4,6 +4,11 @@ import { useUIContext } from '../../contexts/UIContext'
 import type { RelationshipNudge } from '../../types'
 
 const THRESHOLDS = [14, 21, 30]
+const SNOOZE_OPTIONS = [
+  { label: '7 days',  days: 7 },
+  { label: '30 days', days: 30 },
+  { label: '90 days', days: 90 },
+]
 
 export function NudgesTab() {
   const { openCompose } = useUIContext()
@@ -11,6 +16,7 @@ export function NudgesTab() {
   const [nudges, setNudges] = useState<RelationshipNudge[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [dismissingEmail, setDismissingEmail] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -22,8 +28,13 @@ export function NudgesTab() {
     return () => { cancelled = true }
   }, [days])
 
-  const dismiss = (email: string) =>
+  const dismiss = async (email: string, snoozeDays = 30) => {
     setNudges(prev => prev.filter(n => n.email !== email))
+    try {
+      await api.dismissNudge(email, snoozeDays)
+    } catch { /* optimistic — local remove already done */ }
+    setDismissingEmail(null)
+  }
 
   const ageColor = (d: number) =>
     d >= 30 ? 'text-red-600 bg-red-50' : d >= 14 ? 'text-amber-600 bg-amber-50' : 'text-gray-500 bg-gray-50'
@@ -80,19 +91,40 @@ export function NudgesTab() {
               <p className="text-xs text-gray-500 truncate">Last: {n.last_subject}</p>
             )}
 
-            <div className="flex items-center gap-2 pt-1">
+            <div className="flex items-center gap-2 pt-1 flex-wrap">
               <button
                 onClick={() => openCompose({ to: n.email })}
                 className="px-3 py-1.5 bg-accent text-white rounded-lg text-xs font-medium hover:bg-blue-700 transition-colors"
               >
                 Email now
               </button>
-              <button
-                onClick={() => dismiss(n.email)}
-                className="px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-200 transition-colors"
-              >
-                Dismiss
-              </button>
+              {dismissingEmail === n.email ? (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-gray-500">Snooze for:</span>
+                  {SNOOZE_OPTIONS.map(opt => (
+                    <button
+                      key={opt.days}
+                      onClick={() => dismiss(n.email, opt.days)}
+                      className="px-2 py-1 bg-gray-100 text-gray-700 rounded-lg text-xs font-medium hover:bg-accent hover:text-white transition-colors"
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setDismissingEmail(null)}
+                    className="text-gray-400 hover:text-gray-600 text-xs px-1"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setDismissingEmail(n.email)}
+                  className="px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-200 transition-colors"
+                >
+                  Dismiss
+                </button>
+              )}
             </div>
           </div>
         ))}

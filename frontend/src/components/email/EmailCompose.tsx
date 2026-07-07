@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import DOMPurify from 'dompurify'
 import type { EmailMessage } from '../../types'
 import { api } from '../../api/client'
 import { useEmailContext } from '../../contexts/EmailContext'
@@ -82,8 +83,9 @@ export function EmailCompose({
     setReplyBCC('')
     setShowCcBcc(false)
     setReplySubject(initialSubject)
-    setReplyBody(initialBody)
-    if (contentRef.current) contentRef.current.innerHTML = initialBody
+    const safeInitialBody = DOMPurify.sanitize(initialBody, { USE_PROFILES: { html: true } })
+    setReplyBody(safeInitialBody)
+    if (contentRef.current) contentRef.current.innerHTML = safeInitialBody
     setSendMsg('')
     setReview(null)
     setUndoCountdown(null)
@@ -94,8 +96,9 @@ export function EmailCompose({
   // Sync initialBody to contenteditable after mount (handles Smart Draft + forward)
   useEffect(() => {
     if (show && contentRef.current && initialBody) {
-      contentRef.current.innerHTML = initialBody
-      setReplyBody(initialBody)
+      const safeInitialBody = DOMPurify.sanitize(initialBody, { USE_PROFILES: { html: true } })
+      contentRef.current.innerHTML = safeInitialBody
+      setReplyBody(safeInitialBody)
     }
   }, [show, initialBody])
 
@@ -201,8 +204,9 @@ export function EmailCompose({
     try {
       const { result } = await api.adjustTone(replyBody, tone as any)
       if (result) {
-        setReplyBody(result)
-        if (contentRef.current) contentRef.current.innerHTML = result
+        const safeResult = DOMPurify.sanitize(result, { USE_PROFILES: { html: true } })
+        setReplyBody(safeResult)
+        if (contentRef.current) contentRef.current.innerHTML = safeResult
       }
     } catch {} finally { setAdjustingTone(false) }
   }

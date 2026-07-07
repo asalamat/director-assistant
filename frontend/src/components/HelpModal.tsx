@@ -434,7 +434,10 @@ function ExecutiveTools() {
         <Li>Color-coded urgency: 3+ days (neutral) / 7+ days (amber) / 14+ days (red)</Li>
         <Li>Adjust the threshold with the dropdown (2 / 3 / 7 / 14+ days)</Li>
         <Li>Click <strong>✍</strong> to generate an AI follow-up draft — it opens directly in Compose pre-addressed and pre-written</Li>
-        <Li>Snooze any item (clock icon) or add private notes (📝) that only you see</Li>
+        <Li>Snooze any item for 1 / 3 / 7 / 14 days — the item hides until the chosen date then reappears</Li>
+        <Li>Add private notes (📝) — notes persist across sessions and devices</Li>
+        <Li>Dismiss any item (✕) to mark it as no follow-up needed — dismissals are saved to the server so they survive a browser refresh or device switch</Li>
+        <Li><strong>All state is server-persisted</strong> — dismissals, snoozes, and notes are saved to the database, not just your browser. Switching devices or clearing browser data will not lose your queue state.</Li>
         <Li><strong>Automatic reminders</strong> — a background task runs hourly and adds any sent email still unanswered past the threshold to this queue, deduplicated so nothing is added twice. No manual scan needed.</Li>
       </UL>
 
@@ -1103,7 +1106,12 @@ function SocialSection() {
       <H2>Social Media — LinkedIn</H2>
       <P>Write, design, and publish professional LinkedIn posts with AI-generated text and images — all from inside Director Assistant. No copywriting or design skills needed.</P>
       <H3>LinkedIn Autopilot</H3>
-      <P>LinkedIn Autopilot generates posts, creates DALL-E images, and queues them for review before publishing — so nothing goes live without your approval. Enable it in the LinkedIn section and review pending posts in the review queue.</P>
+      <P>LinkedIn Autopilot generates posts, creates DALL-E images, and publishes them on a schedule. Enable it in the LinkedIn section.</P>
+      <UL>
+        <Li><strong>Image fallback</strong> — if DALL-E image generation fails (e.g. OpenAI quota exhausted), the post is still published as <strong>text-only</strong>. No topic is skipped.</Li>
+        <Li><strong>All DALL-E models tried</strong> — autopilot attempts dall-e-3, then gpt-image-1, then dall-e-2 before falling back to text-only</Li>
+        <Li>If images stop appearing in your posts, check your OpenAI API balance at platform.openai.com — a depleted quota is the most common cause</Li>
+      </UL>
 
       <H3>Before you start — one-time setup</H3>
       <P>You need a <strong>LinkedIn Developer App</strong> and an <strong>Access Token</strong>. This takes about 10 minutes and only needs to be done once.</P>

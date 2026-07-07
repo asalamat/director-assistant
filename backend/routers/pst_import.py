@@ -8,6 +8,8 @@ import json
 
 router = APIRouter(prefix="/api/pst", tags=["pst"])
 
+MAX_PST_BYTES = 500 * 1024 * 1024  # 500 MB — PST/OLM files can be large
+
 # In-memory import state (keyed by task_id)
 _imports: dict[str, dict] = {}
 
@@ -50,12 +52,18 @@ async def import_pst(request: Request, file: UploadFile = File(...)):
     cache = request.app.state.cache
     rag   = request.app.state.rag
 
-    # Save uploaded file to a temp location
+    # Save uploaded file to a temp location (streaming, with size cap)
     suffix = ".pst"
+    total = 0
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-        content = await file.read()
-        tmp.write(content)
         pst_path = tmp.name
+        while chunk := await file.read(1024 * 1024):
+            total += len(chunk)
+            if total > MAX_PST_BYTES:
+                tmp.close()
+                os.unlink(pst_path)
+                raise HTTPException(413, "File too large (max 500 MB)")
+            tmp.write(chunk)
 
     task_id = os.urandom(8).hex()
     _imports[task_id] = {
@@ -67,7 +75,7 @@ async def import_pst(request: Request, file: UploadFile = File(...)):
         "backend": "",
         "error": None,
         "filename": file.filename,
-        "size_mb": round(len(content) / 1_048_576, 1),
+        "size_mb": round(total / 1_048_576, 1),
     }
 
     def _progress(processed, total, subject):

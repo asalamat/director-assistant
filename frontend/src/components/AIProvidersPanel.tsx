@@ -33,12 +33,63 @@ interface ProviderForm {
   enabled: boolean
 }
 
+type ProviderStatus = { status: string; detail: string; balance: string | null; billing_url: string } | null
+
+const STATUS_STYLE: Record<string, { dot: string; text: string; label: string }> = {
+  active:            { dot: 'bg-emerald-500', text: 'text-emerald-700', label: 'Active' },
+  credits_exhausted: { dot: 'bg-amber-500',   text: 'text-amber-700',   label: 'Credits exhausted' },
+  auth_failed:       { dot: 'bg-red-500',      text: 'text-red-600',     label: 'Invalid key' },
+  unavailable:       { dot: 'bg-red-400',      text: 'text-red-500',     label: 'Unreachable' },
+  unconfigured:      { dot: 'bg-gray-300',     text: 'text-gray-400',    label: 'No key' },
+  error:             { dot: 'bg-red-400',      text: 'text-red-500',     label: 'Error' },
+}
+
+function StatusBadge({ status, checking }: { status: ProviderStatus; checking: boolean }) {
+  if (checking) return (
+    <span className="inline-flex items-center gap-1 text-[10px] text-gray-400">
+      <span className="w-1.5 h-1.5 rounded-full bg-gray-300 animate-pulse inline-block" />
+      Checking…
+    </span>
+  )
+  if (!status) return null
+  const s = STATUS_STYLE[status.status] || STATUS_STYLE.error
+  return (
+    <span className="inline-flex items-center gap-1.5 flex-wrap">
+      <span className={`inline-flex items-center gap-1 text-[10px] font-medium ${s.text}`}
+        title={status.detail}>
+        <span className={`w-1.5 h-1.5 rounded-full inline-block ${s.dot}`} />
+        {s.label}
+        {status.status === 'active' && status.detail && (
+          <span className="text-gray-400 font-normal ml-0.5">· {status.detail}</span>
+        )}
+      </span>
+      {status.balance && (
+        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
+          status.balance === 'Free tier' || status.balance === 'Local'
+            ? 'bg-gray-100 text-gray-500'
+            : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+        }`}>
+          {status.balance}
+        </span>
+      )}
+      {!status.balance && status.status !== 'unconfigured' && status.billing_url && (
+        <a href={status.billing_url} target="_blank" rel="noreferrer"
+          className="text-[10px] text-blue-500 hover:text-blue-700 hover:underline">
+          {status.status === 'credits_exhausted' ? '↗ Top up' : '↗ Billing'}
+        </a>
+      )}
+    </span>
+  )
+}
+
 function ProviderCard({
-  provider, index, total, onMoveUp, onMoveDown, onToggle, onDelete, onEdit
+  provider, index, total, status, checking, onMoveUp, onMoveDown, onToggle, onDelete, onEdit
 }: {
   provider: AIProvider & { key?: string }
   index: number
   total: number
+  status: ProviderStatus
+  checking: boolean
   onMoveUp: () => void
   onMoveDown: () => void
   onToggle: () => void
@@ -61,7 +112,7 @@ function ProviderCard({
         {/* Icon + info */}
         <div className="flex items-center gap-2.5 flex-1 min-w-0">
           <span className="text-2xl">{PROVIDER_ICONS[provider.type] || '🔗'}</span>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5 flex-wrap">
               <p className="text-sm font-semibold text-gray-900 truncate">{provider.label || provider.type}</p>
               {index === 0 && provider.enabled && <Badge variant="success">Primary</Badge>}
@@ -69,11 +120,14 @@ function ProviderCard({
               {index > 1 && provider.enabled && <Badge variant="default">Reserve {index + 1}</Badge>}
               {!provider.enabled && <Badge variant="default">Disabled</Badge>}
             </div>
-            <p className="text-xs text-gray-600 mt-0.5">
-              {provider.key_preview ? `Key: ${provider.key_preview}` : <span className="text-amber-600 font-medium">No key set</span>}
-              {provider.base_url && <span className="ml-2 text-gray-500">{provider.base_url}</span>}
-              {provider.model_override && <span className="ml-2 text-gray-500">Model: {provider.model_override}</span>}
-            </p>
+            <div className="flex items-center gap-2 flex-wrap mt-0.5">
+              <span className="text-xs text-gray-500">
+                {provider.key_preview ? `Key: ${provider.key_preview}` : <span className="text-amber-600 font-medium">No key set</span>}
+                {provider.base_url && <span className="ml-2">{provider.base_url}</span>}
+                {provider.model_override && <span className="ml-2">· {provider.model_override}</span>}
+              </span>
+              <StatusBadge status={status} checking={checking} />
+            </div>
           </div>
         </div>
 
@@ -239,8 +293,20 @@ export function AIProvidersPanel() {
   const [editIdx, setEditIdx] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState('')
-  // Store full keys separately (masked on server)
   const [keys, setKeys] = useState<Record<number, string>>({})
+  const [statuses, setStatuses] = useState<Record<number, ProviderStatus>>({})
+  const [checking, setChecking] = useState(false)
+
+  const checkStatuses = useCallback(async () => {
+    setChecking(true)
+    try {
+      const r = await api.getProviderStatuses()
+      const map: Record<number, ProviderStatus> = {}
+      r.statuses.forEach(s => { map[s.index] = { status: s.status, detail: s.detail, balance: s.balance, billing_url: s.billing_url } })
+      setStatuses(map)
+    } catch { /* ignore */ }
+    setChecking(false)
+  }, [])
 
   const load = useCallback(() => {
     setLoading(true)
@@ -252,6 +318,7 @@ export function AIProvidersPanel() {
   }, [])
 
   useEffect(() => { load() }, [load])
+  useEffect(() => { checkStatuses() }, [checkStatuses])
 
   const buildSaveList = (): AIProviderSave[] =>
     providers.map((p, i) => ({
@@ -355,11 +422,18 @@ export function AIProvidersPanel() {
             Drag ▲▼ to set priority order — the first enabled provider is <strong>primary</strong>, the next is the <strong>fallback</strong>.
           </p>
         </div>
-        {saveMsg && (
-          <span className={`text-xs ${saveMsg.includes('failed') ? 'text-red-500' : 'text-emerald-600'}`}>
-            {saveMsg}
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {saveMsg && (
+            <span className={`text-xs ${saveMsg.includes('failed') ? 'text-red-500' : 'text-emerald-600'}`}>
+              {saveMsg}
+            </span>
+          )}
+          <button onClick={checkStatuses} disabled={checking}
+            className="text-xs text-gray-500 hover:text-accent-600 px-2 py-1 rounded-lg hover:bg-gray-100 border border-gray-200 transition-colors disabled:opacity-40"
+            title="Re-check provider status">
+            {checking ? '⏳' : '⟳'} Check
+          </button>
+        </div>
       </div>
 
       {/* Provider list */}
@@ -380,6 +454,8 @@ export function AIProvidersPanel() {
           ) : (
             <ProviderCard
               key={i} provider={p} index={i} total={providers.length}
+              status={statuses[i] ?? null}
+              checking={checking}
               onMoveUp={() => moveUp(i)}
               onMoveDown={() => moveDown(i)}
               onToggle={() => toggle(i)}

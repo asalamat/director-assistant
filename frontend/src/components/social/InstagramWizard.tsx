@@ -1,4 +1,7 @@
 import { useState, useEffect } from 'react'
+import { api } from '../../api/client'
+import { PostScoreWidget } from './PostScoreWidget'
+import type { PostScore } from '../../types'
 
 const BASE = '/api/instagram'
 const post = async (path: string, body: object) => {
@@ -71,6 +74,8 @@ export function InstagramWizard({ onViewHistory }: { onViewHistory: () => void }
   const [caption, setCaption] = useState('')
   const [hashtags, setHashtags] = useState<string[]>([])
   const [usedTemplate, setUsedTemplate] = useState<IgTemplate | null>(null)
+  const [score, setScore] = useState<PostScore | null>(null)
+  const [scoring, setScoring] = useState(false)
 
   // Image
   const [imageUrl, setImageUrl] = useState('')
@@ -101,6 +106,18 @@ export function InstagramWizard({ onViewHistory }: { onViewHistory: () => void }
       .then(d => setTemplates(d.templates || []))
       .catch(() => {})
   }, [])
+
+  useEffect(() => {
+    if (step !== 2 || !caption.trim()) { setScore(null); return }
+    setScoring(true)
+    const t = setTimeout(() => {
+      api.scoreInstagramPost({ caption, hashtags })
+        .then(setScore)
+        .catch(() => setScore(null))
+        .finally(() => setScoring(false))
+    }, 2000)
+    return () => clearTimeout(t)
+  }, [caption, hashtags, step])
 
   const searchNews = async () => {
     const q = searchQuery.trim() || topic.trim()
@@ -157,6 +174,8 @@ export function InstagramWizard({ onViewHistory }: { onViewHistory: () => void }
         const firstLine = cap.split('\n').map((l: string) => l.trim()).find((l: string) => l.length > 5) || ''
         setImageText(firstLine.slice(0, 80))
       }
+      // Auto-advance to the image step
+      setStep(3)
     } catch (e) {
       setError((e as Error).message || 'Failed to generate caption')
     } finally {
@@ -386,24 +405,44 @@ export function InstagramWizard({ onViewHistory }: { onViewHistory: () => void }
             )}
           </div>
 
-          {/* Recipe bar — shows what will be combined */}
-          <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-50 border border-gray-200 flex-wrap">
-            <span className="text-[11px] text-gray-400 font-medium">Will use:</span>
-            <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${selectedTemplate.id !== '__none__' ? 'bg-purple-100 text-purple-700' : 'bg-gray-200 text-gray-500'}`}>
-              {selectedTemplate.icon} {selectedTemplate.name}
-            </span>
-            <span className="text-gray-300">+</span>
-            <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${topic.trim() ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-400'}`}>
-              {topic.trim() ? '✍️ your description' : '✍️ description (empty)'}
-            </span>
-            {selectedResultIdxs.size > 0 && (
-              <>
-                <span className="text-gray-300">+</span>
-                <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-blue-100 text-blue-700">🌐 {selectedResultIdxs.size} news items</span>
-              </>
-            )}
-            <span className="text-gray-300 ml-auto">→ post</span>
-          </div>
+          {/* Template prompt preview */}
+          {selectedTemplate.id !== '__none__' && (
+            <div className="rounded-xl border border-purple-200 bg-purple-50 overflow-hidden">
+              <div className="flex items-center gap-2 px-3 py-2 border-b border-purple-100">
+                <span className="text-base">{selectedTemplate.icon}</span>
+                <span className="text-xs font-semibold text-purple-700">{selectedTemplate.name} — template instructions</span>
+              </div>
+              <p className="px-3 py-2.5 text-xs text-purple-800 leading-relaxed">{selectedTemplate.prompt}</p>
+            </div>
+          )}
+
+          {/* Final prompt preview — assembles everything together */}
+          {(selectedTemplate.id !== '__none__' || topic.trim()) && (
+            <div className="rounded-xl border border-gray-200 bg-gray-50 overflow-hidden">
+              <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200">
+                <span className="text-xs font-semibold text-gray-600">Final prompt that will be sent to AI</span>
+                <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                  {selectedTemplate.id !== '__none__' && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-100 text-purple-700">{selectedTemplate.icon} {selectedTemplate.name}</span>
+                  )}
+                  {topic.trim() && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-700">✍️ your description</span>
+                  )}
+                  {selectedResultIdxs.size > 0 && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-100 text-blue-700">🌐 {selectedResultIdxs.size} news</span>
+                  )}
+                </div>
+              </div>
+              <div className="px-3 py-2.5 text-xs text-gray-700 leading-relaxed whitespace-pre-wrap font-mono bg-white">
+                {[
+                  selectedTemplate.id !== '__none__' ? selectedTemplate.prompt : '',
+                  topic.trim() ? `\nTopic: ${topic.trim()}` : '',
+                  `\nTone: ${tone}`,
+                  selectedResultIdxs.size > 0 ? `\n\nNews context:\n${buildSearchContext()}` : '',
+                ].filter(Boolean).join('').trim() || <span className="text-gray-400 italic">Enter a description above to see the assembled prompt</span>}
+              </div>
+            </div>
+          )}
 
           <div>
             <p className="text-xs font-medium text-gray-500 mb-2">Tone</p>
@@ -458,6 +497,16 @@ export function InstagramWizard({ onViewHistory }: { onViewHistory: () => void }
                   {hashtags.map(h => (
                     <span key={h} className="px-2 py-0.5 bg-purple-50 text-purple-600 rounded-full text-[11px] font-medium">#{h}</span>
                   ))}
+                </div>
+              )}
+              {(score || scoring) && (
+                <div className="mt-3">
+                  <PostScoreWidget
+                    score={score?.score ?? 0}
+                    factors={score?.factors ?? { length: 0, hashtags: 0, cta: false, timing: false, hook: false }}
+                    suggestions={score?.suggestions ?? []}
+                    loading={scoring && !score}
+                  />
                 </div>
               )}
             </div>

@@ -501,6 +501,13 @@ async def _linkedin_autopilot_loop(app: "object") -> None:
                 post_text += "\n\n" + " ".join(f"#{t.lstrip('#')}" for t in all_tags)
 
             # Generate image with AI-crafted DALL-E prompt
+            # gpt-image-1 always returns b64_json; dall-e-3/dall-e-2 support response_format="b64_json".
+            # We request b64_json for all models to avoid URL-expiry issues and handle all models uniformly.
+            _IMAGE_MODEL_FALLBACKS = (
+                ("dall-e-3",    {"size": "1024x1024", "response_format": "b64_json"}),
+                ("gpt-image-1", {"size": "1024x1024"}),  # gpt-image-1 ignores response_format; always b64_json
+                ("dall-e-2",    {"size": "1024x1024", "response_format": "b64_json"}),
+            )
             image_url = ""
             if content_type in ("image", "image+text"):
                 openai_key = _get_openai_key()
@@ -522,38 +529,47 @@ async def _linkedin_autopilot_loop(app: "object") -> None:
                             else f"Professional LinkedIn post image for: {topic}. Clean, modern, business-appropriate."
                         )
                     try:
-                        import httpx
+                        import httpx, base64 as _b64
                         async with httpx.AsyncClient(timeout=120.0) as http:
-                            ir = await http.post(
-                                "https://api.openai.com/v1/images/generations",
-                                headers={"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"},
-                                json={"model": "dall-e-3", "prompt": dalle_prompt[:4000], "n": 1, "size": "1024x1024"},
-                            )
-                            if ir.status_code == 200:
-                                raw_url = ir.json().get("data", [{}])[0].get("url", "")
-                                # Convert to base64 immediately — DALL-E URLs expire after ~1h,
-                                # which breaks require_review flow when post is approved later.
-                                if raw_url:
-                                    try:
-                                        import base64 as _b64
-                                        dl = await http.get(raw_url, follow_redirects=True)
-                                        if dl.status_code == 200:
-                                            image_url = "data:image/png;base64," + _b64.b64encode(dl.content).decode()
-                                        else:
-                                            print(f"[linkedin-autopilot] image download failed {dl.status_code}")
-                                    except Exception as _de:
-                                        print(f"[linkedin-autopilot] image download error: {_de}")
-                            else:
-                                print(f"[linkedin-autopilot] DALL-E {ir.status_code}: {ir.text[:200]}")
+                            for _img_model, _img_params in _IMAGE_MODEL_FALLBACKS:
+                                payload = {"model": _img_model, "prompt": dalle_prompt[:4000], "n": 1, **_img_params}
+                                ir = await http.post(
+                                    "https://api.openai.com/v1/images/generations",
+                                    headers={"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"},
+                                    json=payload,
+                                )
+                                if ir.status_code == 200:
+                                    item = ir.json().get("data", [{}])[0]
+                                    b64_data = item.get("b64_json", "")
+                                    if not b64_data:
+                                        # Fallback: URL format (older API behaviour)
+                                        raw_url = item.get("url", "")
+                                        if raw_url:
+                                            try:
+                                                dl = await http.get(raw_url, follow_redirects=True)
+                                                if dl.status_code == 200:
+                                                    b64_data = _b64.b64encode(dl.content).decode()
+                                                else:
+                                                    print(f"[linkedin-autopilot] image URL download failed {dl.status_code}")
+                                            except Exception as _de:
+                                                print(f"[linkedin-autopilot] image URL download error: {_de}")
+                                    if b64_data:
+                                        image_url = "data:image/png;base64," + b64_data
+                                        print(f"[linkedin-autopilot] image generated via {_img_model}")
+                                        break
+                                    else:
+                                        print(f"[linkedin-autopilot] {_img_model} returned 200 but no image data — trying next")
+                                        continue
+                                else:
+                                    print(f"[linkedin-autopilot] DALL-E {_img_model} {ir.status_code}: {ir.text[:200]}")
+                                    continue
                     except Exception as e:
                         print(f"[linkedin-autopilot] image generation failed: {e}")
 
-            # If image was required but generation failed, skip this cycle rather than
-            # silently posting text-only.
+            # If image was required but all models failed, fall back to text-only post
+            # rather than skipping the topic entirely.
             if content_type in ("image", "image+text") and not image_url:
-                print(f"[linkedin-autopilot] image required but generation failed for '{topic}', will retry next cycle")
-                await asyncio.sleep(300)
-                continue
+                print(f"[linkedin-autopilot] image generation failed for '{topic}' — publishing text-only fallback")
 
             # If require_review: save as pending_review instead of publishing
             post_id = str(uuid.uuid4())
@@ -785,6 +801,58 @@ Write a natural, helpful reply. Keep it brief (2-4 sentences). Return ONLY the e
         print(f"[overnight-triage] run error: {e}")
 
 
+async def _send_app_email(cache, msg, tag: str = "[mailer]") -> None:
+    """Send a pre-built MIMEMultipart message via the best available account.
+
+    Tries SMTP (password-based) first; falls back to Gmail REST API for
+    OAuth-only setups so scheduled emails work even without an App Password.
+    """
+    import asyncio
+    accounts = cache.list_accounts()
+
+    # Prefer SMTP account (has password)
+    smtp_acc = next((a for a in accounts if getattr(a, "password", None)), None)
+    if smtp_acc:
+        msg["From"] = smtp_acc.username
+        loop = asyncio.get_event_loop()
+        from routers.email_send import _smtp_send
+        await loop.run_in_executor(None, _smtp_send, smtp_acc, msg)
+        return
+
+    # Fallback: Gmail REST API (OAuth account)
+    gmail_acc = next(
+        (a for a in accounts if str(getattr(a, "provider", "")).lower() in ("gmail", "gmail_oauth")),
+        None,
+    )
+    if gmail_acc:
+        try:
+            from services.email_extras import _kr_get_oauth_bundle
+            import base64, httpx
+            bundle = _kr_get_oauth_bundle(gmail_acc.id)
+            access_token = bundle.get("access_token") or ""
+            if not access_token:
+                print(f"{tag} Gmail OAuth token missing — cannot send")
+                return
+            msg["From"] = gmail_acc.username
+            raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+            async with httpx.AsyncClient(timeout=15) as client:
+                r = await client.post(
+                    "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+                    headers={"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"},
+                    json={"raw": raw},
+                )
+                if r.status_code == 401:
+                    print(f"{tag} Gmail token expired — reconnect Google account in Settings")
+                    return
+                r.raise_for_status()
+            return
+        except Exception as e:
+            print(f"{tag} Gmail API send failed: {e}")
+            return
+
+    print(f"{tag} no sendable account found — add an IMAP account or reconnect Google OAuth")
+
+
 async def _generate_and_send_report(app) -> None:
     """Generate the weekly brief and email it to report_email_to."""
     import asyncio
@@ -835,27 +903,14 @@ async def _generate_and_send_report(app) -> None:
 
         body_text = "\n".join(lines)
 
-        # Send via first SMTP-capable account
-        accounts = cache.list_accounts()
-        smtp_acc = next(
-            (a for a in accounts if getattr(a, "password", None)),
-            None,
-        )
-        if not smtp_acc:
-            print("[report-scheduler] no SMTP account found — cannot send report")
-            return
-
         import email.mime.text
         import email.mime.multipart
         msg = email.mime.multipart.MIMEMultipart()
-        msg["From"] = smtp_acc.username
         msg["To"] = to_email
         msg["Subject"] = "Weekly Brief — Director Assistant"
         msg.attach(email.mime.text.MIMEText(body_text, "plain"))
 
-        loop = asyncio.get_event_loop()
-        from routers.email_send import _smtp_send
-        await loop.run_in_executor(None, _smtp_send, smtp_acc, msg)
+        await _send_app_email(cache, msg, "[report-scheduler]")
         print(f"[report-scheduler] report sent to {to_email}")
 
     except Exception as e:
@@ -991,22 +1046,12 @@ async def daily_focus_task(app) -> None:
             body_text = "\n".join(lines)
             subject = f"Daily Focus — {_date.today().strftime('%A, %B %d')}"
 
-            accounts = cache.list_accounts()
-            smtp_acc = next((a for a in accounts if getattr(a, "password", None)), None)
-            if not smtp_acc:
-                print("[daily-focus] no SMTP account found — cannot send")
-                await asyncio.sleep(3600)
-                continue
-
             msg = email.mime.multipart.MIMEMultipart()
-            msg["From"] = smtp_acc.username
             msg["To"] = to_email
             msg["Subject"] = subject
             msg.attach(email.mime.text.MIMEText(body_text, "plain"))
 
-            loop = asyncio.get_event_loop()
-            from routers.email_send import _smtp_send
-            await loop.run_in_executor(None, _smtp_send, smtp_acc, msg)
+            await _send_app_email(cache, msg, "[daily-focus]")
             print(f"[daily-focus] sent to {to_email}")
 
             # Sleep ~23h to avoid double-firing on the same day

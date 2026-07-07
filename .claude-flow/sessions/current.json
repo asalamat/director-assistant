@@ -1,12 +1,21 @@
 {
-  "id": "session-1780929749927",
-  "startedAt": "2026-06-08T14:42:29.927Z",
+  "id": "session-1783380778932",
+  "startedAt": "2026-07-06T23:32:58.932Z",
   "cwd": "/Users/alisalamat/director-assistant",
-  "context": {},
+  "context": {
+    "lastMatchedPatterns": [
+      "insight-1783288696944-83gz",
+      "insight-1783288696944-oze7",
+      "mem-build_deploy-build---install--current-proce-2",
+      "insight-1783288696944-640q",
+      "insight-1783288696944-cu3y"
+    ]
+  },
   "metrics": {
-    "edits": 629,
+    "edits": 21,
     "commands": 0,
     "tasks": 0,
     "errors": 0
-  }
+  },
+  "updatedAt": "2026-07-07T20:33:05.897Z"
 }

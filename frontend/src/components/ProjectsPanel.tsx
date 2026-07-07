@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import DOMPurify from 'dompurify'
 import { api } from '../api/client'
 import { EmptyState, Spinner, Button } from './ui'
 import { useEmailContext } from '../contexts/EmailContext'
@@ -43,9 +44,11 @@ const PRIORITY_COLORS: Record<string, string> = {
   low:    'bg-gray-50 text-gray-500',
 }
 
+const esc = (s: string | number) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
 function buildPlanHTML(project: Project, plan: ProjectPlan): string {
   const phases = plan.phases.map(ph => `
-    <h3 style="margin:16px 0 6px;font-size:14px;color:#1e293b">${ph.name} — Week ${ph.start_week}, ${ph.duration_weeks}w (${ph.milestone})</h3>
+    <h3 style="margin:16px 0 6px;font-size:14px;color:#1e293b">${esc(ph.name)} — Week ${esc(ph.start_week)}, ${esc(ph.duration_weeks)}w (${esc(ph.milestone)})</h3>
     <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:8px">
       <thead><tr style="background:#f1f5f9">
         <th style="padding:4px 8px;text-align:left;border:1px solid #e2e8f0">Task</th>
@@ -54,23 +57,23 @@ function buildPlanHTML(project: Project, plan: ProjectPlan): string {
         <th style="padding:4px 8px;text-align:left;border:1px solid #e2e8f0">Priority</th>
       </tr></thead>
       <tbody>${ph.tasks.map(t => `<tr>
-        <td style="padding:4px 8px;border:1px solid #e2e8f0">${t.name}</td>
-        <td style="padding:4px 8px;border:1px solid #e2e8f0">${t.duration_days}</td>
-        <td style="padding:4px 8px;border:1px solid #e2e8f0">${t.assignee}</td>
-        <td style="padding:4px 8px;border:1px solid #e2e8f0">${t.priority}</td>
+        <td style="padding:4px 8px;border:1px solid #e2e8f0">${esc(t.name)}</td>
+        <td style="padding:4px 8px;border:1px solid #e2e8f0">${esc(t.duration_days)}</td>
+        <td style="padding:4px 8px;border:1px solid #e2e8f0">${esc(t.assignee)}</td>
+        <td style="padding:4px 8px;border:1px solid #e2e8f0">${esc(t.priority)}</td>
       </tr>`).join('')}</tbody>
     </table>`).join('')
   const risks = plan.risks.map(r => `
-    <tr><td style="padding:4px 8px;border:1px solid #e2e8f0">${r.description}</td>
-    <td style="padding:4px 8px;border:1px solid #e2e8f0">${r.impact}</td>
-    <td style="padding:4px 8px;border:1px solid #e2e8f0">${r.mitigation}</td></tr>`).join('')
-  return `<!DOCTYPE html><html><head><title>${project.name} — Project Plan</title>
+    <tr><td style="padding:4px 8px;border:1px solid #e2e8f0">${esc(r.description)}</td>
+    <td style="padding:4px 8px;border:1px solid #e2e8f0">${esc(r.impact)}</td>
+    <td style="padding:4px 8px;border:1px solid #e2e8f0">${esc(r.mitigation)}</td></tr>`).join('')
+  return `<!DOCTYPE html><html><head><title>${esc(project.name)} — Project Plan</title>
   <style>body{font-family:system-ui,sans-serif;max-width:800px;margin:32px auto;color:#334155;font-size:13px}
   h1{font-size:20px;margin-bottom:4px}h2{font-size:15px;margin:20px 0 8px;border-bottom:1px solid #e2e8f0;padding-bottom:4px}
   ul{margin:4px 0 0 20px;padding:0}li{margin-bottom:2px}@media print{body{margin:0}}</style></head>
-  <body><h1>${project.name}</h1><p style="color:#64748b;font-size:12px">Estimated duration: ${plan.estimated_duration_weeks} weeks</p>
-  <h2>Summary</h2><p>${plan.summary}</p>
-  <h2>Objectives</h2><ul>${plan.objectives.map(o => `<li>${o}</li>`).join('')}</ul>
+  <body><h1>${esc(project.name)}</h1><p style="color:#64748b;font-size:12px">Estimated duration: ${esc(plan.estimated_duration_weeks)} weeks</p>
+  <h2>Summary</h2><p>${esc(plan.summary)}</p>
+  <h2>Objectives</h2><ul>${plan.objectives.map(o => `<li>${esc(o)}</li>`).join('')}</ul>
   <h2>Phases &amp; Tasks</h2>${phases}
   <h2>Risks</h2><table style="width:100%;border-collapse:collapse;font-size:12px">
   <thead><tr style="background:#f1f5f9">
@@ -376,7 +379,7 @@ export function ProjectsPanel() {
     try {
       const res = await api.getClientReport(selected.id)
       const w = window.open('', '_blank')
-      w?.document.write(res.html)
+      w?.document.write(DOMPurify.sanitize(res.html, { WHOLE_DOCUMENT: true, USE_PROFILES: { html: true } }))
       w?.document.close()
       w?.print()
     } catch { /* silent */ }

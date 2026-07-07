@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import type { EmailMessage, QuickReplies } from '../../types'
 import { api } from '../../api/client'
 
@@ -13,6 +13,8 @@ export function EmailTools({ email, translation, onClearTranslation, onOpenCompo
   const [quickReplies, setQuickReplies] = useState<QuickReplies | null>(null)
   const [loadingReplies, setLoadingReplies] = useState(false)
   const [loadingSmartDraft, setLoadingSmartDraft] = useState(false)
+  const [useMyVoice, setUseMyVoice] = useState(false)
+  const [hasStyle, setHasStyle] = useState(false)
   const [threadSummary, setThreadSummary] = useState<{
     summary: string; key_points: string[]; outcome: string; message_count: number
   } | null>(null)
@@ -33,15 +35,27 @@ export function EmailTools({ email, translation, onClearTranslation, onOpenCompo
     try {
       const r = await api.getQuickReplies(email.id)
       setQuickReplies(r)
-    } catch { setQuickReplies({ short: 'Failed to generate', detailed: '', formal: '' }) }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      const detail = msg.includes('402') || msg.toLowerCase().includes('credit')
+        ? 'AI credits exhausted — top up at console.anthropic.com/settings/billing'
+        : 'Failed to generate replies'
+      setQuickReplies({ short: detail, detailed: '', formal: '' })
+    }
     finally { setLoadingReplies(false) }
   }
+
+  useEffect(() => {
+    api.getStyleProfile().then(r => setHasStyle(!!r.style)).catch(() => {})
+  }, [])
 
   const handleSmartDraft = async () => {
     if (loadingSmartDraft) return
     setLoadingSmartDraft(true)
     try {
-      const r = await api.getSmartDraft(email.id)
+      const r = useMyVoice
+        ? await api.generateVoiceDraft(email.id)
+        : await api.getSmartDraft(email.id)
       onOpenCompose(r.to, r.subject, r.draft)
       api.extractCommitments(email.id, r.draft).then(_res => {
         // commitments are managed in the parent via onOpenCompose callback
@@ -148,6 +162,20 @@ export function EmailTools({ email, translation, onClearTranslation, onOpenCompo
           >
             {loadingSmartDraft ? <><span className="animate-spin inline-block">⟳</span> Drafting…</> : '✎ Smart Draft'}
           </button>
+          {hasStyle && (
+            <label
+              className="text-xs text-gray-500 flex items-center gap-1 cursor-pointer select-none"
+              title="Draft in your learned writing voice"
+            >
+              <input
+                type="checkbox"
+                checked={useMyVoice}
+                onChange={e => setUseMyVoice(e.target.checked)}
+                className="accent-purple-600 w-3 h-3"
+              />
+              {useMyVoice ? '✓ Using your writing style' : 'Use my voice'}
+            </label>
+          )}
           <button onClick={handleSummarizeThread} disabled={loadingThreadSummary}
             className="text-xs text-emerald-600 hover:underline flex items-center gap-1 disabled:opacity-50">
             {loadingThreadSummary ? <><span className="animate-spin inline-block">⟳</span> Summarizing…</> : '≡ Summarize thread'}

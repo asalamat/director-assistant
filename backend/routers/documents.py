@@ -83,13 +83,15 @@ async def ingest_status():
 @router.get("/browse")
 async def browse_folder(path: str = ""):
     """Return subdirectories at the given path for the folder picker UI."""
-    if not path:
-        path = str(Path.home())
+    home = Path.home().resolve()
+    target = Path(path or str(home)).expanduser().resolve()
 
-    target = Path(path).expanduser().resolve()
+    if target != home and not str(target).startswith(str(home) + os.sep):
+        raise HTTPException(403, "Access restricted to home directory")
+
     if not target.exists() or not target.is_dir():
         # Fall back to home
-        target = Path.home()
+        target = home
 
     try:
         entries = sorted(
@@ -99,7 +101,7 @@ async def browse_folder(path: str = ""):
     except PermissionError:
         entries = []
 
-    parent = str(target.parent) if target != target.parent else None
+    parent = str(target.parent) if target != home else None
 
     return {
         "current": str(target),

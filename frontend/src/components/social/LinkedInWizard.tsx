@@ -1,5 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { api } from '../../api/client'
+import { PostScoreWidget } from './PostScoreWidget'
+import type { PostScore } from '../../types'
 
 interface Trend {
   title: string
@@ -65,6 +67,8 @@ export function LinkedInWizard({ onViewHistory, onManageTemplates }: { onViewHis
   const [tone, setTone] = useState('Professional')
   const [post, setPost] = useState('')
   const [hashtags, setHashtags] = useState<string[]>([])
+  const [score, setScore] = useState<PostScore | null>(null)
+  const [scoring, setScoring] = useState(false)
   const [images, setImages] = useState<GeneratedImage[]>([])
   const [selectedImage, setSelectedImage] = useState<number | null>(null) // null=none chosen, -1=no image
   const [customPrompt, setCustomPrompt] = useState('')
@@ -78,6 +82,18 @@ export function LinkedInWizard({ onViewHistory, onManageTemplates }: { onViewHis
   const [imgLoading, setImgLoading] = useState(false)
   const [templatesLoading, setTemplatesLoading] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (step !== 3 || !post.trim()) { setScore(null); return }
+    setScoring(true)
+    const t = setTimeout(() => {
+      api.scoreLinkedInPost({ post_text: post, hashtags })
+        .then(setScore)
+        .catch(() => setScore(null))
+        .finally(() => setScoring(false))
+    }, 2000)
+    return () => clearTimeout(t)
+  }, [post, hashtags, step])
 
   const fetchTrends = async () => {
     if (!subject.trim()) return
@@ -100,6 +116,8 @@ export function LinkedInWizard({ onViewHistory, onManageTemplates }: { onViewHis
       const r = await (api as any).generateLinkedInPost({ topic: selectedTrend.title, audience, tone, subject })
       setPost(r.post)
       setHashtags(r.hashtags || [])
+      // Auto-advance to image style step
+      goToStylePicker()
     } catch (e) {
       setError((e as Error).message || 'Failed to generate post')
     } finally {
@@ -326,13 +344,29 @@ export function LinkedInWizard({ onViewHistory, onManageTemplates }: { onViewHis
             </div>
           </div>
 
+              {/* Final prompt preview */}
+          <div className="rounded-xl border border-blue-100 bg-blue-50 overflow-hidden">
+            <div className="flex items-center gap-2 px-3 py-2 border-b border-blue-100">
+              <span className="text-xs font-semibold text-blue-700">Final prompt that will be sent to AI</span>
+            </div>
+            <div className="px-3 py-2.5 text-xs text-blue-900 leading-relaxed font-mono whitespace-pre-wrap bg-white">
+              {[
+                `Topic: ${selectedTrend?.title || '—'}`,
+                `About: ${subject || '—'}`,
+                `Audience: ${audience}`,
+                `Tone: ${tone}`,
+                selectedTrend?.description ? `\nContext: ${selectedTrend.description}` : '',
+              ].filter(Boolean).join('\n')}
+            </div>
+          </div>
+
           <button
             onClick={generatePost}
             disabled={loading}
             className="flex items-center gap-2 px-4 py-2 bg-accent text-white rounded-xl text-sm font-medium hover:opacity-90 disabled:opacity-50 transition"
           >
             {loading ? <Spinner /> : null}
-            {post ? 'Regenerate' : 'Generate Post'}
+            {post ? '↺ Regenerate Post' : '✨ Generate Post & Continue →'}
           </button>
 
           {post && (
@@ -353,6 +387,14 @@ export function LinkedInWizard({ onViewHistory, onManageTemplates }: { onViewHis
                     <span key={h} className="px-2 py-0.5 bg-blue-50 text-accent rounded-full text-[11px] font-medium">#{h}</span>
                   ))}
                 </div>
+              )}
+              {(score || scoring) && (
+                <PostScoreWidget
+                  score={score?.score ?? 0}
+                  factors={score?.factors ?? { length: 0, hashtags: 0, cta: false, timing: false, hook: false }}
+                  suggestions={score?.suggestions ?? []}
+                  loading={scoring && !score}
+                />
               )}
             </>
           )}
@@ -434,6 +476,17 @@ export function LinkedInWizard({ onViewHistory, onManageTemplates }: { onViewHis
             </div>
           )}
 
+          {/* Selected template prompt display */}
+          {selectedTemplate && templates.find(t => t.id === selectedTemplate) && (
+            <div className="rounded-xl border border-blue-200 bg-blue-50 overflow-hidden">
+              <div className="flex items-center gap-2 px-3 py-2 border-b border-blue-100">
+                <span className="text-base">{templates.find(t => t.id === selectedTemplate)?.icon || '🎨'}</span>
+                <span className="text-xs font-semibold text-blue-700">{templates.find(t => t.id === selectedTemplate)?.name} — style instructions</span>
+              </div>
+              <p className="px-3 py-2.5 text-xs text-blue-800 leading-relaxed">{templates.find(t => t.id === selectedTemplate)?.prompt}</p>
+            </div>
+          )}
+
           {/* Custom prompt override */}
           <div>
             <p className="text-xs font-medium text-gray-500 mb-1.5">Or describe your own style</p>
@@ -444,6 +497,29 @@ export function LinkedInWizard({ onViewHistory, onManageTemplates }: { onViewHis
               onChange={e => { setCustomPrompt(e.target.value); if (e.target.value) setSelectedTemplate(null) }}
             />
           </div>
+
+          {/* Final image prompt preview */}
+          {(selectedTemplate || customPrompt.trim()) && (
+            <div className="rounded-xl border border-gray-200 bg-gray-50 overflow-hidden">
+              <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200">
+                <span className="text-xs font-semibold text-gray-600">Final image prompt that will be sent to DALL-E</span>
+                {selectedTemplate && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-100 text-blue-700">
+                    {templates.find(t => t.id === selectedTemplate)?.name}
+                  </span>
+                )}
+              </div>
+              <div className="px-3 py-2.5 text-xs text-gray-700 leading-relaxed font-mono whitespace-pre-wrap bg-white">
+                {[
+                  selectedTemplate
+                    ? templates.find(t => t.id === selectedTemplate)?.prompt
+                    : customPrompt.trim(),
+                  selectedTrend?.title ? `\n\nPost topic: ${selectedTrend.title}` : '',
+                  post ? `\nPost text: ${post.slice(0, 120)}…` : '',
+                ].filter(Boolean).join('').trim()}
+              </div>
+            </div>
+          )}
 
           <div className="flex gap-2 pt-1">
             <button onClick={() => setStep(3)} className="px-4 py-2 rounded-xl text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition">

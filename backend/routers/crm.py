@@ -161,3 +161,100 @@ async def delete_deal(deal_id: int, request: Request):
     if cur.rowcount == 0:
         raise HTTPException(404, "Deal not found")
     return {"status": "deleted"}
+
+
+def _ensure_crm_extras(cache):
+    with cache._conn() as conn:
+        conn.execute("""CREATE TABLE IF NOT EXISTS crm_deal_emails (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            deal_id INTEGER NOT NULL,
+            email_id TEXT NOT NULL,
+            direction TEXT CHECK(direction IN ('inbound','outbound')),
+            logged_at TEXT DEFAULT (datetime('now')),
+            UNIQUE(deal_id, email_id)
+        )""")
+    for col in ("email_count INTEGER DEFAULT 0", "last_email_at TEXT DEFAULT NULL", "next_followup_at TEXT DEFAULT NULL"):
+        try:
+            with cache._conn() as conn:
+                conn.execute(f"ALTER TABLE crm_deals ADD COLUMN {col}")
+        except Exception:
+            pass
+
+
+@router.get("/pipeline/kanban")
+async def get_kanban(request: Request):
+    cache = request.app.state.cache
+    _ensure_crm_extras(cache)
+    with cache._conn() as conn:
+        deals = conn.execute(
+            "SELECT id, name, contact_email, stage, value, notes, last_email_at FROM crm_deals ORDER BY created_at DESC"
+        ).fetchall()
+    columns: dict[str, list] = {}
+    for d in deals:
+        stage = d[3] or "prospect"
+        columns.setdefault(stage, []).append({
+            "id": d[0], "name": d[1], "contact_email": d[2],
+            "stage": stage, "value": d[4], "notes": d[5], "last_email_at": d[6],
+        })
+    return {"columns": [{"stage": k, "deals": v} for k, v in columns.items()]}
+
+
+@router.get("/deals/{deal_id}/emails")
+async def get_deal_emails(deal_id: int, request: Request):
+    cache = request.app.state.cache
+    _ensure_crm_extras(cache)
+    with cache._conn() as conn:
+        rows = conn.execute(
+            "SELECT de.email_id, e.subject, e.sender, e.date, de.direction "
+            "FROM crm_deal_emails de LEFT JOIN emails e ON e.id=de.email_id "
+            "WHERE de.deal_id=? ORDER BY de.logged_at DESC",
+            (deal_id,),
+        ).fetchall()
+    return {"emails": [{"email_id": r[0], "subject": r[1], "sender": r[2], "date": r[3], "direction": r[4]} for r in rows]}
+
+
+@router.post("/deals/{deal_id}/emails")
+async def link_deal_email(deal_id: int, body: dict, request: Request):
+    cache = request.app.state.cache
+    _ensure_crm_extras(cache)
+    email_id = str(body.get("email_id", ""))
+    direction = body.get("direction", "inbound")
+    if direction not in ("inbound", "outbound"):
+        direction = "inbound"
+    if not email_id:
+        raise HTTPException(400, "email_id required")
+    with cache._conn() as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO crm_deal_emails (deal_id, email_id, direction) VALUES (?,?,?)",
+            (deal_id, email_id, direction),
+        )
+        conn.execute("UPDATE crm_deals SET email_count=email_count+1, last_email_at=datetime('now') WHERE id=?", (deal_id,))
+    return {"linked": True}
+
+
+@router.delete("/deals/{deal_id}/emails/{email_id}")
+async def unlink_deal_email(deal_id: int, email_id: str, request: Request):
+    cache = request.app.state.cache
+    with cache._conn() as conn:
+        conn.execute("DELETE FROM crm_deal_emails WHERE deal_id=? AND email_id=?", (deal_id, email_id))
+    return {"unlinked": True}
+
+
+@router.post("/deals/{deal_id}/followup-draft")
+async def crm_followup_draft(deal_id: int, request: Request):
+    cache = request.app.state.cache
+    advisor = request.app.state.advisor
+    with cache._conn() as conn:
+        deal = conn.execute("SELECT name, contact_email, stage, notes FROM crm_deals WHERE id=?", (deal_id,)).fetchone()
+    if not deal:
+        raise HTTPException(404, "Deal not found")
+    prompt = (
+        f"Write a brief, professional follow-up email for a deal named '{deal[0]}' "
+        f"currently in the '{deal[2]}' stage. Contact: {deal[1]}. Context: {deal[3] or 'none'}. "
+        "Return JSON with keys: to, subject, body."
+    )
+    try:
+        result = await advisor._agentic_call(None, prompt)
+        return result if isinstance(result, dict) else {"to": deal[1], "subject": f"Following up on {deal[0]}", "body": str(result)}
+    except Exception as e:
+        return {"to": deal[1] or "", "subject": f"Following up on {deal[0]}", "body": f"Hi,\n\nJust following up on {deal[0]}.\n\nBest regards"}

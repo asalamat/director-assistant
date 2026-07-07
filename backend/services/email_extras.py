@@ -68,6 +68,58 @@ def _kr_delete(account_id: int):
         pass
 
 
+# OAuth secrets (access_token / refresh_token / client_secret) are stored as one
+# JSON bundle per account under a separate keychain service. In the DB they are
+# replaced with the sentinel below; plaintext values are kept only when the
+# keychain is unavailable (legacy fallback).
+_KR_OAUTH_SERVICE = "director-assistant-oauth"
+_KR_OAUTH_FIELDS = ("access_token", "refresh_token", "client_secret")
+_KR_SENTINEL = "__keychain__"
+
+
+def _kr_set_oauth_bundle(account_id: int, bundle: dict) -> bool:
+    """Store the OAuth secret bundle in the OS keychain. Returns True on success."""
+    if account_id in _kr_set_failed:
+        return False
+    try:
+        import keyring
+        keyring.set_password(_KR_OAUTH_SERVICE, str(account_id), _json.dumps(bundle))
+        return True
+    except Exception as e:
+        if _is_permanent_kr_error(e):
+            _kr_set_failed.add(account_id)
+        return False
+
+
+def _kr_get_oauth_bundle(account_id: int) -> dict:
+    """Retrieve the OAuth secret bundle from the OS keychain, or {} if unavailable."""
+    try:
+        import keyring
+        raw = keyring.get_password(_KR_OAUTH_SERVICE, str(account_id))
+        return _json.loads(raw) if raw else {}
+    except Exception:
+        return {}
+
+
+def _kr_delete_oauth(account_id: int):
+    """Remove the OAuth bundle from the OS keychain (best-effort)."""
+    try:
+        import keyring
+        keyring.delete_password(_KR_OAUTH_SERVICE, str(account_id))
+    except Exception:
+        pass
+
+
+def _resolve_oauth_cfg(account_id: int, cfg: dict) -> dict:
+    """Replace __keychain__ sentinels in an account config with keychain values."""
+    if any(cfg.get(f) == _KR_SENTINEL for f in _KR_OAUTH_FIELDS):
+        bundle = _kr_get_oauth_bundle(account_id)
+        for f in _KR_OAUTH_FIELDS:
+            if cfg.get(f) == _KR_SENTINEL:
+                cfg[f] = bundle.get(f)
+    return cfg
+
+
 class EmailExtrasMixin:
 
     # ── Action Items ──────────────────────────────────────────────────────────
@@ -159,16 +211,59 @@ class EmailExtrasMixin:
 
     # ── Snooze ────────────────────────────────────────────────────────────────
 
-    def snooze_email(self, email_id: str, wake_date: str) -> None:
+    def snooze_email(
+        self, email_id: str, wake_date: str | None = None, set_aside: bool = False
+    ) -> None:
         with self._conn() as conn:
             conn.execute(
-                "INSERT OR REPLACE INTO email_snooze (email_id, wake_date) VALUES (?,?)",
-                (email_id, wake_date),
+                """INSERT INTO email_snooze (email_id, wake_date, set_aside)
+                   VALUES (?,?,?)
+                   ON CONFLICT(email_id) DO UPDATE SET
+                       wake_date = excluded.wake_date,
+                       set_aside = excluded.set_aside""",
+                (email_id, wake_date, 1 if set_aside else 0),
             )
 
     def unsnooze_email(self, email_id: str) -> None:
         with self._conn() as conn:
             conn.execute("DELETE FROM email_snooze WHERE email_id = ?", (email_id,))
+
+    def wake_due_snoozed(self) -> list[str]:
+        """Remove snoozes whose wake_date has arrived; return woken email_ids."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                """SELECT email_id FROM email_snooze
+                   WHERE set_aside = 0 AND wake_date IS NOT NULL
+                     AND wake_date <= datetime('now')"""
+            ).fetchall()
+            ids = [r["email_id"] for r in rows]
+            if ids:
+                conn.executemany(
+                    "DELETE FROM email_snooze WHERE email_id = ?", [(i,) for i in ids]
+                )
+        return ids
+
+    def list_snoozed(self) -> list[dict]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                """SELECT s.email_id, s.wake_date, e.subject, e.sender, e.date
+                   FROM email_snooze s
+                   LEFT JOIN emails e ON e.id = s.email_id
+                   WHERE s.set_aside = 0 AND s.wake_date IS NOT NULL
+                   ORDER BY s.wake_date ASC"""
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def list_set_aside(self) -> list[dict]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                """SELECT s.email_id, s.created_at, e.subject, e.sender, e.date
+                   FROM email_snooze s
+                   LEFT JOIN emails e ON e.id = s.email_id
+                   WHERE s.set_aside = 1
+                   ORDER BY s.created_at DESC"""
+            ).fetchall()
+        return [dict(r) for r in rows]
 
     # ── Templates ─────────────────────────────────────────────────────────────
 
@@ -367,6 +462,17 @@ class EmailExtrasMixin:
             if password and account_id and _kr_set(account_id, password):
                 self._clear_db_password(account_id)
 
+        # Migrate plaintext OAuth secrets to keychain, then resolve sentinels.
+        oauth_plain = {
+            f: cfg[f] for f in _KR_OAUTH_FIELDS
+            if cfg.get(f) and cfg.get(f) != _KR_SENTINEL
+        }
+        if oauth_plain and account_id:
+            bundle = {**_kr_get_oauth_bundle(account_id), **oauth_plain}
+            if _kr_set_oauth_bundle(account_id, bundle):
+                self._clear_db_oauth(account_id)
+        cfg = _resolve_oauth_cfg(account_id, cfg)
+
         return Account(
             id=account_id,
             name=row.get("name") or "",
@@ -393,6 +499,22 @@ class EmailExtrasMixin:
             if row:
                 cfg = _json.loads(row[0] or "{}")
                 cfg["password"] = None
+                conn.execute(
+                    "UPDATE accounts SET config_json = ? WHERE id = ?",
+                    (_json.dumps(cfg), account_id),
+                )
+
+    def _clear_db_oauth(self, account_id: int):
+        """Replace OAuth secrets in config_json with sentinels after keychain migration."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT config_json FROM accounts WHERE id = ?", (account_id,)
+            ).fetchone()
+            if row:
+                cfg = _json.loads(row[0] or "{}")
+                for f in _KR_OAUTH_FIELDS:
+                    if cfg.get(f) and cfg[f] != _KR_SENTINEL:
+                        cfg[f] = _KR_SENTINEL
                 conn.execute(
                     "UPDATE accounts SET config_json = ? WHERE id = ?",
                     (_json.dumps(cfg), account_id),
@@ -430,16 +552,30 @@ class EmailExtrasMixin:
         if account.password and _kr_set(account_id, account.password):
             self._clear_db_password(account_id)
 
+        oauth = {
+            f: getattr(account, f, None) for f in _KR_OAUTH_FIELDS
+            if getattr(account, f, None)
+        }
+        if oauth and _kr_set_oauth_bundle(account_id, oauth):
+            self._clear_db_oauth(account_id)
+
         return account_id
 
     def remove_account(self, account_id: int) -> bool:
         _kr_delete(account_id)
+        _kr_delete_oauth(account_id)
         with self._conn() as conn:
             cur = conn.execute("DELETE FROM accounts WHERE id = ?", (account_id,))
         return cur.rowcount > 0
 
     def store_account_token(self, account_id: int, access_token: str, refresh_token: str = ""):
         """Persist an OAuth access token (and optional refresh token) for an existing account."""
+        bundle = _kr_get_oauth_bundle(account_id)
+        bundle["access_token"] = access_token
+        if refresh_token:
+            bundle["refresh_token"] = refresh_token
+        in_keychain = _kr_set_oauth_bundle(account_id, bundle)
+
         with self._conn() as conn:
             row = conn.execute(
                 "SELECT config_json FROM accounts WHERE id = ?", (account_id,)
@@ -447,9 +583,9 @@ class EmailExtrasMixin:
             if not row:
                 return
             cfg = _json.loads(row[0] or "{}")
-            cfg["access_token"] = access_token
+            cfg["access_token"] = _KR_SENTINEL if in_keychain else access_token
             if refresh_token:
-                cfg["refresh_token"] = refresh_token
+                cfg["refresh_token"] = _KR_SENTINEL if in_keychain else refresh_token
             conn.execute(
                 "UPDATE accounts SET config_json = ? WHERE id = ?",
                 (_json.dumps(cfg), account_id),
@@ -463,7 +599,7 @@ class EmailExtrasMixin:
             ).fetchone()
         if not row:
             return None
-        cfg = _json.loads(row[0] or "{}")
+        cfg = _resolve_oauth_cfg(account_id, _json.loads(row[0] or "{}"))
         refresh_token = cfg.get("refresh_token", "")
         client_id = cfg.get("client_id", "")
         if not refresh_token or not client_id:

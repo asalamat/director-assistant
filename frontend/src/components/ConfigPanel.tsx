@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { api } from '../api/client'
 import type { AppConfig } from '../types'
 import { AIProvidersPanel } from './AIProvidersPanel'
+import { WeatherSettings } from './WeatherSettings'
 
 interface Props {
   onSaved?: () => void
@@ -148,8 +149,73 @@ function KeyField({
   )
 }
 
+const TABS = [
+  { id: 'ai',           label: 'AI' },
+  { id: 'email',        label: 'Email' },
+  { id: 'features',     label: 'Features' },
+  { id: 'integrations', label: 'Integrations' },
+  { id: 'general',      label: 'General' },
+] as const
+type TabId = typeof TABS[number]['id']
+
+function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void }) {
+  return (
+    <div className="flex items-center gap-2 flex-shrink-0">
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        onClick={onChange}
+        style={{
+          position: 'relative',
+          display: 'inline-flex',
+          alignItems: 'center',
+          width: 44,
+          height: 24,
+          borderRadius: 9999,
+          border: 'none',
+          cursor: 'pointer',
+          outline: 'none',
+          padding: 0,
+          flexShrink: 0,
+          backgroundColor: checked ? '#22c55e' : '#f87171',
+          transition: 'background-color 0.2s',
+        }}
+      >
+        <span style={{
+          position: 'absolute',
+          top: 2,
+          left: checked ? 22 : 2,
+          width: 20,
+          height: 20,
+          borderRadius: 9999,
+          backgroundColor: 'white',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+          transition: 'left 0.2s',
+        }} />
+      </button>
+      <span style={{ fontSize: 11, fontWeight: 700, width: 24, color: checked ? '#15803d' : '#dc2626' }}>
+        {checked ? 'On' : 'Off'}
+      </span>
+    </div>
+  )
+}
+
+function SaveRow({ saving, msg, onSave }: { saving: boolean; msg: string; onSave: () => void }) {
+  return (
+    <div className="flex items-center gap-3 pt-1 border-t border-gray-200 mt-2">
+      <button onClick={onSave} disabled={saving}
+        className="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent/90 disabled:opacity-60 transition-colors">
+        {saving ? 'Saving…' : 'Save settings'}
+      </button>
+      {msg && <span className={`text-xs ${msg === 'Saved' ? 'text-green-600' : 'text-red-500'}`}>{msg}</span>}
+    </div>
+  )
+}
+
 export function ConfigPanel({ onSaved }: Props) {
   const [config, setConfig] = useState<AppConfig | null>(null)
+  const [activeTab, setActiveTab] = useState<TabId>('ai')
 
   const [anthropicKey, setAnthropicKey] = useState('')
   const [openaiKey, setOpenaiKey] = useState('')
@@ -164,6 +230,8 @@ export function ConfigPanel({ onSaved }: Props) {
   const [pollInterval, setPollInterval] = useState(60)
   const [syncWindowDays, setSyncWindowDays] = useState(0)
   const [budgetMode, setBudgetMode] = useState(false)
+  const [newsEnabled, setNewsEnabled] = useState(false)
+  const [newsTopics, setNewsTopics] = useState('')
 
   const [testingAnt, setTestingAnt] = useState(false)
   const [testingOai, setTestingOai] = useState(false)
@@ -246,6 +314,8 @@ export function ConfigPanel({ onSaved }: Props) {
       setDigestTime(cfg.digest_schedule_time ?? '08:00')
       setDigestEmail(cfg.digest_schedule_email ?? '')
       setElevenLabsVoiceId((cfg as any).elevenlabs_voice_id || '')
+      setNewsEnabled(cfg.news_enabled ?? false)
+      setNewsTopics((cfg.news_topics ?? []).join(', '))
     }).catch(() => {})
   }, [])
 
@@ -291,6 +361,8 @@ export function ConfigPanel({ onSaved }: Props) {
       payload.digest_schedule_enabled = digestEnabled
       payload.digest_schedule_time = digestTime
       payload.digest_schedule_email = digestEmail
+      ;(payload as Record<string, unknown>).news_enabled = newsEnabled
+      ;(payload as Record<string, unknown>).news_topics = newsTopics.split(',').map(t => t.trim()).filter(Boolean)
       await api.saveConfig(payload)
       setSaveMsg('Saved')
       setAnthropicKey(''); setOpenaiKey(''); setElevenLabsKey(''); setElevenLabsVoiceId('')
@@ -309,15 +381,28 @@ export function ConfigPanel({ onSaved }: Props) {
     setHelpSection(prev => prev === section ? null : section)
 
   return (
-    <div className="max-w-lg mx-auto p-6 space-y-6">
-
-      {/* ── Multi-provider AI settings ─────────────────────────────── */}
-      <div className="border border-accent-200 rounded-xl p-4">
-        <AIProvidersPanel />
+    <div className="flex flex-col h-full max-w-lg mx-auto">
+      {/* Tab navigation */}
+      <div className="flex border-b border-gray-200 px-2 pt-1 gap-0.5 flex-shrink-0 overflow-x-auto bg-white">
+        {TABS.map(t => (
+          <button key={t.id} onClick={() => setActiveTab(t.id)}
+            className={`px-4 py-2.5 text-xs font-medium whitespace-nowrap border-b-2 -mb-px transition-colors ${
+              activeTab === t.id ? 'border-accent text-accent' : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >{t.label}</button>
+        ))}
       </div>
 
-      {/* Legacy single-key fields — kept for quick access */}
-      <details className="border border-dashed border-gray-200 rounded-xl">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+
+      {/* ── AI ── */}
+      {activeTab === 'ai' && <>
+        <div className="border border-gray-200 rounded-xl p-4">
+          <AIProvidersPanel />
+        </div>
+
+        {/* Legacy API keys (collapsed by default) */}
+        <details className="border border-dashed border-gray-200 rounded-xl">
         <summary className="px-4 py-3 text-xs font-medium text-gray-500 cursor-pointer hover:text-gray-700 select-none">
           Legacy API key fields (also managed above)
         </summary>
@@ -370,8 +455,158 @@ export function ConfigPanel({ onSaved }: Props) {
         </div>{/* end legacy fields */}
       </details>
 
-      {/* Microsoft Integration — Auto-Setup */}
-      <div className="border border-blue-200 rounded-xl p-4 space-y-3">
+        {/* Budget mode */}
+        <div className="border border-amber-200 rounded-xl p-4 bg-amber-50">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1">
+              <h2 className="text-sm font-semibold text-amber-800">Budget Mode</h2>
+              <p className="text-xs text-amber-700 mt-1">
+                Cheapest models — <span className="font-mono">claude-haiku</span> / <span className="font-mono">gpt-4o-mini</span>. Saves API costs.
+              </p>
+            </div>
+            <Toggle checked={budgetMode} onChange={() => setBudgetMode(v => !v)} />
+          </div>
+          {budgetMode && <p className="text-xs text-amber-700 mt-2 font-medium">Active — economy models on all calls</p>}
+        </div>
+
+        <SaveRow saving={saving} msg={saveMsg} onSave={handleSave} />
+      </>}
+
+      {/* ── Email ── */}
+      {activeTab === 'email' && <>
+        <div className="border border-gray-200 rounded-xl p-4 space-y-3">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-800">Auto-check interval</h2>
+            <p className="text-xs text-gray-500 mt-0.5">How often to poll for new emails in the background.</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <input type="range" min={30} max={600} step={30} value={pollInterval}
+              onChange={e => setPollInterval(Number(e.target.value))} className="flex-1 accent-accent" />
+            <span className="text-sm font-medium text-gray-700 w-20 text-right">
+              {pollInterval >= 60 ? `${Math.round(pollInterval / 60)} min${Math.round(pollInterval / 60) !== 1 ? 's' : ''}` : `${pollInterval}s`}
+            </span>
+          </div>
+        </div>
+
+        <div className="border border-gray-200 rounded-xl p-4 space-y-3">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-800">Sync window</h2>
+            <p className="text-xs text-gray-500 mt-0.5">How far back to look on each poll. Wider = catches older changes.</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <input type="range" min={1} max={31} step={1} value={syncWindowDays === 0 ? 31 : syncWindowDays}
+              onChange={e => setSyncWindowDays(Number(e.target.value) === 31 ? 0 : Number(e.target.value))}
+              className="flex-1 accent-accent" />
+            <span className="text-sm font-medium text-gray-700 w-20 text-right">
+              {syncWindowDays === 0 ? 'Unlimited' : `${syncWindowDays} ${syncWindowDays === 1 ? 'day' : 'days'}`}
+            </span>
+          </div>
+          <div className="flex justify-between text-xs text-gray-400"><span>1 day</span><span>Unlimited</span></div>
+        </div>
+
+        <div className="border border-gray-200 rounded-xl p-4 space-y-3">
+          <h2 className="text-sm font-semibold text-gray-800">Email provider setup guides</h2>
+          <div className="grid grid-cols-2 gap-2">
+            {(['yahoo', 'gmail', 'hotmail', 'office365'] as HelpSection[]).map(s => (
+              <button key={s} onClick={() => toggleHelp(s)}
+                className={`px-3 py-2 text-xs rounded-lg border transition-colors text-left ${
+                  helpSection === s ? 'border-accent bg-accent/5 text-accent font-medium' : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                }`}>
+                {s === 'yahoo' ? 'Yahoo IMAP' : s === 'gmail' ? 'Gmail IMAP' : s === 'hotmail' ? 'Hotmail / Outlook' : 'Office 365 (Azure)'}
+              </button>
+            ))}
+          </div>
+          <HelpBox section={helpSection} />
+        </div>
+
+        <SaveRow saving={saving} msg={saveMsg} onSave={handleSave} />
+      </>}
+
+      {/* ── Features ── */}
+      {activeTab === 'features' && <>
+        {/* Daily News — prominent */}
+        <div className="border-2 border-blue-200 rounded-xl p-4 space-y-3 bg-blue-50/30">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-0.5">
+                <h2 className="text-sm font-semibold text-gray-800">Daily News</h2>
+                <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-medium">AI-scored</span>
+              </div>
+              <p className="text-xs text-gray-500">Headlines for your topics, refreshed every 10 min in the News tab.</p>
+            </div>
+            <Toggle checked={newsEnabled} onChange={() => setNewsEnabled(v => !v)} />
+          </div>
+          {newsEnabled ? (
+            <div>
+              <label className="text-xs text-gray-600 font-medium block mb-1">Topics (comma-separated, max 10)</label>
+              <textarea value={newsTopics} onChange={e => setNewsTopics(e.target.value)}
+                placeholder="AI, finance, Toronto real estate, cybersecurity"
+                rows={3}
+                className="w-full text-sm border border-blue-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-accent resize-none bg-white" />
+              <p className="text-[10px] text-gray-400 mt-1">Example: AI, finance, Toronto real estate, cybersecurity</p>
+            </div>
+          ) : (
+            <p className="text-xs text-gray-400 italic">Enable to configure topics and see headlines in the News tab.</p>
+          )}
+        </div>
+
+        {/* Weather */}
+        <WeatherSettings config={config} onChange={patch => setConfig(c => c ? { ...c, ...patch } : c)} />
+
+        {/* Scheduled Digest */}
+        <div className="border border-gray-200 rounded-xl p-4 space-y-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1">
+              <h2 className="text-sm font-semibold text-gray-800">Scheduled Digest</h2>
+              <p className="text-xs text-gray-500 mt-0.5">Email yourself a daily brief at a set time.</p>
+            </div>
+            <Toggle checked={digestEnabled} onChange={() => setDigestEnabled(v => !v)} />
+          </div>
+          {digestEnabled && (
+            <div className="space-y-2">
+              <div className="flex gap-2 items-center">
+                <label className="text-xs text-gray-500 w-12 flex-shrink-0">Time</label>
+                <input type="time" value={digestTime} onChange={e => setDigestTime(e.target.value)}
+                  className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-accent" />
+              </div>
+              <div className="flex gap-2 items-center">
+                <label className="text-xs text-gray-500 w-12 flex-shrink-0">Send to</label>
+                <input type="email" value={digestEmail} onChange={e => setDigestEmail(e.target.value)}
+                  placeholder="your@email.com"
+                  className="flex-1 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-accent" />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ElevenLabs TTS */}
+        <div className="border border-gray-200 rounded-xl p-4 space-y-3">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-800">ElevenLabs TTS</h2>
+            <p className="text-xs text-gray-500 mt-0.5">Required for Read Aloud. Get a key at <a href="https://elevenlabs.io" target="_blank" rel="noreferrer" className="text-accent underline">elevenlabs.io</a>.</p>
+          </div>
+          {config?.has_elevenlabs && !elevenLabsKey && (
+            <p className="text-xs text-green-700 bg-green-50 border border-green-200 rounded px-3 py-1.5">Key configured — enter new to replace.</p>
+          )}
+          <input type="password" value={elevenLabsKey} onChange={e => setElevenLabsKey(e.target.value)}
+            placeholder={config?.has_elevenlabs ? 'Enter new key to replace…' : 'sk_…'}
+            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-accent" />
+          <div>
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Voice ID</label>
+            <input value={elevenLabsVoiceId} onChange={e => setElevenLabsVoiceId(e.target.value)}
+              placeholder={`Current: ${(config as any)?.elevenlabs_voice_id || '21m00Tcm4TlvDq8ikWAM (Rachel)'}`}
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-accent" />
+            <p className="text-[10px] text-gray-400 mt-1">Rachel=21m00Tcm4TlvDq8ikWAM · Adam=pNInz6obpgDQGcFmaJgB · Bella=EXAVITQu4vr4xnSDxMaL</p>
+          </div>
+        </div>
+
+        <SaveRow saving={saving} msg={saveMsg} onSave={handleSave} />
+      </>}
+
+      {/* ── Integrations ── */}
+      {activeTab === 'integrations' && <>
+        {/* Microsoft */}
+        <div className="border border-blue-200 rounded-xl p-4 space-y-3">
         <div className="flex items-start gap-2">
           <svg className="w-5 h-5 mt-0.5 flex-shrink-0" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg">
             <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
@@ -540,204 +775,40 @@ export function ConfigPanel({ onSaved }: Props) {
         </details>
       </div>
 
-      {/* Poll interval */}
-      <div>
-        <h2 className="text-sm font-semibold text-gray-800 mb-1">Auto-check interval</h2>
-        <p className="text-xs text-gray-500 mb-3">How often to check for new emails in the background.</p>
-        <div className="flex items-center gap-3">
-          <input
-            type="range"
-            min={30}
-            max={600}
-            step={30}
-            value={pollInterval}
-            onChange={e => setPollInterval(Number(e.target.value))}
-            className="flex-1 accent-accent"
-          />
-          <span className="text-sm font-medium text-gray-700 w-20 text-right">
-            {pollInterval >= 60
-              ? `${Math.round(pollInterval / 60)} min${Math.round(pollInterval / 60) !== 1 ? 's' : ''}`
-              : `${pollInterval}s`}
-          </span>
-        </div>
-      </div>
+        <SaveRow saving={saving} msg={saveMsg} onSave={handleSave} />
+      </>}
 
-      {/* Sync window */}
-      <div>
-        <h2 className="text-sm font-semibold text-gray-800 mb-1">Sync window</h2>
-        <p className="text-xs text-gray-500 mb-3">
-          How far back to look for new and deleted emails on each poll.
-          Wider = catches older changes; narrower = faster polls.
-        </p>
-        <div className="flex items-center gap-3">
-          <input
-            type="range"
-            min={1}
-            max={31}
-            step={1}
-            value={syncWindowDays === 0 ? 31 : syncWindowDays}
-            onChange={e => setSyncWindowDays(Number(e.target.value) === 31 ? 0 : Number(e.target.value))}
-            className="flex-1 accent-accent"
-          />
-          <span className="text-sm font-medium text-gray-700 w-20 text-right">
-            {syncWindowDays === 0 ? 'Unlimited' : `${syncWindowDays} ${syncWindowDays === 1 ? 'day' : 'days'}`}
-          </span>
+      {/* ── General ── */}
+      {activeTab === 'general' && <>
+        <div className="border border-gray-200 rounded-xl p-4">
+          <h2 className="text-sm font-semibold text-gray-800 mb-1">Translation Language</h2>
+          <p className="text-xs text-gray-500 mb-2">Language used when you click "Translate" on an email.</p>
+          <select value={config?.translation_language ?? 'English'}
+            onChange={async e => {
+              await api.updateConfig({ translation_language: e.target.value })
+              setConfig(c => c ? { ...c, translation_language: e.target.value } : c)
+            }}
+            className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:outline-none focus:border-accent bg-white">
+            {['English','Farsi (Persian)','French','Spanish','German','Italian','Portuguese','Dutch','Japanese','Chinese','Arabic','Korean','Russian','Polish','Turkish','Swedish','Norwegian','Danish','Finnish','Hebrew','Hindi'].map(lang => (
+              <option key={lang} value={lang}>{lang}</option>
+            ))}
+          </select>
         </div>
-        <div className="flex justify-between text-xs text-gray-400 mt-1">
-          <span>1 day</span>
-          <span>Unlimited →</span>
-        </div>
-      </div>
 
-      {/* Translation Language */}
-      <div className="border border-gray-200 rounded-xl p-4">
-        <h2 className="text-sm font-semibold text-gray-800 mb-1">Translation Language</h2>
-        <p className="text-xs text-gray-500 mb-2">Language used when you click "Translate" on an email.</p>
-        <select
-          value={config?.translation_language ?? 'English'}
-          onChange={async e => {
-            await api.updateConfig({ translation_language: e.target.value })
-            setConfig(c => c ? { ...c, translation_language: e.target.value } : c)
-          }}
-          className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:outline-none focus:border-accent bg-white"
-        >
-          {['English','Farsi (Persian)','French','Spanish','German','Italian','Portuguese','Dutch','Japanese','Chinese','Arabic','Korean','Russian','Polish','Turkish','Swedish','Norwegian','Danish','Finnish','Hebrew','Hindi'].map(lang => (
-            <option key={lang} value={lang}>{lang}</option>
-          ))}
-        </select>
-      </div>
-
-      {/* ElevenLabs TTS */}
-      <div className="border border-gray-200 rounded-xl p-4 space-y-3">
-        <div>
-          <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 block">ElevenLabs API Key (TTS)</label>
-          <p className="text-xs text-gray-400 mb-2">Required for 🔊 Read Aloud. Get a key at <a href="https://elevenlabs.io" target="_blank" rel="noreferrer" className="text-accent underline">elevenlabs.io</a>.</p>
-          {config?.has_elevenlabs && !elevenLabsKey && (
-            <p className="text-xs text-green-700 bg-green-50 border border-green-200 rounded px-3 py-1.5 mb-2">Key configured — enter a new key to replace.</p>
-          )}
-          <input type="password" value={elevenLabsKey} onChange={e => setElevenLabsKey(e.target.value)}
-            placeholder={config?.has_elevenlabs ? 'Enter new key to replace…' : 'sk_…'}
-            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-accent" />
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Voice ID</label>
-          <p className="text-xs text-gray-400 mb-1">Get voice IDs from elevenlabs.io/voice-lab. Leave blank to keep current.</p>
-          <input value={elevenLabsVoiceId} onChange={e => setElevenLabsVoiceId(e.target.value)}
-            placeholder={`Current: ${(config as any)?.elevenlabs_voice_id || '21m00Tcm4TlvDq8ikWAM (Rachel)'}`}
-            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-accent" />
-          <p className="text-[10px] text-gray-400 mt-1">Popular: Rachel=21m00Tcm4TlvDq8ikWAM · Adam=pNInz6obpgDQGcFmaJgB · Bella=EXAVITQu4vr4xnSDxMaL</p>
-        </div>
-      </div>
-
-      {/* Scheduled Email Digest */}
-      <div className="border border-gray-200 rounded-xl p-4 space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="border border-gray-200 rounded-xl p-4 space-y-3">
           <div>
-            <h2 className="text-sm font-semibold text-gray-800">Scheduled Digest</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Email yourself a daily brief at a set time. Requires an IMAP account with App Password.</p>
+            <h2 className="text-sm font-semibold text-gray-800">Canned Responses</h2>
+            <p className="text-xs text-gray-500 mt-0.5">Quick-insert text blocks in compose. Click "Snippets" in the Reply window.</p>
           </div>
-          <button onClick={() => setDigestEnabled(v => !v)}
-            className={`relative w-10 h-5 rounded-full flex-shrink-0 transition-colors ${digestEnabled ? 'bg-accent' : 'bg-gray-300'}`}>
-            <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${digestEnabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
-          </button>
+          <SnippetsManager />
         </div>
-        {digestEnabled && (
-          <div className="space-y-2">
-            <div className="flex gap-2 items-center">
-              <label className="text-xs text-gray-500 w-12 flex-shrink-0">Time</label>
-              <input type="time" value={digestTime} onChange={e => setDigestTime(e.target.value)}
-                className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-accent" />
-            </div>
-            <div className="flex gap-2 items-center">
-              <label className="text-xs text-gray-500 w-12 flex-shrink-0">Send to</label>
-              <input type="email" value={digestEmail} onChange={e => setDigestEmail(e.target.value)}
-                placeholder="your@email.com"
-                className="flex-1 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-accent" />
-            </div>
-          </div>
-        )}
-      </div>
+      </>}
 
-      {/* Budget / Economy mode */}
-      <div className="border border-amber-200 rounded-xl p-4 bg-amber-50">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex-1">
-            <h2 className="text-sm font-semibold text-amber-800">Budget mode (Economy)</h2>
-            <p className="text-xs text-amber-700 mt-1">
-              Forces all AI calls to use the cheapest models — <span className="font-mono">claude-haiku</span> for Claude,{' '}
-              <span className="font-mono">gpt-4o-mini</span> for OpenAI.
-              Saves API costs; recommendations may be less detailed.
-            </p>
-          </div>
-          <button
-            onClick={() => setBudgetMode(v => !v)}
-            className={`relative w-10 h-5 rounded-full flex-shrink-0 transition-colors mt-0.5 ${
-              budgetMode ? 'bg-amber-500' : 'bg-gray-300'
-            }`}
-          >
-            <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
-              budgetMode ? 'translate-x-5' : 'translate-x-0.5'
-            }`} />
-          </button>
-        </div>
-        {budgetMode && (
-          <p className="text-xs text-amber-700 mt-2 font-medium">
-            ON — Haiku / gpt-4o-mini for all calls
-          </p>
-        )}
-      </div>
-
-      {/* Provider help */}
-      <div>
-        <h2 className="text-sm font-semibold text-gray-800 mb-3">Email provider setup guides</h2>
-        <div className="grid grid-cols-2 gap-2">
-          {(['yahoo', 'gmail', 'hotmail', 'office365'] as HelpSection[]).map(s => (
-            <button
-              key={s}
-              onClick={() => toggleHelp(s)}
-              className={`px-3 py-2 text-xs rounded-lg border transition-colors text-left ${
-                helpSection === s
-                  ? 'border-accent bg-accent/5 text-accent font-medium'
-                  : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
-              }`}
-            >
-              {s === 'yahoo' && 'Yahoo IMAP'}
-              {s === 'gmail' && 'Gmail IMAP'}
-              {s === 'hotmail' && 'Hotmail / Outlook'}
-              {s === 'office365' && 'Office 365 (Azure)'}
-            </button>
-          ))}
-        </div>
-        <HelpBox section={helpSection} />
-      </div>
-
-      {/* Save */}
-      <div className="flex items-center gap-3 pt-2 border-t border-gray-200">
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent/90 disabled:opacity-60 transition-colors"
-        >
-          {saving ? 'Saving…' : 'Save settings'}
-        </button>
-        {saveMsg && (
-          <span className={`text-xs ${saveMsg === 'Saved' ? 'text-green-600' : 'text-red-500'}`}>
-            {saveMsg}
-          </span>
-        )}
-      </div>
-
-      {/* Canned Responses / Snippets */}
-      <div className="border border-gray-200 rounded-xl p-4 space-y-3">
-        <div>
-          <h2 className="text-sm font-semibold text-gray-800">Canned Responses</h2>
-          <p className="text-xs text-gray-500 mt-0.5">Quick-insert text blocks in compose. Click "Snippets" in the Reply window.</p>
-        </div>
-        <SnippetsManager />
       </div>
     </div>
   )
 }
+
 
 function SnippetsManager() {
   const [snippets, setSnippets] = useState<{id: number; name: string; content: string}[]>([])

@@ -71,7 +71,9 @@ from routers import commitments as commitments_router
 from routers import social_inbox as social_inbox_router
 from routers import weather as weather_router
 from routers import news as news_router
+from routers.contact_health import router as contact_health_router
 from routers.morning_brief import router as morning_brief_router
+from routers.calendar import router as calendar_router
 from routers.proactive import push_alert
 from services.intelligence_service import IntelligenceService
 from workers.background_tasks import (
@@ -654,7 +656,9 @@ app.include_router(commitments_router.router)
 app.include_router(social_inbox_router.router)
 app.include_router(weather_router.router)
 app.include_router(news_router.router)
+app.include_router(contact_health_router)
 app.include_router(morning_brief_router)
+app.include_router(calendar_router)
 
 
 @app.get("/health")

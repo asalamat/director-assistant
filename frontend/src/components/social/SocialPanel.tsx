@@ -7,11 +7,13 @@ import { InstagramWizard } from './InstagramWizard'
 import { InstagramAutopilot } from './InstagramAutopilot'
 import { InstagramTemplates } from './InstagramTemplates'
 import { CardStudio } from './CardStudio'
+import { SocialInbox } from './SocialInbox'
+import { LinkedInVoicePanel } from './LinkedInVoicePanel'
 
-type TabId = 'linkedin' | 'autopilot' | 'instagram' | 'ig-autopilot' | 'ig-history' | 'ig-templates' | 'card-studio' | 'twitter' | 'history' | 'templates'
+type TabId = 'inbox' | 'linkedin' | 'autopilot' | 'voice' | 'instagram' | 'ig-autopilot' | 'ig-history' | 'ig-templates' | 'card-studio' | 'twitter' | 'history' | 'templates'
 
 export function SocialPanel() {
-  const [activeTab, setActiveTab] = useState<TabId>('linkedin')
+  const [activeTab, setActiveTab] = useState<TabId>('inbox')
   const linkedInActive = activeTab === 'linkedin' || activeTab === 'autopilot' || activeTab === 'history' || activeTab === 'templates'
   const instagramActive = activeTab === 'instagram' || activeTab === 'ig-autopilot' || activeTab === 'ig-history' || activeTab === 'ig-templates'
 
@@ -21,6 +23,17 @@ export function SocialPanel() {
       <div className="w-44 flex-shrink-0 border-r border-gray-100 flex flex-col pt-4 pb-2 bg-white">
         <p className="px-4 mb-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Social Media</p>
         <nav className="flex flex-col gap-0.5 px-2">
+
+          {/* Inbox */}
+          <button
+            onClick={() => setActiveTab('inbox')}
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-left transition-colors mb-1 ${
+              activeTab === 'inbox' ? 'bg-blue-50 text-accent' : 'text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            <span>📥</span>
+            <span>Inbox</span>
+          </button>
 
           {/* LinkedIn */}
           <button
@@ -36,6 +49,7 @@ export function SocialPanel() {
           {/* LinkedIn sub-items */}
           {([
             { id: 'autopilot', icon: '🤖', label: 'Autopilot' },
+            { id: 'voice',     icon: '🎙️', label: 'Voice' },
             { id: 'history',   icon: '📋', label: 'History' },
             { id: 'templates', icon: '📚', label: 'Templates' },
           ] as { id: TabId; icon: string; label: string }[]).map(({ id, icon, label }) => (
@@ -97,6 +111,12 @@ export function SocialPanel() {
 
       {/* Main content */}
       <div className="flex-1 overflow-hidden">
+        {activeTab === 'inbox' && <SocialInbox />}
+        {activeTab === 'voice' && (
+          <div className="h-full overflow-y-auto p-6 max-w-lg">
+            <LinkedInVoicePanel />
+          </div>
+        )}
         {activeTab === 'linkedin' && (
           <LinkedInWizard
             onViewHistory={() => setActiveTab('history')}

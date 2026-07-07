@@ -223,7 +223,14 @@ async def ask_db(req: AskRequest, request: Request):
                     answer_tokens.append(text)
                     yield f"data: {json.dumps({'type': 'token', 'text': text})}\n\n"
         except Exception as e:
-            yield f"data: {json.dumps({'type': 'token', 'text': f'Error generating answer: {e}'})}\n\n"
+            msg = str(e).lower()
+            if "credit balance" in msg or "billing" in msg or "purchase credits" in msg:
+                err_text = "⚠️ AI credits exhausted — please top up your Anthropic account at console.anthropic.com/settings/billing"
+            elif "no streaming-capable provider" in msg or "no ai provider" in msg:
+                err_text = "⚠️ No AI provider configured — add one in Settings → AI Providers"
+            else:
+                err_text = f"Error generating answer: {e}"
+            yield f"data: {json.dumps({'type': 'token', 'text': err_text})}\n\n"
 
         sources = []
         for r in results[:8]:
@@ -327,7 +334,12 @@ async def explain_cluster(req: ExplainClusterRequest, request: Request):
                 async for text in stream.text_stream:
                     yield f"data: {json.dumps({'type': 'token', 'text': text})}\n\n"
         except Exception as e:
-            yield f"data: {json.dumps({'type': 'token', 'text': f'Error: {e}'})}\n\n"
+            msg = str(e).lower()
+            if "credit balance" in msg or "billing" in msg or "purchase credits" in msg:
+                err_text = "⚠️ AI credits exhausted — please top up your Anthropic account"
+            else:
+                err_text = f"Error: {e}"
+            yield f"data: {json.dumps({'type': 'token', 'text': err_text})}\n\n"
 
         yield 'data: {"type":"done"}\n\n'
 

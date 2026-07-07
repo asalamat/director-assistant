@@ -122,6 +122,17 @@ def _ensure_tables(cache):
                 pass
 
 
+def _ensure_voice_profile_table(cache):
+    with cache._conn() as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS linkedin_voice_profile (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                style_json TEXT NOT NULL,
+                computed_at TEXT DEFAULT (datetime('now'))
+            )
+        """)
+
+
 def _get_linkedin_settings() -> dict:
     cfg = load_app_config()
     ln = cfg.get("linkedin", {}) or {}
@@ -195,7 +206,10 @@ def _extract_json(text: str):
 
 @router.get("/linkedin/settings")
 async def get_settings(request: Request):
-    return _get_linkedin_settings()
+    s = _get_linkedin_settings()
+    s["client_secret_set"] = bool(s.pop("client_secret"))
+    s["access_token_set"] = bool(s.pop("access_token"))
+    return s
 
 
 @router.post("/linkedin/settings")
@@ -243,7 +257,8 @@ async def generate_post(body: dict, request: Request):
     post_system = (
         "You are a LinkedIn post writer. "
         "Output ONLY the post text — nothing else. "
-        "No JSON, no code blocks, no labels, no introductions, no explanations."
+        "No JSON, no code blocks, no labels, no introductions, no explanations. "
+        "IMPORTANT: Keep the post under 2800 characters — LinkedIn truncates posts over 3000 characters."
     )
     post_prompt = (
         f"Write a professional LinkedIn post about: {topic}.\n"
@@ -474,6 +489,12 @@ async def _publish_to_linkedin(post_text: str, settings: dict, image_url: str = 
         "X-Restli-Protocol-Version": "2.0.0",
         "LinkedIn-Version": "202410",
     }
+
+    # LinkedIn hard limit: 3000 characters for commentary. Truncate at word boundary if needed.
+    LI_POST_LIMIT = 3000
+    if len(post_text) > LI_POST_LIMIT:
+        trimmed = post_text[:LI_POST_LIMIT].rsplit(' ', 1)[0].rstrip('.,;:!?')
+        post_text = trimmed + "…"
 
     # For image-only posts, commentary is empty
     commentary = "" if content_type == "image" else post_text
@@ -768,6 +789,164 @@ async def improve_template_prompt(body: dict, request: Request):
         return {"error": str(e)}
 
 
+# ── LinkedIn Voice Profiling ────────────────────────────────────────────────────
+
+def _voice_system_context(profile: dict) -> str:
+    """Build a system-prompt fragment describing the user's voice for post generation."""
+    themes = ", ".join(profile.get("recurring_themes", []) or [])
+    parts = [
+        "Write in the author's established LinkedIn voice, matching these traits:",
+        f"- Typical length: {profile.get('avg_length', 'medium')}",
+        f"- Opening/hook style: {profile.get('hook_style', '')}",
+        f"- Emoji usage: {profile.get('emoji_usage', 'minimal')}",
+        f"- Closing/CTA style: {profile.get('cta_style', '')}",
+        f"- Formality: {profile.get('formality', 'professional')}",
+    ]
+    if themes:
+        parts.append(f"- Recurring themes they care about: {themes}")
+    return "\n".join(p for p in parts if p.strip().rstrip("-:").strip())
+
+
+@router.get("/linkedin/voice-profile")
+async def get_voice_profile(request: Request):
+    cache = request.app.state.cache
+    _ensure_voice_profile_table(cache)
+    with cache._conn() as conn:
+        row = conn.execute(
+            "SELECT style_json, computed_at FROM linkedin_voice_profile ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+    if not row:
+        return {"profile": None, "computed_at": None}
+    try:
+        profile = json.loads(row["style_json"])
+    except (json.JSONDecodeError, TypeError):
+        profile = None
+    return {"profile": profile, "computed_at": row["computed_at"]}
+
+
+@router.post("/linkedin/learn-voice")
+async def learn_voice(body: dict, request: Request):
+    cache = request.app.state.cache
+    _ensure_tables(cache)
+    _ensure_voice_profile_table(cache)
+
+    # Rate-limit: reject re-learn if the existing profile is under 1 hour old
+    with cache._conn() as conn:
+        existing = conn.execute(
+            "SELECT computed_at, (julianday('now') - julianday(computed_at)) * 24 AS age_hours "
+            "FROM linkedin_voice_profile ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+    if existing and existing["age_hours"] is not None and existing["age_hours"] < 1:
+        from fastapi import HTTPException
+        raise HTTPException(
+            status_code=429,
+            detail="Voice profile was learned less than an hour ago — please wait before re-learning.",
+        )
+
+    post_ids = body.get("post_ids") if isinstance(body, dict) else None
+    with cache._conn() as conn:
+        if post_ids:
+            placeholders = ",".join("?" for _ in post_ids)
+            rows = conn.execute(
+                f"SELECT post_text FROM linkedin_posts WHERE id IN ({placeholders}) "
+                "AND post_text IS NOT NULL AND post_text != ''",
+                tuple(post_ids),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT post_text FROM linkedin_posts "
+                "WHERE post_text IS NOT NULL AND post_text != '' "
+                "ORDER BY created_at DESC LIMIT 30"
+            ).fetchall()
+
+    posts = [r["post_text"][:300] for r in rows if (r["post_text"] or "").strip()]
+    if len(posts) < 1:
+        return {"profile": None, "posts_analyzed": 0, "error": "No past LinkedIn posts found to learn from. Publish a few posts first."}
+
+    advisor = getattr(request.app.state, "advisor", None)
+    if not advisor:
+        return {"profile": None, "posts_analyzed": 0, "error": "AI advisor not available"}
+    try:
+        profile = await advisor.extract_linkedin_voice(posts)
+    except Exception as e:
+        return {"profile": None, "posts_analyzed": 0, "error": str(e)}
+    if not profile:
+        return {"profile": None, "posts_analyzed": len(posts), "error": "AI could not extract a voice profile"}
+
+    # Upsert — keep a single row
+    with cache._conn() as conn:
+        conn.execute("DELETE FROM linkedin_voice_profile")
+        conn.execute(
+            "INSERT INTO linkedin_voice_profile (style_json, computed_at) VALUES (?, datetime('now'))",
+            (json.dumps(profile),),
+        )
+    return {"profile": profile, "posts_analyzed": len(posts)}
+
+
+@router.post("/linkedin/generate-post-voiced")
+async def generate_post_voiced(body: dict, request: Request):
+    cache = request.app.state.cache
+    _ensure_voice_profile_table(cache)
+    topic = (body.get("topic") or "").strip()
+    audience = (body.get("audience") or "General").strip()
+    tone = (body.get("tone") or "Professional").strip()
+    subject = (body.get("subject") or "").strip()
+    context = (body.get("context") or "").strip()
+    if not topic:
+        return {"post": "", "hashtags": [], "char_count": 0, "voice_applied": False, "error": "topic is required"}
+
+    with cache._conn() as conn:
+        row = conn.execute(
+            "SELECT style_json FROM linkedin_voice_profile ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+    profile = None
+    if row:
+        try:
+            profile = json.loads(row["style_json"])
+        except (json.JSONDecodeError, TypeError):
+            profile = None
+
+    post_system = (
+        "You are a LinkedIn post writer. "
+        "Output ONLY the post text — nothing else. "
+        "No JSON, no code blocks, no labels, no introductions, no explanations. "
+        "IMPORTANT: Keep the post under 2800 characters — LinkedIn truncates posts over 3000 characters."
+    )
+    if profile:
+        post_system += "\n\n" + _voice_system_context(profile)
+
+    context_line = f"Extra context: {context}\n" if context else ""
+    post_prompt = (
+        f"Write a professional LinkedIn post about: {topic}.\n"
+        f"Subject area: {subject or topic}. Target audience: {audience}. Tone: {tone}.\n"
+        f"{context_line}"
+        "Engaging, well-structured with real line breaks. "
+        "Do NOT include hashtags in the body. "
+        "Output ONLY the post text — start writing the post immediately."
+    )
+    try:
+        post_raw = await _ai_complete(request, post_prompt, max_tokens=1200, system=post_system)
+    except Exception as e:
+        return {"post": "", "hashtags": [], "char_count": 0, "voice_applied": False, "error": str(e)}
+
+    post = post_raw.strip()
+    if post.startswith("{") and ('"post"' in post or "'post'" in post):
+        parsed = _extract_json(post)
+        if isinstance(parsed, dict) and "post" in parsed:
+            post = str(parsed["post"]).strip()
+
+    hashtag_system = "Return ONLY a comma-separated list of hashtag words without the # symbol. No JSON. No other text."
+    hashtag_prompt = f"Give 6 LinkedIn hashtags for a post about: {topic}. Return ONLY comma-separated words."
+    hashtags: list[str] = []
+    try:
+        ht_raw = await _ai_complete(request, hashtag_prompt, max_tokens=80, system=hashtag_system)
+        hashtags = [h.strip().lstrip("#") for h in ht_raw.split(",") if h.strip() and len(h.strip()) < 35]
+    except Exception:
+        pass
+
+    return {"post": post, "hashtags": hashtags, "char_count": len(post), "voice_applied": bool(profile)}
+
+
 # ── Connectivity Verification ──────────────────────────────────────────────────
 
 @router.post("/linkedin/verify")
@@ -1016,6 +1195,8 @@ async def extract_topics_from_file(request: Request):
         return {"topics": [], "error": f"Unsupported file type: {suffix}. Use PDF, DOCX, or TXT."}
 
     content = await file.read()
+    if len(content) > 15 * 1024 * 1024:
+        return {"topics": [], "error": "File too large (max 15 MB)."}
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
         tmp.write(content)
         tmp_path = tmp.name
@@ -1103,3 +1284,55 @@ async def extract_topics_from_file(request: Request):
         return {"topics": topics}
     except Exception as e:
         return {"topics": [], "error": str(e)}
+
+
+@router.post("/linkedin/score-post")
+async def score_linkedin_post(body: dict, request: Request):
+    from services.social_scorer import score_post
+    text = str(body.get("post_text", ""))[:3000]
+    hashtags = [str(h) for h in body.get("hashtags", []) if isinstance(h, str)]
+    scheduled_at = body.get("scheduled_at")
+    return score_post(text, hashtags, "linkedin", scheduled_at)
+
+
+@router.post("/linkedin/history/{post_id}/record-performance")
+async def record_linkedin_performance(post_id: str, body: dict, request: Request):
+    impressions = max(0, int(body.get("impressions", 0)))
+    engagement = max(0, int(body.get("engagement", 0)))
+    cache = request.app.state.cache
+    try:
+        with cache._conn() as conn:
+            conn.execute(
+                "ALTER TABLE linkedin_posts ADD COLUMN actual_impressions INTEGER DEFAULT NULL"
+            )
+    except Exception:
+        pass
+    try:
+        with cache._conn() as conn:
+            conn.execute(
+                "ALTER TABLE linkedin_posts ADD COLUMN actual_engagement INTEGER DEFAULT NULL"
+            )
+    except Exception:
+        pass
+    with cache._conn() as conn:
+        conn.execute(
+            "UPDATE linkedin_posts SET actual_impressions=?, actual_engagement=? WHERE id=?",
+            (impressions, engagement, post_id),
+        )
+    return {"ok": True}
+
+
+@router.get("/performance-stats")
+async def get_performance_stats(request: Request):
+    cache = request.app.state.cache
+    try:
+        with cache._conn() as conn:
+            rows = conn.execute(
+                "SELECT predicted_score, actual_impressions FROM linkedin_posts "
+                "WHERE predicted_score IS NOT NULL ORDER BY created_at DESC LIMIT 50"
+            ).fetchall()
+        scores = [r[0] for r in rows if r[0] is not None]
+        avg = round(sum(scores) / len(scores), 2) if scores else None
+        return {"linkedin": {"avg_predicted": avg, "count": len(scores)}, "instagram": {"avg_predicted": None, "count": 0}}
+    except Exception:
+        return {"linkedin": {"avg_predicted": None, "count": 0}, "instagram": {"avg_predicted": None, "count": 0}}

@@ -6,50 +6,74 @@
 <title>Director Assistant — Dashboard</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+.card[id]{scroll-margin-top:20px}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
      background:#0d1117;color:#e6edf3;font-size:14px;line-height:1.6}
 a{color:#79c0ff;text-decoration:none}a:hover{text-decoration:underline}
-h2{font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;
-   color:#8b949e;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid #21262d}
-.wrap{max-width:1280px;margin:0 auto;padding:20px 24px}
+h2{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;
+   color:#8b949e;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid #21262d;
+   display:flex;align-items:center;gap:8px}
+.wrap{max-width:1360px;margin:0 auto;padding:20px 24px}
 .hdr{display:flex;justify-content:space-between;align-items:flex-end;
      margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid #21262d}
 .hdr-left h1{font-size:22px;font-weight:700;color:#f0f6fc}
 .hdr-left .sub{color:#8b949e;font-size:13px;margin-top:3px}
 .hdr-right{text-align:right;font-size:12px;color:#6e7681}
 .hint{margin-top:4px;font-size:11px;color:#484f58}
-.kpi{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:20px}
-@media(max-width:900px){.kpi{grid-template-columns:repeat(3,1fr)}}
-.kpi-tile{background:#161b22;border:1px solid #21262d;border-radius:8px;
-          padding:14px 16px;cursor:default;transition:border-color .15s}
-.kpi-tile:hover{border-color:#58a6ff}
-.kpi-tile .val{font-size:28px;font-weight:700;line-height:1}
-.kpi-tile .lbl{font-size:11px;color:#8b949e;margin-top:5px}
+/* KPI */
+.kpi{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin-bottom:20px}
+@media(max-width:1100px){.kpi{grid-template-columns:repeat(4,1fr)}}
+@media(max-width:700px){.kpi{grid-template-columns:repeat(2,1fr)}}
+.kpi-tile{background:#161b22;border:1px solid #21262d;border-radius:10px;
+          padding:14px 16px;cursor:pointer;transition:border-color .15s,transform .1s;
+          display:block;color:inherit;text-decoration:none}
+.kpi-tile:hover{border-color:#58a6ff;transform:translateY(-2px)}
+.kpi-tile .val{font-size:30px;font-weight:800;line-height:1}
+.kpi-tile .lbl{font-size:11px;color:#8b949e;margin-top:5px;font-weight:500}
+.kpi-tile .sub-lbl{font-size:10px;color:#484f58;margin-top:2px}
 .red .val{color:#f85149}.yellow .val{color:#d29922}
 .green .val{color:#3fb950}.blue .val{color:#58a6ff}
-.purple .val{color:#bc8cff}.teal .val{color:#39d353}
-.urgent{background:#1a0d0d;border:1px solid #6e1a1a;border-radius:8px;
+.purple .val{color:#bc8cff}.teal .val{color:#39d353}.orange .val{color:#e8912d}
+/* Urgent */
+.urgent{background:#160d00;border:1px solid #5a3a00;border-radius:10px;
         padding:14px 18px;margin-bottom:20px}
-.urgent h2{color:#f85149;border-color:#6e1a1a}
+.urgent h2{color:#e8912d;border-color:#5a3a00}
 .urgent-items{display:flex;flex-wrap:wrap;gap:8px}
-.u-tag{background:#2d1111;border:1px solid #8b1a1a;border-radius:5px;
-       padding:4px 10px;font-size:12px;color:#ff7b72;cursor:pointer;transition:background .15s}
-.u-tag:hover{background:#3d1515}
+.u-tag{background:#1f1200;border:1px solid #6e4900;border-radius:6px;
+       padding:5px 12px;font-size:12px;color:#e8912d;cursor:pointer;transition:background .15s}
+.u-tag:hover{background:#2d1a00;border-color:#e8912d}
+/* Alert */
+.alert-row{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px}
+.alert-card{background:#1a0a1a;border:1px solid #5a1a5a;border-radius:10px;
+            padding:12px 16px;cursor:pointer;transition:border-color .15s;min-width:200px}
+.alert-card:hover{border-color:#bc8cff}
+.alert-card .a-label{font-size:11px;color:#bc8cff;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
+.alert-card .a-name{font-size:13px;font-weight:600;color:#e6edf3;margin-top:2px}
+.alert-card .a-meta{font-size:11px;color:#8b949e;margin-top:2px}
+.alert-dot{width:8px;height:8px;border-radius:50%;background:#bc8cff;display:inline-block;
+           margin-right:6px;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+/* Grid */
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
-@media(max-width:800px){.grid2{grid-template-columns:1fr}}
-.card{background:#161b22;border:1px solid #21262d;border-radius:8px;padding:16px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px}
+@media(max-width:900px){.grid2,.grid3{grid-template-columns:1fr}}
+.card{background:#161b22;border:1px solid #21262d;border-radius:10px;padding:16px}
+/* Lists */
 .item-list{list-style:none}
-.item-list li{padding:7px 0;border-bottom:1px solid #21262d;font-size:13px;
-              cursor:pointer;transition:background .12s;border-radius:4px;padding-left:4px}
+.item-list li{padding:8px 6px;border-bottom:1px solid #21262d;font-size:13px;
+              cursor:pointer;transition:all .12s;border-radius:6px}
 .item-list li:last-child{border:none}
-.item-list li:hover{background:#1c2128}
-.badge{display:inline-block;padding:1px 7px;border-radius:4px;font-size:11px;font-weight:600;margin-left:6px}
+.item-list li:hover{background:#1c2128;padding-left:10px}
+.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;margin-left:6px}
 .bdg-red{background:#2d1111;color:#ff7b72}.bdg-yellow{background:#2d2207;color:#d29922}
 .bdg-green{background:#0d2a0d;color:#3fb950}.bdg-blue{background:#0a1929;color:#58a6ff}
+.bdg-orange{background:#2d1900;color:#e8912d}.bdg-purple{background:#1a0d2d;color:#bc8cff}
 .meta{font-size:11px;color:#6e7681;margin-top:2px}
+/* Charts */
 .bar-chart{margin-top:6px}
 .bar-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
-.bar-lbl{width:72px;font-size:11px;color:#8b949e;text-align:right;flex-shrink:0;
+.bar-lbl{width:80px;font-size:11px;color:#8b949e;text-align:right;flex-shrink:0;
          overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bar-track{flex:1;background:#21262d;border-radius:3px;height:18px;overflow:hidden}
 .bar-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,#1f6feb,#58a6ff);transition:width .3s}
@@ -61,38 +85,68 @@ h2{font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;
 .donut-legend{flex:1}
 .legend-row{display:flex;align-items:center;gap:8px;margin-bottom:5px;font-size:12px}
 .legend-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
-.proj-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
-.proj-card{background:#0d1117;border:1px solid #21262d;border-radius:6px;padding:12px;
+/* Projects */
+.proj-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+.proj-card{background:#0d1117;border:1px solid #21262d;border-radius:8px;padding:12px;
            cursor:pointer;transition:border-color .15s}
 .proj-card:hover{border-color:#58a6ff}
 .proj-card .pname{font-weight:600;font-size:13px;color:#e6edf3;margin-bottom:4px;
                   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.proj-card .pnext{font-size:12px;color:#8b949e}
-.evt{padding:8px 0;border-bottom:1px solid #21262d;cursor:pointer;border-radius:4px;
-     padding-left:4px;transition:background .12s}
+.proj-card .pmeta{font-size:11px;color:#8b949e}
+.proj-card .pstatus{font-size:10px;font-weight:700;text-transform:uppercase;
+                    letter-spacing:.06em;margin-bottom:6px}
+.status-active{color:#3fb950}.status-paused{color:#d29922}
+/* Calendar */
+.evt{padding:8px 6px;border-bottom:1px solid #21262d;cursor:pointer;border-radius:6px;
+     transition:all .12s}
 .evt:last-child{border:none}
-.evt:hover{background:#1c2128}
-.evt-time{font-size:11px;color:#6e7681;min-width:48px;display:inline-block}
+.evt:hover{background:#1c2128;padding-left:10px}
+.evt-time{font-size:11px;color:#6e7681;min-width:44px;display:inline-block}
 .evt-title{font-weight:500}
 .evt-org{font-size:11px;color:#8b949e;margin-top:2px}
-.footer{margin-top:32px;padding-top:16px;border-top:1px solid #21262d;
-        font-size:11px;color:#484f58;text-align:center}
+/* Chase */
+.chase-item{padding:8px 6px;border-bottom:1px solid #21262d;cursor:pointer;
+            border-radius:6px;transition:all .12s}
+.chase-item:hover{background:#1c2128;padding-left:10px}
+.chase-item:last-child{border:none}
+.chase-days-7{color:#d29922}.chase-days-14{color:#f85149}
+/* VIP */
+.vip-item{display:flex;align-items:center;gap:10px;padding:8px 6px;
+          border-bottom:1px solid #21262d;cursor:pointer;border-radius:6px;
+          transition:all .12s}
+.vip-item:hover{background:#1c2128;padding-left:10px}
+.vip-item:last-child{border:none}
+.vip-avatar{width:32px;height:32px;border-radius:50%;background:#1f6feb;
+            display:flex;align-items:center;justify-content:center;
+            font-size:12px;font-weight:700;flex-shrink:0}
+.vip-awaiting{background:#5a1a00}
 /* Modal */
-.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:1000;
           align-items:center;justify-content:center;padding:20px}
 .modal-bg.open{display:flex}
-.modal{background:#161b22;border:1px solid #30363d;border-radius:12px;max-width:640px;
-       width:100%;max-height:80vh;overflow-y:auto;padding:24px;position:relative}
-.modal h3{font-size:16px;font-weight:600;color:#f0f6fc;margin-bottom:12px;padding-right:24px}
-.modal .detail-row{margin-bottom:8px;font-size:13px}
+.modal{background:#161b22;border:1px solid #30363d;border-radius:14px;max-width:700px;
+       width:100%;max-height:85vh;overflow-y:auto;padding:28px;position:relative}
+.modal h3{font-size:17px;font-weight:700;color:#f0f6fc;margin-bottom:16px;padding-right:32px}
+.modal-actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;
+               padding-bottom:14px;border-bottom:1px solid #21262d}
+.btn{padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;
+     cursor:pointer;border:none;transition:opacity .15s}
+.btn:hover{opacity:.85}
+.btn-blue{background:#1f6feb;color:#fff}
+.btn-gray{background:#21262d;color:#e6edf3}
+.btn-green{background:#238636;color:#fff}
+.modal .detail-row{margin-bottom:10px;font-size:13px}
 .modal .detail-label{color:#8b949e;font-size:11px;text-transform:uppercase;
-                     letter-spacing:.06em;margin-bottom:2px}
+                     letter-spacing:.06em;margin-bottom:3px;font-weight:600}
 .modal .detail-body{color:#e6edf3;white-space:pre-wrap;word-break:break-word;
-                    max-height:300px;overflow-y:auto;background:#0d1117;
-                    border-radius:6px;padding:10px;font-size:12px;line-height:1.7}
-.modal-close{position:absolute;top:16px;right:16px;background:none;border:none;
-             color:#8b949e;font-size:20px;cursor:pointer;line-height:1}
+                    max-height:320px;overflow-y:auto;background:#0d1117;
+                    border-radius:8px;padding:12px;font-size:12px;line-height:1.7;
+                    border:1px solid #21262d}
+.modal-close{position:absolute;top:18px;right:18px;background:none;border:none;
+             color:#8b949e;font-size:22px;cursor:pointer;line-height:1}
 .modal-close:hover{color:#f0f6fc}
+.footer{margin-top:32px;padding-top:16px;border-top:1px solid #21262d;
+        font-size:11px;color:#484f58;text-align:center}
 
 .ai-panel{margin-top:14px;border-top:1px solid #21262d;padding-top:12px}
 .ai-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
@@ -119,55 +173,72 @@ h2{font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;
   <div class="hdr">
     <div class="hdr-left">
       <h1>Director Assistant — Executive Brief</h1>
-      <div class="sub">Friday, 05 June 2026  12:47</div>
-      <div class="hint">Click any item for details · Auto-refreshes in <span id="countdown">30m 0s</span></div>
+      <div class="sub">Friday, 03 July 2026  11:01</div>
+      <div class="hint">Click any item to see full detail · <a href="/">← Back to App</a></div>
     </div>
     <div class="hdr-right">
-      <div>Last refreshed: Friday, 05 June 2026  12:47</div>
-      <div class="hint"><a href="/api/dashboard">Refresh now</a> · <a href="/">← Back to App</a></div>
+      <div style="font-size:13px">Auto-refreshes in <span id="countdown" style="color:#58a6ff">30m 0s</span></div>
+      <div class="hint"><a href="/api/dashboard">Refresh now</a></div>
     </div>
   </div>
 
+  <!-- KPI Tiles -->
   <div class="kpi">
-    <div class="kpi-tile green"><div class="val">0</div><div class="lbl">Overdue Actions</div></div>
-    <div class="kpi-tile green"><div class="val">0</div><div class="lbl">Unread Emails</div></div>
-    <div class="kpi-tile blue"><div class="val">0</div><div class="lbl">Meetings Tomorrow</div></div>
-    <div class="kpi-tile purple"><div class="val">—</div><div class="lbl">Teams Unread</div></div>
-    <div class="kpi-tile teal"><div class="val">8</div><div class="lbl">Active Projects</div></div>
-    <div class="kpi-tile blue"><div class="val">—</div><div class="lbl">OOF This Week</div></div>
+    <a class="kpi-tile red" id="kpi-actions" href="#s-actions"><div class="val" id="kpi-actions-val">80</div><div class="lbl">Open Actions</div><div class="sub-lbl">needs attention</div></a>
+    <a class="kpi-tile green" href="#s-unread"><div class="val">0</div><div class="lbl">Unread Emails</div><div class="sub-lbl">in your inbox</div></a>
+    <a class="kpi-tile orange" href="#s-chase"><div class="val">10</div><div class="lbl">Chase Queue</div><div class="sub-lbl">no reply received</div></a>
+    <a class="kpi-tile purple" href="#s-vip"><div class="val">3</div><div class="lbl">VIP Alerts</div><div class="sub-lbl">need attention</div></a>
+    <a class="kpi-tile blue" href="#s-schedule"><div class="val">0</div><div class="lbl">Meetings Tomorrow</div><div class="sub-lbl">on your calendar</div></a>
+    <a class="kpi-tile teal" href="#s-projects"><div class="val">1</div><div class="lbl">Active Projects</div><div class="sub-lbl">in project tracker</div></a>
+    <a class="kpi-tile purple" href="#s-vip"><div class="val">5</div><div class="lbl">VIP Contacts</div><div class="sub-lbl">being tracked</div></a>
   </div>
 
-  <div class="urgent"><h2>Needs Attention Today</h2><div class="urgent-items"><span class="u-tag" data-modal='{&quot;title&quot;: &quot;Follow-up: Ali, Last call for buy one, get one for $1 \u23f0\ud83c\udf55&quot;, &quot;rows&quot;: [[&quot;Subject&quot;, &quot;Ali, Last call for buy one, get one for $1 \u23f0\ud83c\udf55&quot;], [&quot;Sender&quot;, &quot;&quot;], [&quot;Due&quot;, &quot;2026-06-05&quot;]]}'>Follow-up: Ali, Last call for buy one, get one for $1 ⏰🍕</span></div></div>
+  <div class="urgent"><h2>⚠ Needs Attention Today</h2><div class="urgent-items"><span class="u-tag" data-modal='{&quot;title&quot;: &quot;Select one of the four proposed meeting times and confirm with Spencer&quot;, &quot;rows&quot;: [[&quot;Action&quot;, &quot;Select one of the four proposed meeting times and confirm with Spencer&quot;], [&quot;Email&quot;, &quot;Scotiabank IAM Architect Position&quot;]], &quot;opts&quot;: {&quot;actionId&quot;: 511}}'>Select one of the four proposed meeting times and confirm with Spencer</span><span class="u-tag" data-modal='{&quot;title&quot;: &quot;Note the meeting details and any dial-in/location information if provided&quot;, &quot;rows&quot;: [[&quot;Action&quot;, &quot;Note the meeting details and any dial-in/location information if provided&quot;], [&quot;Email&quot;, &quot;Scotiabank IAM Architect Position&quot;]], &quot;opts&quot;: {&quot;actionId&quot;: 512}}'>Note the meeting details and any dial-in/location information if provided</span><span class="u-tag" data-modal='{&quot;title&quot;: &quot;Prepare for the interview by reviewing the IAM Architect role requirements and S&quot;, &quot;rows&quot;: [[&quot;Action&quot;, &quot;Prepare for the interview by reviewing the IAM Architect role requirements and Scotiabank&#x27;s IAM strategy&quot;], [&quot;Email&quot;, &quot;Scotiabank IAM Architect Position&quot;]], &quot;opts&quot;: {&quot;actionId&quot;: 513}}'>Prepare for the interview by reviewing the IAM Architect role requirements and S</span><span class="u-tag" data-modal='{&quot;title&quot;: &quot;Ensure calendar is blocked for the selected time slot&quot;, &quot;rows&quot;: [[&quot;Action&quot;, &quot;Ensure calendar is blocked for the selected time slot&quot;], [&quot;Email&quot;, &quot;Scotiabank IAM Architect Position&quot;]], &quot;opts&quot;: {&quot;actionId&quot;: 514}}'>Ensure calendar is blocked for the selected time slot</span><span class="u-tag" data-modal='{&quot;title&quot;: &quot;Sending updated resume as an attachment&quot;, &quot;rows&quot;: [[&quot;Action&quot;, &quot;Sending updated resume as an attachment&quot;], [&quot;Email&quot;, &quot;Re: Job opportunity::::: VMWare Engineer--Ottawa , ON&quot;]], &quot;opts&quot;: {&quot;actionId&quot;: 510}}'>Sending updated resume as an attachment</span><span class="u-tag" data-modal='{&quot;title&quot;: &quot;Rate expectation: $85-90k plus tax for incorporation&quot;, &quot;rows&quot;: [[&quot;Action&quot;, &quot;Rate expectation: $85-90k plus tax for incorporation&quot;], [&quot;Email&quot;, &quot;Re: Job opportunity::::: VMWare Engineer--Ottawa , ON&quot;]], &quot;opts&quot;: {&quot;actionId&quot;: 508}}'>Rate expectation: $85-90k plus tax for incorporation</span><span class="u-tag" data-modal='{&quot;title&quot;: &quot;Follow-up: Re: Scotiabank IAM Architect Position&quot;, &quot;rows&quot;: [[&quot;Subject&quot;, &quot;Re: Scotiabank IAM Architect Position&quot;], [&quot;Sender&quot;, &quot;&quot;], [&quot;Due&quot;, &quot;2024-07-09&quot;]], &quot;opts&quot;: {&quot;replyTo&quot;: &quot;&quot;}}'>Follow-up: Re: Scotiabank IAM Architect Position</span><span class="u-tag" data-modal='{&quot;title&quot;: &quot;Follow-up: Unityworkscanada&#x27;s free trial of Slack Pro ends in 7 days&quot;, &quot;rows&quot;: [[&quot;Subject&quot;, &quot;Unityworkscanada&#x27;s free trial of Slack Pro ends in 7 days&quot;], [&quot;Sender&quot;, &quot;&quot;], [&quot;Due&quot;, &quot;2024-07-10&quot;]], &quot;opts&quot;: {&quot;replyTo&quot;: &quot;&quot;}}'>Follow-up: Unityworkscanada&#x27;s free trial of Slack Pro ends in 7 days</span><span class="u-tag" data-modal='{&quot;title&quot;: &quot;Follow-up: Unityworkscanada&#x27;s free trial of Slack Pro ends in 7 days&quot;, &quot;rows&quot;: [[&quot;Subject&quot;, &quot;Unityworkscanada&#x27;s free trial of Slack Pro ends in 7 days&quot;], [&quot;Sender&quot;, &quot;&quot;], [&quot;Due&quot;, &quot;2024-07-10&quot;]], &quot;opts&quot;: {&quot;replyTo&quot;: &quot;&quot;}}'>Follow-up: Unityworkscanada&#x27;s free trial of Slack Pro ends in 7 days</span><span class="u-tag" data-modal='{&quot;title&quot;: &quot;Follow-up: Unityworkscanada&#x27;s free trial of Slack Pro ends in 7 days&quot;, &quot;rows&quot;: [[&quot;Subject&quot;, &quot;Unityworkscanada&#x27;s free trial of Slack Pro ends in 7 days&quot;], [&quot;Sender&quot;, &quot;&quot;], [&quot;Due&quot;, &quot;2024-07-10&quot;]], &quot;opts&quot;: {&quot;replyTo&quot;: &quot;&quot;}}'>Follow-up: Unityworkscanada&#x27;s free trial of Slack Pro ends in 7 days</span></div></div>
+  <div class="alert-row"><div class="alert-card" data-modal='{&quot;title&quot;: &quot;Hannah Salamat&quot;, &quot;rows&quot;: [[&quot;Email&quot;, &quot;hannah.salamat@hotmail.com&quot;], [&quot;Status&quot;, &quot;Awaiting your reply&quot;], [&quot;Last contact&quot;, &quot;2026-03-10&quot;], [&quot;Received&quot;, &quot;4&quot;], [&quot;Sent to&quot;, &quot;0&quot;], [&quot;Note&quot;, &quot;&quot;]], &quot;opts&quot;: {&quot;replyTo&quot;: &quot;hannah.salamat@hotmail.com&quot;}}'><div class="a-label"><span class="alert-dot"></span>VIP Alert</div><div class="a-name">Hannah Salamat</div><div class="a-meta">Awaiting your reply · 2026-03-10</div></div><div class="alert-card" data-modal='{&quot;title&quot;: &quot;Maman Shahla&quot;, &quot;rows&quot;: [[&quot;Email&quot;, &quot;sh_alavi@hotmail.com&quot;], [&quot;Status&quot;, &quot;Awaiting your reply&quot;], [&quot;Last contact&quot;, &quot;2026-06-19&quot;], [&quot;Received&quot;, &quot;10&quot;], [&quot;Sent to&quot;, &quot;0&quot;], [&quot;Note&quot;, &quot;&quot;]], &quot;opts&quot;: {&quot;replyTo&quot;: &quot;sh_alavi@hotmail.com&quot;}}'><div class="a-label"><span class="alert-dot"></span>VIP Alert</div><div class="a-name">Maman Shahla</div><div class="a-meta">Awaiting your reply · 2026-06-19</div></div><div class="alert-card" data-modal='{&quot;title&quot;: &quot;Neda&quot;, &quot;rows&quot;: [[&quot;Email&quot;, &quot;neda.assadian@gmail.com&quot;], [&quot;Status&quot;, &quot;Awaiting your reply&quot;], [&quot;Last contact&quot;, &quot;2026-05-18&quot;], [&quot;Received&quot;, &quot;35&quot;], [&quot;Sent to&quot;, &quot;0&quot;], [&quot;Note&quot;, &quot;Assadian&quot;]], &quot;opts&quot;: {&quot;replyTo&quot;: &quot;neda.assadian@gmail.com&quot;}}'><div class="a-label"><span class="alert-dot"></span>VIP Alert</div><div class="a-name">Neda</div><div class="a-meta">Awaiting your reply · 2026-05-18</div></div></div>
 
+  <!-- Row 1: Schedule + Follow-ups -->
   <div class="grid2">
-    <div class="card "><h2>Tomorrow's Schedule</h2><p style='color:#6e7681;font-size:13px'>No calendar connected or no events tomorrow.</p></div>
-    <div class="card "><h2>People to Follow Up With</h2><ul class="item-list"><li data-modal='{&quot;title&quot;: &quot;Ali, Last call for buy one, get one for $1 \u23f0\ud83c\udf55&quot;, &quot;rows&quot;: [[&quot;Subject&quot;, &quot;Ali, Last call for buy one, get one for $1 \u23f0\ud83c\udf55&quot;], [&quot;From&quot;, &quot;&quot;], [&quot;Due&quot;, &quot;2026-06-05&quot;], [&quot;Note&quot;, &quot;Auto-detected deadline: Last call for buy one, get one for $1 pizza promotion - order now&quot;]]}'>Ali, Last call for buy one, get one for $1 ⏰🍕<div class="meta">  ·  Due 2026-06-05</div></li><li data-modal='{&quot;title&quot;: &quot;tavalode Tara zane morteza, Saturday, 06 June 2026&quot;, &quot;rows&quot;: [[&quot;Subject&quot;, &quot;tavalode Tara zane morteza, Saturday, 06 June 2026&quot;], [&quot;From&quot;, &quot;&quot;], [&quot;Due&quot;, &quot;2026-06-06&quot;], [&quot;Note&quot;, &quot;Auto-detected deadline: Event reminder for tavalode Tara zane morteza&quot;]]}'>tavalode Tara zane morteza, Saturday, 06 June 2026<div class="meta">  ·  Due 2026-06-06</div></li><li data-modal='{&quot;title&quot;: &quot;tavalode Tara zane morteza, Saturday, 06 June 2026&quot;, &quot;rows&quot;: [[&quot;Subject&quot;, &quot;tavalode Tara zane morteza, Saturday, 06 June 2026&quot;], [&quot;From&quot;, &quot;&quot;], [&quot;Due&quot;, &quot;2026-06-06&quot;], [&quot;Note&quot;, &quot;Auto-detected deadline: Event reminder for tavalode Tara zane morteza&quot;]]}'>tavalode Tara zane morteza, Saturday, 06 June 2026<div class="meta">  ·  Due 2026-06-06</div></li><li data-modal='{&quot;title&quot;: &quot;Firearm Hearing Date - July 7th 2026&quot;, &quot;rows&quot;: [[&quot;Subject&quot;, &quot;Firearm Hearing Date - July 7th 2026&quot;], [&quot;From&quot;, &quot;&quot;], [&quot;Due&quot;, &quot;2026-07-07&quot;], [&quot;Note&quot;, &quot;Auto-detected deadline: Firearms Disposition Hearing appearance&quot;]]}'>Firearm Hearing Date - July 7th 2026<div class="meta">  ·  Due 2026-07-07</div></li></ul></div>
+    <div class="card " id="s-schedule"><h2>📅 Tomorrow's Schedule</h2><p style='color:#6e7681;font-size:13px'>No calendar connected or no events tomorrow.</p></div>
+    <div class="card "><h2>📬 Follow-ups Due</h2><ul class="item-list"><li data-modal='{&quot;title&quot;: &quot;Re: Scotiabank IAM Architect Position&quot;, &quot;rows&quot;: [[&quot;Subject&quot;, &quot;Re: Scotiabank IAM Architect Position&quot;], [&quot;From&quot;, &quot;&quot;], [&quot;Due&quot;, &quot;2024-07-09&quot;], [&quot;Note&quot;, &quot;Auto-detected deadline: Interview meeting scheduled&quot;]], &quot;opts&quot;: {&quot;replyTo&quot;: &quot;&quot;}}'>Re: Scotiabank IAM Architect Position<div class="meta">  ·  Due 2024-07-09</div></li><li data-modal='{&quot;title&quot;: &quot;Unityworkscanada&#x27;s free trial of Slack Pro ends in 7 days&quot;, &quot;rows&quot;: [[&quot;Subject&quot;, &quot;Unityworkscanada&#x27;s free trial of Slack Pro ends in 7 days&quot;], [&quot;From&quot;, &quot;&quot;], [&quot;Due&quot;, &quot;2024-07-10&quot;], [&quot;Note&quot;, &quot;Auto-detected deadline: Slack Pro trial expires; upgrade to maintain premium features&quot;]], &quot;opts&quot;: {&quot;replyTo&quot;: &quot;&quot;}}'>Unityworkscanada&#x27;s free trial of Slack Pro ends in 7 days<div class="meta">  ·  Due 2024-07-10</div></li><li data-modal='{&quot;title&quot;: &quot;Unityworkscanada&#x27;s free trial of Slack Pro ends in 7 days&quot;, &quot;rows&quot;: [[&quot;Subject&quot;, &quot;Unityworkscanada&#x27;s free trial of Slack Pro ends in 7 days&quot;], [&quot;From&quot;, &quot;&quot;], [&quot;Due&quot;, &quot;2024-07-10&quot;], [&quot;Note&quot;, &quot;Auto-detected deadline: Slack Pro trial ends; upgrade to maintain premium features&quot;]], &quot;opts&quot;: {&quot;replyTo&quot;: &quot;&quot;}}'>Unityworkscanada&#x27;s free trial of Slack Pro ends in 7 days<div class="meta">  ·  Due 2024-07-10</div></li><li data-modal='{&quot;title&quot;: &quot;Unityworkscanada&#x27;s free trial of Slack Pro ends in 7 days&quot;, &quot;rows&quot;: [[&quot;Subject&quot;, &quot;Unityworkscanada&#x27;s free trial of Slack Pro ends in 7 days&quot;], [&quot;From&quot;, &quot;&quot;], [&quot;Due&quot;, &quot;2024-07-10&quot;], [&quot;Note&quot;, &quot;Auto-detected deadline: Slack Pro trial ends; upgrade to maintain premium features or revert to free plan&quot;]], &quot;opts&quot;: {&quot;replyTo&quot;: &quot;&quot;}}'>Unityworkscanada&#x27;s free trial of Slack Pro ends in 7 days<div class="meta">  ·  Due 2024-07-10</div></li><li data-modal='{&quot;title&quot;: &quot;Re: IAM Manager- Architecture and Engineering - Job-36395 - &quot;, &quot;rows&quot;: [[&quot;Subject&quot;, &quot;Re: IAM Manager- Architecture and Engineering - Job-36395 - A\r\n contract opportunity that may be of interest&quot;], [&quot;From&quot;, &quot;sdowning@infotek-consulting.com&quot;], [&quot;Due&quot;, &quot;2026-06-28&quot;], [&quot;Note&quot;, &quot;No reply after 2 days \u2014 sent to sdowning@infotek-consulting.com&quot;]], &quot;opts&quot;: {&quot;replyTo&quot;: &quot;sdowning@infotek-consulting.com&quot;}}'>Re: IAM Manager- Architecture and Engineering - Job-36395 - <div class="meta"><a href="mailto:sdowning@infotek-consulting.com">sdowning@infotek-consulting.com</a>  ·  Due 2026-06-28</div></li><li data-modal='{&quot;title&quot;: &quot;RE: Follow-Up on Manager, AI &amp; Automation Opportunity&quot;, &quot;rows&quot;: [[&quot;Subject&quot;, &quot;RE: Follow-Up on Manager, AI &amp; Automation Opportunity&quot;], [&quot;From&quot;, &quot;Lauren.Westervelt@choicereit.ca&quot;], [&quot;Due&quot;, &quot;2026-06-29&quot;], [&quot;Note&quot;, &quot;No reply after 3 days \u2014 sent to Lauren.Westervelt@choicereit.ca&quot;]], &quot;opts&quot;: {&quot;replyTo&quot;: &quot;Lauren.Westervelt@choicereit.ca&quot;}}'>RE: Follow-Up on Manager, AI &amp; Automation Opportunity<div class="meta"><a href="mailto:Lauren.Westervelt@choicereit.ca">Lauren.Westervelt@choicereit.ca</a>  ·  Due 2026-06-29</div></li><li data-modal='{&quot;title&quot;: &quot;Re: Application to Mattamy&quot;, &quot;rows&quot;: [[&quot;Subject&quot;, &quot;Re: Application to Mattamy&quot;], [&quot;From&quot;, &quot;Lina.Bagchi@mattamycorp.com&quot;], [&quot;Due&quot;, &quot;2026-06-30&quot;], [&quot;Note&quot;, &quot;No reply after 4 days \u2014 sent to Lina.Bagchi@mattamycorp.com&quot;]], &quot;opts&quot;: {&quot;replyTo&quot;: &quot;Lina.Bagchi@mattamycorp.com&quot;}}'>Re: Application to Mattamy<div class="meta"><a href="mailto:Lina.Bagchi@mattamycorp.com">Lina.Bagchi@mattamycorp.com</a>  ·  Due 2026-06-30</div></li><li data-modal='{&quot;title&quot;: &quot;Re: Follow-Up on Manager, AI &amp; Automation Opportunity&quot;, &quot;rows&quot;: [[&quot;Subject&quot;, &quot;Re: Follow-Up on Manager, AI &amp; Automation Opportunity&quot;], [&quot;From&quot;, &quot;charlie.charalambous@choicereit.ca&quot;], [&quot;Due&quot;, &quot;2026-06-30&quot;], [&quot;Note&quot;, &quot;No reply after 4 days \u2014 sent to charlie.charalambous@choicereit.ca&quot;]], &quot;opts&quot;: {&quot;replyTo&quot;: &quot;charlie.charalambous@choicereit.ca&quot;}}'>Re: Follow-Up on Manager, AI &amp; Automation Opportunity<div class="meta"><a href="mailto:charlie.charalambous@choicereit.ca">charlie.charalambous@choicereit.ca</a>  ·  Due 2026-06-30</div></li><li data-modal='{&quot;title&quot;: &quot;373345 is your Facebook code&quot;, &quot;rows&quot;: [[&quot;Subject&quot;, &quot;373345 is your Facebook code&quot;], [&quot;From&quot;, &quot;&quot;], [&quot;Due&quot;, &quot;2026-07-01&quot;], [&quot;Note&quot;, &quot;Auto-detected deadline: Enter the code to confirm your account&quot;]], &quot;opts&quot;: {&quot;replyTo&quot;: &quot;&quot;}}'>373345 is your Facebook code<div class="meta">  ·  Due 2026-07-01</div></li><li data-modal='{&quot;title&quot;: &quot;Re: Let Randstad Digital Canada know you are interested&quot;, &quot;rows&quot;: [[&quot;Subject&quot;, &quot;Re: Let Randstad Digital Canada know you are interested&quot;], [&quot;From&quot;, &quot;&quot;], [&quot;Due&quot;, &quot;2026-07-02&quot;], [&quot;Note&quot;, &quot;Auto-detected deadline: schedule a phone call&quot;]], &quot;opts&quot;: {&quot;replyTo&quot;: &quot;&quot;}}'>Re: Let Randstad Digital Canada know you are interested<div class="meta">  ·  Due 2026-07-02</div></li></ul></div>
   </div>
 
-  <div class="card "><h2>Top Active Projects</h2><div class="proj-grid"><div class="proj-card" data-modal='{&quot;title&quot;: &quot;Ali Salamat shared the folder \&quot;Jobs\&quot; with you&quot;, &quot;rows&quot;: [[&quot;Topic&quot;, &quot;Ali Salamat shared the folder \&quot;Jobs\&quot; with you&quot;], [&quot;Signals&quot;, &quot;1&quot;], [&quot;Next&quot;, &quot;Review status&quot;]]}'><div class="pname" title="Ali Salamat shared the folder &quot;Jobs&quot; with you">Ali Salamat shared the folder &quot;Jobs&quot; wit</div><div class="pnext">Next: Review status</div></div><div class="proj-card" data-modal='{&quot;title&quot;: &quot;pls send me change management template&quot;, &quot;rows&quot;: [[&quot;Topic&quot;, &quot;pls send me change management template&quot;], [&quot;Signals&quot;, &quot;1&quot;], [&quot;Next&quot;, &quot;Review status&quot;]]}'><div class="pname" title="pls send me change management template">pls send me change management template</div><div class="pnext">Next: Review status</div></div><div class="proj-card" data-modal='{&quot;title&quot;: &quot;Cyber security controls&quot;, &quot;rows&quot;: [[&quot;Topic&quot;, &quot;Cyber security controls&quot;], [&quot;Signals&quot;, &quot;1&quot;], [&quot;Next&quot;, &quot;Review status&quot;]]}'><div class="pname" title="Cyber security controls">Cyber security controls</div><div class="pnext">Next: Review status</div></div><div class="proj-card" data-modal='{&quot;title&quot;: &quot;Emailing: PMI Member Certificate.pdf, PMI Member Card.pdf&quot;, &quot;rows&quot;: [[&quot;Topic&quot;, &quot;Emailing: PMI Member Certificate.pdf, PMI Member Card.pdf&quot;], [&quot;Signals&quot;, &quot;1&quot;], [&quot;Next&quot;, &quot;Review status&quot;]]}'><div class="pname" title="Emailing: PMI Member Certificate.pdf, PMI Member Card.pdf">Emailing: PMI Member Certificate.pdf, PM</div><div class="pnext">Next: Review status</div></div><div class="proj-card" data-modal='{&quot;title&quot;: &quot;\u067e\u0631\u0627\u0645\u067e\u062a \u062e\u0645\u06cc\u0631\u06cc&quot;, &quot;rows&quot;: [[&quot;Topic&quot;, &quot;\u067e\u0631\u0627\u0645\u067e\u062a \u062e\u0645\u06cc\u0631\u06cc&quot;], [&quot;Signals&quot;, &quot;1&quot;], [&quot;Next&quot;, &quot;Review status&quot;]]}'><div class="pname" title="پرامپت خمیری">پرامپت خمیری</div><div class="pnext">Next: Review status</div></div><div class="proj-card" data-modal='{&quot;title&quot;: &quot;Fw: Senior System Administrator at FGF Brands&quot;, &quot;rows&quot;: [[&quot;Topic&quot;, &quot;Fw: Senior System Administrator at FGF Brands&quot;], [&quot;Signals&quot;, &quot;1&quot;], [&quot;Next&quot;, &quot;Review status&quot;]]}'><div class="pname" title="Fw: Senior System Administrator at FGF Brands">Fw: Senior System Administrator at FGF B</div><div class="pnext">Next: Review status</div></div><div class="proj-card" data-modal='{&quot;title&quot;: &quot;Re: Manager, AI &amp; Automation at Choice Properties // next steps&quot;, &quot;rows&quot;: [[&quot;Topic&quot;, &quot;Re: Manager, AI &amp; Automation at Choice Properties // next steps&quot;], [&quot;Signals&quot;, &quot;1&quot;], [&quot;Next&quot;, &quot;Review status&quot;]]}'><div class="pname" title="Re: Manager, AI &amp; Automation at Choice Properties // next steps">Re: Manager, AI &amp; Automation at Choice P</div><div class="pnext">Next: Review status</div></div><div class="proj-card" data-modal='{&quot;title&quot;: &quot;Staples is hiring for Administrateur syst\u00e8me + 9 new VMware jobs in Richmond Hill, ON&quot;, &quot;rows&quot;: [[&quot;Topic&quot;, &quot;Staples is hiring for Administrateur syst\u00e8me + 9 new VMware jobs in Richmond Hill, ON&quot;], [&quot;Signals&quot;, &quot;1&quot;], [&quot;Next&quot;, &quot;Review status&quot;]]}'><div class="pname" title="Staples is hiring for Administrateur système + 9 new VMware jobs in Richmond Hill, ON">Staples is hiring for Administrateur sys</div><div class="pnext">Next: Review status</div></div></div></div>
-
-  <div class="grid2" style="margin-top:16px">
-    <div class="card "><h2>Week Calendar Load</h2><div class="bar-chart"><div class="bar-row"><span class="bar-lbl" title="2026-05-30">2026-05-30</span><div class="bar-track"><div class="bar-fill" style="width:30%"></div></div><span class="bar-val">21</span></div><div class="bar-row"><span class="bar-lbl" title="2026-05-31">2026-05-31</span><div class="bar-track"><div class="bar-fill" style="width:100%"></div></div><span class="bar-val">70</span></div><div class="bar-row"><span class="bar-lbl" title="2026-06-01">2026-06-01</span><div class="bar-track"><div class="bar-fill" style="width:34%"></div></div><span class="bar-val">24</span></div><div class="bar-row"><span class="bar-lbl" title="2026-06-02">2026-06-02</span><div class="bar-track"><div class="bar-fill" style="width:28%"></div></div><span class="bar-val">20</span></div><div class="bar-row"><span class="bar-lbl" title="2026-06-03">2026-06-03</span><div class="bar-track"><div class="bar-fill" style="width:42%"></div></div><span class="bar-val">30</span></div><div class="bar-row"><span class="bar-lbl" title="2026-06-04">2026-06-04</span><div class="bar-track"><div class="bar-fill" style="width:50%"></div></div><span class="bar-val">35</span></div><div class="bar-row"><span class="bar-lbl" title="2026-06-05">2026-06-05</span><div class="bar-track"><div class="bar-fill" style="width:50%"></div></div><span class="bar-val">35</span></div></div></div>
-    <div class="card "><h2>Time Allocation This Week</h2><div class="donut-wrap"><div class="donut" style="background:conic-gradient(#1f6feb 0% 30%, #f78166 30% 55%, #3fb950 55% 80%, #bc8cff 80% 90%, #d29922 90% 100%)"></div><div class="donut-legend"><div class="legend-row"><div class="legend-dot" style="background:#1f6feb"></div><span>Customer-facing <b>30%</b></span></div><div class="legend-row"><div class="legend-dot" style="background:#f78166"></div><span>Internal sync <b>25%</b></span></div><div class="legend-row"><div class="legend-dot" style="background:#3fb950"></div><span>Focus <b>25%</b></span></div><div class="legend-row"><div class="legend-dot" style="background:#bc8cff"></div><span>Training <b>10%</b></span></div><div class="legend-row"><div class="legend-dot" style="background:#d29922"></div><span>Admin <b>10%</b></span></div></div></div></div>
+  <!-- Row 2: Chase Queue + VIP Contacts -->
+  <div class="grid2">
+    <div class="card " id="s-chase"><h2>⏰ Chase Queue — No Reply</h2><div class="chase-item" data-modal='{&quot;title&quot;: &quot;\u067e\u0631\u0627\u0645\u067e\u062a \u062e\u0645\u06cc\u0631\u06cc&quot;, &quot;rows&quot;: [[&quot;To&quot;, &quot;a_salamat@yahoo.com&quot;], [&quot;Days waiting&quot;, &quot;28&quot;], [&quot;Sent&quot;, &quot;2026-06-05&quot;], [&quot;Tip&quot;, &quot;Click &#x27;Generate Follow-up Draft&#x27; above to write a polite chase email.&quot;]], &quot;opts&quot;: {&quot;chaseEmailId&quot;: &quot;a1_492198&quot;, &quot;replyTo&quot;: &quot;a_salamat@yahoo.com&quot;, &quot;replySubject&quot;: &quot;Re: \u067e\u0631\u0627\u0645\u067e\u062a \u062e\u0645\u06cc\u0631\u06cc&quot;, &quot;emailId&quot;: &quot;a1_492198&quot;}}'><div><b>پرامپت خمیری</b><span class="badge bdg-red">28d waiting</span></div><div class="meta">To: a_salamat@yahoo.com</div></div><div class="chase-item" data-modal='{&quot;title&quot;: &quot;Fw: Senior System Administrator at FGF Brands&quot;, &quot;rows&quot;: [[&quot;To&quot;, &quot;raha.naje@gmail.com&quot;], [&quot;Days waiting&quot;, &quot;28&quot;], [&quot;Sent&quot;, &quot;2026-06-04&quot;], [&quot;Tip&quot;, &quot;Click &#x27;Generate Follow-up Draft&#x27; above to write a polite chase email.&quot;]], &quot;opts&quot;: {&quot;chaseEmailId&quot;: &quot;a1_492196&quot;, &quot;replyTo&quot;: &quot;raha.naje@gmail.com&quot;, &quot;replySubject&quot;: &quot;Re: Fw: Senior System Administrator at FGF Brands&quot;, &quot;emailId&quot;: &quot;a1_492196&quot;}}'><div><b>Fw: Senior System Administrator at FGF Brands</b><span class="badge bdg-red">28d waiting</span></div><div class="meta">To: raha.naje@gmail.com</div></div><div class="chase-item" data-modal='{&quot;title&quot;: &quot;Senior Systems Engineer, Ali Salamat&quot;, &quot;rows&quot;: [[&quot;To&quot;, &quot;careers@leoberwick.com&quot;], [&quot;Days waiting&quot;, &quot;25&quot;], [&quot;Sent&quot;, &quot;2026-06-08&quot;], [&quot;Tip&quot;, &quot;Click &#x27;Generate Follow-up Draft&#x27; above to write a polite chase email.&quot;]], &quot;opts&quot;: {&quot;chaseEmailId&quot;: &quot;a1_492202&quot;, &quot;replyTo&quot;: &quot;careers@leoberwick.com&quot;, &quot;replySubject&quot;: &quot;Re: Senior Systems Engineer, Ali Salamat&quot;, &quot;emailId&quot;: &quot;a1_492202&quot;}}'><div><b>Senior Systems Engineer, Ali Salamat</b><span class="badge bdg-red">25d waiting</span></div><div class="meta">To: careers@leoberwick.com</div></div><div class="chase-item" data-modal='{&quot;title&quot;: &quot;Pls&quot;, &quot;rows&quot;: [[&quot;To&quot;, &quot;amirabbas.sepehrband@gmail.com&quot;], [&quot;Days waiting&quot;, &quot;25&quot;], [&quot;Sent&quot;, &quot;2026-06-07&quot;], [&quot;Tip&quot;, &quot;Click &#x27;Generate Follow-up Draft&#x27; above to write a polite chase email.&quot;]], &quot;opts&quot;: {&quot;chaseEmailId&quot;: &quot;a1_492201&quot;, &quot;replyTo&quot;: &quot;amirabbas.sepehrband@gmail.com&quot;, &quot;replySubject&quot;: &quot;Re: Pls&quot;, &quot;emailId&quot;: &quot;a1_492201&quot;}}'><div><b>Pls</b><span class="badge bdg-red">25d waiting</span></div><div class="meta">To: amirabbas.sepehrband@gmail.com</div></div><div class="chase-item" data-modal='{&quot;title&quot;: &quot;Re: IT Manager Interview - Ali Salamat&quot;, &quot;rows&quot;: [[&quot;To&quot;, &quot;bbrookman@canatc.ca&quot;], [&quot;Days waiting&quot;, &quot;25&quot;], [&quot;Sent&quot;, &quot;2026-06-07&quot;], [&quot;Tip&quot;, &quot;Click &#x27;Generate Follow-up Draft&#x27; above to write a polite chase email.&quot;]], &quot;opts&quot;: {&quot;chaseEmailId&quot;: &quot;a1_492200&quot;, &quot;replyTo&quot;: &quot;bbrookman@canatc.ca&quot;, &quot;replySubject&quot;: &quot;Re: Re: IT Manager Interview - Ali Salamat&quot;, &quot;emailId&quot;: &quot;a1_492200&quot;}}'><div><b>Re: IT Manager Interview - Ali Salamat</b><span class="badge bdg-red">25d waiting</span></div><div class="meta">To: bbrookman@canatc.ca</div></div><div class="chase-item" data-modal='{&quot;title&quot;: &quot;Re: Sr. Systems Administrator - interview&quot;, &quot;rows&quot;: [[&quot;To&quot;, &quot;denys.haptyanov@gatewaycasinos.ca&quot;], [&quot;Days waiting&quot;, &quot;25&quot;], [&quot;Sent&quot;, &quot;2026-06-07&quot;], [&quot;Tip&quot;, &quot;Click &#x27;Generate Follow-up Draft&#x27; above to write a polite chase email.&quot;]], &quot;opts&quot;: {&quot;chaseEmailId&quot;: &quot;a1_492199&quot;, &quot;replyTo&quot;: &quot;denys.haptyanov@gatewaycasinos.ca&quot;, &quot;replySubject&quot;: &quot;Re: Re: Sr. Systems Administrator - interview&quot;, &quot;emailId&quot;: &quot;a1_492199&quot;}}'><div><b>Re: Sr. Systems Administrator - interview</b><span class="badge bdg-red">25d waiting</span></div><div class="meta">To: denys.haptyanov@gatewaycasinos.ca</div></div><div class="chase-item" data-modal='{&quot;title&quot;: &quot;Re: Application Release Engineer || Toronto || Contract &quot;, &quot;rows&quot;: [[&quot;To&quot;, &quot;yatinder.rawat@envisiontechsol.com&quot;], [&quot;Days waiting&quot;, &quot;24&quot;], [&quot;Sent&quot;, &quot;2026-06-08&quot;], [&quot;Tip&quot;, &quot;Click &#x27;Generate Follow-up Draft&#x27; above to write a polite chase email.&quot;]], &quot;opts&quot;: {&quot;chaseEmailId&quot;: &quot;a1_492203&quot;, &quot;replyTo&quot;: &quot;yatinder.rawat@envisiontechsol.com&quot;, &quot;replySubject&quot;: &quot;Re: Re: Application Release Engineer || Toronto || Contract &quot;, &quot;emailId&quot;: &quot;a1_492203&quot;}}'><div><b>Re: Application Release Engineer || Toronto || Contract </b><span class="badge bdg-red">24d waiting</span></div><div class="meta">To: yatinder.rawat@envisiontechsol.com</div></div><div class="chase-item" data-modal='{&quot;title&quot;: &quot;Re: Fw: Only on streets of NY . . .&quot;, &quot;rows&quot;: [[&quot;To&quot;, &quot;malavijoon@yahoo.com&quot;], [&quot;Days waiting&quot;, &quot;23&quot;], [&quot;Sent&quot;, &quot;2026-06-09&quot;], [&quot;Tip&quot;, &quot;Click &#x27;Generate Follow-up Draft&#x27; above to write a polite chase email.&quot;]], &quot;opts&quot;: {&quot;chaseEmailId&quot;: &quot;a1_492206&quot;, &quot;replyTo&quot;: &quot;malavijoon@yahoo.com&quot;, &quot;replySubject&quot;: &quot;Re: Re: Fw: Only on streets of NY . . .&quot;, &quot;emailId&quot;: &quot;a1_492206&quot;}}'><div><b>Re: Fw: Only on streets of NY . . .</b><span class="badge bdg-red">23d waiting</span></div><div class="meta">To: malavijoon@yahoo.com</div></div></div>
+    <div class="card " id="s-vip"><h2>⭐ VIP Contact Status</h2><div class="vip-item" data-modal='{&quot;title&quot;: &quot;Hannah Salamat&quot;, &quot;rows&quot;: [[&quot;Email&quot;, &quot;hannah.salamat@hotmail.com&quot;], [&quot;Last received&quot;, &quot;2026-03-10&quot;], [&quot;Emails received&quot;, &quot;4&quot;], [&quot;Emails sent to&quot;, &quot;0&quot;], [&quot;Last sent to&quot;, &quot;2026-06-29&quot;], [&quot;Note&quot;, &quot;&quot;]], &quot;opts&quot;: {&quot;replyTo&quot;: &quot;hannah.salamat@hotmail.com&quot;}}'><div class="vip-avatar vip-awaiting">HS</div><div style="flex:1;min-width:0"><div><b>Hannah Salamat</b><span class="badge bdg-orange">reply needed</span></div><div class="meta">hannah.salamat@hotmail.com · 2026-03-10</div></div></div><div class="vip-item" data-modal='{&quot;title&quot;: &quot;Mahyar Darvish&quot;, &quot;rows&quot;: [[&quot;Email&quot;, &quot;mahyard@yahoo.com&quot;], [&quot;Last received&quot;, &quot;\u2014&quot;], [&quot;Emails received&quot;, &quot;0&quot;], [&quot;Emails sent to&quot;, &quot;0&quot;], [&quot;Last sent to&quot;, &quot;2025-07-23&quot;], [&quot;Note&quot;, &quot;&quot;]], &quot;opts&quot;: {&quot;replyTo&quot;: &quot;mahyard@yahoo.com&quot;}}'><div class="vip-avatar ">MD</div><div style="flex:1;min-width:0"><div><b>Mahyar Darvish</b></div><div class="meta">mahyard@yahoo.com · —</div></div></div><div class="vip-item" data-modal='{&quot;title&quot;: &quot;Maman Shahla&quot;, &quot;rows&quot;: [[&quot;Email&quot;, &quot;sh_alavi@hotmail.com&quot;], [&quot;Last received&quot;, &quot;2026-06-19&quot;], [&quot;Emails received&quot;, &quot;10&quot;], [&quot;Emails sent to&quot;, &quot;0&quot;], [&quot;Last sent to&quot;, &quot;2026-06-20&quot;], [&quot;Note&quot;, &quot;&quot;]], &quot;opts&quot;: {&quot;replyTo&quot;: &quot;sh_alavi@hotmail.com&quot;}}'><div class="vip-avatar vip-awaiting">MS</div><div style="flex:1;min-width:0"><div><b>Maman Shahla</b><span class="badge bdg-orange">reply needed</span></div><div class="meta">sh_alavi@hotmail.com · 2026-06-19</div></div></div><div class="vip-item" data-modal='{&quot;title&quot;: &quot;Neda&quot;, &quot;rows&quot;: [[&quot;Email&quot;, &quot;neda.assadian@gmail.com&quot;], [&quot;Last received&quot;, &quot;2026-05-18&quot;], [&quot;Emails received&quot;, &quot;35&quot;], [&quot;Emails sent to&quot;, &quot;0&quot;], [&quot;Last sent to&quot;, &quot;2026-05-24&quot;], [&quot;Note&quot;, &quot;Assadian&quot;]], &quot;opts&quot;: {&quot;replyTo&quot;: &quot;neda.assadian@gmail.com&quot;}}'><div class="vip-avatar vip-awaiting">N</div><div style="flex:1;min-width:0"><div><b>Neda</b><span class="badge bdg-orange">reply needed</span></div><div class="meta">neda.assadian@gmail.com · 2026-05-18</div></div></div><div class="vip-item" data-modal='{&quot;title&quot;: &quot;Saba-Salamat&quot;, &quot;rows&quot;: [[&quot;Email&quot;, &quot;saba-salamat@hotmail.com&quot;], [&quot;Last received&quot;, &quot;\u2014&quot;], [&quot;Emails received&quot;, &quot;0&quot;], [&quot;Emails sent to&quot;, &quot;0&quot;], [&quot;Last sent to&quot;, &quot;2026-06-11&quot;], [&quot;Note&quot;, &quot;&quot;]], &quot;opts&quot;: {&quot;replyTo&quot;: &quot;saba-salamat@hotmail.com&quot;}}'><div class="vip-avatar ">S</div><div style="flex:1;min-width:0"><div><b>Saba-Salamat</b></div><div class="meta">saba-salamat@hotmail.com · —</div></div></div></div>
   </div>
 
-  <div class="grid2" style="margin-top:16px">
-    <div class="card "><h2>Emails Needing a Reply</h2><p style='color:#6e7681;font-size:13px'>Inbox zero!</p></div>
-    <div class="card "><h2>Long-Term Action Items</h2><p style='color:#3fb950;font-size:13px'>No open actions.</p></div>
+  <!-- Row 3: User Projects -->
+  <div class="card " id="s-projects"><h2>📁 Your Projects</h2><div class="proj-grid"><div class="proj-card" data-modal='{&quot;title&quot;: &quot;Job Search&quot;, &quot;rows&quot;: [[&quot;Status&quot;, &quot;active&quot;], [&quot;Emails linked&quot;, &quot;0&quot;], [&quot;Description&quot;, &quot;Goal: find new job\nTimeline: in next 30 days\nStakeholders: m&quot;], [&quot;Created&quot;, &quot;2026-06-16&quot;]]}'><div class="pstatus status-active">active</div><div class="pname" title="Job Search">Job Search</div><div class="pmeta">0 emails · Goal: find new job
+Timeline: in next 30 days
+Stakeholders: m</div></div></div></div>
+
+  <!-- Row 4: Calendar + Time allocation -->
+  <div class="grid2" style="margin-top:0">
+    <div class="card "><h2>📊 Week Calendar Load</h2><div class="bar-chart"><div class="bar-row"><span class="bar-lbl" title="2026-06-27">2026-06-27</span><div class="bar-track"><div class="bar-fill" style="width:10%"></div></div><span class="bar-val">3</span></div><div class="bar-row"><span class="bar-lbl" title="2026-06-28">2026-06-28</span><div class="bar-track"><div class="bar-fill" style="width:10%"></div></div><span class="bar-val">3</span></div><div class="bar-row"><span class="bar-lbl" title="2026-06-29">2026-06-29</span><div class="bar-track"><div class="bar-fill" style="width:82%"></div></div><span class="bar-val">23</span></div><div class="bar-row"><span class="bar-lbl" title="2026-06-30">2026-06-30</span><div class="bar-track"><div class="bar-fill" style="width:39%"></div></div><span class="bar-val">11</span></div><div class="bar-row"><span class="bar-lbl" title="2026-07-01">2026-07-01</span><div class="bar-track"><div class="bar-fill" style="width:10%"></div></div><span class="bar-val">3</span></div><div class="bar-row"><span class="bar-lbl" title="2026-07-02">2026-07-02</span><div class="bar-track"><div class="bar-fill" style="width:100%"></div></div><span class="bar-val">28</span></div><div class="bar-row"><span class="bar-lbl" title="2026-07-03">2026-07-03</span><div class="bar-track"><div class="bar-fill" style="width:3%"></div></div><span class="bar-val">1</span></div></div></div>
+    <div class="card "><h2>🕐 Time Allocation This Week</h2><div class="donut-wrap"><div class="donut" style="background:conic-gradient(#1f6feb 0% 30%, #f78166 30% 55%, #3fb950 55% 80%, #bc8cff 80% 90%, #d29922 90% 100%)"></div><div class="donut-legend"><div class="legend-row"><div class="legend-dot" style="background:#1f6feb"></div><span>Customer-facing <b>30%</b></span></div><div class="legend-row"><div class="legend-dot" style="background:#f78166"></div><span>Internal sync <b>25%</b></span></div><div class="legend-row"><div class="legend-dot" style="background:#3fb950"></div><span>Focus <b>25%</b></span></div><div class="legend-row"><div class="legend-dot" style="background:#bc8cff"></div><span>Training <b>10%</b></span></div><div class="legend-row"><div class="legend-dot" style="background:#d29922"></div><span>Admin <b>10%</b></span></div></div></div></div>
   </div>
 
-  <div class="grid2" style="margin-top:16px">
-    <div class="card "><h2>Training & Learning</h2><ul class="item-list"><li data-modal='{&quot;title&quot;: &quot;UNLOCK DEAL: Save 50% on AI Courses and Membership NOW!&quot;, &quot;rows&quot;: [[&quot;Subject&quot;, &quot;UNLOCK DEAL: Save 50% on AI Courses and Membership NOW!&quot;], [&quot;From&quot;, &quot;isaca@em.isaca.org&quot;], [&quot;Date&quot;, &quot;2026-06-05&quot;]]}'>UNLOCK DEAL: Save 50% on AI Courses and Membership NOW!<div class="meta">isaca@em.isaca.org · 2026-06-05</div></li><li data-modal='{&quot;title&quot;: &quot;Final Call: ISC2 Securing AI Workshop | June Virtual&quot;, &quot;rows&quot;: [[&quot;Subject&quot;, &quot;Final Call: ISC2 Securing AI Workshop | June Virtual&quot;], [&quot;From&quot;, &quot;info@connect.isc2.org&quot;], [&quot;Date&quot;, &quot;2026-06-04&quot;]]}'>Final Call: ISC2 Securing AI Workshop | June Virtual<div class="meta">info@connect.isc2.org · 2026-06-04</div></li><li data-modal='{&quot;title&quot;: &quot;Expand your future skills with free AI learning from Akkodis and\r\n Mic&quot;, &quot;rows&quot;: [[&quot;Subject&quot;, &quot;Expand your future skills with free AI learning from Akkodis and\r\n Microsoft&quot;], [&quot;From&quot;, &quot;canada_feedback@akkodisgroup.com&quot;], [&quot;Date&quot;, &quot;2026-06-01&quot;]]}'>Expand your future skills with free AI learning from Akkodis and
- Mic<div class="meta">canada_feedback@akkodisgroup.com · 2026-06-01</div></li><li data-modal='{&quot;title&quot;: &quot;Early Bird Pricing Extended | Zero Trust Workshop&quot;, &quot;rows&quot;: [[&quot;Subject&quot;, &quot;Early Bird Pricing Extended | Zero Trust Workshop&quot;], [&quot;From&quot;, &quot;info@connect.isc2.org&quot;], [&quot;Date&quot;, &quot;2026-05-29&quot;]]}'>Early Bird Pricing Extended | Zero Trust Workshop<div class="meta">info@connect.isc2.org · 2026-05-29</div></li><li data-modal='{&quot;title&quot;: &quot;$100K Resume Webinar is happening Tomorrow and 3 Lucky Mothers will WI&quot;, &quot;rows&quot;: [[&quot;Subject&quot;, &quot;$100K Resume Webinar is happening Tomorrow and 3 Lucky Mothers will WIN \ud83c\udfc6 GIFT \ud83c\udf81 cards too!&quot;], [&quot;From&quot;, &quot;Alex Amir Coaching \u270a &lt;start@alexcoaching.org&gt;&quot;], [&quot;Date&quot;, &quot;2026-05-11&quot;]]}'>$100K Resume Webinar is happening Tomorrow and 3 Lucky Mothers will WI<div class="meta">Alex Amir Coaching ✊ &lt;start@alexcoaching · 2026-05-11</div></li><li data-modal='{&quot;title&quot;: &quot;Alex B posted \&quot;Happy Mother\u2019s Day to all the amazing mothers in our co&quot;, &quot;rows&quot;: [[&quot;Subject&quot;, &quot;Alex B posted \&quot;Happy Mother\u2019s Day to all the amazing mothers in our community \ud83d\udc90 My GIFT \ud83c\udf81 to you: FREE Resume MasterClass Webinar  \&quot;&quot;], [&quot;From&quot;, &quot;Free BTE Career Coaching &lt;noreply@skool.com&gt;&quot;], [&quot;Date&quot;, &quot;2026-05-09&quot;]]}'>Alex B posted &quot;Happy Mother’s Day to all the amazing mothers in our co<div class="meta">Free BTE Career Coaching &lt;noreply@skool. · 2026-05-09</div></li><li data-modal='{&quot;title&quot;: &quot;Skill&quot;, &quot;rows&quot;: [[&quot;Subject&quot;, &quot;Skill&quot;], [&quot;From&quot;, &quot;Ali.Salamat@von.ca&quot;], [&quot;Date&quot;, &quot;2026-01-11&quot;]]}'>Skill<div class="meta">Ali.Salamat@von.ca · 2026-01-11</div></li><li data-modal='{&quot;title&quot;: &quot;Course&quot;, &quot;rows&quot;: [[&quot;Subject&quot;, &quot;Course&quot;], [&quot;From&quot;, &quot;a_salamat@yahoo.com&quot;], [&quot;Date&quot;, &quot;2026-01-03&quot;]]}'>Course<div class="meta">a_salamat@yahoo.com · 2026-01-03</div></li></ul></div>
-    <div class="card "><h2>Top Senders This Week</h2><div class="bar-chart"><div class="bar-row"><span class="bar-lbl" title="Ali Salamat &lt;salamat110@hotmail.com&gt;">alamat110@hotmail.com&gt;</span><div class="bar-track"><div class="bar-fill" style="width:100%"></div></div><span class="bar-val">1410</span></div><div class="bar-row"><span class="bar-lbl" title="a_salamat@yahoo.com">a_salamat@yahoo.com</span><div class="bar-track"><div class="bar-fill" style="width:50%"></div></div><span class="bar-val">717</span></div><div class="bar-row"><span class="bar-lbl" title="ali salamat &lt;salamat110@hotmail.com&gt;">alamat110@hotmail.com&gt;</span><div class="bar-track"><div class="bar-fill" style="width:34%"></div></div><span class="bar-val">483</span></div><div class="bar-row"><span class="bar-lbl" title="alert@indeed.com">alert@indeed.com</span><div class="bar-track"><div class="bar-fill" style="width:14%"></div></div><span class="bar-val">206</span></div><div class="bar-row"><span class="bar-lbl" title="htrogers50@gmail.com">htrogers50@gmail.com</span><div class="bar-track"><div class="bar-fill" style="width:11%"></div></div><span class="bar-val">158</span></div><div class="bar-row"><span class="bar-lbl" title="invitetoapply@match.indeed.com">apply@match.indeed.com</span><div class="bar-track"><div class="bar-fill" style="width:10%"></div></div><span class="bar-val">155</span></div><div class="bar-row"><span class="bar-lbl" title="nima.sadri@conavi.com">nima.sadri@conavi.com</span><div class="bar-track"><div class="bar-fill" style="width:6%"></div></div><span class="bar-val">98</span></div></div></div>
+  <!-- Row 5: Unread emails + Actions -->
+  <div class="grid2">
+    <div class="card " id="s-unread"><h2>📩 Unread Emails</h2><p style='color:#3fb950;font-size:13px'>Inbox zero! 🎉</p></div>
+    <div class="card " id="s-actions"><h2>✅ Action Items</h2><ul class="item-list"><li data-modal='{&quot;title&quot;: &quot;Select one of the four proposed meeting times and confirm with Spencer&quot;, &quot;rows&quot;: [[&quot;Action&quot;, &quot;Select one of the four proposed meeting times and confirm with Spencer&quot;], [&quot;Email&quot;, &quot;Scotiabank IAM Architect Position&quot;], [&quot;Added&quot;, &quot;2026-07-03&quot;]], &quot;opts&quot;: {&quot;actionId&quot;: 511}}' data-action-id="511">Select one of the four proposed meeting times and confirm with Spencer<div class=meta>Scotiabank IAM Architect Position</div></li><li data-modal='{&quot;title&quot;: &quot;Note the meeting details and any dial-in/location information if provided&quot;, &quot;rows&quot;: [[&quot;Action&quot;, &quot;Note the meeting details and any dial-in/location information if provided&quot;], [&quot;Email&quot;, &quot;Scotiabank IAM Architect Position&quot;], [&quot;Added&quot;, &quot;2026-07-03&quot;]], &quot;opts&quot;: {&quot;actionId&quot;: 512}}' data-action-id="512">Note the meeting details and any dial-in/location information if provided<div class=meta>Scotiabank IAM Architect Position</div></li><li data-modal='{&quot;title&quot;: &quot;Prepare for the interview by reviewing the IAM Architect role requirements and S&quot;, &quot;rows&quot;: [[&quot;Action&quot;, &quot;Prepare for the interview by reviewing the IAM Architect role requirements and Scotiabank&#x27;s IAM strategy&quot;], [&quot;Email&quot;, &quot;Scotiabank IAM Architect Position&quot;], [&quot;Added&quot;, &quot;2026-07-03&quot;]], &quot;opts&quot;: {&quot;actionId&quot;: 513}}' data-action-id="513">Prepare for the interview by reviewing the IAM Architect role requirements and Scotiabank&#x27;<div class=meta>Scotiabank IAM Architect Position</div></li><li data-modal='{&quot;title&quot;: &quot;Ensure calendar is blocked for the selected time slot&quot;, &quot;rows&quot;: [[&quot;Action&quot;, &quot;Ensure calendar is blocked for the selected time slot&quot;], [&quot;Email&quot;, &quot;Scotiabank IAM Architect Position&quot;], [&quot;Added&quot;, &quot;2026-07-03&quot;]], &quot;opts&quot;: {&quot;actionId&quot;: 514}}' data-action-id="514">Ensure calendar is blocked for the selected time slot<div class=meta>Scotiabank IAM Architect Position</div></li><li data-modal='{&quot;title&quot;: &quot;Sending updated resume as an attachment&quot;, &quot;rows&quot;: [[&quot;Action&quot;, &quot;Sending updated resume as an attachment&quot;], [&quot;Email&quot;, &quot;Re: Job opportunity::::: VMWare Engineer--Ottawa , ON&quot;], [&quot;Added&quot;, &quot;2026-07-02&quot;]], &quot;opts&quot;: {&quot;actionId&quot;: 510}}' data-action-id="510">Sending updated resume as an attachment<div class=meta>Re: Job opportunity::::: VMWare Engineer--Ottawa ,</div></li><li data-modal='{&quot;title&quot;: &quot;Rate expectation: $85-90k plus tax for incorporation&quot;, &quot;rows&quot;: [[&quot;Action&quot;, &quot;Rate expectation: $85-90k plus tax for incorporation&quot;], [&quot;Email&quot;, &quot;Re: Job opportunity::::: VMWare Engineer--Ottawa , ON&quot;], [&quot;Added&quot;, &quot;2026-07-02&quot;]], &quot;opts&quot;: {&quot;actionId&quot;: 508}}' data-action-id="508">Rate expectation: $85-90k plus tax for incorporation<div class=meta>Re: Job opportunity::::: VMWare Engineer--Ottawa ,</div></li><li data-modal='{&quot;title&quot;: &quot;Meet with Michelle Poblete at 12:30 PM EST on Thursday, July 2, 2026&quot;, &quot;rows&quot;: [[&quot;Action&quot;, &quot;Meet with Michelle Poblete at 12:30 PM EST on Thursday, July 2, 2026&quot;], [&quot;Email&quot;, &quot;Re: Lets Chat- Technical Lead, Infrastructure with Life Labs&quot;], [&quot;Added&quot;, &quot;2026-07-02&quot;]], &quot;opts&quot;: {&quot;actionId&quot;: 509}}' data-action-id="509">Meet with Michelle Poblete at 12:30 PM EST on Thursday, July 2, 2026<div class=meta>Re: Lets Chat- Technical Lead, Infrastructure with</div></li><li data-modal='{&quot;title&quot;: &quot;Accept fully remote work arrangement for the VMWare Engineer position in Ottawa,&quot;, &quot;rows&quot;: [[&quot;Action&quot;, &quot;Accept fully remote work arrangement for the VMWare Engineer position in Ottawa, ON&quot;], [&quot;Email&quot;, &quot;Re: Job opportunity::::: VMWare Engineer--Ottawa , ON&quot;], [&quot;Added&quot;, &quot;2026-07-02&quot;]], &quot;opts&quot;: {&quot;actionId&quot;: 507}}' data-action-id="507">Accept fully remote work arrangement for the VMWare Engineer position in Ottawa, ON<div class=meta>Re: Job opportunity::::: VMWare Engineer--Ottawa ,</div></li><li data-modal='{&quot;title&quot;: &quot;Salary of $100K&quot;, &quot;rows&quot;: [[&quot;Action&quot;, &quot;Salary of $100K&quot;], [&quot;Email&quot;, &quot;Re: Right to represent -\u00a0IT Infrastructure &amp; Security Specialist - Markham, ON\u00a0(Onsite) - Frontier Dental Management&quot;], [&quot;Added&quot;, &quot;2026-07-02&quot;]], &quot;opts&quot;: {&quot;actionId&quot;: 500}}' data-action-id="500">Salary of $100K<div class=meta>Re: Right to represent - IT Infrastructure &amp; Secur</div></li><li data-modal='{&quot;title&quot;: &quot;Location: Markham, ON (Onsite)&quot;, &quot;rows&quot;: [[&quot;Action&quot;, &quot;Location: Markham, ON (Onsite)&quot;], [&quot;Email&quot;, &quot;Re: Right to represent -\u00a0IT Infrastructure &amp; Security Specialist - Markham, ON\u00a0(Onsite) - Frontier Dental Management&quot;], [&quot;Added&quot;, &quot;2026-07-02&quot;]], &quot;opts&quot;: {&quot;actionId&quot;: 504}}' data-action-id="504">Location: Markham, ON (Onsite)<div class=meta>Re: Right to represent - IT Infrastructure &amp; Secur</div></li><li data-modal='{&quot;title&quot;: &quot;Attend meeting with Spencer on July 9th at 9am to discuss the IAM Architect role&quot;, &quot;rows&quot;: [[&quot;Action&quot;, &quot;Attend meeting with Spencer on July 9th at 9am to discuss the IAM Architect role&quot;], [&quot;Email&quot;, &quot;Re: Scotiabank IAM Architect Position&quot;], [&quot;Added&quot;, &quot;2026-07-02&quot;]], &quot;opts&quot;: {&quot;actionId&quot;: 497}}' data-action-id="497">Attend meeting with Spencer on July 9th at 9am to discuss the IAM Architect role<div class=meta>Re: Scotiabank IAM Architect Position</div></li><li data-modal='{&quot;title&quot;: &quot;Prepare for the interview by reviewing the IAM Architect role requirements and S&quot;, &quot;rows&quot;: [[&quot;Action&quot;, &quot;Prepare for the interview by reviewing the IAM Architect role requirements and Scotiabank&#x27;s IAM strategy&quot;], [&quot;Email&quot;, &quot;You&#x27;re on the Origin waitlist&quot;], [&quot;Added&quot;, &quot;2026-07-02&quot;]], &quot;opts&quot;: {&quot;actionId&quot;: 491}}' data-action-id="491">Prepare for the interview by reviewing the IAM Architect role requirements and Scotiabank&#x27;<div class=meta>You&#x27;re on the Origin waitlist</div></li><li data-modal='{&quot;title&quot;: &quot;Ensure calendar is blocked for the selected time slot&quot;, &quot;rows&quot;: [[&quot;Action&quot;, &quot;Ensure calendar is blocked for the selected time slot&quot;], [&quot;Email&quot;, &quot;You&#x27;re on the Origin waitlist&quot;], [&quot;Added&quot;, &quot;2026-07-02&quot;]], &quot;opts&quot;: {&quot;actionId&quot;: 492}}' data-action-id="492">Ensure calendar is blocked for the selected time slot<div class=meta>You&#x27;re on the Origin waitlist</div></li><li data-modal='{&quot;title&quot;: &quot;Select one of the four proposed meeting times and confirm with Spencer&quot;, &quot;rows&quot;: [[&quot;Action&quot;, &quot;Select one of the four proposed meeting times and confirm with Spencer&quot;], [&quot;Email&quot;, &quot;Firearm Hearing Date - July 7th 2026&quot;], [&quot;Added&quot;, &quot;2026-07-02&quot;]], &quot;opts&quot;: {&quot;actionId&quot;: 481}}' data-action-id="481">Select one of the four proposed meeting times and confirm with Spencer<div class=meta>Firearm Hearing Date - July 7th 2026</div></li><li data-modal='{&quot;title&quot;: &quot;Note the meeting details and any dial-in/location information if provided&quot;, &quot;rows&quot;: [[&quot;Action&quot;, &quot;Note the meeting details and any dial-in/location information if provided&quot;], [&quot;Email&quot;, &quot;Firearm Hearing Date - July 7th 2026&quot;], [&quot;Added&quot;, &quot;2026-07-02&quot;]], &quot;opts&quot;: {&quot;actionId&quot;: 482}}' data-action-id="482">Note the meeting details and any dial-in/location information if provided<div class=meta>Firearm Hearing Date - July 7th 2026</div></li></ul></div>
   </div>
 
-  <div class="grid2" style="margin-top:16px">
-    <div class="card "><h2>OneDrive — Recent Files</h2><p style='color:#6e7681;font-size:13px'>No recent OneDrive files found.</p></div>
-    <div class="card "><h2>Teams — Recent Chats</h2><p style='color:#6e7681;font-size:13px'>Teams chats are only available with a work or school Microsoft account.</p></div>
+  <!-- Row 6: Training + Senders -->
+  <div class="grid2">
+    <div class="card "><h2>🎓 Training & Learning</h2><ul class="item-list"><li data-modal='{&quot;title&quot;: &quot;\ud83d\udd11 Claude Skills = My Secret Sauce&quot;, &quot;rows&quot;: [[&quot;Subject&quot;, &quot;\ud83d\udd11 Claude Skills = My Secret Sauce&quot;], [&quot;From&quot;, &quot;ryan@ryandoser.com&quot;], [&quot;Date&quot;, &quot;2026-06-20&quot;]], &quot;opts&quot;: {&quot;emailId&quot;: &quot;a1_657401&quot;}}'>🔑 Claude Skills = My Secret Sauce<div class="meta">ryan@ryandoser.com · 2026-06-20</div></li><li data-modal='{&quot;title&quot;: &quot;Expand your future skills with free AI learning from Akkodis and\r\n Mic&quot;, &quot;rows&quot;: [[&quot;Subject&quot;, &quot;Expand your future skills with free AI learning from Akkodis and\r\n Microsoft&quot;], [&quot;From&quot;, &quot;canada_feedback@akkodisgroup.com&quot;], [&quot;Date&quot;, &quot;2026-06-01&quot;]], &quot;opts&quot;: {&quot;emailId&quot;: &quot;a1_656218&quot;}}'>Expand your future skills with free AI learning from Akkodis and
+ Mic<div class="meta">canada_feedback@akkodisgroup.com · 2026-06-01</div></li><li data-modal='{&quot;title&quot;: &quot;$100K Resume Webinar is happening Tomorrow and 3 Lucky Mothers will WI&quot;, &quot;rows&quot;: [[&quot;Subject&quot;, &quot;$100K Resume Webinar is happening Tomorrow and 3 Lucky Mothers will WIN \ud83c\udfc6 GIFT \ud83c\udf81 cards too!&quot;], [&quot;From&quot;, &quot;Alex Amir Coaching \u270a &lt;start@alexcoaching.org&gt;&quot;], [&quot;Date&quot;, &quot;2026-05-11&quot;]], &quot;opts&quot;: {&quot;emailId&quot;: &quot;a6_AQMkADAwATM3ZmYAZS04MjM2LTQyYmIALTAwAi0wMAoARgAAA2wlaq7-Zi5AvcRG9HGj2JwHAM_0tUOftNZDgmpXqbwXh0sAAAIBDAAAAM_0tUOftNZDgmpXqbwXh0sACOS9UtsAAAA=&quot;}}'>$100K Resume Webinar is happening Tomorrow and 3 Lucky Mothers will WI<div class="meta">Alex Amir Coaching ✊ &lt;start@alexcoaching · 2026-05-11</div></li><li data-modal='{&quot;title&quot;: &quot;Skill&quot;, &quot;rows&quot;: [[&quot;Subject&quot;, &quot;Skill&quot;], [&quot;From&quot;, &quot;Ali.Salamat@von.ca&quot;], [&quot;Date&quot;, &quot;2026-01-11&quot;]], &quot;opts&quot;: {&quot;emailId&quot;: &quot;a1_648096&quot;}}'>Skill<div class="meta">Ali.Salamat@von.ca · 2026-01-11</div></li><li data-modal='{&quot;title&quot;: &quot;Course&quot;, &quot;rows&quot;: [[&quot;Subject&quot;, &quot;Course&quot;], [&quot;From&quot;, &quot;a_salamat@yahoo.com&quot;], [&quot;Date&quot;, &quot;2026-01-03&quot;]], &quot;opts&quot;: {&quot;emailId&quot;: &quot;a1_647808&quot;}}'>Course<div class="meta">a_salamat@yahoo.com · 2026-01-03</div></li><li data-modal='{&quot;title&quot;: &quot;Onboarding Questions&quot;, &quot;rows&quot;: [[&quot;Subject&quot;, &quot;Onboarding Questions&quot;], [&quot;From&quot;, &quot;a_salamat@yahoo.com&quot;], [&quot;Date&quot;, &quot;2025-08-14&quot;]], &quot;opts&quot;: {&quot;emailId&quot;: &quot;a1_491229&quot;}}'>Onboarding Questions<div class="meta">a_salamat@yahoo.com · 2025-08-14</div></li><li data-modal='{&quot;title&quot;: &quot;Fw: Course Verification&quot;, &quot;rows&quot;: [[&quot;Subject&quot;, &quot;Fw: Course Verification&quot;], [&quot;From&quot;, &quot;a_salamat@yahoo.com&quot;], [&quot;Date&quot;, &quot;2025-03-24&quot;]], &quot;opts&quot;: {&quot;emailId&quot;: &quot;a1_491474&quot;}}'>Fw: Course Verification<div class="meta">a_salamat@yahoo.com · 2025-03-24</div></li><li data-modal='{&quot;title&quot;: &quot;Fw: Course Verification&quot;, &quot;rows&quot;: [[&quot;Subject&quot;, &quot;Fw: Course Verification&quot;], [&quot;From&quot;, &quot;a_salamat@yahoo.com&quot;], [&quot;Date&quot;, &quot;2025-03-24&quot;]], &quot;opts&quot;: {&quot;emailId&quot;: &quot;a1_491477&quot;}}'>Fw: Course Verification<div class="meta">a_salamat@yahoo.com · 2025-03-24</div></li></ul></div>
+    <div class="card "><h2>👤 Top Senders This Week</h2><div class="bar-chart"><div class="bar-row"><span class="bar-lbl" title="Ali Salamat &lt;salamat110@hotmail.com&gt;">alamat110@hotmail.com&gt;</span><div class="bar-track"><div class="bar-fill" style="width:100%"></div></div><span class="bar-val">2856</span></div><div class="bar-row"><span class="bar-lbl" title="ali salamat &lt;salamat110@hotmail.com&gt;">alamat110@hotmail.com&gt;</span><div class="bar-track"><div class="bar-fill" style="width:32%"></div></div><span class="bar-val">925</span></div><div class="bar-row"><span class="bar-lbl" title="a_salamat@yahoo.com">a_salamat@yahoo.com</span><div class="bar-track"><div class="bar-fill" style="width:28%"></div></div><span class="bar-val">811</span></div><div class="bar-row"><span class="bar-lbl" title="htrogers50@gmail.com">htrogers50@gmail.com</span><div class="bar-track"><div class="bar-fill" style="width:5%"></div></div><span class="bar-val">164</span></div><div class="bar-row"><span class="bar-lbl" title="salamat110@hotmail.com">salamat110@hotmail.com</span><div class="bar-track"><div class="bar-fill" style="width:5%"></div></div><span class="bar-val">161</span></div><div class="bar-row"><span class="bar-lbl" title="nima.sadri@conavi.com">nima.sadri@conavi.com</span><div class="bar-track"><div class="bar-fill" style="width:3%"></div></div><span class="bar-val">98</span></div><div class="bar-row"><span class="bar-lbl" title="Quality Host Online &lt;billing@qualityhostonline.com&gt;">qualityhostonline.com&gt;</span><div class="bar-track"><div class="bar-fill" style="width:3%"></div></div><span class="bar-val">96</span></div></div></div>
   </div>
 
-  <div class="card "><h2>Email Volume — Last 7 Days</h2><div class="bar-chart"><div class="bar-row"><span class="bar-lbl" title="2026-05-30">2026-05-30</span><div class="bar-track"><div class="bar-fill" style="width:30%"></div></div><span class="bar-val">21</span></div><div class="bar-row"><span class="bar-lbl" title="2026-05-31">2026-05-31</span><div class="bar-track"><div class="bar-fill" style="width:100%"></div></div><span class="bar-val">70</span></div><div class="bar-row"><span class="bar-lbl" title="2026-06-01">2026-06-01</span><div class="bar-track"><div class="bar-fill" style="width:34%"></div></div><span class="bar-val">24</span></div><div class="bar-row"><span class="bar-lbl" title="2026-06-02">2026-06-02</span><div class="bar-track"><div class="bar-fill" style="width:28%"></div></div><span class="bar-val">20</span></div><div class="bar-row"><span class="bar-lbl" title="2026-06-03">2026-06-03</span><div class="bar-track"><div class="bar-fill" style="width:42%"></div></div><span class="bar-val">30</span></div><div class="bar-row"><span class="bar-lbl" title="2026-06-04">2026-06-04</span><div class="bar-track"><div class="bar-fill" style="width:50%"></div></div><span class="bar-val">35</span></div><div class="bar-row"><span class="bar-lbl" title="2026-06-05">2026-06-05</span><div class="bar-track"><div class="bar-fill" style="width:50%"></div></div><span class="bar-val">35</span></div></div></div>
+  <!-- Row 7: OneDrive + Teams -->
+  <div class="grid2">
+    <div class="card "><h2>📂 OneDrive — Recent Files</h2><p style='color:#6e7681;font-size:13px'>No recent OneDrive files found.</p></div>
+    <div class="card "><h2>💬 Teams — Recent Chats</h2><p style='color:#6e7681;font-size:13px'>Teams chats are only available with a work or school Microsoft account.</p></div>
+  </div>
+
+  <div class="card "><h2>📈 Email Volume — Last 7 Days</h2><div class="bar-chart"><div class="bar-row"><span class="bar-lbl" title="2026-06-27">2026-06-27</span><div class="bar-track"><div class="bar-fill" style="width:10%"></div></div><span class="bar-val">3</span></div><div class="bar-row"><span class="bar-lbl" title="2026-06-28">2026-06-28</span><div class="bar-track"><div class="bar-fill" style="width:10%"></div></div><span class="bar-val">3</span></div><div class="bar-row"><span class="bar-lbl" title="2026-06-29">2026-06-29</span><div class="bar-track"><div class="bar-fill" style="width:82%"></div></div><span class="bar-val">23</span></div><div class="bar-row"><span class="bar-lbl" title="2026-06-30">2026-06-30</span><div class="bar-track"><div class="bar-fill" style="width:39%"></div></div><span class="bar-val">11</span></div><div class="bar-row"><span class="bar-lbl" title="2026-07-01">2026-07-01</span><div class="bar-track"><div class="bar-fill" style="width:10%"></div></div><span class="bar-val">3</span></div><div class="bar-row"><span class="bar-lbl" title="2026-07-02">2026-07-02</span><div class="bar-track"><div class="bar-fill" style="width:100%"></div></div><span class="bar-val">28</span></div><div class="bar-row"><span class="bar-lbl" title="2026-07-03">2026-07-03</span><div class="bar-track"><div class="bar-fill" style="width:3%"></div></div><span class="bar-val">1</span></div></div></div>
 
   <div class="footer">
     Director Assistant · <a href="/api/dashboard">Refresh</a> ·
@@ -175,10 +246,7 @@ h2{font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;
     <script>
       document.getElementById('countdown2').textContent =
         document.getElementById('countdown').textContent;
-      setInterval(()=>{
-        document.getElementById('countdown2').textContent =
-          document.getElementById('countdown').textContent;
-      },1000);
+      setInterval(()=>{document.getElementById('countdown2').textContent=document.getElementById('countdown').textContent;},1000);
     </script>
   </div>
 </div>
@@ -188,6 +256,7 @@ h2{font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;
   <div class="modal">
     <button class="modal-close" onclick="closeModal()">×</button>
     <h3 id="modal-title"></h3>
+    <div class="modal-actions" id="modal-actions" style="display:none"></div>
     <div id="modal-body"></div>
     <div class="ai-panel">
   <div class="ai-chips">
@@ -208,19 +277,110 @@ h2{font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;
   </div>
 </div>
 <script>
-let currentCtx='';
 const bg=document.getElementById('modal-bg');
 const mTitle=document.getElementById('modal-title');
 const mBody=document.getElementById('modal-body');
-function showModal(title,rows){
-  mTitle.textContent=title;
-  mBody.innerHTML=rows.map(([lbl,val])=>
+const mActions=document.getElementById('modal-actions');
+let currentCtx='';
+let _currentOpts={};
+
+/* ── Action handlers ─────────────────────────────────────── */
+function openInApp(emailId){
+  window.open('/?email='+encodeURIComponent(emailId),'_blank');
+}
+function markDone(id,btn){
+  fetch('/api/actions/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({done:true})})
+    .then(r=>r.ok?Promise.resolve():Promise.reject())
+    .then(()=>{
+      btn.textContent='✓ Done!';btn.disabled=true;btn.style.background='#238636';btn.style.opacity='.7';
+      var el=document.getElementById('kpi-actions-val');
+      if(el){var n=parseInt(el.textContent,10);if(!isNaN(n)&&n>0)el.textContent=n-1;}
+      // Hide the card row visually
+      var row=btn.closest('[data-action-id]');
+      if(row){row.style.opacity='0.4';row.style.pointerEvents='none';}
+    })
+    .catch(()=>{btn.textContent='Error';btn.style.background='#6e1a1a';});
+}
+function draftFollowUp(btn){
+  const emailId=_currentOpts.chaseEmailId;
+  if(!emailId)return;
+  btn.textContent='Drafting…';btn.disabled=true;
+  fetch('/api/followups/chase-draft/'+encodeURIComponent(emailId),{method:'POST'})
+    .then(r=>r.json())
+    .then(d=>{
+      document.getElementById('draft-box').style.display='block';
+      document.getElementById('draft-text').value=d.draft||'Could not generate draft.';
+      btn.textContent='✎ Re-draft';btn.disabled=false;
+    })
+    .catch(()=>{btn.textContent='Failed';btn.disabled=false;});
+}
+function copyDraft(){
+  const t=document.getElementById('draft-text');
+  navigator.clipboard.writeText(t.value).then(()=>{
+    const b=document.getElementById('copy-btn');
+    if(b){b.textContent='Copied!';setTimeout(()=>{b.textContent='Copy';},1500);}
+  });
+}
+function sendDraft(){
+  const body=document.getElementById('draft-text').value;
+  const to=_currentOpts.replyTo||'';
+  const subject='Re: '+mTitle.textContent;
+  if(!body||!to)return;
+  const btn=document.getElementById('send-btn');
+  if(btn){btn.textContent='Sending…';btn.disabled=true;}
+  fetch('/api/email/send-new',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({to:to,subject:subject,body:body})})
+    .then(r=>r.json())
+    .then(()=>{if(btn){btn.textContent='Sent ✓';btn.style.background='#0d2a0d';}setTimeout(closeModal,1500);})
+    .catch(()=>{if(btn){btn.textContent='Failed';btn.disabled=false;}});
+}
+function joinMeeting(){
+  if(_currentOpts.meetingUrl) window.open(_currentOpts.meetingUrl,'_blank');
+}
+
+/* ── Modal ───────────────────────────────────────────────── */
+function showModal(title, rows, opts){
+  _currentOpts = opts || {};
+  mTitle.textContent = title;
+  mBody.innerHTML = rows.map(([lbl,val])=>
     '<div class="detail-row"><div class="detail-label">'+lbl+'</div>'+
-    '<div class="detail-body">'+val+'</div></div>').join('');
-  currentCtx=title+'\n'+rows.map(([l,v])=>l+': '+v).join('\n');
+    '<div class="detail-body">'+val+'</div></div>'
+  ).join('');
+  currentCtx = title+'\n'+rows.map(([l,v])=>l+': '+v).join('\n');
+
+  // Build action buttons — all use _currentOpts, no inline values needed
+  let btns='';
+  if(_currentOpts.emailId)
+    btns+='<button class="btn btn-blue" onclick="openInApp(_currentOpts.emailId)">↗ Open in App</button>';
+  if(_currentOpts.replyTo){
+    const mailto='mailto:'+encodeURIComponent(_currentOpts.replyTo)+
+      (_currentOpts.replySubject?'?subject='+encodeURIComponent('Re: '+_currentOpts.replySubject):'');
+    btns+='<a class="btn btn-gray" href="'+mailto+'">✉ Reply by Email</a>';
+  }
+  if(_currentOpts.actionId)
+    btns+='<button class="btn btn-green" onclick="markDone('+_currentOpts.actionId+',this)">✓ Mark Done</button>';
+  if(_currentOpts.chaseEmailId)
+    btns+='<button class="btn btn-blue" onclick="draftFollowUp(this)">✎ Generate Follow-up Draft</button>';
+  if(_currentOpts.meetingUrl)
+    btns+='<button class="btn btn-green" onclick="joinMeeting()">▶ Join Meeting</button>';
+
+  mActions.innerHTML=btns;
+  mActions.style.display=btns?'flex':'none';
+
+  // Draft textarea (for chase follow-ups)
+  if(_currentOpts.chaseEmailId){
+    mBody.innerHTML+='<div id="draft-box" style="display:none;margin-top:14px;border-top:1px solid #21262d;padding-top:14px">'+
+      '<div class="detail-label" style="margin-bottom:6px">AI Follow-up Draft</div>'+
+      '<textarea id="draft-text" style="width:100%;height:120px;background:#0d1117;border:1px solid #21262d;'+
+      'border-radius:8px;padding:10px;color:#e6edf3;font-size:12px;line-height:1.7;resize:vertical"></textarea>'+
+      '<div style="display:flex;gap:8px;margin-top:8px">'+
+      '<button id="copy-btn" class="btn btn-gray" onclick="copyDraft()">Copy</button>'+
+      (_currentOpts.replyTo?'<button id="send-btn" class="btn btn-blue" onclick="sendDraft()">Send via App</button>':'')+
+      '</div></div>';
+  }
+
   const o=document.getElementById('ai-out'),i=document.getElementById('ai-input');
-  const sd=document.getElementById('save-draft-btn');
-  const mp=document.getElementById('meeting-prep-chip');
+  const sd=document.getElementById('save-draft-btn'),mp=document.getElementById('meeting-prep-chip');
   if(o){o.textContent='';o.classList.remove('active');}
   if(i)i.value='';
   if(sd){sd.style.display='none';sd.disabled=false;sd.textContent='Save to Drafts';}
@@ -231,8 +391,9 @@ function closeModal(){bg.classList.remove('open');}
 bg.addEventListener('click',e=>{if(e.target===bg)closeModal();});
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
 document.querySelectorAll('[data-modal]').forEach(el=>{
-  el.addEventListener('click',()=>{const d=JSON.parse(el.dataset.modal);showModal(d.title,d.rows);});
+  el.addEventListener('click',()=>{const d=JSON.parse(el.dataset.modal);showModal(d.title,d.rows,d.opts||{});});
 });
+
 const countdown=document.getElementById('countdown');
 let remaining=1800000/1000;
 setInterval(()=>{

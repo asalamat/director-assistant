@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import { api } from '../api/client'
 import type { Account } from '../types'
 import { useEmailContext } from '../contexts/EmailContext'
+import { ToneCoach } from './ToneCoach'
+import { VoiceDictation } from './VoiceDictation'
 
 interface Props {
   open: boolean
@@ -144,12 +146,17 @@ export function ComposeModal({ open, onClose, accounts, initialTo = '', initialS
           className="flex-1 px-5 py-4 text-sm text-gray-800 resize-none outline-none placeholder-gray-300"
         />
 
+        <ToneCoach text={body} onRewrite={setBody} />
+
         {/* Footer */}
         <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-gray-50">
           {msg ? (
             <span className={`text-xs ${msg === 'Sent!' ? 'text-green-600' : 'text-red-500'}`}>{msg}</span>
           ) : <span />}
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
+            <VoiceDictation
+              onTranscript={text => setBody(b => (b.trim() ? `${b.replace(/\s+$/, '')} ${text}` : text))}
+            />
             <button
               onClick={onClose}
               className="text-sm text-gray-500 hover:text-gray-700 px-3 py-1.5 rounded-lg"

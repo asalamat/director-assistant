@@ -1,7 +1,12 @@
 """Email rules — auto-label and auto-action incoming emails."""
 
+import json
+import logging
+import re
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
+
+_log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/email-rules", tags=["email-rules"])
 
@@ -96,6 +101,71 @@ async def create_rule(req: RuleCreate, request: Request):
             (req.name, req.field, req.condition, req.value, req.action, req.label, req.priority),
         )
     return {"id": cur.lastrowid, "status": "created"}
+
+
+class NLRuleRequest(BaseModel):
+    description: str
+
+
+@router.post("/from-nl")
+async def rules_from_natural_language(req: NLRuleRequest, request: Request):
+    """Parse a plain-English description into one or more structured rule proposals."""
+    if not req.description.strip():
+        raise HTTPException(400, "Description cannot be empty")
+
+    ai = getattr(getattr(request.app.state, "advisor", None), "ai", None)
+    if ai is None:
+        raise HTTPException(503, "AI not configured")
+
+    prompt = (
+        "Convert this email rule description into structured rules. "
+        "Valid fields: sender, subject, body. "
+        "Valid conditions: contains, equals, starts_with, ends_with. "
+        "Valid actions: label, archive, mark_read, delete. "
+        "Valid labels: proposal, newsletter, urgent, meeting, finance, update, personal, spam, other. "
+        "Reply ONLY as a JSON array (no explanation):\n"
+        '[{"name":"...","field":"sender","condition":"contains","value":"...","action":"archive","label":""}]\n\n'
+        f'Description: {req.description.strip()}'
+    )
+    try:
+        resp = await ai.messages.create(
+            model="claude-haiku-4-5-20251001", max_tokens=800,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = resp.content[0].text
+        match = re.search(r"\[.*\]", raw, re.DOTALL)
+        if not match:
+            raise HTTPException(422, "Could not parse rules from description")
+        proposals = json.loads(match.group())
+        # Validate and sanitize each proposal
+        valid = []
+        for p in proposals:
+            if not isinstance(p, dict):
+                continue
+            field = p.get("field", "sender")
+            condition = p.get("condition", "contains")
+            action = p.get("action", "archive")
+            if field not in VALID_FIELDS:
+                field = "sender"
+            if condition not in VALID_CONDITIONS:
+                condition = "contains"
+            if action not in VALID_ACTIONS:
+                action = "archive"
+            valid.append({
+                "name": str(p.get("name", "Auto rule"))[:80],
+                "field": field,
+                "condition": condition,
+                "value": str(p.get("value", ""))[:200],
+                "action": action,
+                "label": str(p.get("label", ""))[:40] if action == "label" else "",
+                "priority": 0,
+            })
+        return {"rules": valid}
+    except HTTPException:
+        raise
+    except Exception as e:
+        _log.warning("NL rule parsing failed: %s", type(e).__name__)
+        raise HTTPException(500, "Failed to generate rules")
 
 
 @router.post("/preview")

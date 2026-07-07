@@ -66,6 +66,18 @@ export function ChaseQueue({ onOpenCompose }: { onOpenCompose?: (opts: { to: str
     api.getWaitingReplies(days).then(r => setEmails(r.emails || [])).catch(() => setEmails([])).finally(() => setLoading(false))
   }
 
+  useEffect(() => {
+    api.getChaseState().then(s => {
+      const d = new Set(s.dismissed)
+      setDismissed(d)
+      saveDismissed(d)
+      setSnoozed(s.snoozed)
+      saveSnoozed(s.snoozed)
+      setNotes(s.notes)
+      saveNotes(s.notes)
+    }).catch(() => { /* keep localStorage values on error */ })
+  }, [])
+
   useEffect(() => { load() }, [days])
 
   const dismiss = (id: string) => {
@@ -74,6 +86,7 @@ export function ChaseQueue({ onOpenCompose }: { onOpenCompose?: (opts: { to: str
     setDismissed(next)
     saveDismissed(next)
     setDrafts(prev => { const n = { ...prev }; delete n[id]; return n })
+    api.chaseDismiss(id).catch(() => {})
   }
 
   const restore = (id: string) => {
@@ -81,21 +94,25 @@ export function ChaseQueue({ onOpenCompose }: { onOpenCompose?: (opts: { to: str
     next.delete(id)
     setDismissed(next)
     saveDismissed(next)
+    api.chaseRestore(id).catch(() => {})
   }
 
   const clearAllDismissed = () => {
     setDismissed(new Set())
     saveDismissed(new Set())
     setShowDismissed(false)
+    api.chaseClearAllDismissed().catch(() => {})
   }
 
   const snooze = (id: string, daysFromNow: number) => {
     const until = new Date()
     until.setDate(until.getDate() + daysFromNow)
-    const next = { ...snoozed, [id]: until.toISOString() }
+    const untilStr = until.toISOString()
+    const next = { ...snoozed, [id]: untilStr }
     setSnoozed(next)
     saveSnoozed(next)
     setEditingId(null)
+    api.chaseSnooze(id, untilStr).catch(() => {})
   }
 
   const unsnooze = (id: string) => {
@@ -103,6 +120,7 @@ export function ChaseQueue({ onOpenCompose }: { onOpenCompose?: (opts: { to: str
     delete next[id]
     setSnoozed(next)
     saveSnoozed(next)
+    api.chaseUnsnooze(id).catch(() => {})
   }
 
   const openEdit = (email: WaitingEmail) => {
@@ -111,12 +129,14 @@ export function ChaseQueue({ onOpenCompose }: { onOpenCompose?: (opts: { to: str
   }
 
   const saveNote = (id: string) => {
-    const next = draftNote.trim()
-      ? { ...notes, [id]: draftNote.trim() }
+    const noteText = draftNote.trim()
+    const next = noteText
+      ? { ...notes, [id]: noteText }
       : (() => { const n = { ...notes }; delete n[id]; return n })()
     setNotes(next)
     saveNotes(next)
     setEditingId(null)
+    api.chaseSaveNote(id, noteText).catch(() => {})
   }
 
   const generateDraft = async (email: WaitingEmail) => {

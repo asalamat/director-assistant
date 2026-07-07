@@ -21,6 +21,8 @@ function timeAgo(iso: string): string {
   return `${Math.floor(hrs / 24)}d ago`
 }
 
+type ProposedRule = { name: string; field: string; condition: string; value: string; action: string; label: string; priority: number }
+
 export function EmailRulesPanel() {
   const [rules, setRules] = useState<any[]>([])
   const [showForm, setShowForm] = useState(false)
@@ -31,6 +33,10 @@ export function EmailRulesPanel() {
   const [previewing, setPreviewing] = useState(false)
   const [preview, setPreview] = useState<{ count: number; sample: { id: number; subject: string; sender: string }[] } | null>(null)
   const [lastRun, setLastRun] = useState<LastRun | null>(null)
+  const [nlInput, setNlInput] = useState('')
+  const [nlGenerating, setNlGenerating] = useState(false)
+  const [proposals, setProposals] = useState<ProposedRule[]>([])
+  const [savingProposal, setSavingProposal] = useState<number | null>(null)
 
   const loadLastRun = () => api.getEmailRulesLastRun().then(setLastRun).catch(() => {})
   const load = () => api.getEmailRules().then(r => setRules(r.rules)).catch(() => {})
@@ -79,6 +85,30 @@ export function EmailRulesPanel() {
     setRules(prev => prev.filter(r => r.id !== id))
   }
 
+  const generateFromNL = async () => {
+    if (!nlInput.trim()) return
+    setNlGenerating(true)
+    setProposals([])
+    try {
+      const r = await api.rulesFromNL(nlInput.trim())
+      setProposals(r.rules)
+      if (r.rules.length === 0) setMsg('No rules could be generated — try rephrasing.')
+    } catch (e: any) { setMsg(`Error: ${e.message}`) }
+    setNlGenerating(false)
+  }
+
+  const saveProposal = async (p: ProposedRule, idx: number) => {
+    setSavingProposal(idx)
+    try {
+      await api.createEmailRule(p)
+      setProposals(prev => prev.filter((_, i) => i !== idx))
+      load()
+      setMsg('Rule saved')
+      setTimeout(() => setMsg(''), 3000)
+    } catch (e: any) { setMsg(`Error: ${e.message}`) }
+    setSavingProposal(null)
+  }
+
   const toggle = async (id: number) => {
     await api.toggleEmailRule(id)
     setRules(prev => prev.map(r => r.id === id ? { ...r, enabled: r.enabled ? 0 : 1 } : r))
@@ -107,6 +137,54 @@ export function EmailRulesPanel() {
             + New Rule
           </button>
         </div>
+      </div>
+
+      {/* Natural language rule builder */}
+      <div className="border border-dashed border-accent/40 rounded-xl p-3 bg-accent/5 space-y-2">
+        <p className="text-xs font-medium text-accent">✨ Describe a rule in plain English</p>
+        <div className="flex gap-2">
+          <input
+            value={nlInput}
+            onChange={e => setNlInput(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && generateFromNL()}
+            placeholder="e.g. Move LinkedIn notifications to archive, flag emails from my board as urgent"
+            className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
+          />
+          <button
+            onClick={generateFromNL}
+            disabled={nlGenerating || !nlInput.trim()}
+            className="text-xs bg-accent text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors whitespace-nowrap"
+          >
+            {nlGenerating ? '⟳ Generating…' : 'Generate'}
+          </button>
+        </div>
+        {proposals.length > 0 && (
+          <div className="space-y-2 pt-1">
+            <p className="text-xs text-gray-500">{proposals.length} rule{proposals.length !== 1 ? 's' : ''} proposed — review and save:</p>
+            {proposals.map((p, i) => (
+              <div key={i} className="flex items-center gap-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-gray-800 dark:text-gray-100">{p.name}</p>
+                  <p className="text-xs text-gray-400">
+                    When <span className="text-gray-600 dark:text-gray-300">{p.field}</span> {p.condition.replace('_', ' ')} &ldquo;<span className="text-gray-600 dark:text-gray-300">{p.value}</span>&rdquo;
+                    {' → '}<span className={p.action === 'delete' ? 'text-red-500 font-medium' : 'text-accent font-medium'}>{p.action.replace('_', ' ')}{p.label ? ` as ${p.label}` : ''}</span>
+                  </p>
+                </div>
+                <button
+                  onClick={() => saveProposal(p, i)}
+                  disabled={savingProposal === i}
+                  className="text-xs bg-green-600 text-white px-2.5 py-1 rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+                >
+                  {savingProposal === i ? '…' : 'Save'}
+                </button>
+                <button
+                  onClick={() => setProposals(prev => prev.filter((_, j) => j !== i))}
+                  className="text-gray-300 hover:text-red-400 text-xs"
+                >✕</button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {msg && (

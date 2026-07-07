@@ -60,7 +60,7 @@ if [ "$MODE" != "dev" ]; then
     # Open browser after 3 seconds
     (sleep 3 && open "http://localhost:8000" 2>/dev/null || xdg-open "http://localhost:8000" 2>/dev/null) &
 
-    python3 -m uvicorn main:app --host 0.0.0.0 --port 8000
+    python3 -m uvicorn main:app --host 127.0.0.1 --port 8000
 
 # ── DEV MODE ─────────────────────────────────────────────────
 else
@@ -79,7 +79,7 @@ else
     echo ""
 
     # Start backend with reload
-    python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload &
+    python3 -m uvicorn main:app --host 127.0.0.1 --port 8000 --reload &
     BACKEND_PID=$!
 
     # Start frontend dev server

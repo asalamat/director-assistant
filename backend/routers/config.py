@@ -16,7 +16,9 @@ router = APIRouter(prefix="/api/config", tags=["config"])
 def load_app_config() -> dict:
     if APP_CONFIG_PATH.exists():
         try:
-            return json.loads(APP_CONFIG_PATH.read_text())
+            raw = json.loads(APP_CONFIG_PATH.read_text())
+            from services.config_secrets import overlay_from_keychain
+            return overlay_from_keychain(raw)
         except Exception:
             pass
     return {}
@@ -24,7 +26,10 @@ def load_app_config() -> dict:
 
 def save_app_config(data: dict):
     APP_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    APP_CONFIG_PATH.write_text(json.dumps(data, indent=2))
+    from services.config_secrets import protect_to_keychain, invalidate_cache
+    safe = protect_to_keychain(data)
+    invalidate_cache()
+    APP_CONFIG_PATH.write_text(json.dumps(safe, indent=2))
     APP_CONFIG_PATH.chmod(0o600)
 
 
@@ -75,6 +80,14 @@ class AppConfigUpdate(BaseModel):
     # Overnight triage agent
     overnight_triage_enabled: Optional[bool] = None
     overnight_triage_hour: Optional[int] = None
+    # Weather widget
+    weather_location: Optional[str] = None    # display label e.g. "Toronto, Ontario, Canada"
+    weather_lat: Optional[float] = None
+    weather_lon: Optional[float] = None
+    weather_unit: Optional[str] = None         # "C" or "F"
+    # Daily News feed
+    news_enabled: Optional[bool] = None
+    news_topics: Optional[list] = None         # list of topic strings
 
 
 @router.get("")
@@ -120,6 +133,12 @@ async def get_config():
         "elevenlabs_voice_id": cfg.get("elevenlabs_voice_id", "21m00Tcm4TlvDq8ikWAM"),
         "overnight_triage_enabled": cfg.get("overnight_triage_enabled", False),
         "overnight_triage_hour": cfg.get("overnight_triage_hour", 23),
+        "weather_location": cfg.get("weather_location", ""),
+        "weather_lat": cfg.get("weather_lat"),
+        "weather_lon": cfg.get("weather_lon"),
+        "weather_unit": cfg.get("weather_unit", "C"),
+        "news_enabled": cfg.get("news_enabled", False),
+        "news_topics": cfg.get("news_topics", []),
     }
 
 
@@ -172,6 +191,25 @@ async def update_config(update: AppConfigUpdate, request: Request):
         val = getattr(update, key, None)
         if val is not None:
             cfg[key] = val
+
+    # Weather widget
+    if update.weather_location is not None:
+        cfg["weather_location"] = update.weather_location.strip()
+    if update.weather_lat is not None:
+        cfg["weather_lat"] = update.weather_lat
+    if update.weather_lon is not None:
+        cfg["weather_lon"] = update.weather_lon
+    if update.weather_unit is not None:
+        u = update.weather_unit.strip().upper()
+        if u not in ("C", "F"):
+            raise HTTPException(400, "weather_unit must be 'C' or 'F'")
+        cfg["weather_unit"] = u
+    # Daily News feed
+    if update.news_enabled is not None:
+        cfg["news_enabled"] = update.news_enabled
+    if update.news_topics is not None:
+        cfg["news_topics"] = [t.strip() for t in update.news_topics if isinstance(t, str) and t.strip()][:10]
+
     if update.report_email_schedule is not None:
         import re as _re
         if not _re.match(r'^(monday|tuesday|wednesday|thursday|friday|saturday|sunday):\d{2}:\d{2}$',
@@ -286,16 +324,17 @@ _DEFAULT_MODELS = {
 async def get_providers(request: Request):
     """Return the current AI provider list (keys masked)."""
     cfg = load_app_config()
-    providers = cfg.get("ai_providers", [])
-    if not providers:
-        # Build defaults from legacy keys
-        providers = []
-        if cfg.get("anthropic_api_key"):
-            providers.append({"type": "anthropic", "key": cfg["anthropic_api_key"],
-                               "enabled": True, "priority": 1, "label": "Anthropic Claude"})
-        if cfg.get("openai_api_key"):
-            providers.append({"type": "openai", "key": cfg["openai_api_key"],
-                               "enabled": True, "priority": 2, "label": "OpenAI GPT"})
+    providers = list(cfg.get("ai_providers", []))
+    existing_types = {p.get("type") for p in providers}
+    # Always merge legacy standalone keys so they don't disappear
+    if cfg.get("anthropic_api_key") and "anthropic" not in existing_types:
+        providers.insert(0, {"type": "anthropic", "key": cfg["anthropic_api_key"],
+                              "enabled": True, "priority": 1, "label": "Anthropic Claude"})
+        existing_types.add("anthropic")
+    if cfg.get("openai_api_key") and "openai" not in existing_types:
+        providers.append({"type": "openai", "key": cfg["openai_api_key"],
+                          "enabled": True, "priority": 2, "label": "OpenAI GPT"})
+        existing_types.add("openai")
     # Mask keys
     masked = []
     for p in providers:
@@ -420,3 +459,140 @@ async def test_provider(body: dict):
         if "auth" in msg.lower() or "key" in msg.lower() or "401" in msg:
             return {"valid": False, "error": "Invalid API key"}
         return {"valid": False, "error": msg[:200]}
+
+
+_BILLING_KW = ("credit balance", "billing", "upgrade", "purchase credits", "quota", "insufficient_quota")
+
+_BILLING_URLS = {
+    "anthropic":         "https://console.anthropic.com/settings/billing",
+    "openai":            "https://platform.openai.com/settings/organization/billing/overview",
+    "groq":              "https://console.groq.com/settings/billing",
+    "gemini":            "https://console.cloud.google.com/billing",
+    "kimi":              "https://platform.moonshot.cn/console/",
+    "ollama":            "",
+    "openai-compatible": "",
+}
+
+
+async def _fetch_openai_balance(key: str, base_url: str = "") -> str | None:
+    """Try OpenAI billing endpoint. Returns formatted balance string or None."""
+    try:
+        import httpx
+        billing_base = "https://api.openai.com"
+        if base_url and base_url != "https://api.openai.com/v1":
+            return None  # custom endpoint, skip
+        async with httpx.AsyncClient(timeout=8.0) as http:
+            r = await http.get(
+                f"{billing_base}/v1/dashboard/billing/credit_grants",
+                headers={"Authorization": f"Bearer {key}"},
+            )
+            if r.status_code == 200:
+                data = r.json()
+                available = data.get("total_available")
+                if available is not None:
+                    return f"${available:.2f} available"
+    except Exception:
+        pass
+    return None
+
+
+async def _check_one_provider(p: dict) -> dict:
+    """Test a single saved provider. Returns {status, detail, balance, billing_url}."""
+    ptype = p.get("type", "")
+    key = p.get("key", "")
+    base_url = p.get("base_url", "")
+    model = p.get("model_override", "")
+    billing_url = _BILLING_URLS.get(ptype, "")
+
+    if not key and ptype != "ollama":
+        return {"status": "unconfigured", "detail": "No key set", "balance": None, "billing_url": billing_url}
+
+    try:
+        if ptype == "anthropic":
+            import anthropic as _ant
+            c = _ant.AsyncAnthropic(api_key=key)
+            resp = await c.messages.create(
+                model=model or "claude-haiku-4-5-20251001", max_tokens=1,
+                messages=[{"role": "user", "content": "Hi"}]
+            )
+            return {"status": "active", "detail": resp.model, "balance": None, "billing_url": billing_url}
+
+        elif ptype in ("openai", "groq", "ollama", "kimi", "openai-compatible"):
+            from openai import AsyncOpenAI
+            defaults = {
+                "groq":  "https://api.groq.com/openai/v1",
+                "ollama":"http://localhost:11434/v1",
+                "kimi":  "https://api.moonshot.cn/v1",
+            }
+            base = base_url or defaults.get(ptype)
+            kwargs: dict = {"api_key": key or "ollama"}
+            if base:
+                kwargs["base_url"] = base
+            c = AsyncOpenAI(**kwargs)
+            m = model or _DEFAULT_MODELS.get(ptype, ["gpt-4o-mini"])[0]
+            resp = await c.chat.completions.create(
+                model=m, max_tokens=1,
+                messages=[{"role": "user", "content": "Hi"}]
+            )
+            balance = None
+            if ptype == "openai":
+                balance = await _fetch_openai_balance(key, base_url)
+            elif ptype == "groq":
+                balance = "Free tier"
+            elif ptype == "ollama":
+                balance = "Local"
+            return {"status": "active", "detail": resp.model, "balance": balance, "billing_url": billing_url}
+
+        elif ptype == "gemini":
+            target = model or "gemini-2.0-flash"
+            try:
+                from google import genai as google_genai
+                client = google_genai.Client(api_key=key)
+                await client.aio.models.generate_content(model=target, contents="Hi")
+                return {"status": "active", "detail": target, "balance": None, "billing_url": billing_url}
+            except ImportError:
+                pass
+            import google.generativeai as genai_legacy
+            import warnings
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                genai_legacy.configure(api_key=key)
+                m2 = genai_legacy.GenerativeModel(target)
+                await m2.generate_content_async("Hi")
+            return {"status": "active", "detail": target, "balance": None, "billing_url": billing_url}
+
+        return {"status": "unconfigured", "detail": "Unknown provider type", "balance": None, "billing_url": billing_url}
+
+    except Exception as e:
+        msg = str(e).lower()
+        if any(kw in msg for kw in _BILLING_KW):
+            return {"status": "credits_exhausted", "detail": "Credits exhausted", "balance": None, "billing_url": billing_url}
+        if "401" in msg or "invalid api key" in msg or "incorrect api key" in msg or "authentication" in msg:
+            return {"status": "auth_failed", "detail": "Invalid API key", "balance": None, "billing_url": billing_url}
+        if "connection" in msg or "timeout" in msg or "network" in msg or "connect" in msg:
+            return {"status": "unavailable", "detail": "Unreachable", "balance": None, "billing_url": billing_url}
+        return {"status": "error", "detail": str(e)[:120], "balance": None, "billing_url": billing_url}
+
+
+@router.get("/providers/status")
+async def get_providers_status():
+    """Check live status of all configured AI providers."""
+    import asyncio
+    cfg = load_app_config()
+    providers = list(cfg.get("ai_providers", []))
+    # Merge legacy standalone keys
+    existing_types = {p.get("type") for p in providers}
+    if cfg.get("anthropic_api_key") and "anthropic" not in existing_types:
+        providers.insert(0, {"type": "anthropic", "key": cfg["anthropic_api_key"],
+                              "enabled": True, "label": "Anthropic Claude"})
+    if cfg.get("openai_api_key") and "openai" not in existing_types:
+        providers.append({"type": "openai", "key": cfg["openai_api_key"],
+                          "enabled": True, "label": "OpenAI GPT"})
+
+    results = await asyncio.gather(*[_check_one_provider(p) for p in providers], return_exceptions=True)
+    statuses = []
+    for i, (p, r) in enumerate(zip(providers, results)):
+        if isinstance(r, Exception):
+            r = {"status": "error", "detail": str(r)[:120]}
+        statuses.append({"index": i, "type": p.get("type", ""), "label": p.get("label", p.get("type", "")), **r})
+    return {"statuses": statuses}

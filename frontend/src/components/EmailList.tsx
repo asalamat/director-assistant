@@ -5,6 +5,7 @@ import type { SortBy, SortOrder } from '../hooks/useEmails'
 import { api } from '../api/client'
 import { Avatar, Badge, Input } from './ui'
 import { InboxSprint } from './InboxSprint'
+import { SnoozedFolderView } from './SnoozedFolderView'
 
 const SEARCH_HISTORY_KEY = 'email_search_history'
 const MAX_HISTORY = 10
@@ -127,6 +128,7 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
   const [bulkSnoozeDate, setBulkSnoozeDate] = useState('')
   const [showSprint, setShowSprint] = useState(false)
   const [threadView, setThreadView] = useState(false)
+  const [virtualFolder, setVirtualFolder] = useState<'snoozed' | 'set-aside' | null>(null)
   const [threads, setThreads] = useState<EmailThread[]>([])
   const [threadsLoading, setThreadsLoading] = useState(false)
   const sentinelRef = useRef<HTMLDivElement>(null)
@@ -377,7 +379,7 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
   ]
 
   return (
-    <div className="flex flex-col h-full border-r border-gray-200 bg-white">
+    <div className="relative flex flex-col h-full border-r border-gray-200 bg-white">
       {/* Folder selector + smart folders */}
       {(folderNames.length > 0 || savedSearches.length > 0) && (
         <div className="flex gap-1 px-3 py-2 border-b border-gray-100 overflow-x-auto flex-shrink-0">
@@ -423,6 +425,45 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
               ))}
             </>
           )}
+          <div className="w-px bg-gray-200 mx-1 self-stretch flex-shrink-0" />
+          <button
+            onClick={() => setVirtualFolder(v => v === 'snoozed' ? null : 'snoozed')}
+            title="Snoozed emails"
+            className={`flex-shrink-0 px-2.5 py-0.5 rounded-full text-xs font-medium transition-colors ${
+              virtualFolder === 'snoozed'
+                ? 'bg-amber-500 text-white'
+                : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+            }`}
+          >
+            😴 Snoozed
+          </button>
+          <button
+            onClick={() => setVirtualFolder(v => v === 'set-aside' ? null : 'set-aside')}
+            title="Set-aside emails"
+            className={`flex-shrink-0 px-2.5 py-0.5 rounded-full text-xs font-medium transition-colors ${
+              virtualFolder === 'set-aside'
+                ? 'bg-indigo-500 text-white'
+                : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+            }`}
+          >
+            📌 Set Aside
+          </button>
+        </div>
+      )}
+
+      {virtualFolder && (
+        <div className="absolute inset-x-0 bottom-0 top-[42px] z-10 bg-white">
+          <SnoozedFolderView
+            mode={virtualFolder}
+            onClose={() => setVirtualFolder(null)}
+            onOpen={(emailId) => {
+              const entrySummary: EmailSummary = {
+                id: emailId, subject: '', sender: '', date: null, preview: '', is_read: true,
+              }
+              onSelect(entrySummary)
+              setVirtualFolder(null)
+            }}
+          />
         </div>
       )}
 

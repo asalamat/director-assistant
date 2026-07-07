@@ -9,6 +9,11 @@ from pydantic import BaseModel
 from typing import Optional, List
 
 MAX_WHISPER_BYTES = 24 * 1024 * 1024  # 24 MB safety margin
+# Larger than the Whisper limit because _split_and_transcribe chunks long recordings
+MAX_MEETING_AUDIO_BYTES = 200 * 1024 * 1024  # 200 MB
+ALLOWED_AUDIO_TYPES = {"audio/mpeg", "audio/mp4", "audio/wav", "audio/x-wav", "audio/webm",
+                       "audio/ogg", "audio/flac", "audio/x-m4a", "audio/m4a", "audio/mp3",
+                       "video/mp4", "video/webm", "video/mpeg"}
 
 
 async def _transcribe_file(oai_client, file_path: str) -> str:
@@ -390,7 +395,17 @@ async def transcribe_meeting(request: Request, audio: UploadFile = File(...)):
 
     cache = request.app.state.cache
 
-    content = await audio.read()
+    if audio.content_type and audio.content_type not in ALLOWED_AUDIO_TYPES:
+        raise HTTPException(415, f"Unsupported audio type: {audio.content_type}")
+
+    chunks = []
+    total = 0
+    while chunk := await audio.read(1024 * 1024):
+        total += len(chunk)
+        if total > MAX_MEETING_AUDIO_BYTES:
+            raise HTTPException(413, "Audio too large (max 200 MB)")
+        chunks.append(chunk)
+    content = b"".join(chunks)
     if not content:
         raise HTTPException(400, "Empty audio file")
 

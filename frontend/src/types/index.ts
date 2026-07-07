@@ -23,6 +23,15 @@ export interface EmailSummary {
   category?: EmailCategory | null
 }
 
+export interface SnoozeEntry {
+  email_id: string
+  wake_date?: string | null
+  created_at?: string | null
+  subject?: string | null
+  sender?: string | null
+  date?: string | null
+}
+
 export interface EmailMessage {
   id: string
   subject: string
@@ -157,6 +166,54 @@ export interface QuickReplies {
   formal: string
 }
 
+export interface StyleProfile {
+  formality?: string
+  avg_sentence_length?: string
+  greeting_style?: string
+  closing_style?: string
+  signature_name?: string | null
+  punctuation?: string
+  emoji_usage?: string
+  vocabulary?: string
+  tone?: string
+  summary?: string
+}
+
+export interface Commitment {
+  id: number
+  email_id: string
+  email_subject: string
+  thread_id: string
+  direction: 'i_owe' | 'they_owe'
+  description: string
+  counterparty: string
+  due_date: string | null
+  status: 'open' | 'fulfilled' | 'expired'
+  created_at: string
+  fulfilled_at: string | null
+}
+
+export type RewriteToneName =
+  | 'warmer'
+  | 'more_direct'
+  | 'more_formal'
+  | 'shorter'
+  | 'more_enthusiastic'
+  | 'more_concise'
+
+export interface ToneReport {
+  tone: string
+  score: number
+  issues: string[]
+  label: 'good' | 'warning' | 'issue'
+  suggestions: string[]
+}
+
+export interface RewriteOption {
+  tone: string
+  text: string
+}
+
 export interface AppConfig {
   has_api_key: boolean
   api_key_preview: string
@@ -177,6 +234,50 @@ export interface AppConfig {
   webhook_events?: string[]
   has_elevenlabs?: boolean
   elevenlabs_voice_id?: string
+  weather_location?: string
+  weather_lat?: number | null
+  weather_lon?: number | null
+  weather_unit?: string
+  news_enabled?: boolean
+  news_topics?: string[]
+}
+
+export interface NewsArticle {
+  title: string
+  url: string
+  source: string
+  published: string
+  body: string
+  topic: string
+  relevance: number
+  summary: string
+}
+
+export interface NewsResponse {
+  enabled: boolean
+  articles: NewsArticle[]
+  fetched_at: number | null
+  hint?: string
+}
+
+export interface WeatherResult {
+  name: string
+  label: string
+  latitude: number
+  longitude: number
+  country: string
+  admin1: string
+}
+
+export interface WeatherData {
+  configured: boolean
+  location?: string
+  unit: string
+  temp_c?: number
+  feels_c?: number
+  humidity?: number
+  wind_kmh?: number
+  weather?: { code: number; label: string; emoji: string }
 }
 
 export interface TriageEmail {
@@ -206,7 +307,7 @@ export interface Cluster {
   email_count: number
   last_activity: string
   keywords: string[]
-  status: 'active' | 'dormant' | 'resolved'
+  status: 'active' | 'dormant' | 'resolved' | 'disabled'
   email_ids?: string[]
 }
 
@@ -274,6 +375,59 @@ export interface AIProviderSave {
   model_override?: string
 }
 
+export interface SocialMessage {
+  id: string
+  platform: 'instagram' | 'linkedin'
+  type: 'dm' | 'comment' | 'mention'
+  sender_name: string
+  sender_id: string
+  content: string
+  media_url: string
+  parent_id: string
+  is_read: number
+  replied_at: string | null
+  created_at: string
+}
+
+export interface PostScore {
+  score: number
+  factors: {
+    length: number
+    hashtags: number
+    cta: boolean
+    timing: boolean
+    hook: boolean
+  }
+  suggestions: string[]
+}
+
+export interface LinkedInVoiceProfile {
+  avg_length: string
+  hook_style: string
+  emoji_usage: string
+  cta_style: string
+  formality: string
+  recurring_themes: string[]
+}
+
+export interface CRMDeal {
+  id: number
+  name: string
+  contact_email: string
+  stage: string
+  value: string
+  notes: string
+  last_email_at: string | null
+}
+
+export interface CRMDealEmail {
+  email_id: string
+  subject: string
+  sender: string
+  date: string
+  direction: string
+}
+
 export interface EmailThread {
   thread_id: string
   subject: string
@@ -281,4 +435,69 @@ export interface EmailThread {
   latest_date: string
   message_count: number
   messages: Array<{ id: string; subject: string; sender: string; date: string; preview: string; is_read: boolean }>
+}
+
+export interface BriefSection {
+  id: string
+  title: string
+  icon: string
+  items: { text: string; meta: string }[]
+  insight: string
+}
+
+export interface MorningBrief {
+  generated_at: string
+  greeting: string
+  sections: BriefSection[]
+  focus: string
+  cached: boolean
+}
+
+export interface CalEvent {
+  id: string
+  title: string
+  start: string
+  end: string
+  date: string
+  location: string
+  organizer: string
+  is_online: boolean
+  join_url: string
+  attendee_count: number
+  response: string
+}
+
+export interface CalendarResponse {
+  events: CalEvent[]
+  provider: 'google' | 'microsoft' | 'none'
+  days: number
+}
+
+export interface ActiveDeal {
+  name: string
+  stage: string
+}
+
+export interface ContactHealth {
+  id: number
+  name: string
+  email: string
+  note: string
+  score: number
+  status: 'healthy' | 'good' | 'fading' | 'at_risk' | 'cold'
+  trend: 'warming' | 'cooling' | 'stable'
+  days_since_contact: number | null
+  last_received: string | null
+  last_sent_to: string | null
+  received_count: number
+  sent_count: number
+  unread_count: number
+  awaiting_reply: boolean
+  open_commitments: number
+  active_deal: ActiveDeal | null
+}
+
+export interface ContactHealthResponse {
+  contacts: ContactHealth[]
+  summary: { total: number; healthy: number; good: number; fading: number; at_risk: number; cold: number }
 }

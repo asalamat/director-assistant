@@ -199,7 +199,8 @@ class EmailCache(EmailExtrasMixin, DocumentCacheMixin):
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS email_snooze (
                     email_id   TEXT PRIMARY KEY,
-                    wake_date  TEXT NOT NULL,
+                    wake_date  TEXT,
+                    set_aside  INTEGER DEFAULT 0,
                     created_at TEXT DEFAULT (datetime('now'))
                 )
             """)
@@ -396,6 +397,19 @@ class EmailCache(EmailExtrasMixin, DocumentCacheMixin):
                     deleted  INTEGER DEFAULT 0
                 )
             """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS writing_style_cache (
+                    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                    account_id   INTEGER DEFAULT 0,
+                    style_json   TEXT NOT NULL,
+                    sample_count INTEGER DEFAULT 0,
+                    computed_at  TEXT DEFAULT (datetime('now'))
+                )
+            """)
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_writing_style_account "
+                "ON writing_style_cache(account_id)"
+            )
             for col_def in ["account_id INTEGER DEFAULT 0", "server_id TEXT",
                              "followup_remind_at TEXT"]:
                 try:
@@ -553,7 +567,10 @@ class EmailCache(EmailExtrasMixin, DocumentCacheMixin):
             )
 
         # Exclude snoozed emails whose wake date hasn't arrived yet
-        where += " AND id NOT IN (SELECT email_id FROM email_snooze WHERE wake_date > date('now'))"
+        where += (
+            " AND id NOT IN (SELECT email_id FROM email_snooze"
+            " WHERE set_aside = 1 OR (wake_date IS NOT NULL AND wake_date > datetime('now')))"
+        )
 
         with self._conn() as conn:
             total = conn.execute(
@@ -586,7 +603,10 @@ class EmailCache(EmailExtrasMixin, DocumentCacheMixin):
             where = "folder = ?"
             params = [normalized]
 
-        where += " AND id NOT IN (SELECT email_id FROM email_snooze WHERE wake_date > date('now'))"
+        where += (
+            " AND id NOT IN (SELECT email_id FROM email_snooze"
+            " WHERE set_aside = 1 OR (wake_date IS NOT NULL AND wake_date > datetime('now')))"
+        )
 
         with self._conn() as conn:
             # Step 1: get the paginated list of distinct thread IDs at the SQL level

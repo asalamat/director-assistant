@@ -1,11 +1,36 @@
 """Instagram posting endpoints — settings, AI caption/image generation, publish via Graph API, history."""
 
+import base64 as _b64_module
+import ipaddress
 import json
+import socket
 import uuid
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 
 import httpx
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
+from PIL import Image as _PILImage
+
+_PILImage.MAX_IMAGE_PIXELS = 50_000_000  # ~50MP — blocks Pillow decompression bombs
+
+_MAX_REMOTE_IMAGE_BYTES = 10 * 1024 * 1024   # 10 MB
+_MAX_B64_IMAGE_BYTES    = 10 * 1024 * 1024   # 10 MB
+
+
+def _validate_image_url(url: str) -> None:
+    """Raise HTTPException if url is not a safe external http/https URL."""
+    p = urlparse(url)
+    if p.scheme not in ("http", "https"):
+        raise HTTPException(400, "Image URL must use http or https")
+    try:
+        ip = ipaddress.ip_address(socket.gethostbyname(p.hostname or ""))
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+            raise HTTPException(400, "Image URL targets a private/internal host")
+    except HTTPException:
+        raise
+    except Exception:
+        pass  # DNS failure or non-IP — let httpx handle it
 
 from routers.config import load_app_config, save_app_config
 
@@ -97,6 +122,12 @@ def _ensure_tables(cache):
                 next_post_at TEXT
             )
         """)
+
+
+def _mask(v: str) -> str:
+    if not v:
+        return ""
+    return v[:4] + "…" + v[-4:] if len(v) > 8 else "***"
 
 
 def _get_instagram_settings() -> dict:
@@ -228,7 +259,7 @@ def _add_text_overlay_sync(img_bytes: bytes, text: str) -> bytes:
 @router.post("/apply-overlay")
 async def apply_overlay(body: dict, request: Request):
     """Burn overlay_text onto an existing image_url. Returns {url} with data URI."""
-    import base64 as _b64, asyncio as _aio
+    import asyncio as _aio
     overlay_text = (body.get("overlay_text") or "").strip()
     image_url = (body.get("image_url") or "").strip()
     if not overlay_text:
@@ -237,14 +268,25 @@ async def apply_overlay(body: dict, request: Request):
         return {"error": "image_url is required"}
     try:
         if image_url.startswith("data:"):
-            img_bytes = _b64.b64decode(image_url.split(",", 1)[1])
+            raw = image_url.split(",", 1)[1]
+            if len(raw) * 3 // 4 > _MAX_B64_IMAGE_BYTES:
+                return {"error": "Image too large (max 10 MB)"}
+            img_bytes = _b64_module.b64decode(raw)
         else:
+            _validate_image_url(image_url)
             async with httpx.AsyncClient(timeout=30.0) as client:
-                r = await client.get(image_url)
-                r.raise_for_status()
-                img_bytes = r.content
+                async with client.stream("GET", image_url, follow_redirects=False) as r:
+                    r.raise_for_status()
+                    chunks = []
+                    total = 0
+                    async for chunk in r.aiter_bytes(65536):
+                        total += len(chunk)
+                        if total > _MAX_REMOTE_IMAGE_BYTES:
+                            return {"error": "Remote image too large (max 10 MB)"}
+                        chunks.append(chunk)
+                    img_bytes = b"".join(chunks)
         modified = await _aio.to_thread(_add_text_overlay_sync, img_bytes, overlay_text)
-        result_url = "data:image/jpeg;base64," + _b64.b64encode(modified).decode()
+        result_url = "data:image/jpeg;base64," + _b64_module.b64encode(modified).decode()
         # Try FTP upload if configured
         ig_settings = _get_instagram_settings()
         if ig_settings.get("ftp_host"):
@@ -306,7 +348,12 @@ async def _ai_complete(request: Request, prompt: str, max_tokens: int = 800, sys
 
 @router.get("/settings")
 async def get_settings(request: Request):
-    return _get_instagram_settings()
+    s = _get_instagram_settings()
+    s["app_secret_preview"] = _mask(s.pop("app_secret"))
+    s["ig_login_app_secret_preview"] = _mask(s.pop("ig_login_app_secret"))
+    s["access_token_set"] = bool(s.pop("access_token"))
+    s["ftp_pass_set"] = bool(s.pop("ftp_pass"))
+    return s
 
 
 @router.post("/settings")
@@ -387,7 +434,8 @@ async def generate_caption(body: dict, request: Request):
         "You are a creative Instagram caption writer. Every caption you write must be UNIQUE and DIFFERENT "
         "from any previous version — vary the structure, opening, and phrasing every time. "
         "Output ONLY the caption text — nothing else. "
-        "No JSON, no code blocks, no labels, no hashtags in the body."
+        "No JSON, no code blocks, no labels, no hashtags in the body. "
+        "IMPORTANT: Keep the caption under 1800 characters — Instagram truncates captions over 2200 characters."
     )
     news_block = (
         f"\n\nIncorporate these real news facts into the caption:\n{search_context[:1500]}"
@@ -723,6 +771,12 @@ async def publish(body: dict, request: Request):
     hashtag_line = " ".join(h if h.startswith("#") else f"#{h}" for h in hashtags)
     full_caption = (caption + ("\n\n" + hashtag_line if hashtag_line else "")) if content_type != "image" else hashtag_line
 
+    # Instagram hard limit: 2200 characters total. Truncate at word boundary if needed.
+    IG_CAPTION_LIMIT = 2200
+    if len(full_caption) > IG_CAPTION_LIMIT:
+        trimmed = full_caption[:IG_CAPTION_LIMIT].rsplit(' ', 1)[0].rstrip('.,;:!?')
+        full_caption = trimmed + "…"
+
     add_to_story = bool(body.get("add_to_story", False))
     settings = _get_instagram_settings()
     result = await _publish_to_instagram(settings, image_url, full_caption)
@@ -919,7 +973,7 @@ async def test_post(request: Request):
             if r1.status_code >= 400:
                 last_err = {"step": "create_container", "ok": False, "status": r1.status_code,
                             "base_used": base, "ig_user_id": ig_user_id,
-                            "token_prefix": access_token[:20] + "…", "error": r1_json}
+                            "error": r1_json}
                 continue
 
             creation_id = r1_json.get("id", "")
@@ -956,8 +1010,12 @@ async def debug_token(request: Request):
         results["token_info"] = ti.json() if ti.status_code == 200 else {"error": ti.text[:200]}
         # Pages
         pr = await http.get(f"{GRAPH_BASE}/me/accounts",
-                            params={"fields": "id,name,access_token,instagram_business_account,connected_instagram_account", "access_token": token})
+                            params={"fields": "id,name,instagram_business_account,connected_instagram_account", "access_token": token})
         results["pages"] = pr.json() if pr.status_code == 200 else {"error": pr.text[:200]}
+        if isinstance(results["pages"], dict):
+            for p in results["pages"].get("data", []) or []:
+                if isinstance(p, dict):
+                    p.pop("access_token", None)
         # Me
         me = await http.get(f"{GRAPH_BASE}/me", params={"fields": "id,name,instagram_business_account", "access_token": token})
         results["me"] = me.json() if me.status_code == 200 else {"error": me.text[:200]}
@@ -1134,3 +1192,12 @@ async def delete_template(template_id: str, request: Request):
     with cache._conn() as conn:
         conn.execute("DELETE FROM instagram_templates WHERE id=? AND builtin=0", (template_id,))
     return {"status": "deleted"}
+
+
+@router.post("/score-post")
+async def score_instagram_post(body: dict, request: Request):
+    from services.social_scorer import score_post
+    caption = str(body.get("caption", ""))[:2200]
+    hashtags = [str(h) for h in body.get("hashtags", []) if isinstance(h, str)]
+    scheduled_at = body.get("scheduled_at")
+    return score_post(caption, hashtags, "instagram", scheduled_at)

@@ -104,7 +104,7 @@ if /i NOT "%MODE%"=="dev" (
     start "" cmd /c "timeout /t 3 >nul && start http://localhost:8000"
 
     cd /d "%BACKEND%"
-    "%BACKEND%\.venv\Scripts\python.exe" -m uvicorn main:app --host 0.0.0.0 --port 8000
+    "%BACKEND%\.venv\Scripts\python.exe" -m uvicorn main:app --host 127.0.0.1 --port 8000
 
 ) else (
 
@@ -140,7 +140,7 @@ if /i NOT "%MODE%"=="dev" (
 
     :: Start backend in a new window
     :: /D sets the working directory so relative venv paths work without nested quotes
-    start "Director Assistant - Backend" /D "%BACKEND%" cmd /k "call .venv\Scripts\activate.bat && .venv\Scripts\python.exe -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
+    start "Director Assistant - Backend" /D "%BACKEND%" cmd /k "call .venv\Scripts\activate.bat && .venv\Scripts\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8000 --reload"
 
     :: Open browser after 4 seconds
     start "" cmd /c "timeout /t 4 >nul && start http://localhost:5173"

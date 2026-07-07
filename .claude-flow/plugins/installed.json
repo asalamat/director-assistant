@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "lastUpdated": "2026-06-04T16:22:18.449Z",
+  "lastUpdated": "2026-06-20T22:57:00.214Z",
   "plugins": {
     "@claude-flow/neural": {
       "name": "@claude-flow/neural",
@@ -49,6 +49,26 @@
       "enabled": true,
       "source": "npm",
       "path": "/Users/alisalamat/director-assistant/.claude-flow/plugins/node_modules/@claude-flow/claims",
+      "commands": [],
+      "hooks": []
+    },
+    "@claude-flow/plugin-code-intelligence": {
+      "name": "@claude-flow/plugin-code-intelligence",
+      "version": "3.0.0-alpha.3",
+      "installedAt": "2026-06-20T22:54:32.182Z",
+      "enabled": true,
+      "source": "npm",
+      "path": "/Users/alisalamat/director-assistant/.claude-flow/plugins/node_modules/@claude-flow/plugin-code-intelligence",
+      "commands": [],
+      "hooks": []
+    },
+    "@claude-flow/plugin-agentic-qe": {
+      "name": "@claude-flow/plugin-agentic-qe",
+      "version": "3.0.0-alpha.5",
+      "installedAt": "2026-06-20T22:57:00.214Z",
+      "enabled": true,
+      "source": "npm",
+      "path": "/Users/alisalamat/director-assistant/.claude-flow/plugins/node_modules/@claude-flow/plugin-agentic-qe",
       "commands": [],
       "hooks": []
     }

@@ -15,10 +15,12 @@ function isInterviewCluster(c: Cluster): boolean {
 
 export function ProjectsTab({ onSelectCluster }: ProjectsTabProps) {
   const [clusters, setClusters] = useState<Cluster[]>([])
+  const [allClusters, setAllClusters] = useState<Cluster[]>([])
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
   const [generateError, setGenerateError] = useState('')
-  const [filter, setFilter] = useState<'all' | 'active' | 'dormant' | 'resolved'>('all')
+  const [filter, setFilter] = useState<'all' | 'active' | 'dormant' | 'resolved' | 'disabled'>('all')
+  const [togglingId, setTogglingId] = useState<string | null>(null)
 
   const [prepCluster, setPrepCluster] = useState<Cluster | null>(null)
   const [prepLoading, setPrepLoading] = useState(false)
@@ -26,9 +28,28 @@ export function ProjectsTab({ onSelectCluster }: ProjectsTabProps) {
   const [prepError, setPrepError] = useState('')
   const [copied, setCopied] = useState(false)
 
-  useEffect(() => {
-    api.getClusters().then(r => setClusters(r.clusters)).catch(() => setClusters([])).finally(() => setLoading(false))
-  }, [])
+  const loadClusters = () => {
+    setLoading(true)
+    api.getClusters(true).then(r => {
+      setAllClusters(r.clusters)
+      setClusters(r.clusters)
+    }).catch(() => { setAllClusters([]); setClusters([]) }).finally(() => setLoading(false))
+  }
+
+  useEffect(() => { loadClusters() }, [])
+
+  const handleToggleDisable = async (e: React.MouseEvent, c: Cluster) => {
+    e.stopPropagation()
+    setTogglingId(c.id)
+    const next = c.status === 'disabled' ? 'active' : 'disabled'
+    try {
+      await api.updateClusterStatus(c.id, next)
+      setAllClusters(prev => prev.map(x => x.id === c.id ? { ...x, status: next } : x))
+      setClusters(prev => prev.map(x => x.id === c.id ? { ...x, status: next } : x))
+    } catch { /* ignore */ } finally {
+      setTogglingId(null)
+    }
+  }
 
   const handleGenerate = async () => {
     setGenerating(true)
@@ -38,6 +59,7 @@ export function ProjectsTab({ onSelectCluster }: ProjectsTabProps) {
       if (!r.clusters?.length) {
         setGenerateError(r.error || 'No clusters returned — make sure an AI provider is configured in Settings.')
       } else {
+        setAllClusters(r.clusters)
         setClusters(r.clusters)
       }
     } catch (e: any) {
@@ -77,11 +99,16 @@ export function ProjectsTab({ onSelectCluster }: ProjectsTabProps) {
     })
   }
 
-  const filtered = filter === 'all' ? clusters : clusters.filter(c => c.status === filter)
+  const filtered = filter === 'all'
+    ? allClusters.filter(c => c.status !== 'disabled')
+    : allClusters.filter(c => c.status === filter)
+
+  const disabledCount = allClusters.filter(c => c.status === 'disabled').length
 
   const statusStyle = (s: string) =>
-    s === 'active' ? 'bg-green-100 text-green-700' :
-    s === 'dormant' ? 'bg-amber-100 text-amber-700' :
+    s === 'active'   ? 'bg-green-100 text-green-700' :
+    s === 'dormant'  ? 'bg-amber-100 text-amber-700' :
+    s === 'disabled' ? 'bg-gray-100 text-gray-400 line-through' :
     'bg-gray-100 text-gray-500'
 
   if (loading) return <div className="flex justify-center py-16"><div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" /></div>
@@ -89,14 +116,20 @@ export function ProjectsTab({ onSelectCluster }: ProjectsTabProps) {
   return (
     <div className="flex flex-col h-full">
       <div className="px-4 pt-4 pb-2 flex items-center gap-2 flex-shrink-0 flex-wrap">
-        <div className="flex gap-1 flex-1">
+        <div className="flex gap-1 flex-1 flex-wrap">
           {(['all', 'active', 'dormant', 'resolved'] as const).map(f => (
             <button key={f} onClick={() => setFilter(f)}
               className={`text-xs px-2.5 py-1 rounded-lg transition-colors ${filter === f ? 'bg-accent text-white' : 'text-gray-500 hover:bg-gray-100'}`}>
               {f.charAt(0).toUpperCase() + f.slice(1)}
-              {f === 'all' ? ` (${clusters.length})` : ` (${clusters.filter(c => c.status === f).length})`}
+              {f === 'all' ? ` (${allClusters.filter(c => c.status !== 'disabled').length})` : ` (${allClusters.filter(c => c.status === f).length})`}
             </button>
           ))}
+          {disabledCount > 0 && (
+            <button onClick={() => setFilter(filter === 'disabled' ? 'all' : 'disabled')}
+              className={`text-xs px-2.5 py-1 rounded-lg transition-colors ${filter === 'disabled' ? 'bg-gray-600 text-white' : 'text-gray-400 hover:bg-gray-100 border border-dashed border-gray-300'}`}>
+              Disabled ({disabledCount})
+            </button>
+          )}
         </div>
         <button
           onClick={handleGenerate}
@@ -123,14 +156,32 @@ export function ProjectsTab({ onSelectCluster }: ProjectsTabProps) {
         )}
         <div className="grid grid-cols-2 gap-3 pt-2">
           {filtered.map(c => (
-            <button
+            <div
               key={c.id}
-              onClick={() => onSelectCluster(c)}
-              className="text-left border border-gray-200 rounded-xl p-4 hover:border-accent hover:bg-blue-50/30 transition-colors group"
+              className={`text-left border rounded-xl p-4 transition-colors group relative ${
+                c.status === 'disabled'
+                  ? 'border-gray-100 bg-gray-50/50 opacity-60'
+                  : 'border-gray-200 hover:border-accent hover:bg-blue-50/30 cursor-pointer'
+              }`}
+              onClick={() => c.status !== 'disabled' && onSelectCluster(c)}
             >
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-semibold text-gray-800 group-hover:text-accent transition-colors">{c.name}</span>
-                <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${statusStyle(c.status)}`}>{c.status}</span>
+                <span className={`text-sm font-semibold transition-colors ${c.status === 'disabled' ? 'text-gray-400' : 'text-gray-800 group-hover:text-accent'}`}>{c.name}</span>
+                <div className="flex items-center gap-1.5">
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${statusStyle(c.status)}`}>{c.status}</span>
+                  <button
+                    onClick={e => handleToggleDisable(e, c)}
+                    disabled={togglingId === c.id}
+                    title={c.status === 'disabled' ? 'Re-enable this cluster' : 'Disable this cluster'}
+                    className={`text-[10px] px-1.5 py-0.5 rounded-md border transition-colors disabled:opacity-50 ${
+                      c.status === 'disabled'
+                        ? 'border-green-200 text-green-600 hover:bg-green-50 bg-white'
+                        : 'border-gray-200 text-gray-400 hover:border-red-200 hover:text-red-500 hover:bg-red-50 bg-white'
+                    }`}
+                  >
+                    {togglingId === c.id ? '…' : c.status === 'disabled' ? 'Enable' : 'Disable'}
+                  </button>
+                </div>
               </div>
               <p className="text-xs text-gray-500 mb-2 leading-relaxed">{c.description}</p>
               <div className="flex items-center justify-between text-[10px] text-gray-400">
@@ -144,7 +195,7 @@ export function ProjectsTab({ onSelectCluster }: ProjectsTabProps) {
                   ))}
                 </div>
               )}
-              {isInterviewCluster(c) && (
+              {isInterviewCluster(c) && c.status !== 'disabled' && (
                 <div className="mt-2 pt-2 border-t border-gray-100">
                   <button
                     onClick={e => handleInterviewPrep(e, c)}
@@ -154,7 +205,7 @@ export function ProjectsTab({ onSelectCluster }: ProjectsTabProps) {
                   </button>
                 </div>
               )}
-            </button>
+            </div>
           ))}
         </div>
       </div>

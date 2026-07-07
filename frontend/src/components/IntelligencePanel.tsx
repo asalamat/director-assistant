@@ -19,13 +19,17 @@ import JobTracker from './JobTracker'
 import { CommitmentTracker } from './CommitmentTracker'
 import { NewsPanel } from './NewsPanel'
 import { MorningBriefTab } from './intelligence/MorningBriefTab'
+import { CalendarTab } from './intelligence/CalendarTab'
+import { ContactHealthTab } from './intelligence/ContactHealthTab'
 import { useUIContext } from '../contexts/UIContext'
 
-type SubTab = 'morning-brief' | 'briefing' | 'people' | 'stakeholders' | 'loops' | 'nudges' | 'decisions' | 'escalations' | 'ai-projects' | 'timeline' | 'email-map' | 'kg' | 'news' | 'weekly' | 'chase' | 'commitments' | 'analytics' | 'templates' | 'projects' | 'pst' | 'meetings' | 'crm' | 'board' | 'coaching' | 'jobs'
+type SubTab = 'morning-brief' | 'calendar' | 'contact-health' | 'briefing' | 'people' | 'stakeholders' | 'loops' | 'nudges' | 'decisions' | 'escalations' | 'ai-projects' | 'timeline' | 'email-map' | 'kg' | 'news' | 'weekly' | 'chase' | 'commitments' | 'analytics' | 'templates' | 'projects' | 'pst' | 'meetings' | 'crm' | 'board' | 'coaching' | 'jobs'
 
 const SUB_TABS: { id: SubTab; label: string; icon: string; group?: string }[] = [
   // Intelligence
   { id: 'morning-brief', label: 'Morning Brief', icon: '☀️', group: 'intel' },
+  { id: 'calendar',    label: 'Calendar',    icon: '📅', group: 'intel' },
+  { id: 'contact-health', label: 'Rel. Health', icon: '❤️', group: 'intel' },
   { id: 'briefing',    label: 'Briefing',    icon: '🧭', group: 'intel' },
   { id: 'people',      label: 'People',      icon: '👥', group: 'intel' },
   { id: 'stakeholders', label: 'Influence',  icon: '🌐', group: 'intel' },
@@ -115,6 +119,8 @@ export function IntelligencePanel() {
       {/* Content area */}
       <div className="flex-1 overflow-hidden min-h-0">
         {activeTab === 'morning-brief' && <div className="h-full overflow-y-auto"><MorningBriefTab /></div>}
+        {activeTab === 'calendar'    && <div className="h-full overflow-y-auto"><CalendarTab /></div>}
+        {activeTab === 'contact-health' && <div className="h-full overflow-y-auto"><ContactHealthTab /></div>}
         {activeTab === 'briefing'    && <div className="h-full overflow-y-auto min-h-0"><BriefingTab /></div>}
         {activeTab === 'people'      && <PeopleTab />}
         {activeTab === 'stakeholders' && <StakeholderMap onEmailContact={email => openCompose({ to: email })} />}

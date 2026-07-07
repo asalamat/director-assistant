@@ -8,6 +8,8 @@ import time
 from datetime import datetime
 from fastapi import APIRouter, Request
 
+from routers.calendar import get_today_events
+
 router = APIRouter(prefix="/api", tags=["morning-brief"])
 _log = logging.getLogger(__name__)
 
@@ -118,7 +120,7 @@ async def _synthesize(request: Request, data: dict) -> dict:
         "and a single 'focus' sentence naming the most important thing to do today.\n\n"
         f"DATA:\n{json.dumps(data, default=str)[:4000]}\n\n"
         "Reply ONLY as JSON: "
-        '{"insights":{"emails":"...","news":"...","chase":"...","commitments":"...","projects":"..."},'
+        '{"insights":{"emails":"...","news":"...","chase":"...","commitments":"...","projects":"...","calendar":"..."},'
         '"focus":"..."}'
     )
     try:
@@ -154,10 +156,11 @@ async def morning_brief(request: Request, force: bool = False):
     chase = _overdue_followups(cache, today) if cache else []
     commitments = _open_commitments(cache) if cache else []
     projects = _active_projects(cache) if cache else []
+    events = await get_today_events(cache) if cache else []
 
     raw = {
         "emails": emails, "news": news, "chase": chase,
-        "commitments": commitments, "projects": projects,
+        "commitments": commitments, "projects": projects, "calendar": events,
     }
     ai = await _synthesize(request, raw)
     ins = ai["insights"]
@@ -167,6 +170,14 @@ async def morning_brief(request: Request, force: bool = False):
         "generated_at": now_dt.isoformat(),
         "greeting": f"Good morning Ali — here's your brief for {now_dt.strftime('%A, %B %-d')}",
         "sections": [
+            {
+                "id": "calendar", "title": "Today's Schedule", "icon": "📅",
+                "items": [
+                    {"text": e["title"], "meta": f'{e["start"][11:16]} – {e["end"][11:16]}' + (" · Online" if e["is_online"] else "")}
+                    for e in events
+                ],
+                "insight": str(ins.get("calendar", "")),
+            },
             {
                 "id": "emails", "title": "Priority Inbox", "icon": "📬",
                 "items": [{"text": e["subject"], "meta": e["sender"]} for e in emails],

@@ -19,8 +19,24 @@ async def get_people(request: Request, limit: int = 60):
     return {"people": people}
 
 
+def _cluster_overrides(cache) -> dict:
+    """Return {cluster_id: status} for all manually overridden clusters."""
+    try:
+        with cache._conn() as conn:
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS cluster_overrides
+                   (cluster_id TEXT PRIMARY KEY, status TEXT, updated_at TEXT)"""
+            )
+            rows = conn.execute(
+                "SELECT cluster_id, status FROM cluster_overrides"
+            ).fetchall()
+        return {r["cluster_id"]: r["status"] for r in rows}
+    except Exception:
+        return {}
+
+
 @router.get("/clusters")
-async def get_clusters(request: Request):
+async def get_clusters(request: Request, show_disabled: bool = False):
     svc = getattr(request.app.state, "intelligence", None)
     if not svc:
         return {"clusters": [], "error": "Intelligence service not available"}
@@ -28,7 +44,50 @@ async def get_clusters(request: Request):
         clusters = await svc.get_clusters()
     except Exception:
         clusters = []
+
+    cache = getattr(request.app.state, "cache", None)
+    if cache:
+        overrides = _cluster_overrides(cache)
+        for c in clusters:
+            if c.get("id") in overrides:
+                c["status"] = overrides[c["id"]]
+        if not show_disabled:
+            clusters = [c for c in clusters if c.get("status") != "disabled"]
+
     return {"clusters": clusters}
+
+
+class ClusterStatusUpdate(BaseModel):
+    status: str
+
+
+@router.patch("/clusters/{cluster_id}")
+async def update_cluster_status(cluster_id: str, req: ClusterStatusUpdate, request: Request):
+    """Persist a manual status override for a cluster (active/dormant/resolved/disabled)."""
+    valid = {"active", "dormant", "resolved", "disabled"}
+    if req.status not in valid:
+        raise HTTPException(400, f"status must be one of {sorted(valid)}")
+    cache = getattr(request.app.state, "cache", None)
+    if not cache:
+        raise HTTPException(503, "Cache not available")
+    with cache._conn() as conn:
+        conn.execute(
+            """CREATE TABLE IF NOT EXISTS cluster_overrides
+               (cluster_id TEXT PRIMARY KEY, status TEXT, updated_at TEXT)"""
+        )
+        if req.status == "disabled":
+            conn.execute(
+                """INSERT INTO cluster_overrides (cluster_id, status, updated_at)
+                   VALUES (?, ?, datetime('now'))
+                   ON CONFLICT(cluster_id) DO UPDATE
+                   SET status=excluded.status, updated_at=excluded.updated_at""",
+                (cluster_id, req.status),
+            )
+        else:
+            conn.execute(
+                "DELETE FROM cluster_overrides WHERE cluster_id = ?", (cluster_id,)
+            )
+    return {"status": req.status, "cluster_id": cluster_id}
 
 
 @router.post("/clusters/generate")
@@ -468,6 +527,217 @@ async def draft_followup(req: DraftFollowupRequest, request: Request):
     return {"draft": draft, "to": req.sender, "subject": subject}
 
 
+def _ensure_nudge_dismissals(conn):
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS nudge_dismissals
+           (email_addr TEXT PRIMARY KEY, dismissed_until TEXT)"""
+    )
+
+
+def _dismissed_set(cache) -> set:
+    """Return the set of email addresses currently dismissed."""
+    from datetime import datetime
+    try:
+        with cache._conn() as conn:
+            _ensure_nudge_dismissals(conn)
+            rows = conn.execute(
+                "SELECT email_addr, dismissed_until FROM nudge_dismissals"
+            ).fetchall()
+        now_str = datetime.utcnow().isoformat()
+        return {r["email_addr"] for r in rows if r["dismissed_until"] > now_str}
+    except Exception:
+        return set()
+
+
+class NudgeDismissRequest(BaseModel):
+    email: str
+    days: int = 30  # how long to suppress this nudge
+
+
+@router.post("/nudges/dismiss")
+async def dismiss_nudge(req: NudgeDismissRequest, request: Request):
+    """Persist a nudge dismissal so the contact is hidden for N days."""
+    from datetime import datetime, timedelta
+    cache = getattr(request.app.state, "cache", None)
+    if not cache:
+        raise HTTPException(503, "Cache not available")
+    addr = req.email.strip().lower()
+    if not addr:
+        raise HTTPException(400, "email required")
+    until = (datetime.utcnow() + timedelta(days=max(1, min(req.days, 365)))).isoformat()
+    with cache._conn() as conn:
+        _ensure_nudge_dismissals(conn)
+        conn.execute(
+            """INSERT INTO nudge_dismissals (email_addr, dismissed_until)
+               VALUES (?, ?)
+               ON CONFLICT(email_addr) DO UPDATE SET dismissed_until=excluded.dismissed_until""",
+            (addr, until),
+        )
+    return {"dismissed": addr, "until": until}
+
+
+@router.delete("/nudges/dismiss/{email}")
+async def undismiss_nudge(email: str, request: Request):
+    """Remove a dismissal so the contact can appear in nudges again."""
+    cache = getattr(request.app.state, "cache", None)
+    if not cache:
+        raise HTTPException(503, "Cache not available")
+    with cache._conn() as conn:
+        _ensure_nudge_dismissals(conn)
+        conn.execute("DELETE FROM nudge_dismissals WHERE email_addr = ?", (email.strip().lower(),))
+    return {"status": "ok"}
+
+
+# ---------------------------------------------------------------------------
+# Chase queue state persistence
+# ---------------------------------------------------------------------------
+
+def _ensure_chase_tables(conn):
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS chase_dismissed
+           (email_id TEXT PRIMARY KEY, dismissed_at TEXT)"""
+    )
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS chase_snoozed
+           (email_id TEXT PRIMARY KEY, snoozed_until TEXT)"""
+    )
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS chase_notes
+           (email_id TEXT PRIMARY KEY, note TEXT, updated_at TEXT)"""
+    )
+
+
+@router.get("/chase/state")
+async def get_chase_state(request: Request):
+    """Return all persisted chase queue state (dismissed, snoozed, notes)."""
+    from datetime import datetime
+    cache = getattr(request.app.state, "cache", None)
+    if not cache:
+        return {"dismissed": [], "snoozed": {}, "notes": {}}
+    try:
+        with cache._conn() as conn:
+            _ensure_chase_tables(conn)
+            dismissed = [r["email_id"] for r in conn.execute(
+                "SELECT email_id FROM chase_dismissed"
+            ).fetchall()]
+            now_str = datetime.utcnow().isoformat()
+            snoozed = {r["email_id"]: r["snoozed_until"] for r in conn.execute(
+                "SELECT email_id, snoozed_until FROM chase_snoozed WHERE snoozed_until > ?", (now_str,)
+            ).fetchall()}
+            notes = {r["email_id"]: r["note"] for r in conn.execute(
+                "SELECT email_id, note FROM chase_notes"
+            ).fetchall()}
+        return {"dismissed": dismissed, "snoozed": snoozed, "notes": notes}
+    except Exception:
+        return {"dismissed": [], "snoozed": {}, "notes": {}}
+
+
+class ChaseEmailId(BaseModel):
+    email_id: str
+
+
+class ChaseSnoozeRequest(BaseModel):
+    email_id: str
+    until: str  # ISO datetime string
+
+
+class ChaseNoteRequest(BaseModel):
+    email_id: str
+    note: str
+
+
+@router.post("/chase/dismiss")
+async def chase_dismiss(req: ChaseEmailId, request: Request):
+    cache = getattr(request.app.state, "cache", None)
+    if not cache:
+        raise HTTPException(503, "Cache not available")
+    with cache._conn() as conn:
+        _ensure_chase_tables(conn)
+        conn.execute(
+            """INSERT INTO chase_dismissed (email_id, dismissed_at) VALUES (?, datetime('now'))
+               ON CONFLICT(email_id) DO UPDATE SET dismissed_at=excluded.dismissed_at""",
+            (req.email_id,),
+        )
+    return {"status": "ok"}
+
+
+@router.delete("/chase/dismiss/{email_id:path}")
+async def chase_restore(email_id: str, request: Request):
+    cache = getattr(request.app.state, "cache", None)
+    if not cache:
+        raise HTTPException(503, "Cache not available")
+    with cache._conn() as conn:
+        _ensure_chase_tables(conn)
+        conn.execute("DELETE FROM chase_dismissed WHERE email_id = ?", (email_id,))
+    return {"status": "ok"}
+
+
+@router.delete("/chase/dismiss")
+async def chase_clear_all_dismissed(request: Request):
+    cache = getattr(request.app.state, "cache", None)
+    if not cache:
+        raise HTTPException(503, "Cache not available")
+    with cache._conn() as conn:
+        _ensure_chase_tables(conn)
+        conn.execute("DELETE FROM chase_dismissed")
+    return {"status": "ok"}
+
+
+@router.post("/chase/snooze")
+async def chase_snooze(req: ChaseSnoozeRequest, request: Request):
+    cache = getattr(request.app.state, "cache", None)
+    if not cache:
+        raise HTTPException(503, "Cache not available")
+    with cache._conn() as conn:
+        _ensure_chase_tables(conn)
+        conn.execute(
+            """INSERT INTO chase_snoozed (email_id, snoozed_until) VALUES (?, ?)
+               ON CONFLICT(email_id) DO UPDATE SET snoozed_until=excluded.snoozed_until""",
+            (req.email_id, req.until),
+        )
+    return {"status": "ok"}
+
+
+@router.delete("/chase/snooze/{email_id:path}")
+async def chase_unsnooze(email_id: str, request: Request):
+    cache = getattr(request.app.state, "cache", None)
+    if not cache:
+        raise HTTPException(503, "Cache not available")
+    with cache._conn() as conn:
+        _ensure_chase_tables(conn)
+        conn.execute("DELETE FROM chase_snoozed WHERE email_id = ?", (email_id,))
+    return {"status": "ok"}
+
+
+@router.post("/chase/note")
+async def chase_save_note(req: ChaseNoteRequest, request: Request):
+    cache = getattr(request.app.state, "cache", None)
+    if not cache:
+        raise HTTPException(503, "Cache not available")
+    with cache._conn() as conn:
+        _ensure_chase_tables(conn)
+        if req.note.strip():
+            conn.execute(
+                """INSERT INTO chase_notes (email_id, note, updated_at) VALUES (?, ?, datetime('now'))
+                   ON CONFLICT(email_id) DO UPDATE SET note=excluded.note, updated_at=excluded.updated_at""",
+                (req.email_id, req.note.strip()),
+            )
+        else:
+            conn.execute("DELETE FROM chase_notes WHERE email_id = ?", (req.email_id,))
+    return {"status": "ok"}
+
+
+@router.delete("/chase/note/{email_id:path}")
+async def chase_delete_note(email_id: str, request: Request):
+    cache = getattr(request.app.state, "cache", None)
+    if not cache:
+        raise HTTPException(503, "Cache not available")
+    with cache._conn() as conn:
+        _ensure_chase_tables(conn)
+        conn.execute("DELETE FROM chase_notes WHERE email_id = ?", (email_id,))
+    return {"status": "ok"}
+
+
 @router.get("/relationship-nudges")
 async def relationship_nudges(request: Request, days: int = 21, limit: int = 10):
     """Surface contacts not reached out to recently. Pure SQL, no AI."""
@@ -476,6 +746,8 @@ async def relationship_nudges(request: Request, days: int = 21, limit: int = 10)
     cache = getattr(request.app.state, "cache", None)
     if not cache:
         return {"nudges": [], "total": 0}
+
+    dismissed = _dismissed_set(cache)
 
     days = max(1, min(days, 365))
     limit = max(1, min(limit, 100))
@@ -583,6 +855,7 @@ async def relationship_nudges(request: Request, days: int = 21, limit: int = 10)
                 "suggested_context": f"Last topic: {last_subject}" if last_subject else "No previous contact found",
             })
 
+    nudges = [n for n in nudges if n["email"] not in dismissed]
     nudges.sort(key=lambda n: (not n["is_vip"], -n["days_since"]))
     nudges = nudges[:limit]
     return {"nudges": nudges, "total": len(nudges)}

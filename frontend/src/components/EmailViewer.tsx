@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
+import DOMPurify from 'dompurify'
 import type { EmailMessage } from '../types'
 import { EmptyState, Spinner } from './ui'
 import { api } from '../api/client'
@@ -6,6 +7,9 @@ import { EmailHeader } from './email/EmailHeader'
 import { EmailCompose } from './email/EmailCompose'
 import { EmailTools } from './email/EmailTools'
 import { useEmailContext } from '../contexts/EmailContext'
+
+const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+const plainToHtml = (s: string) => escapeHtml(s).replace(/\n/g, '<br>')
 
 function splitBodyAndQuotes(body: string): { main: string; quoted: string | null } {
   const lines = body.split('\n')
@@ -43,7 +47,7 @@ interface Props {
   onAnalyze: () => void
   analyzing: boolean
   onDelete: (id: string) => void
-  onSnooze?: (emailId: string, wakeDate: string) => void
+  onSnooze?: (emailId: string, wakeDate?: string, setAside?: boolean) => void
   onAsk?: () => void
   onSearch?: (q: string) => void
   replyTriggerRef?: React.MutableRefObject<(() => void) | null>
@@ -108,7 +112,7 @@ export function EmailViewer({ email, loading, fetchError, onAnalyze, analyzing, 
   const handleForward = () => {
     if (!email) return
     const fwdSubject = email.subject?.startsWith('Fwd: ') ? email.subject : `Fwd: ${email.subject || ''}`
-    const fwdBody = `\n\n---------- Forwarded message ----------\nFrom: ${email.sender}\nDate: ${email.date || ''}\nSubject: ${email.subject || ''}\n\n${email.body || ''}`
+    const fwdBody = plainToHtml(`\n\n---------- Forwarded message ----------\nFrom: ${email.sender}\nDate: ${email.date || ''}\nSubject: ${email.subject || ''}\n\n${email.body || ''}`)
     setComposeInitialTo('')
     setComposeInitialSubject(fwdSubject)
     setComposeInitialBody(fwdBody)
@@ -301,12 +305,24 @@ export function EmailViewer({ email, loading, fetchError, onAnalyze, analyzing, 
         </div>
       )}
 
+      {/* Reply / Forward — top of email body, right-aligned */}
+      <div className="flex items-center justify-end gap-2 px-6 pt-3 pb-1 border-b border-gray-100">
+        <button
+          onClick={handleReplyClick}
+          className="flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-accent px-3 py-1.5 rounded-lg hover:bg-blue-50 transition-colors border border-gray-200 hover:border-accent"
+        >↩ Reply</button>
+        <button
+          onClick={handleForward}
+          className="flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-accent px-3 py-1.5 rounded-lg hover:bg-blue-50 transition-colors border border-gray-200 hover:border-accent"
+        >↪ Forward</button>
+      </div>
+
       {/* Body */}
       <div className="flex-1 overflow-y-auto px-6 py-4">
         {email.body_html ? (
           <div
             className="prose prose-base max-w-none text-gray-800 leading-relaxed"
-            dangerouslySetInnerHTML={{ __html: email.body_html }}
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(email.body_html || '', { USE_PROFILES: { html: true } }) }}
           />
         ) : (
           (() => {

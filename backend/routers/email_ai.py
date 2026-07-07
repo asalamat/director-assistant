@@ -1,8 +1,10 @@
 """Email AI endpoints — generative features (smart draft, translate, search, etc.)."""
 import asyncio
 import json as _json
+import logging
+from enum import Enum
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List
 
 from models import SearchRequest
@@ -10,6 +12,14 @@ from services.email_cache import EmailCache
 from services.rag_engine import RAGEngine
 
 router = APIRouter(prefix="/api/emails", tags=["email-ai"])
+
+_log = logging.getLogger(__name__)
+
+
+def _safe_err(e: Exception, label: str = "Operation") -> str:
+    """Log the real error server-side; return a generic message for the client."""
+    _log.error("%s failed: %s", label, e, exc_info=True)
+    return f"{label} failed ({type(e).__name__})"
 
 # Cache thread summaries to avoid re-summarizing the same conversation.
 _thread_summary_cache: dict[str, dict] = {}
@@ -21,6 +31,24 @@ class CreateEventRequest(BaseModel):
     end_datetime: str
     attendees: list[str] = []
     description: str = ""
+
+
+class AnalyzeToneRequest(BaseModel):
+    text: str = Field(max_length=4000)
+
+
+class RewriteTone(str, Enum):
+    warmer = "warmer"
+    more_direct = "more_direct"
+    more_formal = "more_formal"
+    shorter = "shorter"
+    more_enthusiastic = "more_enthusiastic"
+    more_concise = "more_concise"
+
+
+class RewriteOptionsRequest(BaseModel):
+    text: str = Field(max_length=4000)
+    tones: list[RewriteTone] = Field(min_length=1)
 
 
 
@@ -173,6 +201,30 @@ async def smart_draft(email_id: str, request: Request):
         ).fetchall()
     style_examples = "\n---\n".join((r["body"] or "")[:300] for r in sent_rows if r["body"])
 
+    # Learned writing-style profile (Voice-Matched Drafts) — account 0
+    learned_style = ""
+    with cache._conn() as conn:
+        srow = conn.execute(
+            "SELECT style_json FROM writing_style_cache WHERE account_id = 0 "
+            "ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+    if srow and srow["style_json"]:
+        try:
+            st = _json.loads(srow["style_json"])
+            learned_style = (
+                "\nLEARNED WRITING STYLE (match this profile precisely):\n"
+                f"- Formality: {st.get('formality', 'neutral')}\n"
+                f"- Greeting: {st.get('greeting_style', 'natural')}\n"
+                f"- Closing: {st.get('closing_style', 'natural')}\n"
+                f"- Signature name: {st.get('signature_name') or 'omit if unknown'}\n"
+                f"- Punctuation: {st.get('punctuation', 'standard')}\n"
+                f"- Emoji usage: {st.get('emoji_usage', 'none')}\n"
+                f"- Vocabulary: {st.get('vocabulary', 'moderate')}\n"
+                f"- Tone: {st.get('tone', 'professional')}\n"
+            )
+        except Exception:
+            learned_style = ""
+
     thread_ctx = "\n\n".join(thread_history) or "No prior messages."
     doc_ctx    = "\n\n".join(related_docs) or "No related documents."
     style_ctx  = style_examples or "No sent mail available for style matching."
@@ -194,7 +246,7 @@ RELATED DOCUMENTS:
 
 STYLE REFERENCE (recent sent emails — match this tone and formality):
 {style_ctx}
-
+{learned_style}
 Write ONE complete, professional email reply. Include:
 - An appropriate greeting
 - A substantive body that addresses all points in the original email
@@ -350,14 +402,20 @@ async def quick_replies(email_id: str, request: Request):
         '{"short":"2-3 sentence reply","detailed":"full paragraph reply","formal":"formal professional reply"}'
     )
     raw = ""
-    async with ai.messages.stream(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=500,
-        system="Output ONLY valid JSON. No markdown, no explanation.",
-        messages=[{"role": "user", "content": prompt}],
-    ) as stream:
-        async for chunk in stream.text_stream:
-            raw += chunk
+    try:
+        async with ai.messages.stream(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=500,
+            system="Output ONLY valid JSON. No markdown, no explanation.",
+            messages=[{"role": "user", "content": prompt}],
+        ) as stream:
+            async for chunk in stream.text_stream:
+                raw += chunk
+    except Exception as e:
+        msg = str(e).lower()
+        if "credit balance" in msg or "billing" in msg or "purchase credits" in msg:
+            raise HTTPException(402, "AI credits exhausted — please top up your Anthropic account at console.anthropic.com")
+        raise HTTPException(503, f"AI service unavailable: {e}")
     raw = raw.strip()
     try:
         start, end = raw.find("{"), raw.rfind("}") + 1
@@ -430,7 +488,7 @@ async def create_calendar_event(email_id: str, req: CreateEventRequest, request:
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(500, str(e))
+        raise HTTPException(500, _safe_err(e, "Calendar event creation"))
 
 @router.post("/bulk-draft")
 async def bulk_draft(request: Request):
@@ -468,7 +526,8 @@ async def bulk_draft(request: Request):
                 draft_text = resp.content[0].text.strip()
             drafts.append({"email_id": email_id, "subject": subject or "", "to": email.sender or "", "draft": draft_text})
         except Exception as e:
-            drafts.append({"email_id": email_id, "subject": subject or "", "to": email.sender or "", "draft": f"Error: {e}"})
+            drafts.append({"email_id": email_id, "subject": subject or "", "to": email.sender or "",
+                           "draft": f"Error: {_safe_err(e, 'Draft generation')}"})
     return {"drafts": drafts}
 
 @router.post("/adjust-tone")
@@ -512,8 +571,32 @@ async def adjust_tone(request: Request):
                 messages=[{"role": "user", "content": prompt}])
             result = resp.content[0].text.strip()
     except Exception as e:
-        raise HTTPException(500, str(e))
+        raise HTTPException(500, _safe_err(e, "Tone adjustment"))
     return {"result": result}
+
+@router.post("/analyze-tone")
+async def analyze_tone(req: AnalyzeToneRequest, request: Request):
+    """Analyze the tone of a draft and detect issues (passive-aggressive, no clear ask, etc.)."""
+    if not req.text.strip():
+        raise HTTPException(400, "text required")
+    advisor = request.app.state.advisor
+    try:
+        return await advisor.analyze_tone(req.text)
+    except Exception as e:
+        raise HTTPException(500, _safe_err(e, "Tone analysis"))
+
+@router.post("/rewrite-options")
+async def rewrite_options(req: RewriteOptionsRequest, request: Request):
+    """Rewrite a draft in one or more requested tones (allowlist-validated)."""
+    if not req.text.strip():
+        raise HTTPException(400, "text required")
+    advisor = request.app.state.advisor
+    tones = [t.value for t in req.tones]
+    try:
+        rewrites = await advisor.batch_rewrite(req.text, tones)
+    except Exception as e:
+        raise HTTPException(500, _safe_err(e, "Rewrite"))
+    return {"rewrites": rewrites}
 
 @router.post("/{email_id}/translate")
 async def translate_email(email_id: str, request: Request):
@@ -564,7 +647,7 @@ async def translate_email(email_id: str, request: Request):
             )
             translation = resp.content[0].text.strip()
     except Exception as exc:
-        raise HTTPException(500, f"Translation failed: {exc}") from exc
+        raise HTTPException(500, _safe_err(exc, "Translation")) from exc
 
     if not translation:
         raise HTTPException(500, "AI returned empty translation — check your API key in Settings")
@@ -639,7 +722,7 @@ Return ONLY valid JSON."""
         s, e = text.find("{"), text.rfind("}") + 1
         data = _json.loads(text[s:e]) if s >= 0 else {}
     except Exception as exc:
-        raise HTTPException(500, f"Analysis failed: {exc}") from exc
+        raise HTTPException(500, _safe_err(exc, "Attachment analysis")) from exc
 
     return {
         "attachments": data.get("attachments", []),
@@ -703,7 +786,7 @@ If a field is not found, use null."""
         s, e = text.find("{"), text.rfind("}") + 1
         data = _json.loads(text[s:e]) if s >= 0 else {}
     except Exception as exc:
-        raise HTTPException(500, str(exc))
+        raise HTTPException(500, _safe_err(exc, "Financial extraction"))
 
     # Add email context
     data["email_id"] = email_id

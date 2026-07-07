@@ -72,6 +72,9 @@ _BUDGET_MODEL = {
     "openai-compatible": "gpt-4o-mini",
 }
 
+# Standard model for all non-budget calls; budget mode overrides to cheap equivalents
+DEFAULT_MODEL = "claude-sonnet-4-6"
+
 # HTTP status codes that trigger fallback to next provider
 _FALLBACK_STATUSES = {401, 429, 500, 503, 529}
 _BILLING_KEYWORDS = ("credit balance", "billing", "upgrade", "purchase credits")

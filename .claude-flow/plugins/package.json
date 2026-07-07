@@ -4,6 +4,8 @@
     "@claude-flow/embeddings": "^3.0.0-alpha.45",
     "@claude-flow/neural": "^3.0.0-alpha.9",
     "@claude-flow/performance": "^3.0.0-alpha.6",
+    "@claude-flow/plugin-agentic-qe": "^3.0.0-alpha.5",
+    "@claude-flow/plugin-code-intelligence": "^3.0.0-alpha.3",
     "@claude-flow/security": "^3.0.0-alpha.9"
   }
 }

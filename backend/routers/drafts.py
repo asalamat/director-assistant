@@ -1,9 +1,196 @@
 import json as _json
+import logging
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from fastapi import APIRouter, Request, HTTPException
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/drafts", tags=["drafts"])
+
+_log = logging.getLogger(__name__)
+
+
+def _safe_err(e: Exception, label: str = "Operation") -> str:
+    """Log the real error server-side; return a generic message for the client."""
+    _log.error("%s failed: %s", label, e, exc_info=True)
+    return f"{label} failed ({type(e).__name__})"
+
+
+def _load_style(cache, account_id: int = 0) -> Optional[dict]:
+    """Return the cached writing-style row for an account, or None."""
+    with cache._conn() as conn:
+        row = conn.execute(
+            "SELECT style_json, sample_count, computed_at FROM writing_style_cache "
+            "WHERE account_id = ? ORDER BY id DESC LIMIT 1",
+            (account_id,),
+        ).fetchone()
+    if not row:
+        return None
+    try:
+        style = _json.loads(row["style_json"])
+    except Exception:
+        style = {}
+    return {
+        "style": style,
+        "sample_count": row["sample_count"],
+        "computed_at": row["computed_at"],
+    }
+
+
+def _fetch_sent_bodies(cache, account_id: int, limit: int) -> list[str]:
+    """Fetch the most recent sent-mail bodies, truncated to 500 chars each."""
+    with cache._conn() as conn:
+        if account_id:
+            rows = conn.execute(
+                "SELECT body FROM emails WHERE LOWER(folder) LIKE '%sent%' "
+                "AND account_id = ? ORDER BY date DESC LIMIT ?",
+                (account_id, limit),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT body FROM emails WHERE LOWER(folder) LIKE '%sent%' "
+                "ORDER BY date DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+    return [(r["body"] or "")[:500] for r in rows if r["body"]]
+
+
+class LearnStyleRequest(BaseModel):
+    account_id: int = 0
+    sample_count: int = 50
+
+
+@router.post("/learn-style")
+async def learn_style(req: LearnStyleRequest, request: Request):
+    """Analyze recent sent mail to build/refresh the user's writing-style profile."""
+    cache = request.app.state.cache
+    advisor = request.app.state.advisor
+
+    account_id = max(0, int(req.account_id or 0))
+    sample_count = max(5, min(int(req.sample_count or 50), 100))
+
+    # Rate limit: reject a re-learn if the last one was under an hour ago.
+    existing = _load_style(cache, account_id)
+    if existing and existing.get("computed_at"):
+        try:
+            last = datetime.fromisoformat(existing["computed_at"].replace("Z", ""))
+            if last.tzinfo is None:
+                last = last.replace(tzinfo=timezone.utc)
+            if datetime.now(timezone.utc) - last < timedelta(hours=1):
+                raise HTTPException(
+                    429,
+                    "Style was learned less than an hour ago — please wait before re-learning.",
+                )
+        except HTTPException:
+            raise
+        except Exception:
+            pass
+
+    sent_bodies = _fetch_sent_bodies(cache, account_id, sample_count)
+    if not sent_bodies:
+        raise HTTPException(400, "No sent emails found to learn from. Send a few emails first.")
+
+    style = await advisor.extract_writing_style(sent_bodies)
+    if not style:
+        raise HTTPException(500, "Could not analyze writing style — check your AI provider in Settings.")
+
+    used = len(sent_bodies)
+    with cache._conn() as conn:
+        conn.execute("DELETE FROM writing_style_cache WHERE account_id = ?", (account_id,))
+        conn.execute(
+            "INSERT INTO writing_style_cache (account_id, style_json, sample_count, computed_at) "
+            "VALUES (?, ?, ?, datetime('now'))",
+            (account_id, _json.dumps(style), used),
+        )
+    return {"style": style, "samples_used": used}
+
+
+@router.get("/style-profile")
+async def style_profile(request: Request, account_id: int = 0):
+    """Return the stored writing-style profile for an account, if any."""
+    cache = request.app.state.cache
+    existing = _load_style(cache, max(0, int(account_id or 0)))
+    if not existing:
+        return {"style": None, "computed_at": None, "sample_count": 0}
+    return {
+        "style": existing["style"],
+        "computed_at": existing["computed_at"],
+        "sample_count": existing["sample_count"],
+    }
+
+
+class VoiceDraftRequest(BaseModel):
+    email_id: str
+    context: Optional[str] = None
+    account_id: int = 0
+
+
+@router.post("/voice-draft")
+async def voice_draft(req: VoiceDraftRequest, request: Request):
+    """Generate a reply draft in the user's learned writing voice."""
+    cache = request.app.state.cache
+    advisor = request.app.state.advisor
+
+    email = cache.get(req.email_id)
+    if not email:
+        raise HTTPException(404, "Email not found")
+
+    profile = _load_style(cache, max(0, int(req.account_id or 0)))
+    style = (profile or {}).get("style") or {}
+    style_applied = bool(style)
+
+    style_block = ""
+    if style:
+        style_block = (
+            "\nWRITE IN THE USER'S OWN VOICE. Match this learned style profile exactly:\n"
+            f"- Formality: {style.get('formality', 'neutral')}\n"
+            f"- Sentence length: {style.get('avg_sentence_length', 'medium')}\n"
+            f"- Greeting style: {style.get('greeting_style', 'a natural greeting')}\n"
+            f"- Closing style: {style.get('closing_style', 'a natural sign-off')}\n"
+            f"- Signature name: {style.get('signature_name') or 'omit if unknown'}\n"
+            f"- Punctuation habits: {style.get('punctuation', 'standard')}\n"
+            f"- Emoji usage: {style.get('emoji_usage', 'none')}\n"
+            f"- Vocabulary: {style.get('vocabulary', 'moderate')}\n"
+            f"- Overall tone: {style.get('tone', 'professional')}\n"
+        )
+
+    extra_ctx = f"\nADDITIONAL INSTRUCTIONS FROM THE USER:\n{req.context[:500]}\n" if req.context else ""
+
+    prompt = f"""You are ghostwriting a complete email reply on behalf of the recipient.
+
+ORIGINAL EMAIL:
+From: {email.sender}
+Subject: {email.subject}
+Date: {email.date}
+
+{(email.body or '')[:3000]}
+{style_block}{extra_ctx}
+Write ONE complete email reply that addresses all points in the original email.
+Include an appropriate greeting and a natural sign-off.
+Return ONLY the email body text — no subject line, no JSON, no markdown."""
+
+    ant = getattr(advisor.ai, "_anthropic", None)
+    model = "claude-haiku-4-5-20251001" if advisor.ai._budget_mode else "claude-sonnet-4-6"
+    try:
+        if ant:
+            resp = await ant.messages.create(
+                model=model, max_tokens=1200,
+                messages=[{"role": "user", "content": prompt}],
+            )
+        else:
+            resp = await advisor.ai.messages.create(
+                model=model, max_tokens=1200,
+                messages=[{"role": "user", "content": prompt}],
+            )
+        draft = resp.content[0].text.strip()
+    except Exception as e:
+        raise HTTPException(500, _safe_err(e, "Voice draft generation"))
+
+    subject = email.subject or ""
+    if not subject.lower().startswith("re:"):
+        subject = f"Re: {subject}"
+
+    return {"draft": draft, "subject": subject, "to": email.sender, "style_applied": style_applied}
 
 
 class DraftRequest(BaseModel):
@@ -44,7 +231,7 @@ async def save_draft(req: DraftRequest, request: Request):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(500, str(e))
+        raise HTTPException(500, _safe_err(e, "Draft save"))
 
 
 class ReviewRequest(BaseModel):
@@ -112,7 +299,7 @@ ready = true when tone_label is "good" and unanswered_questions is empty."""
             )
             text = resp.content[0].text.strip()
     except Exception as e:
-        raise HTTPException(500, str(e))
+        raise HTTPException(500, _safe_err(e, "Draft review"))
 
     s, e = text.find("{"), text.rfind("}") + 1
     try:

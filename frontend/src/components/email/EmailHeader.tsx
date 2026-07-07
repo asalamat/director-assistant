@@ -4,13 +4,14 @@ import { ContactCard } from '../ContactCard'
 import { Button } from '../ui'
 import { api } from '../../api/client'
 import { EmailNotifyButton } from '../EmailNotifyButton'
+import { SnoozePanel } from '../SnoozePanel'
 
 export interface EmailHeaderProps {
   email: EmailMessage
   analyzing: boolean
   onAnalyze: () => void
   onDelete: (id: string) => void
-  onSnooze?: (id: string, date: string) => void
+  onSnooze?: (id: string, wakeDate?: string, setAside?: boolean) => void
   onAsk?: () => void
   onSearch?: (q: string) => void
   onReplyClick: () => void
@@ -35,7 +36,6 @@ export function EmailHeader({
 }: EmailHeaderProps) {
   const [deleting, setDeleting] = useState(false)
   const [showSnooze, setShowSnooze] = useState(false)
-  const [snoozeDate, setSnoozeDate] = useState('')
   const [showContact, setShowContact] = useState(false)
   const [showRemind, setShowRemind] = useState(false)
   const [remindDays, setRemindDays] = useState<number | null>(null)
@@ -63,7 +63,6 @@ export function EmailHeader({
 
   useEffect(() => {
     setShowSnooze(false)
-    setSnoozeDate('')
     setShowContact(false)
     setShowRemind(false)
     setRemindDays(null)
@@ -91,10 +90,6 @@ export function EmailHeader({
       .catch(() => setUnsubUrl(null))
   }, [email.id])
 
-  const tomorrow = new Date()
-  tomorrow.setDate(tomorrow.getDate() + 1)
-  const tomorrowStr = tomorrow.toISOString().slice(0, 10)
-
   const handleRemindMe = async (days: number) => {
     setRemindDays(days)
     const d = new Date()
@@ -117,7 +112,13 @@ export function EmailHeader({
     try {
       const res = await api.unsubscribe(email.id)
       if (res.method === 'url' && res.url) {
-        window.open(res.url, '_blank', 'noreferrer,noopener')
+        const safeUrl = /^https?:\/\//i.test(res.url) ? res.url : null
+        if (safeUrl) {
+          window.open(safeUrl, '_blank', 'noreferrer,noopener')
+        } else {
+          setUnsubMsg('Blocked unsafe unsubscribe link')
+          setTimeout(() => setUnsubMsg(''), 3000)
+        }
       } else if (res.method === 'mailto' && res.sent) {
         setUnsubMsg('Unsubscribe email sent')
         setTimeout(() => setUnsubMsg(''), 3000)
@@ -133,11 +134,9 @@ export function EmailHeader({
     }
   }
 
-  const handleSnoozeConfirm = () => {
-    if (!snoozeDate) return
-    onSnooze?.(email.id, snoozeDate)
+  const handleSnoozeChoice = (wakeDate?: string, setAside?: boolean) => {
+    onSnooze?.(email.id, wakeDate, setAside)
     setShowSnooze(false)
-    setSnoozeDate('')
   }
 
   const handleDelete = async () => {
@@ -188,8 +187,6 @@ export function EmailHeader({
       <div className="flex items-center gap-1 flex-wrap mb-2">
         <div className="flex items-center gap-1 flex-shrink-0">
           {/* Primary actions */}
-          <Button variant="secondary" size="sm" onClick={onReplyClick}>↩ Reply</Button>
-          <Button variant="secondary" size="sm" onClick={onForwardClick}>↪ Fwd</Button>
           <Button variant="primary" size="sm" loading={analyzing} onClick={onAnalyze}>
             {analyzing ? '…' : '✦ AI'}
           </Button>
@@ -225,10 +222,10 @@ export function EmailHeader({
             </button>
           </div>
           {onSnooze && (
-            <>
+            <div className="relative">
               <button
                 onClick={() => setShowSnooze(s => !s)}
-                title="Snooze this email"
+                title="Snooze or set aside this email"
                 className="flex items-center gap-1 text-xs text-gray-500 hover:text-amber-600 px-2 py-1.5 rounded-lg hover:bg-amber-50 transition-colors"
               >
                 <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
@@ -237,25 +234,9 @@ export function EmailHeader({
                 <span>Snooze</span>
               </button>
               {showSnooze && (
-                <div className="flex items-center gap-1">
-                  <input
-                    type="date"
-                    value={snoozeDate}
-                    min={tomorrowStr}
-                    onChange={e => setSnoozeDate(e.target.value)}
-                    className="text-xs border border-gray-200 rounded px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-accent"
-                  />
-                  <button
-                    onClick={handleSnoozeConfirm}
-                    disabled={!snoozeDate}
-                    className="text-xs bg-amber-500 text-white px-2 py-1 rounded hover:bg-amber-600 disabled:opacity-50"
-                  >
-                    OK
-                  </button>
-                  <button onClick={() => setShowSnooze(false)} className="text-xs text-gray-400 hover:text-gray-600">✕</button>
-                </div>
+                <SnoozePanel onSnooze={handleSnoozeChoice} onClose={() => setShowSnooze(false)} />
               )}
-            </>
+            </div>
           )}
 
           {/* Remind me */}
@@ -372,7 +353,7 @@ export function EmailHeader({
         </div>
       </div>
 
-      {/* Subject — own line so it never wraps against the toolbar */}
+      {/* Subject */}
       <h2 className="text-base font-semibold text-gray-900 leading-snug mt-1 mb-2">{email.subject || '(no subject)'}</h2>
 
       {/* From / To / Date */}

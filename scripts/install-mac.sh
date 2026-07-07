@@ -97,7 +97,6 @@ $PYTHON -m venv .venv
 source .venv/bin/activate
 pip install -q --upgrade pip
 pip install -q -r requirements.txt
-pip install -q rumps
 success "Python dependencies installed"
 
 # ── 5. Build frontend ─────────────────────────────────────────
