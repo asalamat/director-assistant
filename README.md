@@ -47,6 +47,13 @@ Everything runs **locally on your machine**. Your emails never leave your device
 - **"New" badge** — emails received in the last 4 hours show a green pill for instant visibility
 - **Auto-poll** — new emails checked every 60 seconds in the background
 
+### Email Autopilot
+- **Per-sender AI rules** — go to **Settings → 🤖 Email Autopilot** to define senders whose emails trigger automatic AI replies; choose **Draft** (saves to Overnight for review) or **Auto Reply** (sends immediately via SMTP)
+- **Your Name** — set your name in the Autopilot settings card so the AI signs replies correctly and refers to you by name
+- **Full thread context** — the AI reads the entire email thread before composing, using your email history and documents as knowledge base
+- **Retry on failure** — if AI is temporarily unavailable (credits exhausted, connection error), the email is queued and retried automatically on the next poll cycle
+- **Activity log** — the Autopilot Settings page shows a live log of every draft saved, reply sent, or failure (⚠️ AI Failed — Check API Credits)
+
 ### AI Reply & Drafting
 - **Smart Draft Composer** — one click writes a complete, ready-to-send reply using the full thread history, related documents, and your own sent-mail writing style as a reference
 - **Quick Replies** — generates Short, Detailed, and Formal reply options; click any to pre-fill the compose window

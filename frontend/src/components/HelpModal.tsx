@@ -357,6 +357,18 @@ function AISection() {
         <Li>Click <strong>▶ Run now</strong> to trigger immediately for testing</Li>
       </UL>
 
+      <H3>Email Autopilot <Tag color="green">New</Tag></H3>
+      <P>Automatically draft or send AI replies for specific senders the moment their email arrives — without any manual step.</P>
+      <UL>
+        <Li>Go to <strong>Settings → 🤖 Email Autopilot</strong> and click <strong>Add Rule</strong></Li>
+        <Li>Enter the sender's email address and choose <strong>Draft</strong> (saves to Overnight for review) or <strong>Auto Reply</strong> (sends immediately)</Li>
+        <Li>Add a custom <strong>Prompt Hint</strong> to shape the reply style (e.g. "Be brief and professional")</Li>
+        <Li>Set <strong>Your Name</strong> in the blue card at the top so the AI signs and refers to you correctly</Li>
+        <Li>The AI reads the entire email thread and searches your knowledge base before composing</Li>
+        <Li>If the AI is temporarily unavailable (credits exhausted), the email is queued and retried automatically on the next poll — no manual re-trigger needed</Li>
+      </UL>
+      <Tip>The <strong>Activity Log</strong> at the bottom of the Autopilot page shows every draft saved, reply sent, and failure (⚠️ AI Failed — Check API Credits in red).</Tip>
+
       <H3>Ask AI Export</H3>
       <P>After any AI answer in the <strong>Ask</strong> tab, use the buttons below the response to <strong>Copy</strong> the text to your clipboard or <strong>↓ .md</strong> to download it as a Markdown file — useful for pasting into Notion, Confluence, or any document editor.</P>
 
