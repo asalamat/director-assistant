@@ -29,6 +29,7 @@ import type {
   LinkedInVoiceProfile,
   CRMDeal,
   CRMDealEmail,
+  DbStats,
 } from '../types'
 
 const BASE = '/api'
@@ -343,6 +344,16 @@ export const api = {
   },
   updateConfig(data: { translation_language?: string; [key: string]: unknown }): Promise<unknown> {
     return request('/config', { method: 'POST', body: JSON.stringify(data) })
+  },
+  // DB maintenance
+  getDbStats(): Promise<DbStats> {
+    return request('/db/stats')
+  },
+  optimizeDb(): Promise<{ status: string; duration_ms: number; last_vacuum: string; db_size_mb: number }> {
+    return request('/db/optimize', { method: 'POST' })
+  },
+  applyRetention(): Promise<{ status: string; deleted: number; cutoff?: string }> {
+    return request('/db/retention', { method: 'DELETE' })
   },
   saveConfig(data: { anthropic_api_key?: string; openai_api_key?: string; ms_client_id?: string; google_client_id?: string; google_client_secret?: string; poll_interval_seconds?: number; budget_mode?: boolean; sync_window_days?: number; digest_schedule_enabled?: boolean; digest_schedule_time?: string; digest_schedule_email?: string; translation_language?: string }): Promise<{ status: string; has_api_key: boolean; has_openai_key: boolean }> {
     return request('/config', { method: 'POST', body: JSON.stringify(data) })

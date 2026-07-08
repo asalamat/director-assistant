@@ -44,6 +44,7 @@ from routers import proactive as proactive_router
 from routers import scheduled_send as scheduled_send_router
 from routers import pst_import as pst_import_router
 from routers import weekly_brief as weekly_brief_router
+from routers import db_maintenance as db_maintenance_router
 from routers import vip as vip_router
 from routers import projects as projects_router
 from routers import contacts as contacts_router
@@ -545,6 +546,36 @@ async def _digest_scheduler(app: FastAPI):
             print(f"[digest-scheduler] error: {e}")
 
 
+async def _db_maintenance_loop(app: FastAPI):
+    """Run VACUUM + ANALYZE weekly (Sunday 03:00 local)."""
+    from datetime import datetime as _dt
+    import sqlite3
+    from routers.config import load_app_config, save_app_config
+    await asyncio.sleep(60)
+    while True:
+        await asyncio.sleep(300)  # check every 5 min
+        try:
+            now = _dt.now()
+            if now.weekday() != 6 or now.strftime("%H:%M") != "03:00":  # 6 = Sunday
+                continue
+            cfg = load_app_config()
+            today_str = now.strftime("%Y-%m-%d")
+            if cfg.get("db_maintenance_last_run") == today_str:
+                continue
+            path = app.state.cache.db_path
+            conn = sqlite3.connect(path, timeout=60, isolation_level=None)
+            try:
+                conn.execute("VACUUM"); conn.execute("ANALYZE")
+            finally:
+                conn.close()
+            cfg["db_last_vacuum"] = _dt.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            cfg["db_maintenance_last_run"] = today_str
+            save_app_config(cfg)
+            print("[db-maintenance] weekly VACUUM+ANALYZE complete")
+        except Exception as e:
+            print(f"[db-maintenance] error: {e}")
+
+
 async def _poll_new_emails(rag: RAGEngine, cache: EmailCache, app=None):
     """Background loop: poll on a configurable interval, read from config each cycle."""
     global _last_poll_error
@@ -618,6 +649,7 @@ async def lifespan(app: FastAPI):
         _poll_new_emails(app.state.rag, app.state.cache, app)
     )
     app.state.digest_task = asyncio.create_task(_digest_scheduler(app))
+    app.state.db_maintenance_task = asyncio.create_task(_db_maintenance_loop(app))
     app.state.morning_brief_task = asyncio.create_task(_daily_brief_scheduler(app))
     app.state.commitment_task = asyncio.create_task(_commitment_scan_loop(app))
     app.state.relationship_task = asyncio.create_task(_relationship_health_loop(app))
@@ -637,7 +669,7 @@ async def lifespan(app: FastAPI):
                       "scheduled_send_task", "auto_label_task", "report_task", "overnight_task",
                       "rules_task", "followup_reminder_task", "daily_focus_task",
                       "linkedin_scheduler_task", "linkedin_autopilot_task",
-                      "instagram_autopilot_task"):
+                      "instagram_autopilot_task", "db_maintenance_task"):
         task = getattr(app.state, task_name, None)
         if task:
             task.cancel()
@@ -708,6 +740,7 @@ app.include_router(proactive_router.router)
 app.include_router(scheduled_send_router.router)
 app.include_router(pst_import_router.router)
 app.include_router(weekly_brief_router.router)
+app.include_router(db_maintenance_router.router)
 app.include_router(vip_router.router)
 app.include_router(contacts_router.router)
 app.include_router(projects_router.router)

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { api } from '../api/client'
-import type { EmailProvider, Account, IngestProgress } from '../types'
+import type { EmailProvider, Account, IngestProgress, DbStats } from '../types'
 import { ConfigPanel } from './ConfigPanel'
 import { FolderPicker } from './FolderPicker'
 import { WebhooksSettings } from './WebhooksSettings'
@@ -188,6 +188,10 @@ export function Settings({ onConnected, initialTab }: Props) {
   const [clearFromDate, setClearFromDate] = useState('')
   const [updateStatus, setUpdateStatus] = useState<{ checking?: boolean; msg?: string; available?: boolean; latest?: string }>({})
   const [ragStats, setRagStats] = useState<{ count: number; collection_size_mb: number; last_indexed: string; embedding_model: string; status: string } | null>(null)
+  const [dbStats, setDbStats] = useState<DbStats | null>(null)
+  const [dbBusy, setDbBusy] = useState<'optimize' | 'retention' | 'save' | null>(null)
+  const [dbMsg, setDbMsg] = useState('')
+  const [retentionInput, setRetentionInput] = useState('0')
 
   const loadAccounts = async () => {
     try { setAccounts(await api.getAccounts()) } catch { setAccounts([]) }
@@ -202,6 +206,7 @@ export function Settings({ onConnected, initialTab }: Props) {
   useEffect(() => {
     if (section === 'data') {
       api.getRagStats().then(setRagStats).catch(() => {})
+      api.getDbStats().then(s => { setDbStats(s); setRetentionInput(String(s.retention_days)) }).catch(() => {})
     }
   }, [section])
 
@@ -1378,6 +1383,121 @@ function WritingStyleSection() {
         <p className="text-blue-500 pt-1">
           Tip: the AI also learns from your sent emails automatically — go to Intelligence → Smart Draft to run the style analysis.
         </p>
+      </div>
+    </div>
+  )
+}
+
+function DbHealthTile() {
+  const [stats, setStats] = useState<import('../types').DbStats | null>(null)
+  const [optimizing, setOptimizing] = useState(false)
+  const [optResult, setOptResult] = useState<string>('')
+  const [retention, setRetention] = useState(0)
+  const [retSaving, setRetSaving] = useState(false)
+  const [retMsg, setRetMsg] = useState('')
+
+  const loadStats = () => {
+    api.getDbStats().then(s => { setStats(s); setRetention(s.retention_days || 0) }).catch(() => {})
+  }
+  useEffect(loadStats, [])
+
+  const optimize = async () => {
+    setOptimizing(true); setOptResult('')
+    try {
+      const r = await api.optimizeDb()
+      setOptResult(`Done in ${r.duration_ms}ms`)
+      loadStats()
+    } catch (e: any) { setOptResult('Failed: ' + e.message) }
+    finally { setOptimizing(false) }
+  }
+
+  const saveRetention = async () => {
+    setRetSaving(true); setRetMsg('')
+    try {
+      await api.updateConfig({ db_retention_days: retention })
+      setRetMsg('Saved')
+      setTimeout(() => setRetMsg(''), 2000)
+    } catch { setRetMsg('Error') }
+    finally { setRetSaving(false) }
+  }
+
+  const applyRetention = async () => {
+    if (!retention || retention < 7) { setRetMsg('Min 7 days'); return }
+    if (!confirm(`Delete emails older than ${retention} days from non-VIP senders?`)) return
+    setRetSaving(true)
+    try {
+      await api.updateConfig({ db_retention_days: retention })
+      const r = await api.applyRetention()
+      setRetMsg(`Deleted ${r.deleted} emails`)
+      loadStats()
+    } catch { setRetMsg('Error') }
+    finally { setRetSaving(false) }
+  }
+
+  return (
+    <div className="rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="px-5 py-3.5 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-accent">🗄️</span>
+          <p className="text-sm font-semibold text-gray-800">Database Health</p>
+        </div>
+        <button onClick={loadStats} className="text-xs text-gray-400 hover:text-gray-600">↺ Refresh</button>
+      </div>
+      <div className="p-5 space-y-4">
+        {stats ? (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {[
+              { label: 'DB Size', value: `${stats.db_size_mb} MB` },
+              { label: 'Emails', value: stats.email_count.toLocaleString() },
+              { label: 'VIP Contacts', value: stats.vip_count },
+              { label: 'Tables', value: stats.total_tables },
+            ].map(({ label, value }) => (
+              <div key={label} className="bg-gray-50 rounded-xl px-4 py-3 text-center">
+                <p className="text-[11px] text-gray-400 uppercase tracking-wide">{label}</p>
+                <p className="text-sm font-bold text-gray-800 mt-0.5">{value}</p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-gray-400">Loading stats…</p>
+        )}
+
+        {stats?.last_vacuum && (
+          <p className="text-xs text-gray-400">Last optimized: {stats.last_vacuum}</p>
+        )}
+
+        <div className="flex items-center gap-3">
+          <button
+            onClick={optimize}
+            disabled={optimizing}
+            className={BTN_PRIMARY}
+          >
+            {optimizing ? 'Optimizing…' : '⚡ Optimize Now'}
+          </button>
+          {optResult && <span className="text-xs text-green-600 font-medium">{optResult}</span>}
+        </div>
+
+        <div className="border-t border-gray-100 pt-4 space-y-2">
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Email Retention</p>
+          <p className="text-xs text-gray-400">Auto-delete emails from non-VIP senders older than N days (0 = keep all).</p>
+          <div className="flex items-center gap-3">
+            <input
+              type="number"
+              min={0}
+              max={3650}
+              value={retention}
+              onChange={e => setRetention(Number(e.target.value))}
+              placeholder="0 = keep all"
+              className={INPUT_CLS + ' w-32'}
+            />
+            <span className="text-xs text-gray-400">days</span>
+            <button onClick={saveRetention} disabled={retSaving} className={BTN_SECONDARY}>Save</button>
+            {retention >= 7 && (
+              <button onClick={applyRetention} disabled={retSaving} className={BTN_DESTRUCTIVE}>Apply Now</button>
+            )}
+          </div>
+          {retMsg && <p className={`text-xs font-medium ${retMsg.startsWith('Del') ? 'text-green-600' : retMsg === 'Saved' ? 'text-green-600' : 'text-red-500'}`}>{retMsg}</p>}
+        </div>
       </div>
     </div>
   )

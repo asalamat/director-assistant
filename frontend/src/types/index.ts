@@ -505,3 +505,12 @@ export interface ContactHealthResponse {
   contacts: ContactHealth[]
   summary: { total: number; healthy: number; good: number; fading: number; at_risk: number; cold: number }
 }
+
+export interface DbStats {
+  db_size_mb: number
+  email_count: number
+  vip_count: number
+  total_tables: number
+  last_vacuum: string | null
+  retention_days: number
+}
