@@ -556,7 +556,7 @@ async def _db_maintenance_loop(app: FastAPI):
         await asyncio.sleep(300)  # check every 5 min
         try:
             now = _dt.now()
-            if now.weekday() != 6 or now.strftime("%H:%M") != "03:00":  # 6 = Sunday
+            if now.weekday() != 6 or now.hour != 3:  # Sunday 3am — whole hour, dedup prevents double-run
                 continue
             cfg = load_app_config()
             today_str = now.strftime("%Y-%m-%d")
