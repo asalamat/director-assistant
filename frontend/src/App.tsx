@@ -139,6 +139,8 @@ export default function App() {
   const [accounts, setAccounts] = useState<{ id: number; username: string; provider: string }[]>([])
   const [refreshing, setRefreshing] = useState(false)
   const [refreshMsg, setRefreshMsg] = useState('')
+  const [autopilotActive, setAutopilotActive] = useState(false)
+  const [autopilotPing, setAutopilotPing] = useState(false)
   const [importPrompt, setImportPrompt] = useState(false)
   const [importSubject, setImportSubject] = useState('')
   const [importing, setImporting] = useState(false)
@@ -273,6 +275,16 @@ export default function App() {
     return () => { clearTimeout(init); clearInterval(id) }
   }, [])
 
+  // Autopilot: check for active rules on mount and every 2 min
+  useEffect(() => {
+    const check = () => api.getAutopilotRules().then(r => {
+      setAutopilotActive(r.rules.some(rule => rule.mode !== 'off'))
+    }).catch(() => {})
+    check()
+    const id = setInterval(check, 120000)
+    return () => clearInterval(id)
+  }, [])
+
   // Feature 3: keyboard shortcuts (j/k navigate, a analyze, Esc deselect)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -400,6 +412,10 @@ export default function App() {
       await loadFolderData()
       const msg = newCount > 0 ? `+${newCount} new email${newCount !== 1 ? 's' : ''}` : 'Up to date'
       setRefreshMsg(msg)
+      if (newCount > 0 && autopilotActive) {
+        setAutopilotPing(true)
+        setTimeout(() => setAutopilotPing(false), 4000)
+      }
       if (newCount > 0) {
         // Try to enrich the notification with a one-line AI summary of the latest email
         let richNotifSent = false
@@ -507,6 +523,19 @@ export default function App() {
             </button>
           )}
           {refreshMsg && <span className="text-xs text-gray-400 animate-fade-in">{refreshMsg}</span>}
+          {autopilotActive && (
+            <button
+              onClick={() => { setShowSettings(true) }}
+              title="Email Autopilot is active — click to manage rules"
+              className="relative flex items-center gap-1 text-xs text-gray-500 hover:text-blue-600 px-1.5 py-0.5 rounded-lg hover:bg-blue-50 transition-colors"
+            >
+              <span className="text-sm">🤖</span>
+              <span className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ${autopilotPing ? 'bg-green-400 animate-ping' : 'bg-green-400'}`} />
+              {autopilotPing && (
+                <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-green-400" />
+              )}
+            </button>
+          )}
         </div>
 
         <div className="flex items-center gap-1">
