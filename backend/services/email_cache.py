@@ -95,20 +95,12 @@ class EmailCache(EmailExtrasMixin, DocumentCacheMixin):
                            COALESCE(old.subject,''), COALESCE(old.sender,''), COALESCE(old.body,''));
                 END
             """)
-            # Rebuild FTS5 index if corrupt (missing rows, bad trigger, etc.)
-            fts_ok = False
+            # Rebuild FTS5 unconditionally — keeps the content-table index sync'd
+            # with the emails table even after deletes that bypass the trigger.
             try:
-                # Use integrity-check to detect missing-row corruption
-                result = conn.execute("INSERT INTO emails_fts(emails_fts) VALUES('integrity-check')").fetchone()
-                fts_ok = True
+                conn.execute("INSERT INTO emails_fts(emails_fts) VALUES('rebuild')")
             except Exception:
                 pass
-            if not fts_ok:
-                try:
-                    conn.execute("INSERT INTO emails_fts(emails_fts) VALUES('rebuild')")
-                    print("[db] FTS5 index rebuilt due to corruption")
-                except Exception:
-                    pass
             conn.execute("CREATE INDEX IF NOT EXISTS idx_folder_date         ON emails(folder, date DESC)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_account_date         ON emails(account_id, date DESC)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_account_folder_date  ON emails(account_id, folder, date DESC)")
