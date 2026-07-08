@@ -1,21 +1,21 @@
 {
-  "id": "session-1783380778932",
-  "startedAt": "2026-07-06T23:32:58.932Z",
+  "id": "session-1783460767418",
+  "startedAt": "2026-07-07T21:46:07.418Z",
   "cwd": "/Users/alisalamat/director-assistant",
   "context": {
     "lastMatchedPatterns": [
-      "insight-1783288696944-83gz",
-      "insight-1783288696944-oze7",
-      "mem-build_deploy-build---install--current-proce-2",
-      "insight-1783288696944-640q",
-      "insight-1783288696944-cu3y"
+      "mem-build_deploy-4--if-launchagent-fails--i-o-e-12",
+      "mem-session_2026_06_07d-----0",
+      "mem-session_2026_06_05c-----0",
+      "mem-session_2026_06_14b-----0",
+      "insight-1783380689800-w62l"
     ]
   },
   "metrics": {
-    "edits": 21,
+    "edits": 10,
     "commands": 0,
     "tasks": 0,
     "errors": 0
   },
-  "updatedAt": "2026-07-07T20:33:05.897Z"
+  "updatedAt": "2026-07-08T15:07:58.693Z"
 }

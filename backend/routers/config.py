@@ -88,6 +88,8 @@ class AppConfigUpdate(BaseModel):
     # Daily News feed
     news_enabled: Optional[bool] = None
     news_topics: Optional[list] = None         # list of topic strings
+    # Writing style / persona
+    email_persona: Optional[str] = None        # free-text description injected into all AI drafts
 
 
 @router.get("")
@@ -139,6 +141,7 @@ async def get_config():
         "weather_unit": cfg.get("weather_unit", "C"),
         "news_enabled": cfg.get("news_enabled", False),
         "news_topics": cfg.get("news_topics", []),
+        "email_persona": cfg.get("email_persona", ""),
     }
 
 
@@ -209,6 +212,8 @@ async def update_config(update: AppConfigUpdate, request: Request):
         cfg["news_enabled"] = update.news_enabled
     if update.news_topics is not None:
         cfg["news_topics"] = [t.strip() for t in update.news_topics if isinstance(t, str) and t.strip()][:10]
+    if update.email_persona is not None:
+        cfg["email_persona"] = update.email_persona[:2000]
 
     if update.report_email_schedule is not None:
         import re as _re

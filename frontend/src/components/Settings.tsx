@@ -13,7 +13,7 @@ import { EmailRulesPanel } from './EmailRulesPanel'
 import { AddAccountForm } from './AddAccountForm'
 import { VoiceDraftPanel } from './VoiceDraftPanel'
 
-type Section = 'accounts' | 'documents' | 'app' | 'rules' | 'integrations' | 'data'
+type Section = 'accounts' | 'documents' | 'app' | 'rules' | 'integrations' | 'data' | 'style'
 
 const PROVIDER_COLORS: Record<EmailProvider, string> = {
   yahoo_imap:   'bg-purple-100 text-purple-700',
@@ -130,7 +130,8 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Automation',
     items: [
-      { id: 'rules', icon: <IconShield />, label: 'Rules & Filters' },
+      { id: 'rules',  icon: <IconShield />, label: 'Rules & Filters' },
+      { id: 'style',  icon: <span>✍️</span>, label: 'Writing Style' },
     ],
   },
   {
@@ -458,6 +459,9 @@ export function Settings({ onConnected, initialTab }: Props) {
               <EmailRulesPanel />
             </div>
           )}
+
+          {/* Writing Style */}
+          {section === 'style' && <WritingStyleSection />}
 
           {/* Integrations */}
           {section === 'integrations' && (
@@ -1223,6 +1227,108 @@ function TriageRulesPanel() {
           </li>
         ))}
       </ul>
+    </div>
+  )
+}
+
+const TONE_PRESETS = [
+  { label: 'Professional', value: 'I communicate in a clear, professional tone. I am concise and direct, avoid jargon, and always maintain a respectful, confident voice.' },
+  { label: 'Warm & Friendly', value: 'My tone is warm, approachable, and friendly. I like to build personal connections in my emails, use a conversational style, and often add a personal touch.' },
+  { label: 'Executive', value: 'I am an executive. My emails are brief, decisive, and action-oriented. I lead with the key point, expect action, and avoid unnecessary explanation.' },
+  { label: 'Collaborative', value: 'I prefer a collaborative tone — inclusive language, asking questions, inviting feedback, and framing decisions as team efforts.' },
+  { label: 'Formal', value: 'My communication style is formal and structured. I use complete sentences, avoid contractions, and maintain a polished, business-formal register.' },
+]
+
+function WritingStyleSection() {
+  const [persona, setPersona] = useState('')
+  const [saved, setSaved] = useState(false)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    api.getConfig().then(cfg => {
+      setPersona(cfg.email_persona || '')
+      setLoading(false)
+    }).catch(() => setLoading(false))
+  }, [])
+
+  const save = async () => {
+    await api.updateConfig({ email_persona: persona })
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2500)
+  }
+
+  const applyPreset = (value: string) => {
+    setPersona(value)
+    setSaved(false)
+  }
+
+  if (loading) return <div className="p-8 text-sm text-gray-400">Loading…</div>
+
+  return (
+    <div className="space-y-6">
+      <SectionHeader
+        title="Writing Style"
+        desc="Describe your communication style in plain language. The AI will use this whenever it drafts or replies on your behalf."
+        icon={<span>✍️</span>}
+      />
+
+      {/* Tone presets */}
+      <div>
+        <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Quick presets</p>
+        <div className="flex flex-wrap gap-2">
+          {TONE_PRESETS.map(p => (
+            <button
+              key={p.label}
+              onClick={() => applyPreset(p.value)}
+              className="px-3 py-1.5 rounded-full border border-gray-200 text-xs font-medium text-gray-600 hover:border-accent hover:text-accent transition-colors bg-white"
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Custom description */}
+      <div>
+        <label className="text-xs font-bold text-gray-500 uppercase tracking-widest block mb-2">
+          Your persona &amp; tone description
+        </label>
+        <textarea
+          rows={7}
+          value={persona}
+          onChange={e => { setPersona(e.target.value); setSaved(false) }}
+          placeholder={`Describe yourself and how you communicate.\n\nExamples:\n• "I'm a director at a consulting firm. My tone is professional but approachable. I'm concise, avoid fluff, and sign off with my first name only."\n• "I prefer a warm, collaborative tone. I like to acknowledge the other person's perspective before making my point."`}
+          className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors placeholder-gray-300"
+        />
+        <p className="text-[11px] text-gray-400 mt-1">
+          This text is prepended to every AI-generated draft and reply. Keep it under 300 words for best results.
+        </p>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <button onClick={save} className={BTN_PRIMARY}>
+          Save
+        </button>
+        {saved && <span className="text-xs text-green-600 font-medium">✓ Saved</span>}
+        {persona && (
+          <button onClick={() => { setPersona(''); setSaved(false) }} className={BTN_SECONDARY}>
+            Clear
+          </button>
+        )}
+      </div>
+
+      {/* Info box */}
+      <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4 text-xs text-blue-700 space-y-1">
+        <p className="font-semibold">Where this applies</p>
+        <ul className="list-disc pl-4 space-y-0.5 text-blue-600">
+          <li>Smart Draft (single email reply)</li>
+          <li>Bulk Draft (multiple emails at once)</li>
+          <li>Voice Draft (AI voice-matched reply)</li>
+        </ul>
+        <p className="text-blue-500 pt-1">
+          Tip: the AI also learns from your sent emails automatically — go to Intelligence → Smart Draft to run the style analysis.
+        </p>
+      </div>
     </div>
   )
 }

@@ -229,6 +229,12 @@ async def smart_draft(email_id: str, request: Request):
     doc_ctx    = "\n\n".join(related_docs) or "No related documents."
     style_ctx  = style_examples or "No sent mail available for style matching."
 
+    # Manual persona description from Settings
+    from routers.config import load_app_config as _load_cfg
+    _cfg = _load_cfg()
+    persona_desc = (_cfg.get("email_persona") or "").strip()
+    persona_block = f"\nUSER PERSONA & TONE:\n{persona_desc}\n" if persona_desc else ""
+
     prompt = f"""You are ghostwriting a complete email reply on behalf of the recipient.
 
 ORIGINAL EMAIL:
@@ -246,7 +252,7 @@ RELATED DOCUMENTS:
 
 STYLE REFERENCE (recent sent emails — match this tone and formality):
 {style_ctx}
-{learned_style}
+{persona_block}{learned_style}
 Write ONE complete, professional email reply. Include:
 - An appropriate greeting
 - A substantive body that addresses all points in the original email
@@ -505,6 +511,9 @@ async def bulk_draft(request: Request):
     cache: EmailCache = request.app.state.cache
     advisor = request.app.state.advisor
     ant = getattr(advisor.ai, "_anthropic", None)
+    from routers.config import load_app_config as _load_cfg
+    _persona = (_load_cfg().get("email_persona") or "").strip()
+    _persona_line = f"\nUSER PERSONA & TONE:\n{_persona}\n" if _persona else ""
     drafts = []
     for email_id in email_ids:
         email = cache.get(email_id)
@@ -513,7 +522,7 @@ async def bulk_draft(request: Request):
         body = (email.body or "")[:1500]
         subject = f"Re: {email.subject}" if not (email.subject or "").lower().startswith("re:") else email.subject
         prompt = (f"Write a brief professional reply to this email.\n"
-                  f"From: {email.sender}\nSubject: {email.subject}\n\n{body}\n\n"
+                  f"From: {email.sender}\nSubject: {email.subject}\n{_persona_line}\n{body}\n\n"
                   "Return ONLY the email body text, no subject line.")
         try:
             if ant:

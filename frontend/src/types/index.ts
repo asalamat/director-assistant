@@ -240,6 +240,7 @@ export interface AppConfig {
   weather_unit?: string
   news_enabled?: boolean
   news_topics?: string[]
+  email_persona?: string
 }
 
 export interface NewsArticle {

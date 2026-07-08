@@ -156,6 +156,10 @@ async def voice_draft(req: VoiceDraftRequest, request: Request):
 
     extra_ctx = f"\nADDITIONAL INSTRUCTIONS FROM THE USER:\n{req.context[:500]}\n" if req.context else ""
 
+    from routers.config import load_app_config as _load_cfg
+    _persona = (_load_cfg().get("email_persona") or "").strip()
+    persona_block = f"\nUSER PERSONA & TONE:\n{_persona}\n" if _persona else ""
+
     prompt = f"""You are ghostwriting a complete email reply on behalf of the recipient.
 
 ORIGINAL EMAIL:
@@ -164,7 +168,7 @@ Subject: {email.subject}
 Date: {email.date}
 
 {(email.body or '')[:3000]}
-{style_block}{extra_ctx}
+{persona_block}{style_block}{extra_ctx}
 Write ONE complete email reply that addresses all points in the original email.
 Include an appropriate greeting and a natural sign-off.
 Return ONLY the email body text — no subject line, no JSON, no markdown."""
