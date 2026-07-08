@@ -204,17 +204,30 @@ async def _auto_sentiment_escalation(app, new_emails: list) -> None:
 
 async def _auto_autopilot(app, new_emails: list) -> None:
     """Check new emails against autopilot rules; generate and send/draft replies."""
-    if not new_emails or not get_effective_api_key():
+    if not get_effective_api_key():
         return
-    from routers.autopilot import handle_incoming_email
+    from routers.autopilot import handle_incoming_email, _retry_queue
     cache = app.state.cache
     rag = app.state.rag
     ai = app.state.advisor.ai
+
+    # Process new emails first
     for em in new_emails:
         try:
             await handle_incoming_email(em, cache, rag, ai)
         except Exception as e:
             print(f"[autopilot] error for {em.id}: {e}")
+
+    # Retry previously failed emails (AI was temporarily unavailable)
+    if _retry_queue:
+        retry_ids = list(_retry_queue.keys())
+        for eid in retry_ids:
+            if eid in _retry_queue:  # may have been cleared by new_emails loop above
+                em, _ = _retry_queue[eid]
+                try:
+                    await handle_incoming_email(em, cache, rag, ai)
+                except Exception as e:
+                    print(f"[autopilot] retry error for {eid}: {e}")
 
 
 # ── Long-running background loops ─────────────────────────────────────────────
