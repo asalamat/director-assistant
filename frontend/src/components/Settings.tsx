@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { api } from '../api/client'
-import type { EmailProvider, Account, IngestProgress, DbStats } from '../types'
+import type { EmailProvider, Account, IngestProgress, DbStats, AutopilotRule } from '../types'
 import { ConfigPanel } from './ConfigPanel'
 import { FolderPicker } from './FolderPicker'
 import { WebhooksSettings } from './WebhooksSettings'
@@ -13,7 +13,7 @@ import { EmailRulesPanel } from './EmailRulesPanel'
 import { AddAccountForm } from './AddAccountForm'
 import { VoiceDraftPanel } from './VoiceDraftPanel'
 
-type Section = 'accounts' | 'documents' | 'app' | 'rules' | 'integrations' | 'data' | 'style'
+type Section = 'accounts' | 'documents' | 'app' | 'rules' | 'integrations' | 'data' | 'style' | 'autopilot'
 
 const PROVIDER_COLORS: Record<EmailProvider, string> = {
   yahoo_imap:   'bg-purple-100 text-purple-700',
@@ -132,6 +132,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { id: 'rules',  icon: <IconShield />, label: 'Rules & Filters' },
       { id: 'style',  icon: <span>✍️</span>, label: 'Writing Style' },
+      { id: 'autopilot', icon: <span>🤖</span>, label: 'Email Autopilot' },
     ],
   },
   {
@@ -467,6 +468,7 @@ export function Settings({ onConnected, initialTab }: Props) {
 
           {/* Writing Style */}
           {section === 'style' && <WritingStyleSection />}
+          {section === 'autopilot' && <AutopilotSection />}
 
           {/* Integrations */}
           {section === 'integrations' && (
@@ -1331,6 +1333,125 @@ const TONE_PRESETS = [
   { label: 'Collaborative', value: 'I prefer a collaborative tone — inclusive language, asking questions, inviting feedback, and framing decisions as team efforts.' },
   { label: 'Formal', value: 'My communication style is formal and structured. I use complete sentences, avoid contractions, and maintain a polished, business-formal register.' },
 ]
+
+function AutopilotSection() {
+  const [rules, setRules] = useState<AutopilotRule[]>([])
+  const [loading, setLoading] = useState(true)
+  const [newEmail, setNewEmail] = useState('')
+  const [newName, setNewName] = useState('')
+  const [newMode, setNewMode] = useState<'reply' | 'draft'>('draft')
+  const [newHint, setNewHint] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg] = useState('')
+  const [addedIds, setAddedIds] = useState<Set<number>>(new Set())
+
+  const reload = () => api.getAutopilotRules().then((r: { rules: AutopilotRule[] }) => { setRules(r.rules); setLoading(false) }).catch(() => setLoading(false))
+  useEffect(() => { reload() }, [])
+
+  const addRule = async () => {
+    if (!newEmail.trim()) return
+    setSaving(true)
+    try {
+      const res = await api.addAutopilotRule({ email_addr: newEmail.trim(), display_name: newName.trim(), mode: newMode, prompt_hint: newHint.trim() })
+      setAddedIds(prev => new Set([...prev, res.id]))
+      await reload()
+      setNewEmail(''); setNewName(''); setNewHint('')
+      setMsg('Rule saved')
+    } catch { setMsg('Failed to save') }
+    setSaving(false)
+    setTimeout(() => setMsg(''), 3000)
+  }
+
+  const updateMode = async (id: number, mode: string, hint: string) => {
+    try {
+      await api.updateAutopilotRule(id, { mode, prompt_hint: hint })
+      setRules(prev => prev.map(r => r.id === id ? { ...r, mode: mode as AutopilotRule['mode'] } : r))
+    } catch { setMsg('Update failed'); setTimeout(() => setMsg(''), 3000) }
+  }
+
+  const removeRule = async (id: number) => {
+    try {
+      await api.deleteAutopilotRule(id)
+      setRules(prev => prev.filter(r => r.id !== id))
+    } catch { setMsg('Remove failed'); setTimeout(() => setMsg(''), 3000) }
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-base font-semibold text-gray-900 mb-1">Email Autopilot</h3>
+        <p className="text-sm text-gray-500 mb-4">
+          Define senders whose emails trigger automatic AI replies. Choose <strong>Draft</strong> to review before sending, or <strong>Auto Reply</strong> to send immediately.
+        </p>
+      </div>
+
+      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-3">
+        <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Add Rule</p>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Email Address</label>
+            <input className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" placeholder="sender@example.com" value={newEmail} onChange={e => setNewEmail(e.target.value)} onKeyDown={e => e.key === 'Enter' && addRule()} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Display Name (optional)</label>
+            <input className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" placeholder="Jane Smith" value={newName} onChange={e => setNewName(e.target.value)} />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Action</label>
+            <select className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" value={newMode} onChange={e => setNewMode(e.target.value as 'reply' | 'draft')}>
+              <option value="draft">Save as Draft</option>
+              <option value="reply">Auto Reply (send immediately)</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Custom Instructions</label>
+            <input className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" placeholder="e.g. be brief and formal" value={newHint} onChange={e => setNewHint(e.target.value)} />
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <button onClick={addRule} disabled={saving || !newEmail.trim()} className="px-4 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50 transition-colors">
+            {saving ? 'Saving…' : '+ Add Rule'}
+          </button>
+          {msg && <span className="text-sm text-green-600">{msg}</span>}
+        </div>
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-gray-400">Loading…</p>
+      ) : rules.length === 0 ? (
+        <p className="text-sm text-gray-400 italic">No autopilot rules defined. Add one above.</p>
+      ) : (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{rules.length} rule{rules.length !== 1 ? 's' : ''}</p>
+          {rules.map(rule => (
+            <div key={rule.id} className={`flex items-center gap-3 bg-white border rounded-lg px-4 py-3 transition-colors ${addedIds.has(rule.id) ? 'border-blue-300 bg-blue-50' : 'border-gray-200'}`}>
+              <span className="text-lg">🤖</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-900 truncate">{rule.display_name || rule.email_addr}</p>
+                <p className="text-xs text-gray-500 truncate">{rule.email_addr}</p>
+                {rule.prompt_hint && <p className="text-xs text-gray-400 truncate mt-0.5 italic">"{rule.prompt_hint}"</p>}
+              </div>
+              <select
+                value={rule.mode}
+                onChange={e => updateMode(rule.id, e.target.value, rule.prompt_hint)}
+                className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white"
+              >
+                <option value="draft">Draft</option>
+                <option value="reply">Auto Reply</option>
+                <option value="off">Off</option>
+              </select>
+              <button onClick={() => removeRule(rule.id)} className="text-red-400 hover:text-red-600 text-xs px-2 py-1 rounded hover:bg-red-50 transition-colors">
+                Remove
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 function WritingStyleSection() {
   const [persona, setPersona] = useState('')

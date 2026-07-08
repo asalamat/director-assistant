@@ -45,6 +45,7 @@ from routers import scheduled_send as scheduled_send_router
 from routers import pst_import as pst_import_router
 from routers import weekly_brief as weekly_brief_router
 from routers import db_maintenance as db_maintenance_router
+from routers import autopilot as autopilot_router
 from routers import vip as vip_router
 from routers import projects as projects_router
 from routers import contacts as contacts_router
@@ -79,7 +80,7 @@ from routers.proactive import push_alert
 from services.intelligence_service import IntelligenceService
 from workers.background_tasks import (
     _auto_recommend, _auto_deadline_extract, _auto_cluster_alert,
-    _auto_sentiment_escalation, _commitment_scan_loop,
+    _auto_sentiment_escalation, _auto_autopilot, _commitment_scan_loop,
     _relationship_health_loop, _auto_label_loop, _scheduled_send_loop,
     _scheduled_report_loop, _overnight_triage_loop, _rules_loop,
     _followup_reminder_loop, daily_focus_task, _linkedin_scheduler_loop,
@@ -366,6 +367,7 @@ async def _do_poll_cycle_inner(rag: RAGEngine, cache: EmailCache, app=None) -> t
             asyncio.create_task(_auto_deadline_extract(app, all_new_emails))
             asyncio.create_task(_auto_cluster_alert(app, all_new_emails))
             asyncio.create_task(_auto_sentiment_escalation(app, all_new_emails))
+            asyncio.create_task(_auto_autopilot(app, all_new_emails))
             # Auto-label new emails immediately (don't wait for the hourly loop)
             async def _label_new(a=app, emails=all_new_emails):
                 try:
@@ -741,6 +743,7 @@ app.include_router(scheduled_send_router.router)
 app.include_router(pst_import_router.router)
 app.include_router(weekly_brief_router.router)
 app.include_router(db_maintenance_router.router)
+app.include_router(autopilot_router.router)
 app.include_router(vip_router.router)
 app.include_router(contacts_router.router)
 app.include_router(projects_router.router)

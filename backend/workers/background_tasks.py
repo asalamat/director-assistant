@@ -9,6 +9,7 @@ Contains the proactive feature loops that run independently of the poll cycle:
 - _auto_cluster_alert     — alert when 3+ new emails share a topic
 - _auto_sentiment_escalation — alert on frustrated tone from VIP senders
 - _auto_recommend         — pre-cache recommendations for high-priority emails
+- _auto_autopilot         — generate/send AI replies for autopilot-rule senders
 """
 
 import asyncio
@@ -199,6 +200,21 @@ async def _auto_sentiment_escalation(app, new_emails: list) -> None:
                            "inbox")
         except Exception as e:
             print(f"[proactive-sentiment] {em.id}: {e}")
+
+
+async def _auto_autopilot(app, new_emails: list) -> None:
+    """Check new emails against autopilot rules; generate and send/draft replies."""
+    if not new_emails or not get_effective_api_key():
+        return
+    from routers.autopilot import handle_incoming_email
+    cache = app.state.cache
+    rag = app.state.rag
+    ai = app.state.advisor.ai
+    for em in new_emails:
+        try:
+            await handle_incoming_email(em, cache, rag, ai)
+        except Exception as e:
+            print(f"[autopilot] error for {em.id}: {e}")
 
 
 # ── Long-running background loops ─────────────────────────────────────────────

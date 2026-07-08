@@ -999,6 +999,22 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
                 </div>
               </button>
 
+              {/* Add to Autopilot — hover action */}
+              <button
+                onClick={async (e) => {
+                  e.stopPropagation()
+                  try {
+                    const senderEmail = email.sender.match(/<([^>]+)>/)?.[1] || email.sender.trim()
+                    const senderName = email.sender.replace(/<[^>]+>/, '').trim() || senderEmail
+                    await api.addAutopilotRule({ email_addr: senderEmail, display_name: senderName, mode: 'draft' })
+                  } catch {}
+                }}
+                title="Add sender to Email Autopilot (saves as draft)"
+                className="absolute right-2 bottom-2 opacity-0 group-hover:opacity-100 text-sm text-gray-400 hover:text-blue-600 w-6 h-6 flex items-center justify-center rounded-full hover:bg-blue-50 transition-all z-10"
+              >
+                🤖
+              </button>
+
               {/* Hover preview tooltip */}
               {hoveredId === email.id && !hoverSummary[email.id] && (
                 <div

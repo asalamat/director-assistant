@@ -30,6 +30,7 @@ import type {
   CRMDeal,
   CRMDealEmail,
   DbStats,
+  AutopilotRule,
 } from '../types'
 
 const BASE = '/api'
@@ -1558,6 +1559,16 @@ export const api = {
       body: JSON.stringify({ command_id: commandId }),
     })
   },
+
+  getAutopilotRules: (): Promise<{ rules: AutopilotRule[] }> => request('/autopilot/rules'),
+  addAutopilotRule: (data: { email_addr: string; display_name?: string; mode: string; prompt_hint?: string }): Promise<{ id: number; status: string }> =>
+    request('/autopilot/rules', { method: 'POST', body: JSON.stringify(data) }),
+  updateAutopilotRule: (id: number, data: { mode: string; prompt_hint?: string }): Promise<{ status: string }> =>
+    request(`/autopilot/rules/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteAutopilotRule: (id: number): Promise<{ status: string }> =>
+    request(`/autopilot/rules/${id}`, { method: 'DELETE' }),
+  previewAutopilotReply: (emailId: string): Promise<{ draft: string; email_id: string }> =>
+    request(`/autopilot/preview/${emailId}`, { method: 'POST' }),
 }
 
 export interface NLCommandPreviewEmail {

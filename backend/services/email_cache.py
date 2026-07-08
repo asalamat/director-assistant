@@ -410,6 +410,16 @@ class EmailCache(EmailExtrasMixin, DocumentCacheMixin):
                 "CREATE UNIQUE INDEX IF NOT EXISTS idx_writing_style_account "
                 "ON writing_style_cache(account_id)"
             )
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS autopilot_rules (
+                    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                    email_addr   TEXT NOT NULL UNIQUE,
+                    display_name TEXT DEFAULT '',
+                    mode         TEXT NOT NULL DEFAULT 'draft',
+                    prompt_hint  TEXT DEFAULT '',
+                    created_at   TEXT DEFAULT (datetime('now'))
+                )
+            """)
             for col_def in ["account_id INTEGER DEFAULT 0", "server_id TEXT",
                              "followup_remind_at TEXT"]:
                 try:
@@ -777,3 +787,47 @@ class EmailCache(EmailExtrasMixin, DocumentCacheMixin):
             is_read=bool(row.get("is_read", 1)),
             category=row.get("category") or None,
         )
+
+    # ── Autopilot rules ───────────────────────────────────────────────────────
+
+    def list_autopilot_rules(self) -> list[dict]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM autopilot_rules ORDER BY display_name, email_addr"
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def upsert_autopilot_rule(self, email_addr: str, display_name: str = '',
+                              mode: str = 'draft', prompt_hint: str = '') -> int:
+        with self._conn() as conn:
+            cur = conn.execute(
+                """INSERT INTO autopilot_rules (email_addr, display_name, mode, prompt_hint)
+                   VALUES (?, ?, ?, ?)
+                   ON CONFLICT(email_addr) DO UPDATE SET
+                     display_name=excluded.display_name,
+                     mode=excluded.mode,
+                     prompt_hint=excluded.prompt_hint""",
+                (email_addr.lower().strip(), display_name.strip(), mode, prompt_hint.strip()),
+            )
+            return cur.lastrowid or 0
+
+    def update_autopilot_rule(self, rule_id: int, mode: str, prompt_hint: str = '') -> bool:
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE autopilot_rules SET mode=?, prompt_hint=? WHERE id=?",
+                (mode, prompt_hint, rule_id),
+            )
+            return conn.execute("SELECT changes()").fetchone()[0] > 0
+
+    def delete_autopilot_rule(self, rule_id: int) -> bool:
+        with self._conn() as conn:
+            conn.execute("DELETE FROM autopilot_rules WHERE id=?", (rule_id,))
+            return conn.execute("SELECT changes()").fetchone()[0] > 0
+
+    def get_autopilot_rule_by_email(self, email_addr: str) -> dict | None:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM autopilot_rules WHERE LOWER(email_addr)=LOWER(?) AND mode != 'off'",
+                (email_addr.strip(),),
+            ).fetchone()
+            return dict(row) if row else None

@@ -514,3 +514,12 @@ export interface DbStats {
   last_vacuum: string | null
   retention_days: number
 }
+
+export interface AutopilotRule {
+  id: number
+  email_addr: string
+  display_name: string
+  mode: 'reply' | 'draft' | 'off'
+  prompt_hint: string
+  created_at: string
+}
