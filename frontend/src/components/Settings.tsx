@@ -1346,13 +1346,29 @@ function AutopilotSection() {
   const [addedIds, setAddedIds] = useState<Set<number>>(new Set())
   const [activity, setActivity] = useState<{ id: number; email_id: string; sender: string; subject: string; action: string; created_at: string }[]>([])
   const [activityLoading, setActivityLoading] = useState(false)
+  const [userName, setUserName] = useState('')
+  const [savingName, setSavingName] = useState(false)
+  const [nameMsg, setNameMsg] = useState('')
 
   const reload = () => api.getAutopilotRules().then((r: { rules: AutopilotRule[] }) => { setRules(r.rules); setLoading(false) }).catch(() => setLoading(false))
   const reloadActivity = () => {
     setActivityLoading(true)
     api.getAutopilotActivity().then(r => { setActivity(r.activity); setActivityLoading(false) }).catch(() => setActivityLoading(false))
   }
-  useEffect(() => { reload(); reloadActivity() }, [])
+  useEffect(() => {
+    reload(); reloadActivity()
+    api.getConfig().then(cfg => setUserName(cfg.user_name || '')).catch(() => {})
+  }, [])
+
+  const saveName = async () => {
+    setSavingName(true)
+    try {
+      await api.updateConfig({ user_name: userName.trim() })
+      setNameMsg('Saved')
+    } catch { setNameMsg('Failed') }
+    setSavingName(false)
+    setTimeout(() => setNameMsg(''), 3000)
+  }
 
   const addRule = async () => {
     if (!newEmail.trim()) return
@@ -1389,6 +1405,29 @@ function AutopilotSection() {
         <p className="text-sm text-gray-500 mb-4">
           Define senders whose emails trigger automatic AI replies. Choose <strong>Draft</strong> to review before sending, or <strong>Auto Reply</strong> to send immediately.
         </p>
+      </div>
+
+      {/* User name — used in all AI-generated autopilot replies */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-2">Your Name</p>
+        <p className="text-xs text-blue-600 mb-3">The AI signs replies and refers to you by this name. Leave blank to use a generic greeting.</p>
+        <div className="flex gap-2 items-center">
+          <input
+            className="flex-1 border border-blue-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white"
+            placeholder="e.g. Ali Salamat"
+            value={userName}
+            onChange={e => setUserName(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && saveName()}
+          />
+          <button
+            onClick={saveName}
+            disabled={savingName}
+            className="px-4 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50 whitespace-nowrap"
+          >
+            {savingName ? 'Saving…' : 'Save'}
+          </button>
+          {nameMsg && <span className="text-xs text-blue-700 font-medium">{nameMsg}</span>}
+        </div>
       </div>
 
       <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-3">

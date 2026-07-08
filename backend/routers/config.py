@@ -94,6 +94,8 @@ class AppConfigUpdate(BaseModel):
     morning_brief_email_enabled: Optional[bool] = None
     morning_brief_email_to: Optional[str] = None
     morning_brief_email_time: Optional[str] = None   # "HH:MM"
+    # User profile
+    user_name: Optional[str] = None
     # DB maintenance
     db_retention_days: Optional[int] = None
     db_last_vacuum: Optional[str] = None
@@ -154,6 +156,7 @@ async def get_config():
         "morning_brief_email_time": cfg.get("morning_brief_email_time", "08:00"),
         "db_retention_days": cfg.get("db_retention_days", 0),
         "db_last_vacuum": cfg.get("db_last_vacuum"),
+        "user_name": cfg.get("user_name", ""),
     }
 
 
@@ -243,6 +246,8 @@ async def update_config(update: AppConfigUpdate, request: Request):
             raise HTTPException(400, "report_email_schedule must be 'weekday:HH:MM' e.g. 'monday:07:00'")
         cfg["report_email_schedule"] = update.report_email_schedule
 
+    if update.user_name is not None:
+        cfg["user_name"] = update.user_name.strip()[:100]
     if update.db_retention_days is not None:
         cfg["db_retention_days"] = max(0, int(update.db_retention_days))
     if update.db_last_vacuum is not None:

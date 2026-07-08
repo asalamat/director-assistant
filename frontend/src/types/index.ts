@@ -244,6 +244,7 @@ export interface AppConfig {
   morning_brief_email_enabled?: boolean
   morning_brief_email_to?: string
   morning_brief_email_time?: string
+  user_name?: string
 }
 
 export interface NewsArticle {
