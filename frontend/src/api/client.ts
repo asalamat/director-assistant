@@ -1571,6 +1571,8 @@ export const api = {
     request(`/autopilot/preview/${emailId}`, { method: 'POST' }),
   getAutopilotActivity: (): Promise<{ activity: { id: number; email_id: string; sender: string; subject: string; action: string; created_at: string }[] }> =>
     request('/autopilot/activity'),
+  triggerAutopilotReply: (emailId: string): Promise<{ status: string; mode: string; preview?: string }> =>
+    request(`/autopilot/trigger/${emailId}`, { method: 'POST' }),
 }
 
 export interface NLCommandPreviewEmail {

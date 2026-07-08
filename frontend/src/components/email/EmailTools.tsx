@@ -28,6 +28,8 @@ export function EmailTools({ email, translation, onClearTranslation, onOpenCompo
   const [extractingFinancials, setExtractingFinancials] = useState(false)
   const [playing, setPlaying] = useState(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const [triggeringAutopilot, setTriggeringAutopilot] = useState(false)
+  const [autopilotResult, setAutopilotResult] = useState<string | null>(null)
 
   const handleLoadReplies = async () => {
     if (loadingReplies) return
@@ -121,6 +123,21 @@ export function EmailTools({ email, translation, onClearTranslation, onOpenCompo
     audioRef.current = audio
   }
 
+  const handleTriggerAutopilot = async () => {
+    if (triggeringAutopilot) return
+    setTriggeringAutopilot(true)
+    setAutopilotResult(null)
+    try {
+      const r = await api.triggerAutopilotReply(email.id)
+      setAutopilotResult(r.mode === 'reply' ? 'Reply sent!' : 'Draft saved — check your Drafts folder.')
+    } catch (e: unknown) {
+      setAutopilotResult(e instanceof Error ? e.message : 'Failed')
+    } finally {
+      setTriggeringAutopilot(false)
+      setTimeout(() => setAutopilotResult(null), 5000)
+    }
+  }
+
   const handleQuickReplyClick = (body: string) => {
     const senderEmail = email.sender.match(/<([^>]+)>/)?.[1] || email.sender
     onOpenCompose(senderEmail, `Re: ${email.subject || ''}`, body)
@@ -193,6 +210,14 @@ export function EmailTools({ email, translation, onClearTranslation, onOpenCompo
             className={`text-xs px-2 py-1 rounded border transition-colors ${playing ? 'border-red-200 bg-red-50 text-red-600' : 'border-gray-200 text-gray-500 hover:bg-gray-50 hover:border-accent'}`}>
             {playing ? '⏹ Stop' : '🔊 Read'}
           </button>
+          <button onClick={handleTriggerAutopilot} disabled={triggeringAutopilot}
+            title="Trigger autopilot reply using your RAG knowledge base"
+            className="text-xs text-blue-600 hover:underline flex items-center gap-1 disabled:opacity-50">
+            {triggeringAutopilot ? <><span className="animate-spin inline-block">⟳</span> Replying…</> : '🤖 Auto-Reply'}
+          </button>
+          {autopilotResult && (
+            <span className="text-xs text-green-600 font-medium">{autopilotResult}</span>
+          )}
         </div>
 
         {attachAnalysis !== null && (
