@@ -1344,9 +1344,15 @@ function AutopilotSection() {
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
   const [addedIds, setAddedIds] = useState<Set<number>>(new Set())
+  const [activity, setActivity] = useState<{ id: number; email_id: string; sender: string; subject: string; action: string; created_at: string }[]>([])
+  const [activityLoading, setActivityLoading] = useState(false)
 
   const reload = () => api.getAutopilotRules().then((r: { rules: AutopilotRule[] }) => { setRules(r.rules); setLoading(false) }).catch(() => setLoading(false))
-  useEffect(() => { reload() }, [])
+  const reloadActivity = () => {
+    setActivityLoading(true)
+    api.getAutopilotActivity().then(r => { setActivity(r.activity); setActivityLoading(false) }).catch(() => setActivityLoading(false))
+  }
+  useEffect(() => { reload(); reloadActivity() }, [])
 
   const addRule = async () => {
     if (!newEmail.trim()) return
@@ -1449,6 +1455,37 @@ function AutopilotSection() {
           ))}
         </div>
       )}
+
+      {/* Activity Log */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Recent Activity</p>
+          <button onClick={reloadActivity} className="text-xs text-blue-500 hover:underline">Refresh</button>
+        </div>
+        {activityLoading ? (
+          <p className="text-sm text-gray-400">Loading…</p>
+        ) : activity.length === 0 ? (
+          <p className="text-sm text-gray-400 italic">No activity yet. Autopilot actions will appear here.</p>
+        ) : (
+          <div className="space-y-1.5">
+            {activity.map(a => (
+              <div key={a.id} className="flex items-start gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                <span className="text-base mt-0.5">{a.action === 'reply_sent' ? '📤' : '📝'}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${a.action === 'reply_sent' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                      {a.action === 'reply_sent' ? 'Auto-Reply Sent' : 'Draft Saved'}
+                    </span>
+                    <span className="text-[10px] text-gray-400">{new Date(a.created_at).toLocaleString()}</span>
+                  </div>
+                  <p className="text-xs text-gray-700 truncate mt-0.5">{a.subject || '(no subject)'}</p>
+                  <p className="text-[10px] text-gray-400 truncate">{a.sender}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

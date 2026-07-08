@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { CATEGORY_LABELS } from '../types'
-import type { EmailSummary, EmailThread } from '../types'
+import type { EmailSummary, EmailThread, AutopilotRule } from '../types'
 import type { SortBy, SortOrder } from '../hooks/useEmails'
 import { api } from '../api/client'
 import { Avatar, Badge, Input } from './ui'
@@ -55,6 +55,7 @@ interface Props {
   activeCategory?: string | null
   onCategoryChange?: (cat: string | null) => void
   onFilterChange?: (filters: FilterState) => void
+  autopilotRules?: AutopilotRule[]
 }
 
 function isNewEmail(dateStr: string | null): boolean {
@@ -118,7 +119,7 @@ function replyDepth(subject: string): number {
   return depth
 }
 
-export function EmailList({ emails, selectedId, loading, hasMore, total, folders, currentFolder, onSelect, onLoadMore, onSearch, onSort, onFolderChange, onBulkDelete, onBulkSnooze, onBulkArchive, onBulkMarkRead, onOpenCompose, sortBy, sortOrder, onlyUnread, activeCategory, onCategoryChange, onFilterChange }: Props) {
+export function EmailList({ emails, selectedId, loading, hasMore, total, folders, currentFolder, onSelect, onLoadMore, onSearch, onSort, onFolderChange, onBulkDelete, onBulkSnooze, onBulkArchive, onBulkMarkRead, onOpenCompose, sortBy, sortOrder, onlyUnread, activeCategory, onCategoryChange, onFilterChange, autopilotRules }: Props) {
   const [query, setQuery] = useState('')
   const [savedSearches, setSavedSearches] = useState<{ id: number; name: string; query: string; folder: string }[]>([])
   const [history, setHistory] = useState<string[]>(loadHistory)
@@ -969,6 +970,20 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
                       <span className="text-xs text-gray-400">{formatDate(email.date)}</span>
                     </span>
                   </div>
+                  {(() => {
+                    const senderAddr = (email.sender.match(/<([^>]+)>/) || [])[1]?.toLowerCase() || email.sender.toLowerCase().trim()
+                    const apRule = autopilotRules?.find(r => r.mode !== 'off' && r.email_addr.toLowerCase() === senderAddr)
+                    return apRule ? (
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <span
+                          className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 flex items-center gap-0.5 ${apRule.mode === 'reply' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}
+                          title={apRule.mode === 'reply' ? 'Autopilot: will auto-reply' : 'Autopilot: will save draft'}
+                        >
+                          🤖 {apRule.mode === 'reply' ? 'Auto-Reply' : 'Draft'}
+                        </span>
+                      </div>
+                    ) : null
+                  })()}
                   <div className={`flex items-center gap-1 mt-0.5 ${!email.is_read ? 'font-semibold text-gray-800' : 'text-gray-600'}`}>
                     {depth > 0 && (
                       <span className="text-[10px] bg-gray-100 text-gray-500 rounded-md px-1.5 py-0.5 flex-shrink-0 font-medium tabular-nums">

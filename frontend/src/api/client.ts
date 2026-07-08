@@ -1569,6 +1569,8 @@ export const api = {
     request(`/autopilot/rules/${id}`, { method: 'DELETE' }),
   previewAutopilotReply: (emailId: string): Promise<{ draft: string; email_id: string }> =>
     request(`/autopilot/preview/${emailId}`, { method: 'POST' }),
+  getAutopilotActivity: (): Promise<{ activity: { id: number; email_id: string; sender: string; subject: string; action: string; created_at: string }[] }> =>
+    request('/autopilot/activity'),
 }
 
 export interface NLCommandPreviewEmail {

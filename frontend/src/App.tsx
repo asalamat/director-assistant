@@ -26,7 +26,7 @@ import { useRecommendation } from './hooks/useEmails'
 import { useEmailContext } from './contexts/EmailContext'
 import { useUIContext, type Tab } from './contexts/UIContext'
 import { api } from './api/client'
-import type { EmailSummary } from './types'
+import type { EmailSummary, AutopilotRule } from './types'
 
 // Simple SVG icons
 const Icons: Partial<Record<Tab, JSX.Element>> = {
@@ -141,6 +141,7 @@ export default function App() {
   const [refreshMsg, setRefreshMsg] = useState('')
   const [autopilotActive, setAutopilotActive] = useState(false)
   const [autopilotPing, setAutopilotPing] = useState(false)
+  const [autopilotRules, setAutopilotRules] = useState<AutopilotRule[]>([])
   const [importPrompt, setImportPrompt] = useState(false)
   const [importSubject, setImportSubject] = useState('')
   const [importing, setImporting] = useState(false)
@@ -278,6 +279,7 @@ export default function App() {
   // Autopilot: check for active rules on mount and every 2 min
   useEffect(() => {
     const check = () => api.getAutopilotRules().then(r => {
+      setAutopilotRules(r.rules)
       setAutopilotActive(r.rules.some(rule => rule.mode !== 'off'))
     }).catch(() => {})
     check()
@@ -724,6 +726,7 @@ export default function App() {
                 activeCategory={(currentParams as any).category ?? null}
                 onCategoryChange={(cat) => refresh({ category: cat ?? undefined } as any)}
                 onFilterChange={(filters) => refresh(filters as any)}
+                autopilotRules={autopilotRules}
               />
             </div>
 
