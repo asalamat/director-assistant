@@ -1508,12 +1508,20 @@ function AutopilotSection() {
         ) : (
           <div className="space-y-1.5">
             {activity.map(a => (
-              <div key={a.id} className="flex items-start gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
-                <span className="text-base mt-0.5">{a.action === 'reply_sent' ? '📤' : '📝'}</span>
+              <div key={a.id} className={`flex items-start gap-2 border rounded-lg px-3 py-2 ${a.action === 'ai_failed' || a.action === 'error' ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200'}`}>
+                <span className="text-base mt-0.5">
+                  {a.action === 'reply_sent' ? '📤' : a.action === 'draft_saved' ? '📝' : '⚠️'}
+                </span>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${a.action === 'reply_sent' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
-                      {a.action === 'reply_sent' ? 'Auto-Reply Sent' : 'Draft Saved'}
+                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+                      a.action === 'reply_sent' ? 'bg-green-100 text-green-700' :
+                      a.action === 'draft_saved' ? 'bg-blue-100 text-blue-700' :
+                      'bg-red-100 text-red-700'
+                    }`}>
+                      {a.action === 'reply_sent' ? 'Auto-Reply Sent' :
+                       a.action === 'draft_saved' ? 'Draft Saved' :
+                       a.action === 'ai_failed' ? 'AI Failed — Check API Credits' : 'Error'}
                     </span>
                     <span className="text-[10px] text-gray-400">{new Date(a.created_at).toLocaleString()}</span>
                   </div>
