@@ -30,6 +30,8 @@ export function ContactHealthTab() {
   const [error, setError] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(null)
   const [pill, setPill] = useState<PillFilter>('all')
+  const [removing, setRemoving] = useState<number | null>(null)
+  const [confirmId, setConfirmId] = useState<number | null>(null)
 
   const load = () => {
     setLoading(true); setError('')
@@ -39,6 +41,21 @@ export function ContactHealthTab() {
       .finally(() => setLoading(false))
   }
   useEffect(load, [])
+
+  const handleRemove = async (id: number) => {
+    if (confirmId !== id) { setConfirmId(id); return }
+    setRemoving(id); setConfirmId(null)
+    try {
+      await api.removeVIP(id)
+      setData(prev => prev ? {
+        ...prev,
+        contacts: prev.contacts.filter(c => c.id !== id),
+        summary: { ...prev.summary, total: prev.summary.total - 1 }
+      } : prev)
+    } catch { /* ignore */ } finally {
+      setRemoving(null)
+    }
+  }
 
   const contacts = (data?.contacts ?? []).filter(c => {
     if (statusFilter && c.status !== statusFilter) return false
@@ -123,7 +140,7 @@ export function ContactHealthTab() {
         {!loading && !error && contacts.map(c => {
           const m = STATUS_META[c.status]
           return (
-            <div key={c.id} className="border border-gray-200 dark:border-gray-700 rounded-xl p-4 flex items-center gap-4">
+            <div key={c.id} onClick={() => { if (confirmId === c.id) setConfirmId(null) }} className="border border-gray-200 dark:border-gray-700 rounded-xl p-4 flex items-center gap-4">
               <div className={`flex-shrink-0 w-12 h-12 rounded-full border-2 ${m.ring} flex items-center justify-center font-bold text-sm ${m.text}`}>
                 {c.score}
               </div>
@@ -146,12 +163,25 @@ export function ContactHealthTab() {
                   {c.days_since_contact !== null ? `Last contact: ${c.days_since_contact} days ago` : 'Never contacted'}
                 </p>
               </div>
-              <button
-                onClick={() => openCompose({ to: c.email })}
-                className="flex-shrink-0 px-3 py-1.5 bg-accent text-white rounded-lg text-xs font-medium hover:bg-blue-700 transition-colors"
-              >
-                ✉ Message
-              </button>
+              <div className="flex flex-col gap-1.5 flex-shrink-0">
+                <button
+                  onClick={() => openCompose({ to: c.email })}
+                  className="px-3 py-1.5 bg-accent text-white rounded-lg text-xs font-medium hover:bg-blue-700 transition-colors"
+                >
+                  ✉ Message
+                </button>
+                <button
+                  onClick={() => handleRemove(c.id)}
+                  disabled={removing === c.id}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                    confirmId === c.id
+                      ? 'bg-red-500 text-white hover:bg-red-600'
+                      : 'border border-gray-200 text-gray-400 hover:border-red-300 hover:text-red-500'
+                  }`}
+                >
+                  {removing === c.id ? '…' : confirmId === c.id ? 'Confirm?' : '✕ Remove'}
+                </button>
+              </div>
             </div>
           )
         })}

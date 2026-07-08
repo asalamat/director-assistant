@@ -16,11 +16,20 @@ type Escalation = {
   senders_preview: string[]
 }
 
+const DISMISSED_KEY = 'escalation_dismissed'
+function getDismissed(): Set<string> {
+  try { return new Set(JSON.parse(localStorage.getItem(DISMISSED_KEY) || '[]')) } catch { return new Set() }
+}
+function saveDismissed(set: Set<string>) {
+  try { localStorage.setItem(DISMISSED_KEY, JSON.stringify([...set])) } catch { /* ignore */ }
+}
+
 export function EscalationTab({ onViewThread }: { onViewThread?: (subject: string) => void }) {
   const [days, setDays] = useState(14)
   const [items, setItems] = useState<Escalation[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [dismissed, setDismissed] = useState<Set<string>>(getDismissed)
 
   useEffect(() => {
     let cancelled = false
@@ -31,6 +40,12 @@ export function EscalationTab({ onViewThread }: { onViewThread?: (subject: strin
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [days])
+
+  const markDone = (key: string) => {
+    setDismissed(prev => { const next = new Set(prev); next.add(key); saveDismissed(next); return next })
+  }
+
+  const visibleItems = items.filter(e => !dismissed.has(e.thread_key))
 
   const barColor = (s: number) => (s >= 70 ? 'bg-red-500' : s >= 40 ? 'bg-amber-500' : 'bg-green-500')
 
@@ -58,12 +73,22 @@ export function EscalationTab({ onViewThread }: { onViewThread?: (subject: strin
 
       {loading && <p className="text-sm text-gray-400">Loading…</p>}
       {error && <p className="text-sm text-red-500">{error}</p>}
-      {!loading && !error && items.length === 0 && (
-        <p className="text-sm text-green-600">🟢 No escalating threads detected</p>
+      {!loading && !error && visibleItems.length === 0 && (
+        <div>
+          <p className="text-sm text-green-600">🟢 No escalating threads detected</p>
+          {dismissed.size > 0 && (
+            <button
+              onClick={() => { setDismissed(new Set()); saveDismissed(new Set()) }}
+              className="mt-2 text-xs text-gray-400 underline hover:text-gray-600"
+            >
+              Show {dismissed.size} resolved
+            </button>
+          )}
+        </div>
       )}
 
       <div className="space-y-3">
-        {items.map(e => (
+        {visibleItems.map(e => (
           <div key={e.thread_key} className="border border-gray-200 rounded-xl p-4 flex flex-col gap-2.5">
             <div className="flex items-start justify-between gap-3">
               <span className="font-semibold text-gray-900 leading-snug">{e.subject}</span>
@@ -98,12 +123,18 @@ export function EscalationTab({ onViewThread }: { onViewThread?: (subject: strin
               <p className="text-xs text-gray-400 truncate">{e.senders_preview.join(', ')}</p>
             )}
 
-            <div className="pt-0.5">
+            <div className="pt-0.5 flex items-center gap-2">
               <button
                 onClick={() => onViewThread?.(e.subject)}
                 className="px-3 py-1.5 bg-accent text-white rounded-lg text-xs font-medium hover:bg-blue-700 transition-colors"
               >
                 View thread
+              </button>
+              <button
+                onClick={() => markDone(e.thread_key)}
+                className="px-3 py-1.5 border border-gray-200 text-gray-500 rounded-lg text-xs font-medium hover:border-green-400 hover:text-green-600 transition-colors"
+              >
+                ✓ Done
               </button>
             </div>
           </div>

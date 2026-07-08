@@ -399,6 +399,84 @@ async def _do_poll_cycle_inner(rag: RAGEngine, cache: EmailCache, app=None) -> t
     return new_total, errors
 
 
+async def _daily_brief_scheduler(app: FastAPI):
+    """Send morning brief (news + inbox + follow-ups) daily at the configured time."""
+    from email.mime.multipart import MIMEMultipart
+    from email.mime.text import MIMEText
+    from routers.config import load_app_config, save_app_config
+    from routers.email_send import _smtp_send
+    from datetime import datetime as _dt, date as _date
+    await asyncio.sleep(45)
+    while True:
+        await asyncio.sleep(60)
+        try:
+            cfg = load_app_config()
+            if not cfg.get("morning_brief_email_enabled"):
+                continue
+            to_email = cfg.get("morning_brief_email_to", "").strip()
+            if not to_email:
+                continue
+            brief_time = cfg.get("morning_brief_email_time", "08:00")
+            now = _dt.now()
+            today_str = now.strftime("%Y-%m-%d")
+            if now.strftime("%H:%M") != brief_time:
+                continue
+            if cfg.get("morning_brief_last_sent") == today_str:
+                continue
+
+            # Generate brief using the same helper functions
+            from routers.morning_brief import _top_news, _priority_emails, _overdue_followups, _open_commitments, _active_projects
+            from routers.calendar import get_today_events
+            cache = app.state.cache
+            news = _top_news()
+            emails = _priority_emails(cache)
+            today = _date.today().isoformat()
+            chase = _overdue_followups(cache, today)
+            commitments = _open_commitments(cache)
+            projects = _active_projects(cache)
+            events = await get_today_events(cache)
+
+            lines = [
+                f"Director Assistant — Morning Brief",
+                f"{now.strftime('%A, %B %-d, %Y')}",
+                "=" * 42, "",
+            ]
+            if events:
+                lines += ["📅 TODAY'S SCHEDULE:"] + [f"  {e['start'][11:16]} – {e['end'][11:16]}  {e['title']}" for e in events] + [""]
+            if emails:
+                lines += ["📬 PRIORITY INBOX:"] + [f"  • {e['subject']}  ({e['sender']})" for e in emails[:5]] + [""]
+            if news:
+                lines += ["📰 NEWS TO KNOW:"] + [f"  • {a.get('title','')}  [{a.get('source','')}]" for a in news[:4]] + [""]
+            if chase:
+                lines += ["⏰ OVERDUE FOLLOW-UPS:"] + [f"  • {c['subject']} (due {c['due_date']})" for c in chase] + [""]
+            if commitments:
+                lines += ["🤝 OPEN COMMITMENTS:"] + [f"  • {c['description']}" for c in commitments[:5]] + [""]
+            if projects:
+                lines += ["📁 ACTIVE PROJECTS:"] + [f"  • {p['name']} — {p['status']}" for p in projects[:5]] + [""]
+            lines += ["---", "Sent by Director Assistant"]
+
+            accounts = cache.list_accounts()
+            smtp_acc = next((a for a in accounts if getattr(a, "password", None)), None)
+            if not smtp_acc:
+                print("[morning-brief-scheduler] no SMTP account — skipping")
+                continue
+
+            msg = MIMEMultipart()
+            msg["From"] = smtp_acc.username
+            msg["To"] = to_email
+            msg["Subject"] = f"Morning Brief — {now.strftime('%A, %B %-d')}"
+            msg.attach(MIMEText("\n".join(lines), "plain", "utf-8"))
+
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, _smtp_send, smtp_acc, msg)
+            print(f"[morning-brief-scheduler] brief sent to {to_email}")
+
+            cfg["morning_brief_last_sent"] = today_str
+            save_app_config(cfg)
+        except Exception as e:
+            print(f"[morning-brief-scheduler] error: {e}")
+
+
 async def _send_scheduled_digest(app: FastAPI):
     """Generate and send the daily digest email via SMTP."""
     from email.mime.multipart import MIMEMultipart
@@ -540,6 +618,7 @@ async def lifespan(app: FastAPI):
         _poll_new_emails(app.state.rag, app.state.cache, app)
     )
     app.state.digest_task = asyncio.create_task(_digest_scheduler(app))
+    app.state.morning_brief_task = asyncio.create_task(_daily_brief_scheduler(app))
     app.state.commitment_task = asyncio.create_task(_commitment_scan_loop(app))
     app.state.relationship_task = asyncio.create_task(_relationship_health_loop(app))
     app.state.scheduled_send_task = asyncio.create_task(_scheduled_send_loop(app))
@@ -554,7 +633,7 @@ async def lifespan(app: FastAPI):
     app.state.instagram_autopilot_task = asyncio.create_task(_instagram_autopilot_loop(app))
     app.state.restart_poll = lambda: asyncio.create_task(_restart_poll(app))
     yield
-    for task_name in ("digest_task", "poll_task", "commitment_task", "relationship_task",
+    for task_name in ("digest_task", "morning_brief_task", "poll_task", "commitment_task", "relationship_task",
                       "scheduled_send_task", "auto_label_task", "report_task", "overnight_task",
                       "rules_task", "followup_reminder_task", "daily_focus_task",
                       "linkedin_scheduler_task", "linkedin_autopilot_task",

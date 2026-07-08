@@ -241,6 +241,9 @@ export interface AppConfig {
   news_enabled?: boolean
   news_topics?: string[]
   email_persona?: string
+  morning_brief_email_enabled?: boolean
+  morning_brief_email_to?: string
+  morning_brief_email_time?: string
 }
 
 export interface NewsArticle {

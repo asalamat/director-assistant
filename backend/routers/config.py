@@ -90,6 +90,10 @@ class AppConfigUpdate(BaseModel):
     news_topics: Optional[list] = None         # list of topic strings
     # Writing style / persona
     email_persona: Optional[str] = None        # free-text description injected into all AI drafts
+    # Daily morning brief email
+    morning_brief_email_enabled: Optional[bool] = None
+    morning_brief_email_to: Optional[str] = None
+    morning_brief_email_time: Optional[str] = None   # "HH:MM"
 
 
 @router.get("")
@@ -142,6 +146,9 @@ async def get_config():
         "news_enabled": cfg.get("news_enabled", False),
         "news_topics": cfg.get("news_topics", []),
         "email_persona": cfg.get("email_persona", ""),
+        "morning_brief_email_enabled": cfg.get("morning_brief_email_enabled", False),
+        "morning_brief_email_to": cfg.get("morning_brief_email_to", ""),
+        "morning_brief_email_time": cfg.get("morning_brief_email_time", "08:00"),
     }
 
 
@@ -214,6 +221,15 @@ async def update_config(update: AppConfigUpdate, request: Request):
         cfg["news_topics"] = [t.strip() for t in update.news_topics if isinstance(t, str) and t.strip()][:10]
     if update.email_persona is not None:
         cfg["email_persona"] = update.email_persona[:2000]
+    if update.morning_brief_email_enabled is not None:
+        cfg["morning_brief_email_enabled"] = update.morning_brief_email_enabled
+    if update.morning_brief_email_to is not None:
+        cfg["morning_brief_email_to"] = update.morning_brief_email_to.strip()
+    if update.morning_brief_email_time is not None:
+        t = update.morning_brief_email_time.strip()
+        if not re.match(r"^\d{2}:\d{2}$", t):
+            raise HTTPException(400, "morning_brief_email_time must be HH:MM")
+        cfg["morning_brief_email_time"] = t
 
     if update.report_email_schedule is not None:
         import re as _re

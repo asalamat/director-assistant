@@ -480,6 +480,7 @@ export function Settings({ onConnected, initialTab }: Props) {
                 <p className="text-[11px] font-bold text-gray-500 uppercase tracking-widest mb-3">Automation & Tasks</p>
                 <div className="space-y-4">
                   <IntegrationCard title="Task Export (Todoist / Jira)" icon={<IconCheck />} badge="bg-green-100 text-green-600"><TasksExportSettings /></IntegrationCard>
+                  <IntegrationCard title="Morning Brief Email" icon={<span className="text-base">☀️</span>} badge="bg-yellow-100 text-yellow-600"><MorningBriefEmailSettings /></IntegrationCard>
                   <IntegrationCard title="Overnight Triage Agent" icon={<IconMoon />} badge="bg-indigo-100 text-indigo-600"><OvernightTriageSettings /></IntegrationCard>
                   <IntegrationCard title="Scheduled Report Email" icon={<IconCalendar />} badge="bg-sky-100 text-sky-600"><ReportScheduleSettings /></IntegrationCard>
                 </div>
@@ -1227,6 +1228,55 @@ function TriageRulesPanel() {
           </li>
         ))}
       </ul>
+    </div>
+  )
+}
+
+function MorningBriefEmailSettings() {
+  const [enabled, setEnabled] = useState(false)
+  const [to, setTo] = useState('')
+  const [time, setTime] = useState('08:00')
+  const [saved, setSaved] = useState(false)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    api.getConfig().then(cfg => {
+      setEnabled(cfg.morning_brief_email_enabled ?? false)
+      setTo(cfg.morning_brief_email_to ?? '')
+      setTime(cfg.morning_brief_email_time ?? '08:00')
+      setLoading(false)
+    }).catch(() => setLoading(false))
+  }, [])
+
+  const save = async () => {
+    await api.updateConfig({ morning_brief_email_enabled: enabled, morning_brief_email_to: to, morning_brief_email_time: time })
+    setSaved(true); setTimeout(() => setSaved(false), 2500)
+  }
+
+  if (loading) return <p className="text-xs text-gray-400">Loading…</p>
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-gray-500">Receive a daily email at your chosen time with news headlines, priority inbox, follow-ups, calendar events, and active projects.</p>
+      <label className="flex items-center gap-2 cursor-pointer">
+        <input type="checkbox" checked={enabled} onChange={e => setEnabled(e.target.checked)} className="w-4 h-4 rounded accent-accent" />
+        <span className="text-sm font-medium text-gray-700">Enable daily morning brief email</span>
+      </label>
+      {enabled && (
+        <div className="space-y-2 pt-1">
+          <div>
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-1">Send to</label>
+            <input value={to} onChange={e => setTo(e.target.value)} placeholder="your@email.com" className={INPUT_CLS} />
+          </div>
+          <div>
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-1">Send time</label>
+            <input type="time" value={time} onChange={e => setTime(e.target.value)} className={INPUT_CLS} />
+          </div>
+        </div>
+      )}
+      <div className="flex items-center gap-2 pt-1">
+        <button onClick={save} className={BTN_PRIMARY}>Save</button>
+        {saved && <span className="text-xs text-green-600 font-medium">✓ Saved</span>}
+      </div>
     </div>
   )
 }
