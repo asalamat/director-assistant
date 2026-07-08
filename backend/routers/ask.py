@@ -172,11 +172,21 @@ async def ask_db(req: AskRequest, request: Request):
                     f"    Type: {r.get('file_type', '').upper()}\n"
                     f"    Content: {r['text'][:1500]}"
                 )
+            # Fetch full email body from SQLite so signatures aren't cut off by chunk size
+            email_body = r.get("text", "")
+            full_msg = cache.get(r["email_id"])
+            if full_msg:
+                raw = (full_msg.body or "").strip()
+                if not raw and full_msg.body_html:
+                    raw = re.sub(r'<[^>]+>', ' ', full_msg.body_html)
+                    raw = re.sub(r'\s+', ' ', raw).strip()
+                if raw:
+                    email_body = raw
             return (
                 f"[{i+1}] EMAIL — Subject: {r['subject']}\n"
                 f"    From: {r['sender']}\n"
                 f"    Date: {r['date']}\n"
-                f"    Preview: {r['text'][:400]}"
+                f"    Body: {email_body[:1500]}"
             )
 
         # Show up to 3 contacts + 5 documents + 8 emails in context
@@ -212,10 +222,12 @@ async def ask_db(req: AskRequest, request: Request):
         try:
             async with ai.messages.stream(
                 model="claude-haiku-4-5-20251001",
-                max_tokens=800,
+                max_tokens=1200,
                 system=(
                     f"You are an executive assistant with access to a database of {source_desc}. "
-                    f"Answer based ONLY on the {source_desc} shown below. Be concise and specific."
+                    f"Answer based ONLY on the {source_desc} shown. Pay close attention to email "
+                    f"signatures — they often contain job titles, phone numbers, and company names. "
+                    f"Be concise and specific."
                 ),
                 messages=messages,
             ) as stream:
