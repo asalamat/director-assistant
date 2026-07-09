@@ -83,10 +83,10 @@ from workers.background_tasks import (
     _auto_sentiment_escalation, _auto_autopilot, _commitment_scan_loop,
     _relationship_health_loop, _auto_label_loop, _scheduled_send_loop,
     _scheduled_report_loop, _overnight_triage_loop, _rules_loop,
-    _followup_reminder_loop, daily_focus_task, _linkedin_scheduler_loop,
-    _linkedin_autopilot_loop,
-    _instagram_autopilot_loop,
-    _autopilot_startup_recovery,
+    _followup_reminder_loop, daily_focus_task, _autopilot_startup_recovery,
+)
+from workers.social_workers import (
+    _linkedin_scheduler_loop, _linkedin_autopilot_loop, _instagram_autopilot_loop,
 )
 from routers.config import get_effective_api_key, load_app_config
 from services.ai_client import AIClient
