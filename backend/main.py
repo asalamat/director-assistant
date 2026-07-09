@@ -82,9 +82,9 @@ from workers.background_tasks import (
     _auto_recommend, _auto_deadline_extract, _auto_cluster_alert,
     _auto_sentiment_escalation, _auto_autopilot, _commitment_scan_loop,
     _relationship_health_loop, _auto_label_loop, _scheduled_send_loop,
-    _scheduled_report_loop, _overnight_triage_loop, _rules_loop,
-    _followup_reminder_loop, daily_focus_task, _autopilot_startup_recovery,
+    _rules_loop, _followup_reminder_loop, daily_focus_task, _autopilot_startup_recovery,
 )
+from workers.reports_worker import _scheduled_report_loop, _overnight_triage_loop
 from workers.social_workers import (
     _linkedin_scheduler_loop, _linkedin_autopilot_loop, _instagram_autopilot_loop,
 )

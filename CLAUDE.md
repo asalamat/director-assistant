@@ -10,6 +10,7 @@
 - NEVER commit secrets, credentials, or .env files
 - Keep files under 500 lines
 - Validate input at system boundaries
+- REFACTOR FIRST — if a target file is over 500 lines or has known technical debt, clean it before adding features
 
 ## Agent Comms (SendMessage-First Coordination)
 
