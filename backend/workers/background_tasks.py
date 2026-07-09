@@ -230,6 +230,77 @@ async def _auto_autopilot(app, new_emails: list) -> None:
                     print(f"[autopilot] retry error for {eid}: {e}")
 
 
+async def _autopilot_startup_recovery(app) -> None:
+    """On startup, find emails from rule-senders never processed by autopilot.
+
+    Emails received during a server restart or before autopilot rules were added
+    are in the DB but not in autopilot_activity. This scan recovers them.
+    """
+    await asyncio.sleep(90)  # let initial poll and ingest complete first
+
+    if not get_effective_api_key():
+        return
+
+    from routers.autopilot import handle_incoming_email
+    import sqlite3
+
+    cache = app.state.cache
+    rag = app.state.rag
+    ai = app.state.advisor.ai
+
+    try:
+        rules = cache.list_autopilot_rules()
+        if not rules:
+            return
+
+        active_rules = [r for r in rules if r.get("mode", "off") != "off"]
+        if not active_rules:
+            return
+
+        db_path = getattr(cache, "db_path", None)
+        if not db_path:
+            return
+
+        recovered = 0
+        for rule in active_rules:
+            sender_email = rule.get("email_addr", "").strip().lower()
+            if not sender_email:
+                continue
+
+            with sqlite3.connect(db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                # Find emails from this sender in the last 7 days not in autopilot_activity
+                rows = conn.execute(
+                    """SELECT e.id FROM emails e
+                       WHERE LOWER(e.sender) LIKE ?
+                         AND e.date >= datetime('now', '-7 days')
+                         AND e.folder NOT IN ('Sent', 'Drafts', 'Trash', '[Gmail]/Sent Mail',
+                                              '[Gmail]/Drafts', '[Gmail]/Trash')
+                         AND NOT EXISTS (
+                             SELECT 1 FROM autopilot_activity a WHERE a.email_id = e.id
+                         )
+                       ORDER BY e.date ASC""",
+                    (f"%{sender_email}%",),
+                ).fetchall()
+
+            for row in rows:
+                em = cache.get(row["id"])
+                if em is None:
+                    continue
+                try:
+                    await handle_incoming_email(em, cache, rag, ai)
+                    recovered += 1
+                    print(f"[autopilot] recovered orphaned email {em.id} ({em.subject!r})")
+                except Exception as e:
+                    print(f"[autopilot] recovery error for {em.id}: {e}")
+
+        if recovered:
+            print(f"[autopilot] startup recovery processed {recovered} orphaned email(s)")
+
+    except Exception as e:
+        print(f"[autopilot] startup recovery failed: {e}")
+
+
 # ── Long-running background loops ─────────────────────────────────────────────
 
 async def _commitment_scan_loop(app: "object") -> None:
