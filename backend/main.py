@@ -422,9 +422,13 @@ async def _daily_brief_scheduler(app: FastAPI):
             brief_time = cfg.get("morning_brief_email_time", "08:00")
             now = _dt.now()
             today_str = now.strftime("%Y-%m-%d")
-            if now.strftime("%H:%M") != brief_time:
-                continue
             if cfg.get("morning_brief_last_sent") == today_str:
+                continue
+            # Allow a 5-minute window so restarts near the scheduled time don't miss it
+            h, m = map(int, brief_time.split(":"))
+            brief_dt = now.replace(hour=h, minute=m, second=0, microsecond=0)
+            elapsed_min = (now - brief_dt).total_seconds() / 60
+            if not (0 <= elapsed_min < 5):
                 continue
 
             # Generate brief using the same helper functions
@@ -538,12 +542,15 @@ async def _digest_scheduler(app: FastAPI):
                 continue
             schedule_time = cfg.get("digest_schedule_time", "08:00")
             now = _dt.now()
-            current_time = now.strftime("%H:%M")
             today_str = now.strftime("%Y-%m-%d")
-            if current_time == schedule_time and cfg.get("digest_last_sent") != today_str:
-                await _send_scheduled_digest(app)
-                cfg["digest_last_sent"] = today_str
-                save_app_config(cfg)
+            if cfg.get("digest_last_sent") != today_str:
+                h, m = map(int, schedule_time.split(":"))
+                sched_dt = now.replace(hour=h, minute=m, second=0, microsecond=0)
+                elapsed_min = (now - sched_dt).total_seconds() / 60
+                if 0 <= elapsed_min < 5:
+                    await _send_scheduled_digest(app)
+                    cfg["digest_last_sent"] = today_str
+                    save_app_config(cfg)
         except Exception as e:
             print(f"[digest-scheduler] error: {e}")
 

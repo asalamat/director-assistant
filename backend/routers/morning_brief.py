@@ -218,3 +218,68 @@ async def morning_brief(request: Request, force: bool = False):
 
     _cache_store["brief"] = {"at": now, "data": brief}
     return brief
+
+
+@router.post("/morning-brief/send-now")
+async def send_brief_now(request: Request):
+    """Manually send today's morning brief email — useful when the scheduler missed the window."""
+    from email.mime.multipart import MIMEMultipart
+    from email.mime.text import MIMEText
+    from datetime import datetime as _dt, date as _date
+    from routers.config import load_app_config, save_app_config
+    from routers.email_send import _smtp_send
+
+    cfg = load_app_config()
+    if not cfg.get("morning_brief_email_enabled"):
+        return {"status": "disabled"}
+    to_email = cfg.get("morning_brief_email_to", "").strip()
+    if not to_email:
+        return {"status": "no_recipient"}
+
+    cache = request.app.state.cache
+    accounts = cache.list_accounts()
+    smtp_acc = next((a for a in accounts if getattr(a, "password", None)), None)
+    if not smtp_acc:
+        return {"status": "no_smtp_account"}
+
+    now = _dt.now()
+    news = _top_news()
+    emails_list = _priority_emails(cache)
+    today = _date.today().isoformat()
+    chase = _overdue_followups(cache, today)
+    commitments = _open_commitments(cache)
+    projects = _active_projects(cache)
+    events = await get_today_events(cache)
+
+    lines = [
+        f"Director Assistant — Morning Brief",
+        f"{now.strftime('%A, %B %-d, %Y')}",
+        "=" * 42, "",
+    ]
+    if events:
+        lines += ["📅 TODAY'S SCHEDULE:"] + [f"  {e['start'][11:16]} – {e['end'][11:16]}  {e['title']}" for e in events] + [""]
+    if emails_list:
+        lines += ["📬 PRIORITY INBOX:"] + [f"  • {e['subject']}  ({e['sender']})" for e in emails_list[:5]] + [""]
+    if news:
+        lines += ["📰 NEWS TO KNOW:"] + [f"  • {a.get('title','')}  [{a.get('source','')}]" for a in news[:4]] + [""]
+    if chase:
+        lines += ["⏰ OVERDUE FOLLOW-UPS:"] + [f"  • {c['subject']} (due {c['due_date']})" for c in chase] + [""]
+    if commitments:
+        lines += ["🤝 OPEN COMMITMENTS:"] + [f"  • {c['description']}" for c in commitments[:5]] + [""]
+    if projects:
+        lines += ["📁 ACTIVE PROJECTS:"] + [f"  • {p['name']} — {p['status']}" for p in projects[:5]] + [""]
+    lines += ["---", "Sent by Director Assistant"]
+
+    msg = MIMEMultipart()
+    msg["From"] = smtp_acc.username
+    msg["To"] = to_email
+    msg["Subject"] = f"Morning Brief — {now.strftime('%A, %B %-d')}"
+    msg.attach(MIMEText("\n".join(lines), "plain", "utf-8"))
+
+    import asyncio
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(None, _smtp_send, smtp_acc, msg)
+
+    cfg["morning_brief_last_sent"] = now.strftime("%Y-%m-%d")
+    save_app_config(cfg)
+    return {"status": "sent", "to": to_email}
