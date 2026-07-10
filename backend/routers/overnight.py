@@ -66,6 +66,6 @@ async def discard_draft(draft_id: int, request: Request):
 async def run_now(request: Request):
     """Trigger overnight triage immediately (for testing)."""
     import asyncio
-    from workers.background_tasks import _run_overnight_triage
+    from workers.reports_worker import _run_overnight_triage
     asyncio.create_task(_run_overnight_triage(request.app))
     return {"queued": True}

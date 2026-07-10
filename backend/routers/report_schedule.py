@@ -15,7 +15,7 @@ async def send_report_now(request: Request):
     to_email = cfg.get("report_email_to", "").strip()
     if not to_email:
         raise HTTPException(400, "report_email_to not configured — set destination email in Settings → Integrations")
-    from workers.background_tasks import _generate_and_send_report
+    from workers.reports_worker import _generate_and_send_report
     asyncio.create_task(_generate_and_send_report(request.app))
     return {"queued": True, "sent_to": to_email}
 
