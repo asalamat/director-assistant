@@ -162,10 +162,7 @@ export function ChaseQueue({ onOpenCompose }: { onOpenCompose?: (opts: { to: str
     setDraftingFollowup(null)
   }
 
-  const urgencyColor = (d: number) =>
-    d >= 14 ? 'border-red-200 bg-red-50' :
-    d >= 7  ? 'border-amber-200 bg-amber-50' :
-    'border-gray-100 bg-white'
+  const urgencyColor = (_d: number) => 'border-gray-100 bg-white'
 
   const urgencyBadge = (d: number) =>
     d >= 14 ? 'bg-red-100 text-red-700' :
