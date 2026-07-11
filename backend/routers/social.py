@@ -12,7 +12,7 @@ from routers.config import load_app_config, save_app_config
 router = APIRouter(prefix="/api/social", tags=["social"])
 
 LINKEDIN_SETTING_KEYS = ("client_id", "client_secret", "access_token", "user_id", "custom_prompts", "image_model")
-IMAGE_MODELS = ("dall-e-3", "gpt-image-1", "gpt-5.5", "dall-e-2")  # tried in order if preferred fails
+IMAGE_MODELS = ("gpt-image-1", "dall-e-3", "gpt-5.5", "dall-e-2")  # tried in order if preferred fails
 
 BUILTIN_TEMPLATES = [
     {
@@ -335,7 +335,7 @@ async def generate_images(body: dict, request: Request):
         if not dalle_prompt:
             return {"images": [], "error": "Could not generate image prompt"}
 
-    preferred = _get_linkedin_settings().get("image_model", "dall-e-3") or "dall-e-3"
+    preferred = _get_linkedin_settings().get("image_model", "gpt-image-1") or "gpt-image-1"
     fallback_list = list(IMAGE_MODELS)
     if preferred in fallback_list:
         fallback_list.remove(preferred)
