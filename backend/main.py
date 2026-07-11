@@ -425,11 +425,10 @@ async def _daily_brief_scheduler(app: FastAPI):
             today_str = now.strftime("%Y-%m-%d")
             if cfg.get("morning_brief_last_sent") == today_str:
                 continue
-            # Allow a 5-minute window so restarts near the scheduled time don't miss it
+            # Send any time after the scheduled hour on days it hasn't sent yet
             h, m = map(int, brief_time.split(":"))
             brief_dt = now.replace(hour=h, minute=m, second=0, microsecond=0)
-            elapsed_min = (now - brief_dt).total_seconds() / 60
-            if not (0 <= elapsed_min < 5):
+            if now < brief_dt:
                 continue
 
             # Generate brief using the same helper functions
