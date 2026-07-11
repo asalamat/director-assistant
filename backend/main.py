@@ -290,7 +290,7 @@ async def _do_poll_cycle_inner(rag: RAGEngine, cache: EmailCache, app=None) -> t
             providers_to_check = [(0, p)]
 
     known_ids = rag._known_ids()
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
 
     # Accounts that have never completed a full ingest get fetch_all (no N cap, no date cap).
     never_ingested_ids: set[int] = {
@@ -403,156 +403,8 @@ async def _do_poll_cycle_inner(rag: RAGEngine, cache: EmailCache, app=None) -> t
     return new_total, errors
 
 
-async def _daily_brief_scheduler(app: FastAPI):
-    """Send morning brief (news + inbox + follow-ups) daily at the configured time."""
-    from email.mime.multipart import MIMEMultipart
-    from email.mime.text import MIMEText
-    from routers.config import load_app_config, save_app_config
-    from routers.email_send import _smtp_send
-    from datetime import datetime as _dt, date as _date
-    await asyncio.sleep(45)
-    while True:
-        await asyncio.sleep(60)
-        try:
-            cfg = load_app_config()
-            if not cfg.get("morning_brief_email_enabled"):
-                continue
-            to_email = cfg.get("morning_brief_email_to", "").strip()
-            if not to_email:
-                continue
-            brief_time = cfg.get("morning_brief_email_time", "08:00")
-            now = _dt.now()
-            today_str = now.strftime("%Y-%m-%d")
-            if cfg.get("morning_brief_last_sent") == today_str:
-                continue
-            # Send any time after the scheduled hour on days it hasn't sent yet
-            h, m = map(int, brief_time.split(":"))
-            brief_dt = now.replace(hour=h, minute=m, second=0, microsecond=0)
-            if now < brief_dt:
-                continue
-
-            # Generate brief using the same helper functions
-            from routers.morning_brief import _top_news, _priority_emails, _overdue_followups, _open_commitments, _active_projects
-            from routers.calendar import get_today_events
-            cache = app.state.cache
-            news = _top_news()
-            emails = _priority_emails(cache)
-            today = _date.today().isoformat()
-            chase = _overdue_followups(cache, today)
-            commitments = _open_commitments(cache)
-            projects = _active_projects(cache)
-            events = await get_today_events(cache)
-
-            lines = [
-                f"Director Assistant — Morning Brief",
-                f"{now.strftime('%A, %B %-d, %Y')}",
-                "=" * 42, "",
-            ]
-            if events:
-                lines += ["📅 TODAY'S SCHEDULE:"] + [f"  {e['start'][11:16]} – {e['end'][11:16]}  {e['title']}" for e in events] + [""]
-            if emails:
-                lines += ["📬 PRIORITY INBOX:"] + [f"  • {e['subject']}  ({e['sender']})" for e in emails[:5]] + [""]
-            if news:
-                lines += ["📰 NEWS TO KNOW:"] + [f"  • {a.get('title','')}  [{a.get('source','')}]" for a in news[:4]] + [""]
-            if chase:
-                lines += ["⏰ OVERDUE FOLLOW-UPS:"] + [f"  • {c['subject']} (due {c['due_date']})" for c in chase] + [""]
-            if commitments:
-                lines += ["🤝 OPEN COMMITMENTS:"] + [f"  • {c['description']}" for c in commitments[:5]] + [""]
-            if projects:
-                lines += ["📁 ACTIVE PROJECTS:"] + [f"  • {p['name']} — {p['status']}" for p in projects[:5]] + [""]
-            lines += ["---", "Sent by Director Assistant"]
-
-            accounts = cache.list_accounts()
-            smtp_acc = next((a for a in accounts if getattr(a, "password", None)), None)
-            if not smtp_acc:
-                print("[morning-brief-scheduler] no SMTP account — skipping")
-                continue
-
-            msg = MIMEMultipart()
-            msg["From"] = smtp_acc.username
-            msg["To"] = to_email
-            msg["Subject"] = f"Morning Brief — {now.strftime('%A, %B %-d')}"
-            msg.attach(MIMEText("\n".join(lines), "plain", "utf-8"))
-
-            loop = asyncio.get_event_loop()
-            await loop.run_in_executor(None, _smtp_send, smtp_acc, msg)
-            print(f"[morning-brief-scheduler] brief sent to {to_email}")
-
-            cfg["morning_brief_last_sent"] = today_str
-            save_app_config(cfg)
-        except Exception as e:
-            print(f"[morning-brief-scheduler] error: {e}")
-
-
-async def _send_scheduled_digest(app: FastAPI):
-    """Generate and send the daily digest email via SMTP."""
-    from email.mime.multipart import MIMEMultipart
-    from email.mime.text import MIMEText
-    from datetime import date as _date
-    from routers.config import load_app_config
-    from routers.email_send import _smtp_send
-
-    cfg = load_app_config()
-    to_email = cfg.get("digest_schedule_email", "")
-    if not to_email:
-        return
-
-    digest_svc = app.state.digest
-    cache = app.state.cache
-    try:
-        digest = await digest_svc.generate(cache, hours=24)
-    except Exception as e:
-        print(f"[digest-scheduler] generate failed: {e}")
-        return
-
-    accounts = cache.list_accounts()
-    smtp_acc = next((a for a in accounts if getattr(a, "password", None)), None)
-    if not smtp_acc:
-        print("[digest-scheduler] no SMTP account — skipping send")
-        return
-
-    subject = f"Director Assistant Digest — {_date.today().strftime('%A, %B %d')}"
-    lines = [digest.get("summary", ""), ""]
-    if digest.get("top_action_items"):
-        lines += ["Action Items:"] + [f"• {a}" for a in digest["top_action_items"][:5]] + [""]
-    if digest.get("highlights"):
-        lines += ["Highlights:"] + [f"• {h}" for h in digest["highlights"][:5]]
-    body = "\n".join(lines)
-
-    msg = MIMEMultipart()
-    msg["From"] = smtp_acc.username
-    msg["To"] = to_email
-    msg["Subject"] = subject
-    msg.attach(MIMEText(body, "plain", "utf-8"))
-    loop = asyncio.get_event_loop()
-    await loop.run_in_executor(None, _smtp_send, smtp_acc, msg)
-    print(f"[digest-scheduler] digest sent to {to_email}")
-
-
-async def _digest_scheduler(app: FastAPI):
-    """Background loop: send digest at configured time once per day."""
-    from routers.config import load_app_config, save_app_config
-    from datetime import datetime as _dt
-    await asyncio.sleep(30)
-    while True:
-        await asyncio.sleep(60)
-        try:
-            cfg = load_app_config()
-            if not cfg.get("digest_schedule_enabled"):
-                continue
-            schedule_time = cfg.get("digest_schedule_time", "08:00")
-            now = _dt.now()
-            today_str = now.strftime("%Y-%m-%d")
-            if cfg.get("digest_last_sent") != today_str:
-                h, m = map(int, schedule_time.split(":"))
-                sched_dt = now.replace(hour=h, minute=m, second=0, microsecond=0)
-                elapsed_min = (now - sched_dt).total_seconds() / 60
-                if 0 <= elapsed_min < 5:
-                    await _send_scheduled_digest(app)
-                    cfg["digest_last_sent"] = today_str
-                    save_app_config(cfg)
-        except Exception as e:
-            print(f"[digest-scheduler] error: {e}")
+# _daily_brief_scheduler, _send_scheduled_digest, _digest_scheduler live in workers/reports_worker.py
+from workers.reports_worker import _daily_brief_scheduler, _send_scheduled_digest, _digest_scheduler  # noqa: F401,E402
 
 
 async def _db_maintenance_loop(app: FastAPI):
