@@ -93,6 +93,16 @@ async def _fetch_google(token: str, days: int) -> list[dict]:
     ]
 
 
+def _resolve_token(acc) -> str:
+    """Return the real access token, resolving keychain sentinel if needed."""
+    from services.email_extras import _kr_get_oauth_bundle
+    token = acc.access_token or ""
+    if token == "__keychain__":
+        bundle = _kr_get_oauth_bundle(acc.id)
+        token = bundle.get("access_token", "") or ""
+    return token
+
+
 async def _load(cache, days: int, force: bool = False) -> dict:
     acc = _pick_account(cache)
     if not acc:
@@ -102,15 +112,21 @@ async def _load(cache, days: int, force: bool = False) -> dict:
     if not force and cached and (time.time() - cached["at"]) < CACHE_TTL and cached["days"] == days:
         return cached["data"]
 
-    is_google = acc.provider == "gmail"
+    is_google = acc.provider in ("gmail", "google", "gmail_oauth")
     fetch = _fetch_google if is_google else _fetch_m365
     provider = "google" if is_google else "microsoft"
+    token = _resolve_token(acc)
+    if not token:
+        return {"events": [], "provider": "none", "days": days}
     try:
-        events = await fetch(acc.access_token, days)
+        events = await fetch(token, days)
     except httpx.HTTPStatusError as e:
-        if e.response.status_code == 401 and cache.refresh_oauth_token(acc.id):
-            acc = cache.get_account(acc.id)
-            events = await fetch(acc.access_token, days)
+        if e.response.status_code == 401:
+            new_token = cache.refresh_oauth_token(acc.id)
+            if new_token:
+                events = await fetch(new_token, days)
+            else:
+                return {"events": [], "provider": "none", "days": days}
         else:
             return {"events": [], "provider": "none", "days": days}
 
