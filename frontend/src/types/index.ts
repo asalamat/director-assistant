@@ -470,11 +470,15 @@ export interface CalEvent {
   join_url: string
   attendee_count: number
   response: string
+  calendar_account?: string
+  calendar_provider?: string
 }
 
 export interface CalendarResponse {
   events: CalEvent[]
   provider: 'google' | 'microsoft' | 'none'
+  providers?: string[]
+  connected_accounts?: string[]
   days: number
 }
 

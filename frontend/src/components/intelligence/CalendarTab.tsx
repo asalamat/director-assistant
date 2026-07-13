@@ -32,7 +32,7 @@ function groupByDate(events: CalEvent[]): [string, CalEvent[]][] {
   return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]))
 }
 
-function EventCard({ event }: { event: CalEvent }) {
+function EventCard({ event, multiAccount }: { event: CalEvent; multiAccount?: boolean }) {
   return (
     <div className="rounded-xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-3 shadow-sm flex gap-3">
       <div className="font-mono text-sm font-semibold text-accent-600 dark:text-accent-400 flex-shrink-0 w-16">
@@ -41,6 +41,11 @@ function EventCard({ event }: { event: CalEvent }) {
       <div className="flex-1 min-w-0">
         <p className="font-bold text-sm text-gray-900 dark:text-gray-100 truncate">{event.title}</p>
         <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+          {multiAccount && event.calendar_account && (
+            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-300 truncate max-w-[140px]">
+              {event.calendar_account}
+            </span>
+          )}
           {event.is_online && (
             <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-green-100 dark:bg-green-950/50 text-green-700 dark:text-green-300">🟢 Online</span>
           )}
@@ -164,22 +169,48 @@ export function CalendarTab() {
   }
 
   const groups = groupByDate(data?.events ?? [])
+  const connectedAccounts: string[] = (data as any)?.connected_accounts ?? []
+  const multiAccount = connectedAccounts.length > 1
+
+  const handleConnectMore = async () => {
+    try {
+      const { url } = await api.getGoogleAuthUrl()
+      const popup = window.open(url, 'gcal-auth-more', 'width=520,height=680,left=200,top=80')
+      if (!popup) return
+      const onMsg = (e: MessageEvent) => {
+        if (e.data?.type === 'oauth-complete' || e.data?.type === 'oauth-error') {
+          window.removeEventListener('message', onMsg)
+          if (e.data?.type === 'oauth-complete') load(true)
+        }
+      }
+      window.addEventListener('message', onMsg)
+      const t = setInterval(() => { if (popup.closed) { clearInterval(t); window.removeEventListener('message', onMsg) } }, 800)
+    } catch { /* silent */ }
+  }
 
   return (
     <div className="p-6 max-w-3xl mx-auto">
-      <div className="flex items-center justify-between mb-5">
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3 flex-wrap">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50 tracking-tight">Calendar</h1>
-          <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-accent-50 dark:bg-accent-950/40 text-accent-600 dark:text-accent-400">
-            {PROVIDER_LABEL[data?.provider ?? 'none']}
-          </span>
+          {connectedAccounts.map(acc => (
+            <span key={acc} className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-accent-50 dark:bg-accent-950/40 text-accent-600 dark:text-accent-400 truncate max-w-[160px]">
+              {acc}
+            </span>
+          ))}
         </div>
-        <button onClick={() => load(true)} className="flex items-center gap-1.5 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:text-accent-600 border border-gray-200 dark:border-gray-700 hover:border-accent-300 px-3 py-1.5 rounded-lg transition-colors flex-shrink-0">
-          <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
-          </svg>
-          Refresh
-        </button>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <button onClick={handleConnectMore} title="Add another calendar account"
+            className="text-xs text-gray-500 dark:text-gray-400 hover:text-accent-600 border border-gray-200 dark:border-gray-700 hover:border-accent-300 px-2.5 py-1.5 rounded-lg transition-colors">
+            + Add
+          </button>
+          <button onClick={() => load(true)} className="flex items-center gap-1.5 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:text-accent-600 border border-gray-200 dark:border-gray-700 hover:border-accent-300 px-3 py-1.5 rounded-lg transition-colors">
+            <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
+            </svg>
+            Refresh
+          </button>
+        </div>
       </div>
 
       {groups.length === 0 ? (
@@ -198,7 +229,7 @@ export function CalendarTab() {
                   {isToday && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-accent-500 text-white">Today</span>}
                 </div>
                 <div className="space-y-2">
-                  {events.map(e => <EventCard key={e.id} event={e} />)}
+                  {events.map(e => <EventCard key={e.id} event={e} multiAccount={multiAccount} />)}
                 </div>
               </div>
             )
