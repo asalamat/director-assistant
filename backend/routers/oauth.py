@@ -600,6 +600,18 @@ async def google_oauth_callback(
     for acc in accounts:
         if acc.username.lower() == username.lower():
             cache.store_account_token(acc.id, access_token, refresh_token=refresh_token)
+            # Ensure token_provider, client_id, client_secret are set for Google refresh to work
+            import json as _j
+            with cache._conn() as conn:
+                row = conn.execute("SELECT config_json FROM accounts WHERE id = ?", (acc.id,)).fetchone()
+                if row:
+                    cfg = _j.loads(row[0] or "{}")
+                    cfg["token_provider"] = "google"
+                    if client_id:
+                        cfg["client_id"] = client_id
+                    if client_secret:
+                        cfg["client_secret"] = client_secret
+                    conn.execute("UPDATE accounts SET config_json = ? WHERE id = ?", (_j.dumps(cfg), acc.id))
             matched = True
             break
 

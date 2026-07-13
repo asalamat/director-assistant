@@ -112,27 +112,52 @@ export function CalendarTab() {
 
   if (data?.provider === 'none') {
     const reason = (data as any)?.reason
-    const isGmailImap = reason === 'gmail_imap'
-    const isImapOnly = reason === 'imap_only'
+    const isGmailImap = reason === 'gmail_imap' || reason === 'imap_only'
+
+    const handleConnectGoogle = async () => {
+      try {
+        const { url } = await api.getGoogleAuthUrl()
+        const popup = window.open(url, 'gcal-auth', 'width=520,height=680,left=200,top=80')
+        if (!popup) { alert('Popup blocked — allow popups and try again.'); return }
+        const onMsg = (e: MessageEvent) => {
+          if (e.data?.type === 'oauth-complete' || e.data?.type === 'oauth-error') {
+            window.removeEventListener('message', onMsg)
+            if (e.data?.type === 'oauth-complete') load(true)
+          }
+        }
+        window.addEventListener('message', onMsg)
+        const t = setInterval(() => { if (popup.closed) { clearInterval(t); window.removeEventListener('message', onMsg) } }, 800)
+      } catch { /* silent */ }
+    }
+
     return (
       <div className="p-6 max-w-md mx-auto text-center mt-16">
         <div className="text-4xl mb-3">📅</div>
         {isGmailImap ? (
           <>
-            <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">Gmail is connected via IMAP — calendar needs Google OAuth</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-              IMAP only syncs email. To enable calendar, add your Google Client ID &amp; Secret in <strong>Settings → App Settings</strong>, then click <strong>Connect Google</strong> to authorise calendar access.
+            <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">Calendar needs Google OAuth authorisation</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+              Your Gmail is connected for email but calendar requires a separate OAuth sign-in to access Google Calendar.
             </p>
-          </>
-        ) : isImapOnly ? (
-          <>
-            <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">Your email is connected via IMAP — calendar needs OAuth</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-              Connect a Google or Microsoft 365 account via OAuth in Settings to enable calendar access.
-            </p>
+            <button
+              onClick={handleConnectGoogle}
+              className="inline-flex items-center gap-2 text-sm font-semibold px-5 py-2.5 rounded-xl bg-white border border-gray-300 shadow-sm hover:bg-gray-50 text-gray-700 transition-colors"
+            >
+              <svg className="w-5 h-5" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+              Sign in with Google
+            </button>
           </>
         ) : (
-          <p className="text-sm text-gray-600 dark:text-gray-300">Connect Google or Microsoft 365 in Settings to see your calendar.</p>
+          <>
+            <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">Connect Google or Microsoft 365 to see your calendar.</p>
+            <button
+              onClick={handleConnectGoogle}
+              className="inline-flex items-center gap-2 text-sm font-semibold px-5 py-2.5 rounded-xl bg-white border border-gray-300 shadow-sm hover:bg-gray-50 text-gray-700 transition-colors"
+            >
+              <svg className="w-5 h-5" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+              Sign in with Google
+            </button>
+          </>
         )}
       </div>
     )
