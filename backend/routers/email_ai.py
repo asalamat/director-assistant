@@ -583,6 +583,51 @@ async def adjust_tone(request: Request):
         raise HTTPException(500, _safe_err(e, "Tone adjustment"))
     return {"result": result}
 
+
+@router.post("/draft-from-idea")
+async def draft_from_idea(request: Request):
+    """Turn rough notes/ideas into a complete, polished email body."""
+    import json as _json
+    body_bytes = await request.body()
+    try:
+        data = _json.loads(body_bytes)
+        text = data.get("text", "").strip()
+        subject = data.get("subject", "").strip()
+        to = data.get("to", "").strip()
+    except Exception:
+        raise HTTPException(400, "Invalid body")
+    if not text:
+        raise HTTPException(400, "text required")
+    context_lines = []
+    if to:
+        context_lines.append(f"Recipient: {to}")
+    if subject:
+        context_lines.append(f"Subject: {subject}")
+    context = "\n".join(context_lines)
+    prompt = (
+        "You are an expert email writer. The user has written rough notes or ideas below. "
+        "Transform them into a complete, professional, well-structured email body. "
+        "Preserve all the user's key points and intent — just make it clear, polished, and ready to send. "
+        + (f"\n\n{context}" if context else "")
+        + f"\n\nUser's rough notes:\n{text[:2000]}"
+        + "\n\nReturn ONLY the email body text. No subject line, no 'Subject:' prefix. Start directly with the greeting or first sentence."
+    )
+    advisor = request.app.state.advisor
+    ant = getattr(advisor.ai, "_anthropic", None)
+    try:
+        if ant:
+            resp = await ant.messages.create(model="claude-haiku-4-5-20251001", max_tokens=1000,
+                messages=[{"role": "user", "content": prompt}])
+            result = resp.content[0].text.strip()
+        else:
+            resp = await advisor.ai.messages.create(model="claude-haiku-4-5-20251001", max_tokens=1000,
+                messages=[{"role": "user", "content": prompt}])
+            result = resp.content[0].text.strip()
+    except Exception as e:
+        raise HTTPException(500, _safe_err(e, "Draft from idea"))
+    return {"result": result}
+
+
 @router.post("/analyze-tone")
 async def analyze_tone(req: AnalyzeToneRequest, request: Request):
     """Analyze the tone of a draft and detect issues (passive-aggressive, no clear ask, etc.)."""

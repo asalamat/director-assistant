@@ -880,6 +880,9 @@ export const api = {
   adjustTone(text: string, tone: 'formal' | 'casual' | 'shorter' | 'friendlier' | 'direct' | 'improve'): Promise<{ result: string }> {
     return request('/emails/adjust-tone', { method: 'POST', body: JSON.stringify({ text, tone }) })
   },
+  draftFromIdea(text: string, subject: string, to: string): Promise<{ result: string }> {
+    return request('/emails/draft-from-idea', { method: 'POST', body: JSON.stringify({ text, subject, to }) })
+  },
 
   // Tone Coach
   analyzeTone(text: string): Promise<ToneReport> {
