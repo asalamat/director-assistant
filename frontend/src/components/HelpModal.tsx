@@ -3,7 +3,7 @@ import pkgJson from '../../package.json'
 
 interface Props { onClose: () => void }
 
-type Section = 'start' | 'settings' | 'inbox' | 'compose' | 'ai' | 'news' | 'executive' | 'social' | 'contacts' | 'projects' | 'knowledge' | 'dashboard' | 'import' | 'providers' | 'integrations' | 'tips'
+type Section = 'start' | 'settings' | 'inbox' | 'compose' | 'ai' | 'news' | 'executive' | 'social' | 'contacts' | 'projects' | 'knowledge' | 'dashboard' | 'import' | 'providers' | 'integrations' | 'advanced' | 'tips'
 
 const SECTIONS: { id: Section; icon: string; label: string }[] = [
   { id: 'start',     icon: '🚀', label: 'Getting Started' },
@@ -21,6 +21,7 @@ const SECTIONS: { id: Section; icon: string; label: string }[] = [
   { id: 'import',    icon: '📦', label: 'Import PST / OLM' },
   { id: 'providers',     icon: '🔀', label: 'AI Providers' },
   { id: 'integrations', icon: '🔗', label: 'Integrations' },
+  { id: 'advanced',     icon: '🔐', label: 'Advanced Config' },
   { id: 'tips',         icon: '💡', label: 'Tips & Shortcuts' },
 ]
 
@@ -1309,6 +1310,114 @@ function IntegrationsSection() {
   )
 }
 
+function AdvancedConfigSection() {
+  return (
+    <div>
+      <H2>Advanced Configuration</H2>
+      <P>This section covers creating your own OAuth apps for Google and Microsoft so Director Assistant can access Gmail, Google Calendar, Microsoft 365 mail, and Microsoft Calendar on your behalf. You only need to do this once.</P>
+
+      {/* ── Google ── */}
+      <H2>Google — Create an OAuth App</H2>
+      <P>Required for: Gmail OAuth email sync, Google Calendar, Google Contacts sync, and adding multiple Google accounts.</P>
+
+      <H3>Step 1 — Create a Google Cloud project</H3>
+      <Step n={1}>Go to <strong>console.cloud.google.com</strong> and sign in with the Google account you want to use.</Step>
+      <Step n={2}>Click the project selector at the top, then <strong>New Project</strong>. Name it anything (e.g. "Director Assistant").</Step>
+      <Step n={3}>Click <strong>Create</strong> and wait a few seconds for the project to be ready.</Step>
+
+      <H3>Step 2 — Enable the required APIs</H3>
+      <Step n={1}>In the left menu go to <strong>APIs &amp; Services → Library</strong>.</Step>
+      <Step n={2}>Search for and enable each of these APIs (click the API name, then click <strong>Enable</strong>):
+        <ul className="mt-2 space-y-1 pl-4 list-disc text-sm text-gray-600">
+          <li><strong>Gmail API</strong> — for reading and sending email</li>
+          <li><strong>Google Calendar API</strong> — for calendar events</li>
+          <li><strong>People API</strong> — for Google Contacts sync</li>
+        </ul>
+      </Step>
+
+      <H3>Step 3 — Configure OAuth consent screen</H3>
+      <Step n={1}>Go to <strong>APIs &amp; Services → OAuth consent screen</strong>.</Step>
+      <Step n={2}>Choose <strong>External</strong> (works for personal Gmail). Click <strong>Create</strong>.</Step>
+      <Step n={3}>Fill in <strong>App name</strong> (e.g. "Director Assistant"), your email for support, and your email for developer contact. Click <strong>Save and Continue</strong>.</Step>
+      <Step n={4}>On the Scopes page click <strong>Add or Remove Scopes</strong> and add:
+        <pre className="bg-gray-50 border border-gray-200 rounded text-xs p-2 mt-1 font-mono overflow-x-auto">{`https://www.googleapis.com/auth/gmail.modify
+https://www.googleapis.com/auth/calendar.readonly
+https://www.googleapis.com/auth/contacts.readonly`}</pre>
+        Click <strong>Update</strong>, then <strong>Save and Continue</strong>.
+      </Step>
+      <Step n={5}>On the Test Users page click <strong>+ Add Users</strong> and add your Gmail address. Click <strong>Save and Continue</strong>.</Step>
+
+      <H3>Step 4 — Create OAuth credentials</H3>
+      <Step n={1}>Go to <strong>APIs &amp; Services → Credentials</strong>. Click <strong>+ Create Credentials → OAuth client ID</strong>.</Step>
+      <Step n={2}>Set <strong>Application type</strong> to <strong>Web application</strong>. Name it anything.</Step>
+      <Step n={3}>Under <strong>Authorized redirect URIs</strong> click <strong>+ Add URI</strong> and enter exactly:
+        <pre className="bg-gray-50 border border-gray-200 rounded text-xs p-2 mt-1 font-mono">http://localhost:8000/api/oauth/google/callback</pre>
+      </Step>
+      <Step n={4}>Click <strong>Create</strong>. A dialog shows your <strong>Client ID</strong> and <strong>Client Secret</strong> — copy both.</Step>
+
+      <H3>Step 5 — Add credentials to Director Assistant</H3>
+      <Step n={1}>Open <strong>Settings → App Settings</strong>.</Step>
+      <Step n={2}>Paste your <strong>Client ID</strong> into <strong>Google Client ID</strong> and your <strong>Client Secret</strong> into <strong>Google Client Secret</strong>.</Step>
+      <Step n={3}>Click <strong>Save</strong>.</Step>
+      <Step n={4}>Go to <strong>Settings → Email Accounts → Add Account</strong> and choose <strong>Gmail</strong>. Click <strong>Sign in with Google</strong> — a popup will open for you to authorize the app.</Step>
+      <Step n={5}>For calendar access, go to <strong>Knowledge → Calendar</strong> and click <strong>Sign in with Google</strong> if prompted.</Step>
+
+      <Note><strong>Test mode limit:</strong> While your app is in test mode (not verified by Google), only the users you added in Step 3.5 can sign in. For personal use this is fine — you never need to publish the app.</Note>
+
+      {/* ── Microsoft ── */}
+      <H2>Microsoft 365 — Create an Azure App</H2>
+      <P>Required for: Microsoft 365 email sync, Outlook Calendar, Microsoft Contacts sync.</P>
+
+      <H3>Step 1 — Register an application in Azure</H3>
+      <Step n={1}>Go to <strong>portal.azure.com</strong> and sign in with your Microsoft 365 account.</Step>
+      <Step n={2}>Search for <strong>App registrations</strong> in the top search bar and click it.</Step>
+      <Step n={3}>Click <strong>+ New registration</strong>.</Step>
+      <Step n={4}>Fill in:
+        <ul className="mt-2 space-y-1 pl-4 list-disc text-sm text-gray-600">
+          <li><strong>Name:</strong> "Director Assistant" (or any name)</li>
+          <li><strong>Supported account types:</strong> "Accounts in any organizational directory and personal Microsoft accounts"</li>
+          <li><strong>Redirect URI:</strong> select <strong>Web</strong> and enter: <code className="bg-gray-100 text-xs px-1 rounded font-mono">http://localhost:8000/api/oauth/microsoft/callback</code></li>
+        </ul>
+      </Step>
+      <Step n={5}>Click <strong>Register</strong>. You'll land on the app overview page — copy the <strong>Application (client) ID</strong>.</Step>
+
+      <H3>Step 2 — Add API permissions</H3>
+      <Step n={1}>In the left menu click <strong>API permissions → + Add a permission → Microsoft Graph → Delegated permissions</strong>.</Step>
+      <Step n={2}>Search for and add each of these:
+        <pre className="bg-gray-50 border border-gray-200 rounded text-xs p-2 mt-1 font-mono overflow-x-auto">{`Mail.Read
+Mail.ReadWrite
+Mail.Send
+Calendars.Read
+Contacts.Read
+User.Read`}</pre>
+      </Step>
+      <Step n={3}>Click <strong>Add permissions</strong>. Then click <strong>Grant admin consent for [your org]</strong> and confirm. (If you don't see this button, sign in as an admin or skip — personal accounts consent at sign-in.)</Step>
+
+      <H3>Step 3 — Create a client secret</H3>
+      <Step n={1}>In the left menu click <strong>Certificates &amp; secrets → + New client secret</strong>.</Step>
+      <Step n={2}>Give it a description (e.g. "Director Assistant") and choose an expiry (24 months recommended).</Step>
+      <Step n={3}>Click <strong>Add</strong>. Copy the <strong>Value</strong> shown — this is your Client Secret. You can only see it once.</Step>
+
+      <H3>Step 4 — Add credentials to Director Assistant</H3>
+      <Step n={1}>Open <strong>Settings → App Settings</strong>.</Step>
+      <Step n={2}>Paste the <strong>Application (client) ID</strong> into <strong>Microsoft Client ID</strong> and the <strong>Client Secret Value</strong> into <strong>Microsoft Client Secret</strong>.</Step>
+      <Step n={3}>Click <strong>Save</strong>.</Step>
+      <Step n={4}>Go to <strong>Settings → Email Accounts → Add Account</strong>, choose <strong>Microsoft 365</strong>, and click <strong>Sign in with Microsoft</strong>. A Microsoft login popup will open.</Step>
+
+      <Note><strong>Token expiry:</strong> Microsoft tokens are refreshed automatically in the background. If you see 401 errors after some weeks, go to Settings → Email Accounts, remove the account, and re-add it via the Microsoft sign-in flow to get a fresh token.</Note>
+
+      <H3>Troubleshooting</H3>
+      <div className="mb-4">
+        <FeatureRow label="redirect_uri_mismatch" desc="The redirect URI in your Google/Azure app must exactly match http://localhost:8000/api/oauth/google/callback or http://localhost:8000/api/oauth/microsoft/callback — including the http:// scheme and no trailing slash." />
+        <FeatureRow label="invalid_client" desc="Client ID or Secret is wrong or has extra spaces. Re-copy from the credentials page." />
+        <FeatureRow label="access_denied" desc="Your Google email is not in the Test Users list (Step 3.5 above). Add it and try again." />
+        <FeatureRow label="Calendar shows 'Sign in with Google'" desc="Your Gmail account was added via IMAP (without OAuth). You need to re-add it via the Google sign-in flow in Settings → Email Accounts, or click 'Sign in with Google' on the Calendar tab." />
+        <FeatureRow label="Secret expired (Microsoft)" desc="Azure client secrets have an expiry date. Create a new secret in the Azure portal and update it in Settings → App Settings." />
+      </div>
+    </div>
+  )
+}
+
 const CONTENT: Record<Section, React.ReactNode> = {
   start:        <GettingStarted />,
   settings:     <SettingsSection />,
@@ -1325,6 +1434,7 @@ const CONTENT: Record<Section, React.ReactNode> = {
   import:       <ImportSection />,
   providers:    <ProvidersSection />,
   integrations: <IntegrationsSection />,
+  advanced:     <AdvancedConfigSection />,
   tips:         <TipsSection />,
 }
 
