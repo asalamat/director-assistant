@@ -5,6 +5,9 @@ import { useEmailContext } from '../contexts/EmailContext'
 import { ToneCoach } from './ToneCoach'
 import { VoiceDictation } from './VoiceDictation'
 
+const AI_TONES = ['formal', 'casual', 'shorter', 'friendlier', 'direct'] as const
+type AiTone = typeof AI_TONES[number] | 'improve'
+
 interface Props {
   open: boolean
   onClose: () => void
@@ -24,6 +27,7 @@ export function ComposeModal({ open, onClose, accounts, initialTo = '', initialS
   const [showCc, setShowCc] = useState(false)
   const [sending, setSending] = useState(false)
   const [msg, setMsg] = useState('')
+  const [adjustingTone, setAdjustingTone] = useState(false)
   const toRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -46,6 +50,15 @@ export function ComposeModal({ open, onClose, accounts, initialTo = '', initialS
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [open, onClose])
+
+  const handleAdjustTone = async (tone: AiTone) => {
+    if (!body.trim() || adjustingTone) return
+    setAdjustingTone(true)
+    try {
+      const { result } = await api.adjustTone(body, tone)
+      if (result) setBody(result)
+    } catch { /* silent */ } finally { setAdjustingTone(false) }
+  }
 
   const handleSend = async () => {
     if (!to.trim() || !subject.trim()) {
@@ -145,6 +158,28 @@ export function ComposeModal({ open, onClose, accounts, initialTo = '', initialS
           rows={10}
           className="flex-1 px-5 py-4 text-sm text-gray-800 resize-none outline-none placeholder-gray-300"
         />
+
+        {/* AI rewrite toolbar */}
+        <div className="px-5 pb-2 space-y-1.5 border-t border-gray-100 pt-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => handleAdjustTone('improve')}
+              disabled={adjustingTone || !body.trim()}
+              title="AI rewrites your draft — keeps your intent, fixes grammar and clarity"
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-accent/10 text-accent border border-accent/30 rounded-lg hover:bg-accent/20 disabled:opacity-40 transition-colors font-medium"
+            >
+              {adjustingTone ? <><span className="animate-spin inline-block text-[10px]">⟳</span> Improving…</> : '✦ Improve'}
+            </button>
+            <span className="text-[10px] text-gray-400 self-center">or adjust tone:</span>
+            {AI_TONES.map(t => (
+              <button key={t} onClick={() => handleAdjustTone(t)} disabled={adjustingTone || !body.trim()}
+                className="text-[10px] px-2 py-0.5 border border-gray-200 rounded-full hover:bg-gray-100 disabled:opacity-40 capitalize text-gray-600">
+                {t}
+              </button>
+            ))}
+            {adjustingTone && <span className="text-[10px] text-gray-400 animate-pulse">rewriting…</span>}
+          </div>
+        </div>
 
         <ToneCoach text={body} onRewrite={setBody} />
 
