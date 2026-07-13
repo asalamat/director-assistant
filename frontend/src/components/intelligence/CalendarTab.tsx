@@ -111,10 +111,29 @@ export function CalendarTab() {
   }
 
   if (data?.provider === 'none') {
+    const reason = (data as any)?.reason
+    const isGmailImap = reason === 'gmail_imap'
+    const isImapOnly = reason === 'imap_only'
     return (
       <div className="p-6 max-w-md mx-auto text-center mt-16">
         <div className="text-4xl mb-3">📅</div>
-        <p className="text-sm text-gray-600 dark:text-gray-300">Connect Google or Microsoft 365 in Settings to see your calendar.</p>
+        {isGmailImap ? (
+          <>
+            <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">Gmail is connected via IMAP — calendar needs Google OAuth</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+              IMAP only syncs email. To enable calendar, add your Google Client ID &amp; Secret in <strong>Settings → App Settings</strong>, then click <strong>Connect Google</strong> to authorise calendar access.
+            </p>
+          </>
+        ) : isImapOnly ? (
+          <>
+            <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">Your email is connected via IMAP — calendar needs OAuth</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+              Connect a Google or Microsoft 365 account via OAuth in Settings to enable calendar access.
+            </p>
+          </>
+        ) : (
+          <p className="text-sm text-gray-600 dark:text-gray-300">Connect Google or Microsoft 365 in Settings to see your calendar.</p>
+        )}
       </div>
     )
   }

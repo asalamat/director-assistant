@@ -103,10 +103,26 @@ def _resolve_token(acc) -> str:
     return token
 
 
+def _detect_no_oauth(cache) -> dict | None:
+    """If the user has IMAP-only OAuth accounts, return a helpful reason dict."""
+    for acc in cache.list_accounts():
+        p = str(getattr(acc, "provider", "") or "").lower()
+        if "gmail" in p or "google" in p:
+            token = _resolve_token(acc)
+            if not token:
+                return {"events": [], "provider": "none", "days": 7, "reason": "gmail_imap"}
+        elif "yahoo" in p or "outlook" in p or "hotmail" in p:
+            token = _resolve_token(acc)
+            if not token:
+                return {"events": [], "provider": "none", "days": 7, "reason": "imap_only"}
+    return None
+
+
 async def _load(cache, days: int, force: bool = False) -> dict:
     acc = _pick_account(cache)
     if not acc:
-        return {"events": [], "provider": "none", "days": days}
+        hint = _detect_no_oauth(cache)
+        return hint or {"events": [], "provider": "none", "days": days}
 
     cached = _cache_store.get(acc.id)
     if not force and cached and (time.time() - cached["at"]) < CACHE_TTL and cached["days"] == days:
