@@ -17,14 +17,22 @@ _cache_store: dict[str, dict] = {}
 CACHE_TTL = 1800  # 30 minutes
 
 
-def _top_news() -> list[dict]:
+async def _top_news() -> list[dict]:
     try:
-        from routers.news import _cache as news_cache
+        from routers.news import _cache as news_cache, _fetch_news
         articles: list[dict] = []
         for entry in news_cache.values():
             articles.extend(entry.get("articles", []))
+        if not articles:
+            # Cache empty (server restart) — fetch live with default topics
+            from routers.config import load_app_config
+            cfg = load_app_config()
+            topics = cfg.get("news_topics") or ["business", "technology", "AI"]
+            if isinstance(topics, str):
+                topics = [t.strip() for t in topics.split(",") if t.strip()]
+            articles = await _fetch_news(topics[:3], max_per_topic=6)
         articles.sort(key=lambda a: -a.get("relevance", 0))
-        return articles[:3]
+        return articles[:4]
     except Exception as e:
         _log.warning("Morning brief news source failed: %s", type(e).__name__)
         return []
@@ -32,21 +40,33 @@ def _top_news() -> list[dict]:
 
 def _priority_emails(cache) -> list[dict]:
     try:
+        # Query the last 48h of emails directly — unread preferred, recent as fallback
+        db_path = getattr(cache, "db_path", None)
+        if db_path:
+            cutoff = (datetime.now() - __import__("datetime").timedelta(hours=48)).strftime("%Y-%m-%d")
+            with sqlite3.connect(db_path) as conn:
+                rows = conn.execute(
+                    "SELECT subject, sender, date, is_read FROM emails "
+                    "WHERE date >= ? ORDER BY date DESC LIMIT 20",
+                    (cutoff,),
+                ).fetchall()
+            if rows:
+                # Prefer unread; if none, take most recent regardless
+                unread = [r for r in rows if not r[3]]
+                chosen = unread[:5] if unread else rows[:5]
+                return [
+                    {"subject": r[0] or "(no subject)", "sender": r[1] or "", "date": r[2] or ""}
+                    for r in chosen
+                ]
+        # Fallback: list_emails API
         result = cache.list_emails(folder="INBOX", limit=30)
         emails = result[0] if isinstance(result, tuple) else result
-        unread = []
-        for e in emails:
-            is_read = getattr(e, "is_read", True)
-            if is_read in (False, 0):
-                unread.append(e)
-        unread.sort(key=lambda e: getattr(e, "date", "") or "", reverse=True)
+        emails.sort(key=lambda e: getattr(e, "date", "") or "", reverse=True)
         return [
-            {
-                "subject": getattr(e, "subject", "") or "(no subject)",
-                "sender": getattr(e, "sender", ""),
-                "date": getattr(e, "date", "") or "",
-            }
-            for e in unread[:5]
+            {"subject": getattr(e, "subject", "") or "(no subject)",
+             "sender": getattr(e, "sender", ""),
+             "date": getattr(e, "date", "") or ""}
+            for e in emails[:5]
         ]
     except Exception as e:
         _log.warning("Morning brief email source failed: %s", type(e).__name__)
@@ -150,7 +170,7 @@ async def morning_brief(request: Request, force: bool = False):
 
     cache = getattr(request.app.state, "cache", None)
 
-    news = _top_news()
+    news = await _top_news()
     emails = _priority_emails(cache) if cache else []
     today = datetime.now().strftime("%Y-%m-%d")
     chase = _overdue_followups(cache, today) if cache else []
@@ -243,7 +263,7 @@ async def send_brief_now(request: Request):
         return {"status": "no_smtp_account"}
 
     now = _dt.now()
-    news = _top_news()
+    news = await _top_news()
     emails_list = _priority_emails(cache)
     today = _date.today().isoformat()
     chase = _overdue_followups(cache, today)
