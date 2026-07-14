@@ -41,11 +41,6 @@ export function CommandPalette({ onNavigate }: { onNavigate: (tab: Tab) => void 
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault()
-        setOpen(v => !v)
-        reset()
-      }
       if (e.key === 'Escape') setOpen(false)
     }
     document.addEventListener('keydown', handler)

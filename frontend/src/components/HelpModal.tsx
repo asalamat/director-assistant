@@ -288,8 +288,18 @@ function CompositionSection() {
         <Li>Click <strong>↪ Forward</strong> in the email header toolbar to forward any email — compose opens pre-filled with the quoted original</Li>
       </UL>
 
+      <H3>AI Compose Toolbar (New Email, Reply &amp; Forward)</H3>
+      <P>Every compose window — whether for a new email, a reply, or a forward — has the same AI toolbar above the send button:</P>
+      <div className="mb-3">
+        <FeatureRow label="✦ Draft Email / Draft from notes" desc="Type rough notes or bullet points in the body, then click this button. AI turns your notes into a complete, professional email while keeping your intent and subject line." />
+        <FeatureRow label="✦ Improve" desc="AI rewrites your draft for grammar and clarity while keeping your original opinion and tone. Good for polishing a quick note." />
+        <FeatureRow label="Tone chips (formal · casual · shorter · friendlier · direct)" desc="One-click tone adjustments. Click any chip to instantly rewrite the draft in that style." />
+        <FeatureRow label="Dictate (mic icon)" desc="Speak your reply. Whisper transcribes and inserts the text at the cursor. Requires an OpenAI API key." />
+        <FeatureRow label="Snippets" desc="Insert a saved canned response (snippets are created in Settings → App Settings)." />
+      </div>
+
       <H3>AI Tone Coach <Tag color="green">New</Tag></H3>
-      <P>Real-time tone analysis as you compose. A tone indicator shows status (✓ good / ⚠ warning / ✕ issue). Below it are one-click rewrites to adjust your tone:</P>
+      <P>Real-time tone analysis as you compose a new email. A tone indicator shows status (✓ good / ⚠ warning / ✕ issue). Below it are one-click rewrites to adjust your tone:</P>
       <UL>
         <Li><strong>Warmer</strong> — soften the message, add friendliness</Li>
         <Li><strong>More Direct</strong> — cut to the point, remove unnecessary words</Li>
@@ -298,10 +308,7 @@ function CompositionSection() {
       </UL>
 
       <H3>Voice-Matched Drafts <Tag color="green">New</Tag></H3>
-      <P>When replying to an email, a <strong>"Use My Voice"</strong> toggle learns from your past sent emails and generates replies that sound like you. Configure in <strong>Settings → App Settings</strong>.</P>
-
-      <H3>Voice Dictation <Tag color="green">New</Tag></H3>
-      <P>Click the <strong>Dictate</strong> button (mic icon) in the compose toolbar to speak your reply. OpenAI Whisper transcribes it automatically and appends the text to the reply body. Requires an OpenAI API key in Settings.</P>
+      <P>When composing a new email, a <strong>"Use My Voice"</strong> toggle learns from your past sent emails and generates replies that sound like you. Configure in <strong>Settings → App Settings</strong>.</P>
     </div>
   )
 }
@@ -945,10 +952,10 @@ function ProvidersSection() {
 function TipsSection() {
   return (
     <div>
-      <H2>Tips & Keyboard Shortcuts</H2>
+      <H2>Tips</H2>
 
       <H3>Natural-Language Inbox Commands <Tag color="green">New</Tag></H3>
-      <P>Press <KBD>⌘ K</KBD> (or <KBD>Ctrl K</KBD> on Windows) to open the Command Palette. Click the <strong>Inbox Command</strong> tab and type plain English commands:</P>
+      <P>Click the <strong>⌘ Command</strong> button in the toolbar (or press Escape to close it) to open the Command Palette. Click the <strong>Inbox Command</strong> tab and type plain English commands:</P>
       <UL>
         <Li>"Archive all newsletters from last week"</Li>
         <Li>"Delete emails from Gmail promotions folder"</Li>
@@ -956,32 +963,7 @@ function TipsSection() {
       </UL>
       <P>The palette shows a preview of what will be affected before you execute. Archive actions support <strong>Undo</strong> so you can easily revert mistakes.</P>
 
-      <H3>Keyboard shortcuts</H3>
-      <div className="space-y-2 mb-4">
-        {[
-          { key: '?', desc: 'Show / hide the keyboard shortcut overlay (this panel)' },
-          { key: '⌘ K / Ctrl K', desc: 'Open the command palette — type a section name and press Enter to jump; Inbox Command tab for natural-language commands' },
-          { key: 'j / k', desc: 'Navigate to next / previous email in the list' },
-          { key: 'r', desc: 'Reply to the selected email' },
-          { key: 'f', desc: 'Forward the selected email' },
-          { key: 'a', desc: 'Run AI Analysis on the selected email' },
-          { key: 'e', desc: 'Archive the selected email' },
-          { key: 'Esc', desc: 'Deselect / close the current email' },
-          { key: '⌘ N', desc: 'Open the Compose window for a new email' },
-        ].map(({ key, desc }) => (
-          <div key={key} className="flex items-center gap-3">
-            <div className="flex gap-1 flex-shrink-0 w-28">
-              {key.split(' / ').map((k, i) => (
-                <span key={i} className="flex items-center gap-1">
-                  <KBD>{k}</KBD>
-                  {i < key.split(' / ').length - 1 && <span className="text-gray-400 text-xs">/</span>}
-                </span>
-              ))}
-            </div>
-            <span className="text-sm text-gray-600">{desc}</span>
-          </div>
-        ))}
-      </div>
+      <Note>Keyboard shortcuts have been disabled to prevent accidental triggers while typing. All actions are available via buttons in the toolbar.</Note>
 
       <H3>Workflow tips</H3>
       <UL>

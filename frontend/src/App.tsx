@@ -287,32 +287,7 @@ export default function App() {
     return () => clearInterval(id)
   }, [])
 
-  // Feature 3: keyboard shortcuts (j/k navigate, a analyze, Esc deselect)
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
-      if (activeTab !== 'inbox') return
-      if ((e.metaKey || e.ctrlKey) && e.key === 'n') { e.preventDefault(); setShowCompose(true); return }
-      if (e.key === 'j' || e.key === 'k') {
-        const idx = emails.findIndex(em => em.id === selectedEmail?.id)
-        const next = e.key === 'j' ? Math.min(idx + 1, emails.length - 1) : Math.max(idx - 1, 0)
-        if (emails[next]) handleSelect(emails[next])
-      }
-      if (e.key === 'a' && selectedEmail) handleAnalyze()
-      if (e.key === 'e' && selectedEmail) {
-        api.moveEmail(selectedEmail.id, 'Archive').then(() => {
-          removeEmail(selectedEmail.id)
-          clearSelectedEmail()
-          setTimeout(() => mergeRefresh(), 800)
-        }).catch(() => {})
-      }
-      if (e.key === 'r' && selectedEmail) replyTriggerRef.current?.()
-      if (e.key === 'f' && selectedEmail) forwardTriggerRef.current?.()
-      if (e.key === 'Escape') clearSelectedEmail()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [activeTab, emails, selectedEmail, clearSelectedEmail])
+  // Keyboard shortcuts disabled — they interfered with typing in compose fields
 
   const handleConnected = () => {
     setConnected(true)

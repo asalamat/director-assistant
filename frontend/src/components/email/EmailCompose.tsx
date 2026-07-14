@@ -40,6 +40,7 @@ export function EmailCompose({
   const [sending, setSending] = useState(false)
   const [sendMsg, setSendMsg] = useState('')
   const [adjustingTone, setAdjustingTone] = useState(false)
+  const [draftingFromIdea, setDraftingFromIdea] = useState(false)
   const [addingCommitment, setAddingCommitment] = useState<string | null>(null)
   const [reviewing, setReviewing] = useState(false)
   const [dictating, setDictating] = useState(false)
@@ -209,6 +210,19 @@ export function EmailCompose({
         if (contentRef.current) contentRef.current.innerHTML = safeResult
       }
     } catch {} finally { setAdjustingTone(false) }
+  }
+
+  const handleDraftFromIdea = async () => {
+    if (!replyBody.trim() || draftingFromIdea) return
+    setDraftingFromIdea(true)
+    try {
+      const { result } = await api.draftFromIdea(replyBody, replySubject, replyTo)
+      if (result) {
+        const safeResult = DOMPurify.sanitize(result, { USE_PROFILES: { html: true } })
+        setReplyBody(safeResult)
+        if (contentRef.current) contentRef.current.innerHTML = safeResult
+      }
+    } catch {} finally { setDraftingFromIdea(false) }
   }
 
   const handleReview = async () => {
@@ -419,29 +433,36 @@ export function EmailCompose({
             data-placeholder="Write your reply…"
           />
 
-          {/* Improve my draft button — rewrites while keeping user's intent */}
-          <div className="flex items-center gap-2 mb-1">
+          {/* AI toolbar — Draft from notes + Improve */}
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <button
+              onClick={handleDraftFromIdea}
+              disabled={draftingFromIdea || adjustingTone || !replyBody.trim()}
+              title="Turn rough notes or bullet points into a complete email"
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-purple-50 text-purple-700 border border-purple-200 rounded-lg hover:bg-purple-100 disabled:opacity-40 transition-colors font-medium"
+            >
+              {draftingFromIdea ? <><span className="animate-spin inline-block text-[10px]">⟳</span> Drafting…</> : '✦ Draft from notes'}
+            </button>
             <button
               onClick={() => handleAdjustTone('improve')}
-              disabled={adjustingTone || !replyBody.trim()}
+              disabled={adjustingTone || draftingFromIdea || !replyBody.trim()}
               title="AI rewrites your draft — keeps your opinion/disagreement, fixes grammar and clarity"
               className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-accent/10 text-accent border border-accent/30 rounded-lg hover:bg-accent/20 disabled:opacity-40 transition-colors font-medium"
             >
-              {adjustingTone ? <><span className="animate-spin inline-block text-[10px]">⟳</span> Improving…</> : '✦ Improve my draft'}
+              {adjustingTone ? <><span className="animate-spin inline-block text-[10px]">⟳</span> Improving…</> : '✦ Improve'}
             </button>
-            <span className="text-[10px] text-gray-400">Keeps your intent · fixes grammar & clarity</span>
+            {(draftingFromIdea || adjustingTone) && <span className="text-[10px] text-gray-400 animate-pulse">rewriting…</span>}
           </div>
 
           {/* Tone + dictation toolbar */}
           <div className="flex gap-1.5 flex-wrap">
             <span className="text-[10px] text-gray-400 self-center mr-1">Adjust tone:</span>
             {(['formal', 'casual', 'shorter', 'friendlier', 'direct'] as const).map(t => (
-              <button key={t} onClick={() => handleAdjustTone(t)} disabled={adjustingTone || !replyBody.trim()}
+              <button key={t} onClick={() => handleAdjustTone(t)} disabled={adjustingTone || draftingFromIdea || !replyBody.trim()}
                 className="text-[10px] px-2 py-0.5 border border-gray-200 rounded-full hover:bg-gray-100 disabled:opacity-40 capitalize">
                 {t}
               </button>
             ))}
-            {adjustingTone && <span className="text-[10px] text-gray-400 animate-pulse self-center">rewriting…</span>}
             <button
               onClick={dictating ? stopDictation : startDictation}
               title={dictating ? 'Stop dictation' : 'Dictate reply (Whisper)'}

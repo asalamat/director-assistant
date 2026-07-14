@@ -13,16 +13,7 @@ const SHORTCUTS = [
 export function ShortcutHelp() {
   const [open, setOpen] = useState(false)
 
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement).tagName.toLowerCase()
-      if (tag === 'input' || tag === 'textarea' || (e.target as HTMLElement).isContentEditable) return
-      if (e.key === '?') setOpen(v => !v)
-      if (e.key === 'Escape') setOpen(false)
-    }
-    document.addEventListener('keydown', handler)
-    return () => document.removeEventListener('keydown', handler)
-  }, [])
+  // Keyboard trigger disabled — use ? button to open instead
 
   if (!open) return null
   return (
