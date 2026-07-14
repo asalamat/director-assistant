@@ -99,13 +99,33 @@ export function BriefingTab() {
       {people.length > 0 && (
         <div>
           <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Key Relationships</h3>
-          <div className="space-y-1">
-            {people.map((p, i) => (
-              <div key={i} className="text-xs text-gray-700 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2 font-mono">
-                {p}
-              </div>
-            ))}
+          <div className="space-y-2">
+            {people.map((p, i) => {
+              // Parse: "Name (email) — X from, Y to, last: DATE"
+              const match = p.match(/^(.+?)\s+\(([^)]+)\)\s+—\s+(\d+)\s+from,\s+(\d+)\s+to,\s+last:\s+(.+)$/)
+              if (!match) return (
+                <div key={i} className="text-xs text-gray-700 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2">{p}</div>
+              )
+              const [, name, email, received, sent, last] = match
+              return (
+                <div key={i} className="bg-white border border-gray-200 rounded-lg px-4 py-3 flex items-center gap-4">
+                  <div className="w-8 h-8 rounded-full bg-accent/10 text-accent flex items-center justify-center font-bold text-sm flex-shrink-0">
+                    {name.trim()[0]?.toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-gray-900 truncate">{name.trim()}</div>
+                    <div className="text-xs text-gray-400 truncate">{email}</div>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-gray-500 flex-shrink-0">
+                    <span title="Emails received from them">📥 {received}</span>
+                    <span title="Emails sent to them">📤 {sent}</span>
+                    <span title="Last contact date" className="text-gray-400">🕐 {last === '?' ? 'Unknown' : last}</span>
+                  </div>
+                </div>
+              )
+            })}
           </div>
+          <p className="text-[10px] text-gray-400 mt-1.5 px-1">📥 emails received from them &nbsp;·&nbsp; 📤 emails sent to them &nbsp;·&nbsp; 🕐 date of last contact</p>
         </div>
       )}
 
