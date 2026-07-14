@@ -85,7 +85,8 @@ mkdir -p "$INSTALL_DIR"
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 rsync -a --exclude='.git' --exclude='node_modules' --exclude='__pycache__' \
   --exclude='.venv' --exclude='frontend/.venv' --exclude='backend/static' \
-  "$SCRIPT_DIR/" "$INSTALL_DIR/"
+  "$SCRIPT_DIR/" "$INSTALL_DIR/" \
+  2> >(grep -Ev "unreadable directory: Operation not permitted|warning:.*Operation not permitted" >&2)
 # Record source repo path so the backend can git-pull for auto-updates
 echo "$SCRIPT_DIR" > "$INSTALL_DIR/source_repo.txt"
 success "App files copied"

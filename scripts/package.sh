@@ -55,7 +55,8 @@ rsync -a \
   --exclude='*.egg-info' \
   --exclude='.claude' \
   --exclude='.claude-flow' \
-  "$ROOT/" "$TMP/DirectorAssistant/"
+  "$ROOT/" "$TMP/DirectorAssistant/" \
+  2> >(grep -Ev "unreadable directory: Operation not permitted|warning:.*Operation not permitted" >&2)
 success "Files staged to $TMP/DirectorAssistant"
 
 # ── 4. macOS package ─────────────────────────────────────────
