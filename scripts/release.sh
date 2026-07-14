@@ -32,10 +32,10 @@ cd "$REPO_DIR/frontend" && npm run build
 
 echo "==> Committing and pushing"
 cd "$REPO_DIR"
-# Stage all tracked changes (source + dist) so CI always has current code.
-# Excludes .env, secrets, and generated artefacts that should not be committed.
+# Stage all tracked changes + any new files in key directories.
 git add -u
 git add frontend/dist frontend/package-lock.json
+git add scripts/ backend/ 2>/dev/null || true
 git diff --cached --quiet && echo "    Nothing to commit (version already at $VERSION)" || { git commit -m "chore: release v$VERSION" && git push; }
 
 echo "==> Creating GitHub release v$VERSION"
@@ -44,6 +44,12 @@ if command -v gh &>/dev/null; then
         --title "v$VERSION" \
         --notes "Release v$VERSION — see commit history for changes." \
         --latest 2>&1 && echo "    GitHub release created" || echo "    GitHub release failed (continuing)"
+    # Upload install-online.sh as a standalone release asset so the one-liner
+    # works even when the repo is private (release assets are publicly downloadable).
+    if [[ -f "$REPO_DIR/scripts/install-online.sh" ]]; then
+        gh release upload "v$VERSION" "$REPO_DIR/scripts/install-online.sh" --clobber 2>/dev/null \
+            && echo "    install-online.sh uploaded as release asset" || true
+    fi
 else
     echo "    gh CLI not found — skipping GitHub release"
 fi

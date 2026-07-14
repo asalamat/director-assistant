@@ -8,10 +8,22 @@
 
 set -e
 
+# Guard: this script must run from disk (not piped via curl | bash) because it
+# copies project files from the directory it lives in to INSTALL_DIR.
+if [[ "${BASH_SOURCE[0]}" == "" ]] || [[ "${BASH_SOURCE[0]}" == /dev/fd/* ]] || [[ "${BASH_SOURCE[0]}" == "bash" ]]; then
+    echo ""
+    echo "ERROR: Run this script from the extracted project folder, not via curl | bash."
+    echo ""
+    echo "  One-line install:"
+    echo "  /bin/bash -c \"\$(curl -fsSL https://github.com/asalamat/director-assistant/releases/latest/download/install-online.sh)\""
+    echo ""
+    exit 1
+fi
+
 APP_NAME="Director Assistant"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-APP_VERSION=$(python3 -c "import json; print(json.load(open('$SCRIPT_DIR/../version.json'))['version'])" 2>/dev/null || cat "$SCRIPT_DIR/../version.json" 2>/dev/null | grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' | grep -o '"[0-9.]*"' | tr -d '"' || echo "unknown")
-INSTALL_DIR="$HOME/Applications/DirectorAssistant"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+APP_VERSION=$(python3 -c "import json; print(json.load(open('$SCRIPT_DIR/version.json'))['version'])" 2>/dev/null || echo "unknown")
+INSTALL_DIR="${HOME:-$(eval echo ~)}/Applications/DirectorAssistant"
 PYTHON_MIN="3.11"
 NODE_MIN="18"
 
@@ -82,8 +94,8 @@ fi
 # ── 3. Copy app to install directory ─────────────────────────
 info "Installing to $INSTALL_DIR…"
 mkdir -p "$INSTALL_DIR"
-SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-tar -C "$SCRIPT_DIR" \
+# COPYFILE_DISABLE=1 tells macOS tar to skip resource forks / extended attributes
+COPYFILE_DISABLE=1 tar -C "$SCRIPT_DIR" \
   --exclude='./.git' \
   --exclude='./node_modules' \
   --exclude='./__pycache__' \
@@ -91,7 +103,7 @@ tar -C "$SCRIPT_DIR" \
   --exclude='./frontend/.venv' \
   --exclude='./backend/static' \
   --exclude='./backend/__pycache__' \
-  -cf - . | tar -C "$INSTALL_DIR" -xf - || error "Failed to copy app files"
+  -cf - . | COPYFILE_DISABLE=1 tar -C "$INSTALL_DIR" -xf - || error "Failed to copy app files"
 # Record source repo path so the backend can git-pull for auto-updates
 echo "$SCRIPT_DIR" > "$INSTALL_DIR/source_repo.txt"
 success "App files copied"
