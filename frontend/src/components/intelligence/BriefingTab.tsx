@@ -3,6 +3,18 @@ import { api } from '../../api/client'
 import type { Cluster, OpenLoop } from '../../types'
 import { MeetingPrepModal } from './MeetingPrepModal'
 
+const DISMISSED_KEY = 'dismissed_loops'
+function loopFingerprint(l: OpenLoop): string {
+  return `${l.type}|${l.sender}|${(l.date || '').slice(0, 10)}|${(l.text || '').slice(0, 60)}`
+}
+function loadDismissed(): Set<string> {
+  try { return new Set(JSON.parse(localStorage.getItem(DISMISSED_KEY) || '[]')) }
+  catch { return new Set() }
+}
+function saveDismissed(s: Set<string>) {
+  localStorage.setItem(DISMISSED_KEY, JSON.stringify([...s]))
+}
+
 export function BriefingTab() {
   const [status, setStatus] = useState('')
   const [summary, setSummary] = useState('')
@@ -13,6 +25,15 @@ export function BriefingTab() {
   const [done, setDone] = useState(false)
   const stopRef = useRef<(() => void) | null>(null)
   const [showMeetingPrep, setShowMeetingPrep] = useState(false)
+  const [dismissed, setDismissed] = useState<Set<string>>(loadDismissed)
+
+  const dismissLoop = (loop: OpenLoop) => {
+    const fp = loopFingerprint(loop)
+    const next = new Set(dismissed)
+    next.add(fp)
+    setDismissed(next)
+    saveDismissed(next)
+  }
 
   // Features 6 + 9: auto-run on first daily visit
   useEffect(() => {
@@ -149,16 +170,41 @@ export function BriefingTab() {
 
       {loops.length > 0 && (
         <div>
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Open Commitments ({loops.length})</h3>
-          <div className="space-y-1.5">
-            {loops.slice(0, 8).map((l, i) => (
-              <div key={i} className={`flex items-start gap-2 border rounded-lg px-3 py-2 text-xs ${urgencyColor(l.urgency)}`}>
-                <span className="font-medium capitalize flex-shrink-0">{l.type}</span>
-                <span className="flex-1">{l.text}</span>
-                <span className="flex-shrink-0 text-[10px] opacity-70">{l.date?.slice(0,10)}</span>
-              </div>
-            ))}
-          </div>
+          {(() => {
+            const active = loops.filter(l => !dismissed.has(loopFingerprint(l)))
+            const closedCount = loops.length - active.length
+            return (
+              <>
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                  Open Commitments ({active.length}){closedCount > 0 && <span className="ml-1.5 text-green-500">· {closedCount} closed</span>}
+                </h3>
+                {active.length === 0 && (
+                  <p className="text-xs text-green-600 bg-green-50 border border-green-100 rounded-lg px-3 py-2">All commitments are closed.</p>
+                )}
+                <div className="space-y-1.5">
+                  {active.slice(0, 8).map((l, i) => (
+                    <div key={i} className={`flex items-start gap-2 border rounded-lg px-3 py-2 text-xs ${urgencyColor(l.urgency)}`}>
+                      <span className="font-medium capitalize flex-shrink-0">{l.type}</span>
+                      <span className="flex-1">{l.text}</span>
+                      <span className="flex-shrink-0 text-[10px] opacity-70">{l.date?.slice(0,10)}</span>
+                      <div className="flex flex-col gap-1 flex-shrink-0">
+                        <button
+                          onClick={() => dismissLoop(l)}
+                          className="px-2 py-0.5 rounded text-[10px] font-medium bg-white/60 border border-current hover:bg-white/90 transition-colors whitespace-nowrap"
+                          title="Resolved by phone call"
+                        >📞 Phone</button>
+                        <button
+                          onClick={() => dismissLoop(l)}
+                          className="px-2 py-0.5 rounded text-[10px] font-medium bg-white/60 border border-current hover:bg-white/90 transition-colors"
+                          title="Mark as done"
+                        >✓ Done</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )
+          })()}
         </div>
       )}
 
