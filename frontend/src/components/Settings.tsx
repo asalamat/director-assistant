@@ -190,9 +190,12 @@ export function Settings({ onConnected, initialTab }: Props) {
   const [updateStatus, setUpdateStatus] = useState<{ checking?: boolean; msg?: string; available?: boolean; latest?: string }>({})
   const [ragStats, setRagStats] = useState<{ count: number; collection_size_mb: number; last_indexed: string; embedding_model: string; status: string } | null>(null)
   const [dbStats, setDbStats] = useState<DbStats | null>(null)
-  const [dbBusy, setDbBusy] = useState<'optimize' | 'retention' | 'save' | null>(null)
+  const [dbBusy, setDbBusy] = useState<'optimize' | 'retention' | 'save' | 'delete-before' | null>(null)
   const [dbMsg, setDbMsg] = useState('')
   const [retentionInput, setRetentionInput] = useState('0')
+  const [deleteBeforeDate, setDeleteBeforeDate] = useState('')
+  const [deleteBeforeCount, setDeleteBeforeCount] = useState<number | null>(null)
+  const [deleteBeforeConfirm, setDeleteBeforeConfirm] = useState(false)
 
   const loadAccounts = async () => {
     try { setAccounts(await api.getAccounts()) } catch { setAccounts([]) }
@@ -547,6 +550,26 @@ export function Settings({ onConnected, initialTab }: Props) {
                   msg={dbMsg}
                   retentionInput={retentionInput}
                   onRetentionInput={setRetentionInput}
+                  deleteBeforeDate={deleteBeforeDate}
+                  deleteBeforeCount={deleteBeforeCount}
+                  deleteBeforeConfirm={deleteBeforeConfirm}
+                  onDeleteBeforeDate={async (d) => {
+                    setDeleteBeforeDate(d); setDeleteBeforeCount(null); setDeleteBeforeConfirm(false)
+                    if (!d) return
+                    try { const r = await api.countEmailsBefore(d); setDeleteBeforeCount(r.count) } catch { setDeleteBeforeCount(null) }
+                  }}
+                  onDeleteBeforeConfirmToggle={() => setDeleteBeforeConfirm(v => !v)}
+                  onDeleteBefore={async () => {
+                    if (!deleteBeforeDate || !deleteBeforeConfirm) return
+                    setDbBusy('delete-before'); setDbMsg('')
+                    try {
+                      const r = await api.deleteEmailsBefore(deleteBeforeDate)
+                      setDbMsg(`Deleted ${r.deleted} email(s) before ${deleteBeforeDate}`)
+                      setDeleteBeforeCount(null); setDeleteBeforeConfirm(false); setDeleteBeforeDate('')
+                      const s = await api.getDbStats(); setDbStats(s)
+                    } catch (e) { setDbMsg(e instanceof Error ? e.message : 'Delete failed') }
+                    finally { setDbBusy(null) }
+                  }}
                   onOptimize={async () => {
                     setDbBusy('optimize'); setDbMsg('')
                     try {
@@ -1631,12 +1654,18 @@ function WritingStyleSection() {
   )
 }
 
-function DbHealthTile({ stats, busy, msg, retentionInput, onRetentionInput, onOptimize, onSaveRetention, onApplyRetention }: {
+function DbHealthTile({ stats, busy, msg, retentionInput, onRetentionInput, deleteBeforeDate, deleteBeforeCount, deleteBeforeConfirm, onDeleteBeforeDate, onDeleteBeforeConfirmToggle, onDeleteBefore, onOptimize, onSaveRetention, onApplyRetention }: {
   stats: DbStats | null
-  busy: 'optimize' | 'retention' | 'save' | null
+  busy: 'optimize' | 'retention' | 'save' | 'delete-before' | null
   msg: string
   retentionInput: string
   onRetentionInput: (v: string) => void
+  deleteBeforeDate: string
+  deleteBeforeCount: number | null
+  deleteBeforeConfirm: boolean
+  onDeleteBeforeDate: (d: string) => void
+  onDeleteBeforeConfirmToggle: () => void
+  onDeleteBefore: () => void
   onOptimize: () => void
   onSaveRetention: () => void
   onApplyRetention: () => void
@@ -1662,6 +1691,38 @@ function DbHealthTile({ stats, busy, msg, retentionInput, onRetentionInput, onOp
       <button onClick={onOptimize} disabled={!!busy} className={`w-full ${BTN_SECONDARY} py-2.5`}>
         {busy === 'optimize' ? 'Optimizing…' : 'Optimize Now (VACUUM + ANALYZE)'}
       </button>
+
+      {/* Delete emails before a date */}
+      <div className="rounded-2xl border border-red-100 p-4 space-y-3">
+        <label className="text-xs font-bold text-red-500 uppercase tracking-wide block">🗑 Delete emails before date</label>
+        <p className="text-xs text-gray-500">Permanently removes all emails older than the selected date from your local database.</p>
+        <input
+          type="date"
+          value={deleteBeforeDate}
+          onChange={e => onDeleteBeforeDate(e.target.value)}
+          className={INPUT_CLS}
+        />
+        {deleteBeforeDate && deleteBeforeCount !== null && (
+          <div className={`text-xs font-medium rounded-lg px-3 py-2 ${deleteBeforeCount === 0 ? 'bg-gray-50 text-gray-500' : 'bg-red-50 text-red-600'}`}>
+            {deleteBeforeCount === 0
+              ? 'No emails found before this date.'
+              : `⚠️ This will permanently delete ${deleteBeforeCount.toLocaleString()} email(s).`}
+          </div>
+        )}
+        {deleteBeforeDate && deleteBeforeCount !== null && deleteBeforeCount > 0 && (
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" checked={deleteBeforeConfirm} onChange={onDeleteBeforeConfirmToggle} className="w-4 h-4 accent-red-500" />
+            <span className="text-xs text-gray-600">I understand this cannot be undone</span>
+          </label>
+        )}
+        {deleteBeforeDate && deleteBeforeConfirm && deleteBeforeCount !== null && deleteBeforeCount > 0 && (
+          <button onClick={onDeleteBefore} disabled={!!busy}
+            className="w-full text-sm font-semibold py-2.5 rounded-xl bg-red-500 text-white hover:bg-red-600 disabled:opacity-50 transition-colors">
+            {busy === 'delete-before' ? 'Deleting…' : `Delete ${deleteBeforeCount.toLocaleString()} emails`}
+          </button>
+        )}
+      </div>
+
       <div className="rounded-2xl border border-gray-100 p-4 space-y-3">
         <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block">
           Auto-delete non-VIP emails older than (days, 0 = off)

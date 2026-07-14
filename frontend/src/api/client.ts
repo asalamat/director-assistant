@@ -356,6 +356,12 @@ export const api = {
   applyRetention(): Promise<{ status: string; deleted: number; cutoff?: string }> {
     return request('/db/retention', { method: 'DELETE' })
   },
+  countEmailsBefore(date: string): Promise<{ count: number; date: string }> {
+    return request(`/db/count-before?date=${encodeURIComponent(date)}`)
+  },
+  deleteEmailsBefore(date: string): Promise<{ status: string; deleted: number; before: string }> {
+    return request(`/db/delete-before?date=${encodeURIComponent(date)}`, { method: 'DELETE' })
+  },
   saveConfig(data: { anthropic_api_key?: string; openai_api_key?: string; ms_client_id?: string; google_client_id?: string; google_client_secret?: string; poll_interval_seconds?: number; budget_mode?: boolean; sync_window_days?: number; digest_schedule_enabled?: boolean; digest_schedule_time?: string; digest_schedule_email?: string; translation_language?: string }): Promise<{ status: string; has_api_key: boolean; has_openai_key: boolean }> {
     return request('/config', { method: 'POST', body: JSON.stringify(data) })
   },

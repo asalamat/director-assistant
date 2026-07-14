@@ -68,6 +68,49 @@ async def db_optimize(request: Request):
             "last_vacuum": now_iso, "db_size_mb": size_mb}
 
 
+@router.get("/count-before")
+async def count_before(date: str, request: Request):
+    """Return how many emails exist before a given date (YYYY-MM-DD)."""
+    path = _db_path(request)
+    conn = sqlite3.connect(path, timeout=10)
+    conn.row_factory = sqlite3.Row
+    try:
+        count = conn.execute(
+            "SELECT COUNT(*) FROM emails WHERE date < ?", (date,)
+        ).fetchone()[0]
+    finally:
+        conn.close()
+    return {"count": count, "date": date}
+
+
+@router.delete("/delete-before")
+async def delete_before(date: str, request: Request):
+    """Delete all emails (including VIP) with date < date (YYYY-MM-DD)."""
+    path = _db_path(request)
+    conn = sqlite3.connect(path, timeout=60)
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute("SELECT id FROM emails WHERE date < ?", (date,)).fetchall()
+        ids = [r["id"] for r in rows]
+        deleted = 0
+        for i in range(0, len(ids), 500):
+            chunk = ids[i:i + 500]
+            ph = ",".join("?" * len(chunk))
+            conn.execute(f"DELETE FROM emails WHERE id IN ({ph})", chunk)
+            deleted += len(chunk)
+        conn.commit()
+    finally:
+        conn.close()
+    rag = getattr(request.app.state, "rag", None)
+    if rag:
+        for eid in ids:
+            try:
+                rag.remove_email(eid)
+            except Exception:
+                pass
+    return {"status": "deleted", "deleted": deleted, "before": date}
+
+
 @router.delete("/retention")
 async def apply_retention(request: Request):
     cfg = load_app_config()
