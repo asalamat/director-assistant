@@ -2,6 +2,7 @@
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 from typing import Optional
+from . import contact_health as _ch
 
 router = APIRouter(prefix="/api/vip", tags=["vip"])
 
@@ -108,6 +109,9 @@ async def remove_vip(vip_id: int, request: Request):
     cache = request.app.state.cache
     with cache._conn() as conn:
         conn.execute("DELETE FROM vip_contacts WHERE id=?", (vip_id,))
+    # Invalidate contact health cache so the removed contact doesn't reappear on refresh
+    _ch._cache_result = None
+    _ch._cache_time = None
     return {"removed": vip_id}
 
 
