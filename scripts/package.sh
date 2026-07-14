@@ -43,6 +43,8 @@ info "Staging source files…"
 rm -rf "$TMP" "$DIST/DirectorAssistant-mac.zip" "$DIST/DirectorAssistant-win.zip"
 mkdir -p "$TMP/DirectorAssistant"
 
+_rsync_err=$(mktemp)
+set +e
 rsync -a \
   --exclude='.git' \
   --exclude='node_modules' \
@@ -55,8 +57,12 @@ rsync -a \
   --exclude='*.egg-info' \
   --exclude='.claude' \
   --exclude='.claude-flow' \
-  "$ROOT/" "$TMP/DirectorAssistant/" \
-  2> >(grep -Ev "unreadable directory: Operation not permitted|warning:.*Operation not permitted" >&2)
+  "$ROOT/" "$TMP/DirectorAssistant/" 2>"$_rsync_err"
+_rsync_rc=$?
+grep -Ev "unreadable directory: Operation not permitted|warning:.*Operation not permitted" "$_rsync_err" >&2 || true
+rm -f "$_rsync_err"
+set -e
+[ "$_rsync_rc" -ne 0 ] && error "Failed to stage files (rsync exit $_rsync_rc)"
 success "Files staged to $TMP/DirectorAssistant"
 
 # ── 4. macOS package ─────────────────────────────────────────
