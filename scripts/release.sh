@@ -57,8 +57,9 @@ echo "==> Syncing installed app at $INSTALL_DIR"
 if [[ -d "$INSTALL_DIR" ]]; then
     cp "$REPO_DIR/version.json" "$INSTALL_DIR/version.json"
     # Sync backend code first (excludes .venv and __pycache__)
-    rsync -a --exclude='.venv' --exclude='__pycache__' \
-        "$REPO_DIR/backend/" "$INSTALL_DIR/backend/"
+    tar -C "$REPO_DIR/backend" \
+        --exclude='./.venv' --exclude='./__pycache__' --exclude='./*.pyc' \
+        -cf - . | tar -C "$INSTALL_DIR/backend" -xf -
     # Then overwrite static with the freshly-built dist (rsync may have an old version)
     rm -rf "$INSTALL_DIR/backend/static"
     cp -r "$REPO_DIR/frontend/dist" "$INSTALL_DIR/backend/static"
