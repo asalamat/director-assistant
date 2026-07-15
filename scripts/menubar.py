@@ -28,9 +28,15 @@ def _port_open() -> bool:
         return s.connect_ex(("127.0.0.1", _PORT)) == 0
 
 
+_ICON_PATH = os.path.join(_INSTALL_DIR, "assets", "logo-32.png")
+
+
 class DirectorAssistantApp(rumps.App):
     def __init__(self, open_on_start: bool = False):
-        super().__init__("✉", quit_button=None)
+        icon = _ICON_PATH if os.path.exists(_ICON_PATH) else None
+        super().__init__("DA", icon=icon, template=False, quit_button=None)
+        if icon:
+            self.title = None  # hide text when icon is set
         self.menu = [
             rumps.MenuItem("Open Director Assistant", callback=self.open_browser),
             None,
