@@ -66,10 +66,15 @@ if [[ -d "$INSTALL_DIR" ]]; then
     tar -C "$REPO_DIR/backend" \
         --exclude='./.venv' --exclude='./__pycache__' --exclude='./*.pyc' \
         -cf - . | tar -C "$INSTALL_DIR/backend" -xf -
-    # Then overwrite static with the freshly-built dist (rsync may have an old version)
+    # Then overwrite static with the freshly-built dist
     rm -rf "$INSTALL_DIR/backend/static"
     cp -r "$REPO_DIR/frontend/dist" "$INSTALL_DIR/backend/static"
-    echo "    Installed version.json, dist, and backend synced"
+    # Sync assets (logo, icons)
+    if [[ -d "$REPO_DIR/assets" ]]; then
+        mkdir -p "$INSTALL_DIR/assets"
+        cp -r "$REPO_DIR/assets/." "$INSTALL_DIR/assets/"
+    fi
+    echo "    Installed version.json, dist, backend, and assets synced"
     # Install any new requirements into the venv
     VENV="$INSTALL_DIR/backend/.venv"
     if [[ -f "$VENV/bin/pip" ]]; then
