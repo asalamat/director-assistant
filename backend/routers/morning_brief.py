@@ -115,6 +115,15 @@ def _open_commitments(cache) -> list[dict]:
         return []
 
 
+def _today_occasions(cache) -> list[dict]:
+    try:
+        from routers.crm import collect_occasions
+        return [o for o in collect_occasions(cache, days=0) if o["days_away"] == 0]
+    except Exception as e:
+        _log.warning("Morning brief occasions source failed: %s", type(e).__name__)
+        return []
+
+
 def _active_projects(cache) -> list[dict]:
     try:
         rows = _query(
@@ -177,10 +186,12 @@ async def morning_brief(request: Request, force: bool = False):
     commitments = _open_commitments(cache) if cache else []
     projects = _active_projects(cache) if cache else []
     events = await get_today_events(cache) if cache else []
+    occasions = _today_occasions(cache) if cache else []
 
     raw = {
         "emails": emails, "news": news, "chase": chase,
         "commitments": commitments, "projects": projects, "calendar": events,
+        "occasions": occasions,
     }
     ai = await _synthesize(request, raw)
     ins = ai["insights"]
@@ -190,6 +201,16 @@ async def morning_brief(request: Request, force: bool = False):
         "generated_at": now_dt.isoformat(),
         "greeting": f"Good morning Ali — here's your brief for {now_dt.strftime('%A, %B %-d')}",
         "sections": [
+            {
+                "id": "occasions", "title": "Today's Occasions", "icon": "🎂",
+                "items": [
+                    {"text": f'{"🎂" if o["type"] == "birthday" else "🎉"} {o["name"]}',
+                     "meta": ("Birthday" if o["type"] == "birthday" else "Work Anniversary"),
+                     "email": o["email"], "occasion_type": o["type"]}
+                    for o in occasions
+                ],
+                "insight": "",
+            },
             {
                 "id": "calendar", "title": "Today's Schedule", "icon": "📅",
                 "items": [

@@ -137,6 +137,7 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
   const [hoverSummary, setHoverSummary] = useState<Record<string, string>>({})
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [hoverPos, setHoverPos] = useState({ x: 0, y: 0 })
+  const [hoverLoading, setHoverLoading] = useState(false)
   const [bulkDrafts, setBulkDrafts] = useState<BulkDraft[] | null>(null)
   const [generatingBulk, setGeneratingBulk] = useState(false)
   const [bulkCopiedIdx, setBulkCopiedIdx] = useState<number | null>(null)
@@ -894,22 +895,27 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
               ref={(el) => observeEmailRow(el, email.id)}
               className="relative group border-b border-gray-50"
               onMouseEnter={(e) => {
+                if (selectedId === email.id) return
                 setHoveredId(email.id)
                 setHoverPos({ x: e.clientX, y: e.clientY })
                 if (!hoverSummary[email.id]) {
                   const timer = setTimeout(async () => {
+                    setHoverLoading(true)
                     try {
-                      const { summary } = await api.getOneLineSummary(email.id)
+                      const { summary } = await api.summarizeThread(email.id)
                       if (summary) {
                         setHoverSummary(prev => ({ ...prev, [email.id]: summary }))
                       }
-                    } catch { /* ignore */ }
+                    } catch { /* ignore */ } finally {
+                      setHoverLoading(false)
+                    }
                   }, 600)
                   setHoverTimer(timer)
                 }
               }}
               onMouseLeave={() => {
                 setHoveredId(null)
+                setHoverLoading(false)
                 if (hoverTimer) {
                   clearTimeout(hoverTimer)
                   setHoverTimer(null)
@@ -1030,28 +1036,33 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
                 🤖
               </button>
 
-              {/* Hover preview tooltip */}
-              {hoveredId === email.id && !hoverSummary[email.id] && (
-                <div
-                  className="fixed z-50 bg-gray-900 text-white text-xs rounded-xl px-3 py-2.5 shadow-2xl pointer-events-none max-w-xs"
-                  style={{ left: Math.min(hoverPos.x + 12, window.innerWidth - 260), top: hoverPos.y - 10 }}
-                >
-                  <p className="font-medium truncate mb-0.5">{email.sender.replace(/<[^>]+>/, '').trim() || email.sender}</p>
-                  <p className="text-gray-400 mb-1">{formatDate(email.date)}</p>
-                  {email.preview && (
-                    <p className="text-gray-300 leading-relaxed line-clamp-3">
-                      {email.preview.slice(0, 140)}
+              {/* Hover AI thread-summary card — floats near cursor, flips above if near bottom */}
+              {hoveredId === email.id && selectedId !== email.id && (() => {
+                const flip = hoverPos.y > window.innerHeight - 180
+                return (
+                  <div
+                    className="fixed z-50 bg-white border border-gray-200 text-gray-700 text-xs rounded-xl px-3 py-3 shadow-lg pointer-events-none max-w-xs"
+                    style={{
+                      left: Math.min(hoverPos.x + 14, window.innerWidth - 280),
+                      ...(flip ? { bottom: window.innerHeight - hoverPos.y + 14 } : { top: hoverPos.y + 14 }),
+                    }}
+                  >
+                    <p className="font-semibold text-gray-800 truncate mb-1">
+                      {email.subject || '(no subject)'}
                     </p>
-                  )}
-                </div>
-              )}
-
-              {/* Hover AI summary tooltip */}
-              {hoverSummary[email.id] && hoveredId === email.id && (
-                <div className="absolute left-3 right-3 -bottom-8 z-20 bg-gray-900 text-white text-xs rounded-lg px-3 py-1.5 shadow-lg pointer-events-none">
-                  {hoverSummary[email.id]}
-                </div>
-              )}
+                    {hoverSummary[email.id] ? (
+                      <p className="text-gray-600 leading-relaxed">{hoverSummary[email.id]}</p>
+                    ) : hoverLoading ? (
+                      <p className="flex items-center gap-1.5 text-gray-400">
+                        <span className="w-3 h-3 border border-gray-300 border-t-accent rounded-full animate-spin inline-block" />
+                        Summarizing thread…
+                      </p>
+                    ) : (
+                      <p className="text-gray-400 line-clamp-3">{(email.preview || '').slice(0, 140)}</p>
+                    )}
+                  </div>
+                )
+              })()}
             </div>
           )
         })}

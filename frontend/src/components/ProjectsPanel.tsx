@@ -167,7 +167,7 @@ function ProjectPlanView({ plan }: ProjectPlanViewProps) {
 
 export function ProjectsPanel() {
   const { emails, selectEmail, fetchEmail } = useEmailContext()
-  const { setActiveTab } = useUIContext()
+  const { setActiveTab, openCompose } = useUIContext()
   const handleEmailSelect = (id: string) => {
     const em = emails.find(e => e.id === id)
     if (em) { selectEmail(em); setActiveTab('inbox') }
@@ -373,6 +373,18 @@ export function ProjectsPanel() {
     setSavingTemplate(false)
   }
 
+  const [proposalLoading, setProposalLoading] = useState(false)
+
+  const handleProposal = async () => {
+    if (!selected) return
+    setProposalLoading(true)
+    try {
+      const res = await api.generateProposal(selected.id)
+      openCompose({ subject: res.subject, body: res.body })
+    } catch { /* silent */ }
+    setProposalLoading(false)
+  }
+
   const handleClientReport = async () => {
     if (!selected) return
     setClientReportLoading(true)
@@ -499,6 +511,10 @@ export function ProjectsPanel() {
               <button onClick={handleClientReport} disabled={clientReportLoading}
                 className="text-xs border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50 disabled:opacity-50">
                 {clientReportLoading ? '⟳ Building…' : '📊 Client Report'}
+              </button>
+              <button onClick={handleProposal} disabled={proposalLoading}
+                className="text-xs border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50 disabled:opacity-50">
+                {proposalLoading ? '⟳ Drafting…' : '📄 Proposal'}
               </button>
             </div>
             {planMsg && <p className="text-xs text-red-500 mt-1">{planMsg}</p>}

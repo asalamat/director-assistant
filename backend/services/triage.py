@@ -130,6 +130,94 @@ def _apply_user_rules(email: dict, rules: list[str]) -> tuple[int, list[str]]:
     return bonus, reasons
 
 
+def ensure_feedback_table(conn) -> None:
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS triage_feedback (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email_id TEXT NOT NULL,
+            sender TEXT,
+            subject TEXT,
+            ai_score INTEGER,
+            user_action TEXT CHECK(user_action IN ('keep','dismiss','boost')),
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )"""
+    )
+
+
+def _domain(sender: str) -> str:
+    """Extract the domain (after @) from a sender string; falls back to full sender."""
+    s = (sender or "").lower().strip()
+    if "@" in s:
+        dom = s.rsplit("@", 1)[1].strip("> ")
+        return dom
+    return s
+
+
+# Minimum times a domain must be dismissed/boosted before it counts as "learned"
+_LEARN_THRESHOLD = 3
+
+
+def get_learned_patterns(cache) -> dict:
+    """Aggregate user feedback into learned priority patterns.
+
+    Returns domains dismissed >= threshold as low-priority, boosted >= threshold
+    as high-priority, and frequent keywords from dismissed subjects.
+    """
+    with cache._conn() as conn:
+        ensure_feedback_table(conn)
+        rows = conn.execute(
+            "SELECT sender, subject, user_action FROM triage_feedback"
+        ).fetchall()
+
+    dismiss_by_dom: dict[str, int] = {}
+    boost_by_dom: dict[str, int] = {}
+    dismiss_words: dict[str, int] = {}
+
+    for sender, subject, action in rows:
+        dom = _domain(sender)
+        if not dom:
+            continue
+        if action == "dismiss":
+            dismiss_by_dom[dom] = dismiss_by_dom.get(dom, 0) + 1
+            for w in (subject or "").lower().split():
+                w = w.strip(".,!?:;\"'()[]").strip()
+                if len(w) >= 4:
+                    dismiss_words[w] = dismiss_words.get(w, 0) + 1
+        elif action == "boost":
+            boost_by_dom[dom] = boost_by_dom.get(dom, 0) + 1
+
+    low = sorted(
+        (d for d, c in dismiss_by_dom.items()
+         if c >= _LEARN_THRESHOLD and boost_by_dom.get(d, 0) < c)
+    )
+    high = sorted(
+        (d for d, c in boost_by_dom.items()
+         if c >= _LEARN_THRESHOLD and dismiss_by_dom.get(d, 0) < c)
+    )
+    keywords = sorted(
+        (w for w, c in dismiss_words.items() if c >= _LEARN_THRESHOLD),
+        key=lambda w: -dismiss_words[w],
+    )[:15]
+
+    return {
+        "low_priority_senders": low,
+        "high_priority_senders": high,
+        "low_priority_keywords": keywords,
+    }
+
+
+def _apply_learned(email: dict, score: int, patterns: dict) -> int:
+    """Clamp a score based on learned sender-domain patterns."""
+    dom = _domain(email.get("sender") or "")
+    if not dom:
+        return score
+    if dom in patterns.get("low_priority_senders", []):
+        return min(score, 30)
+    if dom in patterns.get("high_priority_senders", []):
+        return max(score, 70)
+    return score
+
+
 def get_top_emails(cache, limit: int = 7) -> list[dict]:
     """Return top N unread emails scored by urgency (last 14 days)."""
     with cache._conn() as conn:
@@ -157,6 +245,8 @@ def get_top_emails(cache, limit: int = 7) -> list[dict]:
         rule_rows = conn.execute("SELECT rule FROM triage_rules ORDER BY id").fetchall()
         user_rules = [r[0] for r in rule_rows]
 
+    patterns = get_learned_patterns(cache)
+
     scored = []
     for em in emails:
         sc, reasons = _score(em, vip_senders, has_action_ids)
@@ -164,6 +254,7 @@ def get_top_emails(cache, limit: int = 7) -> list[dict]:
             rule_bonus, rule_reasons = _apply_user_rules(em, user_rules)
             sc += rule_bonus
             reasons = (reasons + rule_reasons)[:3]
+        sc = _apply_learned(em, sc, patterns)
         if sc > 0:
             scored.append({
                 "id": em["id"],

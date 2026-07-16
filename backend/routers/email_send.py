@@ -3,11 +3,43 @@ import smtplib
 import ssl
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.utils import make_msgid
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/email", tags=["email"])
+
+
+def _tracking_pixel(message_id: str, recipient: str) -> str:
+    """Return an <img> tracking pixel tag for the given message/recipient."""
+    from routers.tracking import make_token
+    token = make_token(message_id, recipient)
+    return (
+        f'<img src="http://localhost:8000/api/track/{token}" '
+        'width="1" height="1" alt="" style="display:none" />'
+    )
+
+
+def _apply_read_receipt(cache, msg: MIMEMultipart, recipient: str, html_body: str) -> str:
+    """If read receipts are enabled, register the send and return HTML with pixel appended.
+
+    Returns the (possibly unchanged) HTML body. A Message-ID header is set on `msg`
+    so opens can be attributed to this email."""
+    from routers.config import load_app_config
+    if not load_app_config().get("read_receipts_enabled"):
+        return html_body
+    recipient = (recipient or "").split(",")[0].strip()
+    if not recipient:
+        return html_body
+    message_id = msg.get("Message-ID") or make_msgid()
+    msg["Message-ID"] = message_id
+    try:
+        from routers.tracking import register_send
+        register_send(cache, message_id, recipient)
+    except Exception:
+        return html_body
+    return html_body + _tracking_pixel(message_id, recipient)
 
 _SMTP: dict[str, dict] = {
     "gmail":      {"host": "smtp.gmail.com",        "port": 587, "ssl": False},
@@ -86,10 +118,11 @@ async def send_email(req: SendRequest, request: Request):
         if req.bcc:
             msg["Bcc"] = req.bcc
         msg["Subject"] = req.subject
+        html_body = _apply_read_receipt(cache, msg, req.to, req.body)
         plain = _re.sub(r'<[^>]+>', ' ', req.body)
         plain = _re.sub(r'\s+', ' ', plain).strip()
         msg.attach(MIMEText(plain, "plain", "utf-8"))
-        msg.attach(MIMEText(req.body, "html", "utf-8"))
+        msg.attach(MIMEText(html_body, "html", "utf-8"))
     else:
         msg = MIMEMultipart()
         msg["From"] = acc.username

@@ -332,8 +332,11 @@ export default function App() {
 
   const handleDelete = async (emailId: string) => {
     try {
+      // Capture unread state before removing from list
+      const wasUnread = emails.find(e => e.id === emailId && !e.is_read)
       await api.deleteEmail(emailId)
       removeEmail(emailId)
+      if (wasUnread) setUnreadCount(Math.max(0, unreadCount - 1))
       clearSelectedEmail()
       setTimeout(() => mergeRefresh(), 800)
     } catch (e) {
@@ -351,14 +354,18 @@ export default function App() {
   }
 
   const handleBulkDelete = async (ids: string[]) => {
+    const unreadDeleted = emails.filter(e => ids.includes(e.id) && !e.is_read).length
     await api.bulkEmailAction('delete', ids).catch(() => {})
     ids.forEach(id => removeEmail(id))
+    if (unreadDeleted > 0) setUnreadCount(Math.max(0, unreadCount - unreadDeleted))
     if (selectedEmail && ids.includes(selectedEmail.id)) clearSelectedEmail()
   }
 
   const handleBulkArchive = async (ids: string[]) => {
+    const unreadArchived = emails.filter(e => ids.includes(e.id) && !e.is_read).length
     await api.bulkEmailAction('archive', ids).catch(() => {})
     ids.forEach(id => removeEmail(id))
+    if (unreadArchived > 0) setUnreadCount(Math.max(0, unreadCount - unreadArchived))
     if (selectedEmail && ids.includes(selectedEmail.id)) clearSelectedEmail()
   }
 

@@ -173,6 +173,8 @@ export function PeopleTab() {
   const [editName, setEditName] = useState('')
   const [editPhones, setEditPhones] = useState<string[]>([''])
   const [editNote, setEditNote] = useState('')
+  const [editBirthday, setEditBirthday] = useState('')
+  const [editAnniversary, setEditAnniversary] = useState('')
   const [editId, setEditId] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
 
@@ -198,14 +200,21 @@ export function PeopleTab() {
     setEditName(p.name)
     setEditPhones(h?.phones?.length ? [...h.phones, ''] : [''])
     setEditNote('')
+    setEditBirthday('')
+    setEditAnniversary('')
     setEditId(null)
-    // Pre-load note and id from imported_contacts if available
-    api.listHiddenContacts() // no-op ping; real load below
+    // Pre-load note, dates and id from imported_contacts if available
     fetch(`/api/contacts/imported`)
       .then(r => r.json())
       .then((data: any) => {
         const ic = data.contacts?.find((c: any) => c.email_addr?.toLowerCase() === key)
-        if (ic) { setEditId(ic.id); setEditNote(ic.note || ''); setEditPhones(ic.phones?.length ? [...ic.phones, ''] : ['']) }
+        if (ic) {
+          setEditId(ic.id)
+          setEditNote(ic.note || '')
+          setEditBirthday(ic.birthday || '')
+          setEditAnniversary(ic.work_anniversary || '')
+          setEditPhones(ic.phones?.length ? [...ic.phones, ''] : [''])
+        }
       }).catch(() => {})
   }
 
@@ -216,11 +225,16 @@ export function PeopleTab() {
     setSaving(true)
     const phones = editPhones.map(p => p.trim()).filter(Boolean)
     try {
-      if (editId !== null) {
-        await api.updateContact(editId, { name: editName, phones, note: editNote })
-      } else {
+      let id = editId
+      if (id === null) {
         const r = await api.upsertContact({ email_addr: editEmail, name: editName, phones, note: editNote })
-        if (r.id) setEditId(r.id)
+        if (r.id) { id = r.id; setEditId(r.id) }
+      }
+      if (id !== null) {
+        await api.updateContact(id, {
+          name: editName, phones, note: editNote,
+          birthday: editBirthday, work_anniversary: editAnniversary,
+        })
       }
       refreshHints()
       closeEdit()
@@ -616,6 +630,26 @@ export function PeopleTab() {
                         rows={2}
                         className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1 mt-0.5 focus:outline-none focus:ring-1 focus:ring-accent resize-none bg-white"
                       />
+                    </div>
+                    <div className="flex gap-2">
+                      <div className="flex-1">
+                        <label className="text-[10px] text-gray-400 font-medium">🎂 Birthday</label>
+                        <input
+                          type="date"
+                          value={editBirthday}
+                          onChange={e => setEditBirthday(e.target.value)}
+                          className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1 mt-0.5 focus:outline-none focus:ring-1 focus:ring-accent bg-white"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <label className="text-[10px] text-gray-400 font-medium">🎉 Work anniversary</label>
+                        <input
+                          type="date"
+                          value={editAnniversary}
+                          onChange={e => setEditAnniversary(e.target.value)}
+                          className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1 mt-0.5 focus:outline-none focus:ring-1 focus:ring-accent bg-white"
+                        />
+                      </div>
                     </div>
                     <div className="flex gap-2 justify-end">
                       <button onClick={closeEdit} className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1">Cancel</button>

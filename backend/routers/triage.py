@@ -38,6 +38,55 @@ async def priority_sorted(request: Request, folder: str = "INBOX", limit: int = 
     return {"emails": scored + unscored}
 
 
+class TriageFeedbackRequest(BaseModel):
+    email_id: str
+    sender: str = ""
+    subject: str = ""
+    ai_score: int = 0
+    user_action: str  # 'keep' | 'dismiss' | 'boost'
+
+
+@router.post("/feedback")
+async def submit_feedback(req: TriageFeedbackRequest, request: Request):
+    """Record a user's triage action so scoring can learn over time."""
+    if req.user_action not in ("keep", "dismiss", "boost"):
+        raise HTTPException(400, "user_action must be keep, dismiss, or boost")
+    if not req.email_id.strip():
+        raise HTTPException(400, "email_id is required")
+
+    cache = request.app.state.cache
+    from services.triage import ensure_feedback_table
+    with cache._conn() as conn:
+        ensure_feedback_table(conn)
+        conn.execute(
+            "INSERT INTO triage_feedback (email_id, sender, subject, ai_score, user_action) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (req.email_id.strip(), req.sender[:500], req.subject[:500],
+             req.ai_score, req.user_action),
+        )
+    return {"ok": True}
+
+
+@router.get("/learned-patterns")
+async def learned_patterns(request: Request):
+    """Return sender domains and keywords the triage engine has learned."""
+    cache = request.app.state.cache
+    loop = asyncio.get_event_loop()
+    from services.triage import get_learned_patterns
+    return await loop.run_in_executor(None, get_learned_patterns, cache)
+
+
+@router.delete("/feedback")
+async def reset_feedback(request: Request):
+    """Delete all triage feedback, resetting learned patterns."""
+    cache = request.app.state.cache
+    from services.triage import ensure_feedback_table
+    with cache._conn() as conn:
+        ensure_feedback_table(conn)
+        conn.execute("DELETE FROM triage_feedback")
+    return {"ok": True}
+
+
 class SprintRequest(BaseModel):
     limit: int = 60
 

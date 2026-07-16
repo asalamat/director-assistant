@@ -175,7 +175,9 @@ async def list_imported(request: Request):
     cache = request.app.state.cache
     with cache._conn() as conn:
         rows = conn.execute(
-            "SELECT id, email_addr, name, phones, source, imported_at FROM imported_contacts ORDER BY name"
+            "SELECT id, email_addr, name, phones, source, imported_at, "
+            "COALESCE(birthday,'') AS birthday, COALESCE(work_anniversary,'') AS work_anniversary "
+            "FROM imported_contacts ORDER BY name"
         ).fetchall()
     return {
         "contacts": [
@@ -187,18 +189,21 @@ async def list_imported(request: Request):
 
 @router.patch("/imported/{contact_id}")
 async def update_imported(contact_id: int, request: Request):
-    """Update name, phones and note for an imported contact."""
+    """Update name, phones, note, birthday and work anniversary for an imported contact."""
     body = await request.json()
     name = (body.get("name") or "").strip()
     phones = [p.strip() for p in (body.get("phones") or []) if p.strip()]
     note = (body.get("note") or "").strip()
+    birthday = (body.get("birthday") or "").strip()
+    work_anniversary = (body.get("work_anniversary") or "").strip()
     cache = request.app.state.cache
     with cache._conn() as conn:
         conn.execute(
-            "UPDATE imported_contacts SET name=?, phones=?, note=? WHERE id=?",
-            (name, json.dumps(phones), note, contact_id),
+            "UPDATE imported_contacts SET name=?, phones=?, note=?, birthday=?, work_anniversary=? WHERE id=?",
+            (name, json.dumps(phones), note, birthday, work_anniversary, contact_id),
         )
-    return {"updated": contact_id, "name": name, "phones": phones, "note": note}
+    return {"updated": contact_id, "name": name, "phones": phones, "note": note,
+            "birthday": birthday, "work_anniversary": work_anniversary}
 
 
 @router.post("/upsert")

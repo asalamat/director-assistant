@@ -25,6 +25,7 @@ export function ComposeModal({ open, onClose, accounts, initialTo = '', initialS
   const [body, setBody] = useState(initialBody)
   const [accountId, setAccountId] = useState<number>(accounts[0]?.id ?? 0)
   const [showCc, setShowCc] = useState(false)
+  const [ccSuggestions, setCcSuggestions] = useState<{ email: string; name: string }[]>([])
   const [sending, setSending] = useState(false)
   const [msg, setMsg] = useState('')
   const [adjustingTone, setAdjustingTone] = useState(false)
@@ -51,6 +52,28 @@ export function ComposeModal({ open, onClose, accounts, initialTo = '', initialS
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [open, onClose])
+
+  // Smart CC suggestions — debounced when To + Subject are present
+  useEffect(() => {
+    if (!open || !to.trim() || !subject.trim()) {
+      setCcSuggestions([])
+      return
+    }
+    const ccAddrs = cc.toLowerCase()
+    const timer = setTimeout(async () => {
+      try {
+        const { suggestions } = await api.suggestCC(to.trim(), subject.trim())
+        setCcSuggestions(suggestions.filter(s => !ccAddrs.includes(s.email.toLowerCase())))
+      } catch { setCcSuggestions([]) }
+    }, 800)
+    return () => clearTimeout(timer)
+  }, [open, to, subject, cc])
+
+  const addCc = (email: string) => {
+    setShowCc(true)
+    setCc(prev => (prev.trim() ? `${prev.replace(/,\s*$/, '')}, ${email}` : email))
+    setCcSuggestions(prev => prev.filter(s => s.email !== email))
+  }
 
   const handleDraftFromIdea = async () => {
     if (!body.trim() || draftingFromIdea) return
@@ -119,6 +142,27 @@ export function ComposeModal({ open, onClose, accounts, initialTo = '', initialS
               className="text-xs text-gray-400 hover:text-accent"
             >Cc</button>
           </div>
+
+          {ccSuggestions.length > 0 && (
+            <div className="flex items-center flex-wrap gap-1.5 px-5 py-2">
+              <span className="text-[11px] text-gray-400">Suggested Cc:</span>
+              {ccSuggestions.map(s => (
+                <span
+                  key={s.email}
+                  className="flex items-center gap-1 text-[11px] bg-accent/10 text-accent border border-accent/20 rounded-full pl-2 pr-1 py-0.5"
+                >
+                  <button onClick={() => addCc(s.email)} title={`Add ${s.email} to Cc`} className="hover:underline">
+                    {s.name || s.email}
+                  </button>
+                  <button
+                    onClick={() => setCcSuggestions(prev => prev.filter(x => x.email !== s.email))}
+                    title="Dismiss"
+                    className="text-accent/50 hover:text-red-500 font-bold px-0.5"
+                  >✕</button>
+                </span>
+              ))}
+            </div>
+          )}
 
           {showCc && (
             <div className="flex items-center px-5 py-2.5 gap-3">

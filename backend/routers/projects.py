@@ -979,3 +979,54 @@ async def weekly_update(project_id: int, request: Request):
     except Exception as ex:
         raise HTTPException(502, f"AI weekly update failed: {ex}")
     return result
+
+
+@router.post("/{project_id}/proposal")
+async def generate_proposal(project_id: int, request: Request):
+    """Generate a client-facing proposal email from the project's plan, tasks and milestones."""
+    cache = request.app.state.cache
+    ai = request.app.state.advisor.ai
+    with cache._conn() as conn:
+        _ensure_task_tables(conn)
+        _ensure_budget_column(conn)
+        _ensure_milestone_table(conn)
+        proj = conn.execute(
+            "SELECT name, description, COALESCE(budget_total, 0) as budget_total FROM projects WHERE id=?",
+            (project_id,)
+        ).fetchone()
+        if not proj:
+            raise HTTPException(404, "Project not found")
+        tasks = conn.execute(
+            "SELECT name, phase_name FROM project_tasks WHERE project_id=? ORDER BY phase_name, id",
+            (project_id,)
+        ).fetchall()
+        milestones = conn.execute(
+            "SELECT name, due_date FROM project_milestones WHERE project_id=? ORDER BY due_date ASC",
+            (project_id,)
+        ).fetchall()
+
+    scope = "\n".join(f"- {t['name']}" for t in tasks) or "(no tasks defined)"
+    milestone_list = "\n".join(
+        f"- {m['name']} (due {m['due_date']})" for m in milestones
+    ) or "(no milestones defined)"
+    budget_line = f"${proj['budget_total']:,.2f}" if proj["budget_total"] else "(to be determined)"
+
+    prompt = (
+        f"Project: {proj['name']}\n"
+        f"Description: {proj['description'] or '(none)'}\n"
+        f"Scope tasks:\n{scope}\n"
+        f"Milestones:\n{milestone_list}\n"
+        f"Total budget: {budget_line}\n\n"
+        "Generate a professional client proposal email for this project. Include: overview paragraph, "
+        "scope of work (bullet list from tasks), key milestones with dates, total budget, and a "
+        "professional closing. Return plain text formatted as an email body.\n\n"
+        'Return ONLY JSON: {"subject": "str", "body": "str"}'
+    )
+
+    try:
+        result = await _ai_json(ai, prompt, 1200)
+        if not result or not result.get("body"):
+            raise ValueError("empty")
+    except Exception as ex:
+        raise HTTPException(502, f"AI proposal generation failed: {ex}")
+    return {"subject": result.get("subject", f"Proposal: {proj['name']}"), "body": result["body"]}

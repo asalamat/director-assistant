@@ -12,7 +12,13 @@ router = APIRouter(prefix="/api/email-rules", tags=["email-rules"])
 
 VALID_FIELDS = {"sender", "subject", "body"}
 VALID_CONDITIONS = {"contains", "equals", "starts_with", "ends_with"}
-VALID_ACTIONS = {"label", "archive", "mark_read", "delete"}
+VALID_ACTIONS = {"label", "archive", "mark_read", "delete", "forward"}
+
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _valid_email(addr: str) -> bool:
+    return bool(_EMAIL_RE.match((addr or "").strip()))
 
 
 class RuleCreate(BaseModel):
@@ -22,6 +28,7 @@ class RuleCreate(BaseModel):
     value: str
     action: str
     label: str = ""
+    forward_to: str = ""
     priority: int = 0
 
     def validate_fields(self):
@@ -31,6 +38,8 @@ class RuleCreate(BaseModel):
             raise ValueError(f"condition must be one of {VALID_CONDITIONS}")
         if self.action not in VALID_ACTIONS:
             raise ValueError(f"action must be one of {VALID_ACTIONS}")
+        if self.action == "forward" and not _valid_email(self.forward_to):
+            raise ValueError("forward_to must be a valid email address")
 
 
 class RulePreview(BaseModel):
@@ -59,6 +68,33 @@ def _rule_matches(field: str, condition: str, check: str, row) -> bool:
         (condition == "starts_with" and val.startswith(check)) or
         (condition == "ends_with" and val.endswith(check))
     )
+
+
+def _forward_email(cache, forward_to: str, sender: str, subject: str, body: str) -> bool:
+    """Compose and send a forwarded copy via SMTP. Returns True on success."""
+    if not _valid_email(forward_to):
+        return False
+    from email.mime.multipart import MIMEMultipart
+    from email.mime.text import MIMEText
+    from routers.email_send import _resolve_account, _smtp_send
+    try:
+        acc = _resolve_account(cache, 0)
+        msg = MIMEMultipart()
+        msg["From"] = acc.username
+        msg["To"] = forward_to.strip()
+        msg["Subject"] = f"Fwd: {subject or '(no subject)'}"
+        fwd_body = (
+            f"---------- Forwarded message ----------\n"
+            f"From: {sender or ''}\n"
+            f"Subject: {subject or ''}\n\n"
+            f"{body or ''}"
+        )
+        msg.attach(MIMEText(fwd_body, "plain", "utf-8"))
+        _smtp_send(acc, msg)
+        return True
+    except Exception as e:
+        _log.warning("Rule forward failed: %s", type(e).__name__)
+        return False
 
 
 def log_rules_run(cache, labeled, archived, marked, deleted) -> None:
@@ -97,8 +133,9 @@ async def create_rule(req: RuleCreate, request: Request):
     cache = request.app.state.cache
     with cache._conn() as conn:
         cur = conn.execute(
-            "INSERT INTO email_rules (name, field, condition, value, action, label, priority) VALUES (?,?,?,?,?,?,?)",
-            (req.name, req.field, req.condition, req.value, req.action, req.label, req.priority),
+            "INSERT INTO email_rules (name, field, condition, value, action, label, forward_to, priority) VALUES (?,?,?,?,?,?,?,?)",
+            (req.name, req.field, req.condition, req.value, req.action, req.label,
+             req.forward_to.strip() if req.action == "forward" else "", req.priority),
         )
     return {"id": cur.lastrowid, "status": "created"}
 
@@ -269,6 +306,8 @@ async def run_all_rules(request: Request):
                 with cache._conn() as conn:
                     conn.execute("UPDATE emails SET folder='Archive' WHERE id=?", (email_id,))
                 archived += 1
+            elif action == "forward" and rule["forward_to"]:
+                _forward_email(cache, rule["forward_to"], row["sender"], row["subject"], row["body"])
             elif action == "delete":
                 with cache._conn() as conn:
                     conn.execute("DELETE FROM emails WHERE id=?", (email_id,))
@@ -322,6 +361,12 @@ def apply_rules(email, cache) -> None:
         elif action == "archive":
             with cache._conn() as conn:
                 conn.execute("UPDATE emails SET folder='Archive' WHERE id=?", (email.id,))
+        elif action == "forward" and rule["forward_to"]:
+            _forward_email(
+                cache, rule["forward_to"],
+                getattr(email, "sender", ""), getattr(email, "subject", ""),
+                getattr(email, "body", ""),
+            )
         elif action == "delete":
             with cache._conn() as conn:
                 conn.execute("DELETE FROM emails WHERE id=?", (email.id,))

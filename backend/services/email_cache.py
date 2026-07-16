@@ -358,6 +358,7 @@ class EmailCache(EmailExtrasMixin, DocumentCacheMixin):
                     value      TEXT NOT NULL,
                     action     TEXT NOT NULL,
                     label      TEXT DEFAULT '',
+                    forward_to TEXT DEFAULT '',
                     enabled    INTEGER DEFAULT 1,
                     priority   INTEGER DEFAULT 0,
                     created_at TEXT DEFAULT (datetime('now'))
@@ -418,9 +419,15 @@ class EmailCache(EmailExtrasMixin, DocumentCacheMixin):
                     conn.execute(f"ALTER TABLE emails ADD COLUMN {col_def}")
                 except Exception:
                     pass
-            # Add note column to imported_contacts if missing (migration)
+            # Add note/birthday/work_anniversary columns to imported_contacts if missing (migration)
+            for _col in ("note TEXT DEFAULT ''", "birthday TEXT DEFAULT ''", "work_anniversary TEXT DEFAULT ''"):
+                try:
+                    conn.execute(f"ALTER TABLE imported_contacts ADD COLUMN {_col}")
+                except Exception:
+                    pass
+            # Add forward_to column to email_rules if missing (migration)
             try:
-                conn.execute("ALTER TABLE imported_contacts ADD COLUMN note TEXT DEFAULT ''")
+                conn.execute("ALTER TABLE email_rules ADD COLUMN forward_to TEXT DEFAULT ''")
             except Exception:
                 pass
 

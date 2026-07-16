@@ -5,7 +5,7 @@ import type { EmailCategory } from '../types'
 
 const FIELDS = ['sender', 'subject', 'body'] as const
 const CONDITIONS = ['contains', 'equals', 'starts_with', 'ends_with'] as const
-const ACTIONS = ['label', 'archive', 'mark_read', 'delete'] as const
+const ACTIONS = ['label', 'archive', 'mark_read', 'delete', 'forward'] as const
 const CATEGORIES = Object.keys(CATEGORY_LABELS) as EmailCategory[]
 
 type LastRun = { ran_at: string; labeled: number; archived: number; marked: number; deleted: number }
@@ -21,12 +21,12 @@ function timeAgo(iso: string): string {
   return `${Math.floor(hrs / 24)}d ago`
 }
 
-type ProposedRule = { name: string; field: string; condition: string; value: string; action: string; label: string; priority: number }
+type ProposedRule = { name: string; field: string; condition: string; value: string; action: string; label: string; forward_to?: string; priority: number }
 
 export function EmailRulesPanel() {
   const [rules, setRules] = useState<any[]>([])
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ name: '', field: 'sender', condition: 'contains', value: '', action: 'label', label: 'proposal', priority: 0 })
+  const [form, setForm] = useState({ name: '', field: 'sender', condition: 'contains', value: '', action: 'label', label: 'proposal', forward_to: '', priority: 0 })
   const [saving, setSaving] = useState(false)
   const [running, setRunning] = useState(false)
   const [msg, setMsg] = useState('')
@@ -55,11 +55,15 @@ export function EmailRulesPanel() {
 
   const save = async () => {
     if (!form.name.trim() || !form.value.trim()) return
+    if (form.action === 'forward' && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.forward_to.trim())) {
+      setMsg('Error: enter a valid forward-to email address')
+      return
+    }
     setSaving(true)
     try {
       await api.createEmailRule(form)
       setShowForm(false)
-      setForm({ name: '', field: 'sender', condition: 'contains', value: '', action: 'label', label: 'proposal', priority: 0 })
+      setForm({ name: '', field: 'sender', condition: 'contains', value: '', action: 'label', label: 'proposal', forward_to: '', priority: 0 })
       setPreview(null)
       load()
       setMsg('Rule created')
@@ -246,6 +250,15 @@ export function EmailRulesPanel() {
                 {CATEGORIES.map(c => <option key={c} value={c}>{CATEGORY_LABELS[c].text}</option>)}
               </select>
             )}
+            {form.action === 'forward' && (
+              <input
+                type="email"
+                value={form.forward_to}
+                onChange={e => setForm(p => ({ ...p, forward_to: e.target.value }))}
+                placeholder="Forward to email address"
+                className="flex-1 min-w-0 text-sm border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent bg-white"
+              />
+            )}
           </div>
           {preview && (
             <div className="border border-blue-200 bg-blue-50/50 rounded-lg p-2.5 text-xs">
@@ -293,7 +306,7 @@ export function EmailRulesPanel() {
             <p className="text-xs text-gray-400">
               When {r.field} {r.condition.replace('_', ' ')} &ldquo;{r.value}&rdquo; &rarr;{' '}
               <span className={r.action === 'delete' ? 'text-red-600 font-medium' : ''}>
-                {r.action.replace('_', ' ')}{r.label ? ` as ${r.label}` : ''}
+                {r.action.replace('_', ' ')}{r.label ? ` as ${r.label}` : ''}{r.action === 'forward' && r.forward_to ? ` to ${r.forward_to}` : ''}
               </span>
             </p>
           </div>

@@ -676,8 +676,11 @@ export const api = {
   fuzzyMergeContacts(): Promise<{ merged_groups: number; records_removed: number; message: string }> {
     return request('/contacts/fuzzy-merge', { method: 'POST' })
   },
-  updateContact(id: number, data: { name: string; phones: string[]; note: string }): Promise<{ updated: number }> {
+  updateContact(id: number, data: { name: string; phones: string[]; note: string; birthday?: string; work_anniversary?: string }): Promise<{ updated: number }> {
     return request(`/contacts/imported/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+  },
+  getUpcomingOccasions(days = 7): Promise<{ occasions: { name: string; email: string; type: 'birthday' | 'anniversary'; date: string; days_away: number }[] }> {
+    return request(`/crm/upcoming-occasions?days=${days}`)
   },
   upsertContact(data: { email_addr: string; name: string; phones: string[]; note: string }): Promise<{ id: number | null }> {
     return request('/contacts/upsert', { method: 'POST', body: JSON.stringify(data) })
@@ -698,6 +701,18 @@ export const api = {
   // Triage
   getTriageTop(limit?: number): Promise<{ emails: import('../types').TriageEmail[] }> {
     return request(`/triage/top${limit ? `?limit=${limit}` : ''}`)
+  },
+  triageFeedback(emailId: string, sender: string, subject: string, aiScore: number, action: 'keep' | 'dismiss' | 'boost'): Promise<{ ok: boolean }> {
+    return request('/triage/feedback', {
+      method: 'POST',
+      body: JSON.stringify({ email_id: emailId, sender, subject, ai_score: aiScore, user_action: action }),
+    })
+  },
+  getTriagePatterns(): Promise<{ low_priority_senders: string[]; high_priority_senders: string[]; low_priority_keywords: string[] }> {
+    return request('/triage/learned-patterns')
+  },
+  resetTriageLearning(): Promise<{ ok: boolean }> {
+    return request('/triage/feedback', { method: 'DELETE' })
   },
 
   // Quick replies
@@ -723,6 +738,10 @@ export const api = {
 
   summarizeThread(emailId: string): Promise<{ summary: string; key_points: string[]; outcome: string; participants: string[]; message_count: number }> {
     return request(`/emails/${encodeURIComponent(emailId)}/summarize-thread`, { method: 'POST' })
+  },
+
+  suggestCC(to: string, subject: string): Promise<{ suggestions: { email: string; name: string }[] }> {
+    return request(`/emails/suggest-cc?to=${encodeURIComponent(to)}&subject=${encodeURIComponent(subject)}`)
   },
 
   extractCommitments(emailId: string, draft: string): Promise<{ commitments: string[] }> {
@@ -1073,6 +1092,9 @@ export const api = {
   getWeeklyUpdate(id: number): Promise<{ subject: string; body: string }> {
     return request(`/projects/${id}/weekly-update`, { method: 'POST' })
   },
+  generateProposal(id: number): Promise<{ subject: string; body: string }> {
+    return request(`/projects/${id}/proposal`, { method: 'POST' })
+  },
 
   // Project Tasks
   getProjectTasks(id: number): Promise<{ tasks: any[] }> {
@@ -1203,6 +1225,11 @@ export const api = {
   },
   draftCRMFollowup(id: number): Promise<{ to: string; subject: string; body: string }> {
     return request(`/crm/deals/${id}/followup-draft`, { method: 'POST' })
+  },
+
+  // Read receipts
+  getSentReceipts(): Promise<{ receipts: { message_id: string; recipient: string; opened_at: string; open_count: number }[] }> {
+    return request('/emails/sent/receipts')
   },
 
   // Social Inbox
@@ -1398,7 +1425,7 @@ export const api = {
 
   // Email Rules
   getEmailRules(): Promise<{ rules: any[] }> { return request('/email-rules') },
-  createEmailRule(data: { name: string; field: string; condition: string; value: string; action: string; label?: string; priority?: number }): Promise<{ id: number }> {
+  createEmailRule(data: { name: string; field: string; condition: string; value: string; action: string; label?: string; forward_to?: string; priority?: number }): Promise<{ id: number }> {
     return request('/email-rules', { method: 'POST', body: JSON.stringify(data) })
   },
   previewEmailRule(data: { field: string; condition: string; value: string }): Promise<{ count: number; sample: { id: number; subject: string; sender: string }[] }> {

@@ -51,6 +51,7 @@ from routers import projects as projects_router
 from routers import contacts as contacts_router
 from routers import meeting as meeting_router
 from routers import crm as crm_router
+from routers import tracking as tracking_router
 from routers import notify as notify_router
 from routers import backup as backup_router
 from routers import tasks_export as tasks_export_router
@@ -610,6 +611,7 @@ app.include_router(contacts_router.router)
 app.include_router(projects_router.router)
 app.include_router(meeting_router.router)
 app.include_router(crm_router.router)
+app.include_router(tracking_router.router)
 app.include_router(tasks_export_router.router)
 app.include_router(webhooks_router.router)
 app.include_router(report_schedule_router.router)

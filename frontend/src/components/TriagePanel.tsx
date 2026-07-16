@@ -63,6 +63,12 @@ function ScoreBadge({ score, reasons }: { score: number; reasons: string[] }) {
   )
 }
 
+type LearnedPatterns = {
+  low_priority_senders: string[]
+  high_priority_senders: string[]
+  low_priority_keywords: string[]
+}
+
 export function TriagePanel() {
   const { emails: contextEmails, selectEmail, fetchEmail } = useEmailContext()
   const { setActiveTab } = useUIContext()
@@ -75,6 +81,42 @@ export function TriagePanel() {
   const [loading, setLoading] = useState(true)
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
   const [snoozed, setSnoozed] = useState<Record<string, string>>(loadSnoozed)
+  const [noted, setNoted] = useState<Record<string, boolean>>({})
+  const [patterns, setPatterns] = useState<LearnedPatterns | null>(null)
+  const [patternsOpen, setPatternsOpen] = useState(false)
+
+  const loadPatterns = useCallback(async () => {
+    try {
+      setPatterns(await api.getTriagePatterns())
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  const sendFeedback = useCallback(
+    async (em: TriageEmail, action: 'boost' | 'dismiss') => {
+      setNoted(prev => ({ ...prev, [em.id]: true }))
+      setTimeout(() => {
+        setNoted(prev => { const n = { ...prev }; delete n[em.id]; return n })
+      }, 1500)
+      try {
+        await api.triageFeedback(em.id, em.sender, em.subject, em.score, action)
+        loadPatterns()
+      } catch {
+        // ignore
+      }
+    },
+    [loadPatterns],
+  )
+
+  const resetLearning = useCallback(async () => {
+    try {
+      await api.resetTriageLearning()
+      setPatterns({ low_priority_senders: [], high_priority_senders: [], low_priority_keywords: [] })
+    } catch {
+      // ignore
+    }
+  }, [])
 
   const isSnoozed = useCallback((id: string): boolean => {
     const until = snoozed[id]
@@ -108,9 +150,14 @@ export function TriagePanel() {
 
   useEffect(() => {
     load()
+    loadPatterns()
     const id = setInterval(load, 5 * 60 * 1000) // refresh every 5 min
     return () => clearInterval(id)
-  }, [load])
+  }, [load, loadPatterns])
+
+  const lowCount = patterns?.low_priority_senders.length ?? 0
+  const highCount = patterns?.high_priority_senders.length ?? 0
+  const hasLearning = lowCount + highCount + (patterns?.low_priority_keywords.length ?? 0) > 0
 
   const visibleEmails = emails.filter(em => !isSnoozed(em.id))
 
@@ -152,6 +199,60 @@ export function TriagePanel() {
             </svg>
           </button>
         </div>
+      </div>
+
+      {/* Learned patterns — collapsible */}
+      <div className="mb-4 bg-indigo-50/60 border border-indigo-100 rounded-lg">
+        <button
+          onClick={() => setPatternsOpen(o => !o)}
+          className="w-full flex items-center justify-between px-3 py-2 text-left"
+        >
+          <span className="text-xs text-indigo-700">
+            🧠 {hasLearning
+              ? `${lowCount} sender${lowCount === 1 ? '' : 's'} learned as low priority · ${highCount} as high priority`
+              : 'Learning from your 👍 / 👎 feedback'}
+          </span>
+          <svg className={`w-3.5 h-3.5 text-indigo-400 transition-transform ${patternsOpen ? 'rotate-180' : ''}`}
+            viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+          </svg>
+        </button>
+        {patternsOpen && (
+          <div className="px-3 pb-3 pt-1 space-y-2 text-[11px]">
+            {lowCount > 0 && (
+              <div>
+                <span className="text-gray-500">Low priority: </span>
+                <span className="text-gray-700">{patterns!.low_priority_senders.join(', ')}</span>
+              </div>
+            )}
+            {highCount > 0 && (
+              <div>
+                <span className="text-gray-500">High priority: </span>
+                <span className="text-gray-700">{patterns!.high_priority_senders.join(', ')}</span>
+              </div>
+            )}
+            {(patterns?.low_priority_keywords.length ?? 0) > 0 && (
+              <div>
+                <span className="text-gray-500">Ignored keywords: </span>
+                <span className="text-gray-700">{patterns!.low_priority_keywords.join(', ')}</span>
+              </div>
+            )}
+            {!hasLearning && (
+              <p className="text-gray-400">
+                Use 👍 to boost or 👎 to dismiss emails. After a sender is dismissed a few times,
+                its emails are automatically deprioritized.
+              </p>
+            )}
+            {hasLearning && (
+              <button
+                onClick={resetLearning}
+                className="text-[11px] text-red-500 hover:text-red-700 hover:underline"
+              >
+                Reset Learning
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {loading && emails.length === 0 && (
@@ -214,18 +315,45 @@ export function TriagePanel() {
                 </div>
               </button>
 
-              {/* Snooze buttons — visible on hover */}
-              <div className="hidden group-hover:flex flex-col items-end gap-1 flex-shrink-0 ml-1">
-                <span className="text-[10px] text-gray-400 mb-0.5">snooze</span>
-                {([['2h', 2], ['Tomorrow', 24], ['3 days', 72]] as [string, number][]).map(([label, hours]) => (
-                  <button
-                    key={label}
-                    onClick={(e) => { e.stopPropagation(); snooze(em.id, hours) }}
-                    className="text-[10px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 hover:border-amber-300 transition-colors whitespace-nowrap"
-                  >
-                    {label}
-                  </button>
-                ))}
+              <div className="flex flex-col items-end gap-1 flex-shrink-0 ml-1">
+                {/* Feedback buttons */}
+                <div className="flex items-center gap-1">
+                  {noted[em.id] ? (
+                    <span className="text-[10px] text-green-600 font-medium whitespace-nowrap animate-pulse">
+                      Noted ✓
+                    </span>
+                  ) : (
+                    <>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); sendFeedback(em, 'boost') }}
+                        title="Important — surface more like this"
+                        className="text-sm px-1 rounded hover:bg-green-50 transition-colors"
+                      >
+                        👍
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); sendFeedback(em, 'dismiss') }}
+                        title="Not important — stop surfacing this"
+                        className="text-sm px-1 rounded hover:bg-red-50 transition-colors"
+                      >
+                        👎
+                      </button>
+                    </>
+                  )}
+                </div>
+                {/* Snooze buttons — visible on hover */}
+                <div className="hidden group-hover:flex flex-col items-end gap-1">
+                  <span className="text-[10px] text-gray-400 mb-0.5">snooze</span>
+                  {([['2h', 2], ['Tomorrow', 24], ['3 days', 72]] as [string, number][]).map(([label, hours]) => (
+                    <button
+                      key={label}
+                      onClick={(e) => { e.stopPropagation(); snooze(em.id, hours) }}
+                      className="text-[10px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 hover:border-amber-300 transition-colors whitespace-nowrap"
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </div>

@@ -1,6 +1,7 @@
 """Email-native CRM — deal pipeline with AI extraction."""
 
 import json
+from datetime import date, datetime
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, field_validator
@@ -38,6 +39,77 @@ class DealUpdate(BaseModel):
         if v is not None and v not in VALID_STAGES:
             raise ValueError(f"stage must be one of {sorted(VALID_STAGES)}")
         return v
+
+
+def collect_occasions(cache, days: int = 7) -> list[dict]:
+    """Return contacts whose birthday or work anniversary (by month-day) falls
+    within the next `days` days (inclusive of today). Dates stored as YYYY-MM-DD."""
+    days = max(0, min(int(days or 0), 366))
+    with cache._conn() as conn:
+        try:
+            rows = conn.execute(
+                "SELECT email_addr, name, COALESCE(birthday,'') AS birthday, "
+                "COALESCE(work_anniversary,'') AS work_anniversary FROM imported_contacts "
+                "WHERE COALESCE(birthday,'') != '' OR COALESCE(work_anniversary,'') != ''"
+            ).fetchall()
+        except Exception:
+            return []
+
+    today = date.today()
+    out: list[dict] = []
+    for r in rows:
+        for kind, raw in (("birthday", r["birthday"]), ("anniversary", r["work_anniversary"])):
+            md = _month_day(raw)
+            if md is None:
+                continue
+            away = _days_until(today, md)
+            if away is not None and away <= days:
+                out.append({
+                    "name": r["name"] or r["email_addr"],
+                    "email": r["email_addr"],
+                    "type": kind,
+                    "date": raw,
+                    "days_away": away,
+                })
+    out.sort(key=lambda o: o["days_away"])
+    return out
+
+
+def _month_day(raw: str) -> Optional[tuple[int, int]]:
+    raw = (raw or "").strip()
+    if not raw:
+        return None
+    for fmt in ("%Y-%m-%d", "%m-%d", "%m/%d", "%Y/%m/%d"):
+        try:
+            dt = datetime.strptime(raw, fmt)
+            return (dt.month, dt.day)
+        except ValueError:
+            continue
+    return None
+
+
+def _days_until(today: date, md: tuple[int, int]) -> Optional[int]:
+    month, day = md
+    # Handle Feb 29 on non-leap years by treating it as Feb 28
+    for year in (today.year, today.year + 1):
+        try:
+            target = date(year, month, day)
+        except ValueError:
+            try:
+                target = date(year, month, 28) if month == 2 else date(year, month, day)
+            except ValueError:
+                return None
+        delta = (target - today).days
+        if delta >= 0:
+            return delta
+    return None
+
+
+@router.get("/upcoming-occasions")
+async def upcoming_occasions(request: Request, days: int = 7):
+    """Contacts with birthdays/anniversaries in the next `days` days."""
+    cache = request.app.state.cache
+    return {"occasions": collect_occasions(cache, days)}
 
 
 @router.get("/deals")

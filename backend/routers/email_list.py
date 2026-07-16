@@ -386,6 +386,67 @@ async def get_email_thread(email_id: str, request: Request):
     return {"thread": thread, "thread_id": email.thread_id, "total": len(thread)}
 
 
+@router.get("/suggest-cc")
+async def suggest_cc(request: Request, to: str = Query(...), subject: str = Query("")):
+    """Suggest CC recipients from who was co-CC'd on past threads with `to`.
+
+    Scans emails from the last 90 days where the `to` address appeared as a
+    recipient, counts co-occurring addresses, and returns the top 3. Declared
+    before GET /{email_id} so the static path isn't captured by the catch-all.
+    """
+    import json as _json
+    from datetime import datetime, timedelta
+
+    to_addr = (to or "").strip().lower()
+    if not to_addr:
+        return {"suggestions": []}
+
+    cache: EmailCache = request.app.state.cache
+
+    own: set[str] = set()
+    with cache._conn() as conn:
+        try:
+            for r in conn.execute("SELECT username FROM accounts"):
+                u = (r["username"] or "").strip().lower()
+                if u:
+                    own.add(u)
+        except Exception:
+            pass
+
+        cutoff = (datetime.utcnow() - timedelta(days=90)).strftime("%Y-%m-%d")
+        rows = conn.execute(
+            "SELECT sender, recipients FROM emails "
+            "WHERE date >= ? AND LOWER(recipients) LIKE ? "
+            "ORDER BY date DESC LIMIT 500",
+            (cutoff, f"%{to_addr}%"),
+        ).fetchall()
+
+    counts: dict[str, dict] = {}
+    for row in rows:
+        try:
+            recips = _json.loads(row["recipients"] or "[]")
+        except Exception:
+            recips = []
+        addrs = [str(a).strip() for a in recips if str(a).strip()]
+        lowered = {a.lower() for a in addrs}
+        if to_addr not in lowered:
+            continue
+        sender_raw = row["sender"] or ""
+        m = re.search(r"<([^>]+)>", sender_raw)
+        sender = (m.group(1) if m else sender_raw).strip().lower()
+        for a in addrs:
+            al = a.lower()
+            if al == to_addr or al in own or al == sender:
+                continue
+            entry = counts.setdefault(al, {"email": al, "name": "", "count": 0})
+            entry["count"] += 1
+            if not entry["name"]:
+                entry["name"] = al.split("@")[0].replace(".", " ").title()
+
+    ranked = sorted(counts.values(), key=lambda e: e["count"], reverse=True)[:3]
+    return {"suggestions": [{"email": e["email"], "name": e["name"]} for e in ranked]}
+
+
 @router.get("/{email_id}")
 async def get_email(request: Request, email_id: str, folder: str = Query("INBOX")):
     cache: EmailCache = request.app.state.cache

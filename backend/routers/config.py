@@ -99,6 +99,8 @@ class AppConfigUpdate(BaseModel):
     # DB maintenance
     db_retention_days: Optional[int] = None
     db_last_vacuum: Optional[str] = None
+    # Read receipts (tracking pixel in sent HTML emails)
+    read_receipts_enabled: Optional[bool] = None
 
 
 @router.get("")
@@ -157,6 +159,7 @@ async def get_config():
         "db_retention_days": cfg.get("db_retention_days", 0),
         "db_last_vacuum": cfg.get("db_last_vacuum"),
         "user_name": cfg.get("user_name", ""),
+        "read_receipts_enabled": cfg.get("read_receipts_enabled", False),
     }
 
 
@@ -200,6 +203,7 @@ async def update_config(update: AppConfigUpdate, request: Request):
         "jira_url", "jira_email", "jira_api_token", "jira_project_key",
         "todoist_api_token",
         "report_email_enabled", "report_email_to",
+        "read_receipts_enabled",
     ):
         val = getattr(update, key, None)
         if val is not None:
