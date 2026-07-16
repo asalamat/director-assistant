@@ -275,19 +275,24 @@ export function PeopleTab() {
   }
 
   useEffect(() => {
-    Promise.all([
+    // Load each source independently so a failure in one doesn't wipe the others.
+    // VIP state is critical — losing it makes all stars appear unset.
+    Promise.allSettled([
       api.getPeople(100),
       api.getVIPs(),
       api.getContactHints(),
       api.listHiddenContacts(),
     ]).then(([peopleRes, vipRes, hintsRes, hiddenRes]) => {
-      setPeople(peopleRes.people)
-      const map: Record<string, number> = {}
-      for (const v of vipRes.vips) map[v.email_addr.toLowerCase()] = v.id
-      setVipMap(map)
-      setHints(hintsRes.hints)
-      setHidden(new Set(hiddenRes.hidden.map((h: any) => h.email_addr.toLowerCase())))
-    }).catch(() => {}).finally(() => setLoading(false))
+      if (peopleRes.status === 'fulfilled') setPeople(peopleRes.value.people)
+      if (vipRes.status === 'fulfilled') {
+        const map: Record<string, number> = {}
+        for (const v of vipRes.value.vips) map[v.email_addr.toLowerCase()] = v.id
+        setVipMap(map)
+      }
+      if (hintsRes.status === 'fulfilled') setHints(hintsRes.value.hints)
+      if (hiddenRes.status === 'fulfilled')
+        setHidden(new Set(hiddenRes.value.hidden.map((h: any) => h.email_addr.toLowerCase())))
+    }).finally(() => setLoading(false))
   }, [])
 
   const handleVCardImport = async (e: React.ChangeEvent<HTMLInputElement>) => {

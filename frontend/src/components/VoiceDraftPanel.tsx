@@ -44,12 +44,17 @@ export function VoiceDraftPanel() {
   }
 
   return (
-    <section className="border border-gray-200 rounded-xl bg-white p-4 space-y-3">
-      <div>
-        <h3 className="text-sm font-semibold text-gray-800">Voice-Matched Drafts</h3>
-        <p className="text-xs text-gray-400 mt-0.5">
-          Learn how you write from your sent mail so AI drafts sound like you.
-        </p>
+    <section className={`border rounded-xl bg-white p-4 space-y-3 ${style ? 'border-green-300' : 'border-gray-200'}`}>
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-800">Voice-Matched Drafts</h3>
+          <p className="text-xs text-gray-400 mt-0.5">
+            Learn how you write from your sent mail so AI drafts sound like you.
+          </p>
+        </div>
+        <span className={`flex-shrink-0 text-[11px] font-semibold px-2 py-0.5 rounded-full ${style ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+          {style ? 'On' : 'Off'}
+        </span>
       </div>
 
       {style ? (
