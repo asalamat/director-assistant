@@ -446,7 +446,7 @@ export interface BriefSection {
   id: string
   title: string
   icon: string
-  items: { text: string; meta: string }[]
+  items: { text: string; meta: string; email?: string; occasion_type?: 'birthday' | 'anniversary' }[]
   insight: string
 }
 

@@ -12,11 +12,24 @@ router = APIRouter(prefix="/api/email", tags=["email"])
 
 
 def _tracking_pixel(message_id: str, recipient: str) -> str:
-    """Return an <img> tracking pixel tag for the given message/recipient."""
+    """Return an <img> tracking pixel tag for the given message/recipient.
+
+    The base URL must be a publicly reachable host (not localhost) for external
+    recipients to fire the pixel. Configure 'public_url' in app config or set
+    DA_PUBLIC_URL env var. If neither is set the pixel is omitted (local-only).
+    """
     from routers.tracking import make_token
+    from routers.config import load_app_config
+    import os
+    base = (
+        load_app_config().get("public_url")
+        or os.getenv("DA_PUBLIC_URL", "")
+    ).rstrip("/")
+    if not base:
+        return ""
     token = make_token(message_id, recipient)
     return (
-        f'<img src="http://localhost:8000/api/track/{token}" '
+        f'<img src="{base}/api/track/{token}" '
         'width="1" height="1" alt="" style="display:none" />'
     )
 

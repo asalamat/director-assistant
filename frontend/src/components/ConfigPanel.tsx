@@ -230,6 +230,7 @@ export function ConfigPanel({ onSaved }: Props) {
   const [pollInterval, setPollInterval] = useState(60)
   const [syncWindowDays, setSyncWindowDays] = useState(0)
   const [budgetMode, setBudgetMode] = useState(false)
+  const [readReceipts, setReadReceipts] = useState(false)
   const [newsEnabled, setNewsEnabled] = useState(false)
   const [newsTopics, setNewsTopics] = useState('')
 
@@ -308,6 +309,7 @@ export function ConfigPanel({ onSaved }: Props) {
       setPollInterval(cfg.poll_interval_seconds)
       setSyncWindowDays(cfg.sync_window_days ?? 7)
       setBudgetMode(cfg.budget_mode ?? false)
+      setReadReceipts((cfg as any).read_receipts_enabled ?? false)
       setMsClientId(cfg.ms_client_id ?? '')
       setGoogleClientId(cfg.google_client_id ?? '')
       setDigestEnabled(cfg.digest_schedule_enabled ?? false)
@@ -363,6 +365,7 @@ export function ConfigPanel({ onSaved }: Props) {
       payload.digest_schedule_email = digestEmail
       ;(payload as Record<string, unknown>).news_enabled = newsEnabled
       ;(payload as Record<string, unknown>).news_topics = newsTopics.split(',').map(t => t.trim()).filter(Boolean)
+      ;(payload as Record<string, unknown>).read_receipts_enabled = readReceipts
       await api.saveConfig(payload)
       setSaveMsg('Saved')
       setAnthropicKey(''); setOpenaiKey(''); setElevenLabsKey(''); setElevenLabsVoiceId('')
@@ -517,6 +520,19 @@ export function ConfigPanel({ onSaved }: Props) {
             ))}
           </div>
           <HelpBox section={helpSection} />
+        </div>
+
+        <div className="border border-gray-200 rounded-xl p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-0.5">
+                <h2 className="text-sm font-semibold text-gray-800">Read Receipts</h2>
+                <span className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full font-medium">👁 tracking</span>
+              </div>
+              <p className="text-xs text-gray-500">Embed an invisible tracking pixel in sent HTML emails to see when recipients open them. Shown in the Sent folder.</p>
+            </div>
+            <Toggle checked={readReceipts} onChange={() => setReadReceipts(v => !v)} />
+          </div>
         </div>
 
         <SaveRow saving={saving} msg={saveMsg} onSave={handleSave} />

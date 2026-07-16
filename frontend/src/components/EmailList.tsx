@@ -112,6 +112,11 @@ function Highlight({ text, query }: { text: string; query: string }) {
   )
 }
 
+function extractEmail(s: string): string {
+  const m = (s || '').match(/[\w.+-]+@[\w-]+\.[\w.-]+/)
+  return m ? m[0].toLowerCase() : ''
+}
+
 function replyDepth(subject: string): number {
   let depth = 0
   let s = subject
@@ -144,6 +149,8 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
   const [hoverTimer, setHoverTimer] = useState<ReturnType<typeof setTimeout> | null>(null)
   const [priorityEmails, setPriorityEmails] = useState<any[] | null>(null)
   const [loadingPriority, setLoadingPriority] = useState(false)
+  // recipient email (lowercased) → total open count, for Sent-folder read receipts
+  const [receipts, setReceipts] = useState<Record<string, number>>({})
   const [showFilterPanel, setShowFilterPanel] = useState(false)
   const [filterFromDate, setFilterFromDate] = useState('')
   const [filterToDate, setFilterToDate] = useState('')
@@ -295,6 +302,24 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
     setHistory([])
     setShowHistory(false)
   }
+
+  const isSentFolder = currentFolder?.toLowerCase().includes('sent') ?? false
+
+  useEffect(() => {
+    if (!isSentFolder) { setReceipts({}); return }
+    let cancelled = false
+    api.getSentReceipts().then(r => {
+      if (cancelled) return
+      const map: Record<string, number> = {}
+      for (const rec of r.receipts) {
+        const key = (rec.recipient || '').toLowerCase()
+        if (!key) continue
+        map[key] = (map[key] || 0) + (rec.open_count || 0)
+      }
+      setReceipts(map)
+    }).catch(() => { if (!cancelled) setReceipts({}) })
+    return () => { cancelled = true }
+  }, [isSentFolder, currentFolder])
 
   const loadThreads = async () => {
     setThreadsLoading(true)
@@ -958,6 +983,17 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
                       <span className={`text-sm truncate ${!email.is_read ? 'font-bold text-gray-900' : 'text-gray-700'}`}>
                         {email.sender.replace(/<[^>]+>/, '').trim() || email.sender}
                       </span>
+                      {isSentFolder && (() => {
+                        const opens = (email.recipients || []).reduce((n: number, r: string) => n + (receipts[extractEmail(r)] || 0), 0)
+                        return opens > 0 ? (
+                          <span
+                            className="flex-shrink-0 text-[10px] font-medium text-green-700 bg-green-100 rounded-full px-1.5 py-0.5 flex items-center gap-0.5"
+                            title={`Opened ${opens} time${opens !== 1 ? 's' : ''}`}
+                          >
+                            👁 {opens}
+                          </span>
+                        ) : null
+                      })()}
                     </div>
                     <span className="flex items-center gap-1 flex-shrink-0">
                       {email.preview && (

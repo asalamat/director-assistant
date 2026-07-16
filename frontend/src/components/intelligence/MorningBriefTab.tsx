@@ -1,8 +1,24 @@
 import { useState, useEffect, useCallback } from 'react'
 import { api } from '../../api/client'
+import { useUIContext } from '../../contexts/UIContext'
 import type { MorningBrief } from '../../types'
 
+function wishesBody(name: string, type: 'birthday' | 'anniversary'): { subject: string; body: string } {
+  const first = (name || '').split(/[\s<]/)[0] || 'there'
+  if (type === 'anniversary') {
+    return {
+      subject: 'Happy work anniversary!',
+      body: `Hi ${first},\n\nHappy work anniversary! Wishing you continued success and looking forward to what's ahead.\n\nWarm regards`,
+    }
+  }
+  return {
+    subject: 'Happy birthday!',
+    body: `Hi ${first},\n\nWishing you a very happy birthday! I hope you have a wonderful day.\n\nWarm regards`,
+  }
+}
+
 export function MorningBriefTab() {
+  const { openCompose } = useUIContext()
   const [brief, setBrief] = useState<MorningBrief | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -100,7 +116,41 @@ export function MorningBriefTab() {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {brief.sections.map(section => (
+        {brief.sections.map(section => {
+          // Hide the occasions card entirely when there is nothing today
+          if (section.id === 'occasions' && section.items.length === 0) return null
+          if (section.id === 'occasions') {
+            return (
+              <div key={section.id} className="rounded-xl border border-pink-100 dark:border-pink-900/50 bg-pink-50/50 dark:bg-pink-950/20 overflow-hidden shadow-sm flex flex-col md:col-span-2">
+                <div className="flex items-center gap-2 px-4 pt-4 pb-2">
+                  <span className="text-lg leading-none">{section.icon}</span>
+                  <h2 className="text-sm font-bold text-gray-900 dark:text-gray-100">{section.title}</h2>
+                </div>
+                <div className="px-4 pb-4 flex flex-wrap gap-2">
+                  {section.items.map((item, i) => {
+                    const type = item.occasion_type || 'birthday'
+                    const rawName = item.text.replace(/^[🎂🎉]\s*/, '')
+                    return (
+                      <div key={i} className="flex items-center gap-2 bg-white dark:bg-gray-900 border border-pink-200 dark:border-pink-800 rounded-full pl-3 pr-1.5 py-1 shadow-sm">
+                        <span className="text-sm">{type === 'anniversary' ? '🎉' : '🎂'}</span>
+                        <span className="text-sm font-medium text-gray-800 dark:text-gray-100">{rawName}</span>
+                        <span className="text-[10px] text-gray-400">{item.meta}</span>
+                        {item.email && (
+                          <button
+                            onClick={() => { const w = wishesBody(rawName, type); openCompose({ to: item.email!, subject: w.subject, body: w.body }) }}
+                            className="text-[11px] font-semibold text-white bg-pink-500 hover:bg-pink-600 rounded-full px-2.5 py-1 transition-colors"
+                          >
+                            Send wishes
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          }
+          return (
           <div key={section.id} className="rounded-xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-900 overflow-hidden shadow-sm flex flex-col">
             <div className="flex items-center gap-2 px-4 pt-4 pb-2">
               <span className="text-lg leading-none">{section.icon}</span>
@@ -123,7 +173,8 @@ export function MorningBriefTab() {
               </p>
             )}
           </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )

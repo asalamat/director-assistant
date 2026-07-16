@@ -207,14 +207,17 @@ def get_learned_patterns(cache) -> dict:
 
 
 def _apply_learned(email: dict, score: int, patterns: dict) -> int:
-    """Clamp a score based on learned sender-domain patterns."""
+    """Adjust score based on learned sender-domain patterns.
+    Uses additive deltas (+/-3) to stay on the same scale as _score() (~0-16).
+    Clamps prevent negative or runaway values.
+    """
     dom = _domain(email.get("sender") or "")
     if not dom:
         return score
     if dom in patterns.get("low_priority_senders", []):
-        return min(score, 30)
+        return max(0, score - 3)
     if dom in patterns.get("high_priority_senders", []):
-        return max(score, 70)
+        return score + 3
     return score
 
 
