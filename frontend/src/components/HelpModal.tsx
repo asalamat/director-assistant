@@ -265,6 +265,17 @@ function InboxEmail() {
         <Li><strong>Commitment detection</strong> — after Smart Draft, detected promises appear as pills to add to your Actions board</Li>
       </UL>
 
+      <H3>Read Receipts <Tag color="green">New</Tag></H3>
+      <P>Enable in <strong>Settings → App Settings → Read Receipts</strong>. When on, a 1px tracking pixel is appended to every HTML email you send. When the recipient opens it, the pixel fires and the open is recorded.</P>
+      <UL>
+        <Li>An <strong>👁 N</strong> badge appears on sent email rows in the Sent folder showing how many times each email was opened</Li>
+        <Li>Tracking only works for external recipients if you configure a <strong>public URL</strong> (Settings → App Settings → Public URL) — a domain reachable from the internet (e.g. via ngrok or a VPS). Without it the feature is silently disabled (no broken pixels)</Li>
+        <Li>Plain-text emails are not tracked (pixels require HTML)</Li>
+      </UL>
+
+      <H3>Auto-Forward Rule <Tag color="green">New</Tag></H3>
+      <P>In <strong>Settings → 🛡️ Rules &amp; Filters</strong>, choose <strong>Forward</strong> as the rule action and enter a forwarding address. Matching emails are forwarded automatically as they arrive — useful for routing vendor invoices, alerts, or newsletters to a shared inbox.</P>
+
       <H3>Email Rules & Filters</H3>
       <P>Go to <strong>Settings → 🛡️ Rules &amp; Filters</strong> to create rules that auto-label, archive, mark-read, or delete emails by sender, subject, or body. Rules run automatically as new mail arrives, and you can apply them to your existing inbox any time with <strong>▶ Run Now</strong>.</P>
       <div className="mb-4">
@@ -287,6 +298,9 @@ function CompositionSection() {
         <Li>Click <strong>CC/BCC</strong> in the compose window to reveal CC and BCC fields — enter comma-separated addresses</Li>
         <Li>Click <strong>↪ Forward</strong> in the email header toolbar to forward any email — compose opens pre-filled with the quoted original</Li>
       </UL>
+
+      <H3>Smart CC/BCC Suggestions <Tag color="green">New</Tag></H3>
+      <P>When you type a recipient in the <strong>To</strong> field, Director Assistant suggests people to CC or BCC based on past threads involving that recipient and the email subject. Suggestions appear as chips under the CC field — click any to add it.</P>
 
       <H3>AI Compose Toolbar (New Email, Reply &amp; Forward)</H3>
       <P>Every compose window — whether for a new email, a reply, or a forward — has the same AI toolbar above the send button:</P>
@@ -448,6 +462,15 @@ function ExecutiveTools() {
       </UL>
       <P>Score badges <strong>!</strong> / <strong>!!</strong> / <strong>!!!</strong> and reason tags explain exactly why each email was flagged. Hover the numeric score badge (e.g. <strong>8</strong>) to see a tooltip listing every scoring reason in detail. Click any to jump directly to it. Refreshes every 5 minutes.</P>
 
+      <H3>AI Triage Learning <Tag color="green">New</Tag></H3>
+      <P>The Focus tab learns from your keep/dismiss/boost actions over time and adjusts future scores accordingly:</P>
+      <UL>
+        <Li>Click <strong>👍</strong> on a triage email to boost its domain — emails from that sender will score +3 in future</Li>
+        <Li>Click <strong>👎</strong> to dismiss — emails from that domain will score −3 after 3 or more dismissals</Li>
+        <Li>Patterns apply per email domain, not individual address, so all mail from that organisation is affected</Li>
+        <Li>Reset learned patterns any time from <strong>Settings → App Settings → Reset Triage Learning</strong></Li>
+      </UL>
+
       <H3>Chase Queue (Follow-up Drafts)</H3>
       <P>Go to the <strong>Chase</strong> tab to see all emails you sent with no reply after 3+ days.</P>
       <UL>
@@ -591,6 +614,9 @@ function ProjectsSection() {
 
       <H3>Filter and browse</H3>
       <P>All / Active / Paused / Resolved filter bar at the top. Click any project card to open its detail view. Status badge cycles Active → Paused → Resolved on click.</P>
+
+      <H3>AI Proposal Generator <Tag color="green">New</Tag></H3>
+      <P>Inside any project, click <strong>✉ Generate Proposal</strong> to create a professional client-facing proposal email from your project plan, tasks, and milestones. The AI produces an overview paragraph, deliverables list, timeline, and pricing summary — ready to copy into Compose or send directly.</P>
     </div>
   )
 }
@@ -609,15 +635,17 @@ function KnowledgeSection() {
       <P>Click any item in the left sidebar to switch sections. The active section is highlighted with a blue left border.</P>
 
       <H3>☀️ Morning Brief <Tag color="green">New</Tag></H3>
-      <P>Opens by default when you go to Knowledge. Click <strong>Generate Brief</strong> (or it auto-loads) to get a synthesized daily briefing from 5 sources:</P>
+      <P>Opens by default when you go to Knowledge. Click <strong>Generate Brief</strong> (or it auto-loads) to get a synthesized daily briefing from 6 sources:</P>
       <div className="mb-4">
         <FeatureRow label="📰 Top News" desc="Headlines from your configured news topics (last 24 h)" />
         <FeatureRow label="📧 Priority Emails" desc="Your most urgent unread emails, scored by the triage engine" />
         <FeatureRow label="⏰ Overdue Follow-ups" desc="Action items that are past their due date" />
         <FeatureRow label="🤝 Open Commitments" desc="Outstanding promises you made or are waiting on" />
         <FeatureRow label="📁 Active Projects" desc="Projects currently in an active or in-progress state" />
+        <FeatureRow label="🎂 Today's Occasions" desc="Contacts whose birthday or work anniversary falls today — click Send Wishes to open a pre-filled compose window" />
       </div>
       <P>Each section ends with a one-line AI insight (shown in blue italics). The <strong>Today's Focus</strong> card at the top summarises your single most important priority for the day. Cached for 30 minutes — click <strong>↺ Refresh</strong> to force a new generation.</P>
+      <Note>Occasions are only shown when you have added birthday or work-anniversary dates to contacts in <strong>Knowledge → People Graph → Edit contact</strong>.</Note>
 
       <H3>📅 Calendar View <Tag color="green">New</Tag></H3>
       <P>Shows your next 7 days of calendar events pulled from your connected calendar. Requires a connected Microsoft 365 or Google account with Calendar access.</P>

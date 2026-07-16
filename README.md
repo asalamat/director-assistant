@@ -142,6 +142,15 @@ Everything runs **locally on your machine**. Your emails never leave your device
 - **Meeting Prep Brief** — click any calendar event in the Dashboard for an AI-generated agenda, talking points, and prior email context from all attendees
 - **Scheduled Send** — compose now, schedule delivery for any future date and time
 
+### New Features (v3.66.1 — 2026-07-16: 7 New Features)
+- **🧠 AI Triage Learning** — Focus tab learns from your 👍/👎 actions; domains dismissed 3+ times score −3, boosted domains score +3 in future. Reset any time from Settings → App Settings
+- **💡 Smart CC/BCC Suggestions** — as you type a recipient, AI suggests who else to include based on past threads with that contact and subject
+- **📄 Proposal Generator** — inside any project, click "✉ Generate Proposal" to create a client-facing proposal email from the plan, tasks, and milestones
+- **🔀 Auto-Forward Rule** — new "Forward" action in Email Rules routes matching emails to any address automatically as they arrive
+- **🎂 Birthday & Anniversary Reminders** — Morning Brief now shows a "Today's Occasions" card for contacts with birthdays or work anniversaries today; click Send Wishes to open a pre-filled compose window. Add dates in Knowledge → People Graph → Edit contact
+- **👁 Read Receipts** — enable in Settings → App Settings; a tracking pixel in sent HTML emails records opens; "👁 N" badge appears on Sent folder rows. Requires a public URL configured for external recipients
+- **🔍 Thread Hover Preview** — hover any email row for 600ms to see a richer AI preview including thread context (enhanced from prior single-line summary)
+
 ### New Features (v3.64.0 — 2026-07-02: Settings Redesign)
 - **⚙️ Settings 5-tab layout** — Settings now organized in 5 tabs: **AI · Email · Features · Integrations · General**
 - **Clear toggle status** — all toggles show **green (On) / red (Off)** so you can see at a glance what's enabled
