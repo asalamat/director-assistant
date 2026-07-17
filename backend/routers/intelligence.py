@@ -1058,20 +1058,31 @@ async def get_decisions(request: Request, days: int = 30, limit: int = 40):
             f"""SELECT id, sender, subject, body, date, folder, recipients
                 FROM emails
                 WHERE date > datetime('now', '-{int(days)} days')
+                AND lower(sender) NOT LIKE '%noreply%'
+                AND lower(sender) NOT LIKE '%no-reply%'
+                AND lower(sender) NOT LIKE '%donotreply%'
+                AND lower(sender) NOT LIKE '%newsletter%'
+                AND lower(sender) NOT LIKE '%notifications@%'
+                AND lower(sender) NOT LIKE '%mailer@%'
+                AND lower(sender) NOT LIKE '%bounce%'
+                AND lower(sender) NOT LIKE '%@mailchimp%'
                 AND (
                     lower(subject) LIKE '%approve%' OR lower(subject) LIKE '%approval%'
-                    OR lower(subject) LIKE '%decision%' OR lower(subject) LIKE '%sign off%'
-                    OR lower(subject) LIKE '%sign-off%' OR lower(subject) LIKE '%pending%'
+                    OR lower(subject) LIKE '%sign off%' OR lower(subject) LIKE '%sign-off%'
                     OR lower(body) LIKE '%please approve%' OR lower(body) LIKE '%awaiting your approval%'
                     OR lower(body) LIKE '%need your decision%' OR lower(body) LIKE '%your sign-off%'
                     OR lower(body) LIKE '%waiting on your%' OR lower(body) LIKE '%need you to approve%'
                     OR lower(body) LIKE '%decision needed%' OR lower(body) LIKE '%approval needed%'
+                    OR lower(body) LIKE '%your approval%' OR lower(body) LIKE '%pending your%'
                 )
                 ORDER BY date DESC LIMIT {int(limit)}""",
         ).fetchall()
 
     now = datetime.now(timezone.utc)
-    request_phrases = ("please approve", "awaiting your", "need your", "your sign-off", "need you to")
+    request_phrases = (
+        "please approve", "awaiting your", "need your", "your sign-off",
+        "need you to", "your approval", "pending your", "decision needed", "approval needed",
+    )
     decisions, mine_count, theirs_count = [], 0, 0
 
     for r in rows:
