@@ -126,8 +126,8 @@ export function EmailViewer({ email, loading, fetchError, onAnalyze, analyzing, 
     setComposeInitialBody(body)
     setShowCompose(true)
     // Extract commitments for smart drafts
-    if (email && body) {
-      api.extractCommitments(email.id, body).then(res => {
+    if (email && email.body) {
+      api.extractCommitments(email.id, email.body).then(res => {
         if (res.commitments.length > 0) setDraftCommitments(res.commitments)
       }).catch(() => {})
     }
@@ -145,7 +145,7 @@ export function EmailViewer({ email, loading, fetchError, onAnalyze, analyzing, 
   useEffect(() => {
     if (replyTriggerRef) replyTriggerRef.current = handleReplyClick
     if (forwardTriggerRef) forwardTriggerRef.current = handleForward
-  })
+  }, [])
 
   const handleSummarizeThread = async () => {
     if (!email || summarizingThread) return

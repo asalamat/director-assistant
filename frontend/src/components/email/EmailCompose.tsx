@@ -77,9 +77,7 @@ export function EmailCompose({
   const [savingSig, setSavingSig] = useState(false)
 
   // Sync external initial values when the compose window opens
-  const [lastInitialTo, setLastInitialTo] = useState(initialTo)
-  if (initialTo !== lastInitialTo) {
-    setLastInitialTo(initialTo)
+  useEffect(() => {
     setReplyTo(initialTo)
     setReplyCC('')
     setReplyBCC('')
@@ -93,7 +91,7 @@ export function EmailCompose({
     setUndoCountdown(null)
     setDraftSavedAt(null)
     setSelectedSigId(null)
-  }
+  }, [initialTo, initialSubject, initialBody, show])
 
   // Sync initialBody to contenteditable after mount (handles Smart Draft + forward)
   useEffect(() => {
@@ -276,7 +274,11 @@ export function EmailCompose({
           form.append('audio', blob, 'dictation.webm')
           const r = await fetch('/api/meeting/transcribe', { method: 'POST', body: form }).then(res => res.json())
           if (r.transcript) {
-            setReplyBody(prev => prev ? prev + ' ' + r.transcript : r.transcript)
+            setReplyBody(prev => {
+              const next = prev ? prev + ' ' + r.transcript : r.transcript
+              if (contentRef.current) contentRef.current.innerHTML = (contentRef.current.innerHTML + ' ' + r.transcript).trim()
+              return next
+            })
           }
         } catch { /* silent */ }
         setDictating(false)

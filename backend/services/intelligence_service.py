@@ -50,10 +50,11 @@ class IntelligenceService:
             "subjects": [], "last_contact": ""
         })
 
-        sys_filter = self._system_email_filter()
+        sys_filter, sys_params = self._system_email_filter()
         with self.cache._conn() as conn:
             rows = conn.execute(
-                f"SELECT sender, recipients, subject, date FROM emails WHERE 1=1 {sys_filter} ORDER BY date DESC"
+                f"SELECT sender, recipients, subject, date FROM emails WHERE 1=1 {sys_filter} ORDER BY date DESC",
+                sys_params,
             ).fetchall()
 
         for row in rows:
@@ -133,13 +134,13 @@ class IntelligenceService:
         if cached is not None:
             return cached
 
-        sys_filter = self._system_email_filter()
+        sys_filter, sys_params = self._system_email_filter()
         with self.cache._conn() as conn:
             rows = conn.execute(
                 f"""SELECT id, subject, sender, body, date FROM emails
                    WHERE 1=1 {sys_filter}
                    ORDER BY date ASC LIMIT ?""",
-                (max_emails,)
+                (*sys_params, max_emails)
             ).fetchall()
 
         if not rows:
@@ -208,13 +209,13 @@ class IntelligenceService:
         if cached is not None:
             return cached
 
-        sys_filter = self._system_email_filter()
+        sys_filter, sys_params = self._system_email_filter()
         with self.cache._conn() as conn:
             rows = conn.execute(
                 f"""SELECT id, subject, sender, date FROM emails
                    WHERE 1=1 {sys_filter}
                    ORDER BY date DESC LIMIT ?""",
-                (max_emails,)
+                (*sys_params, max_emails)
             ).fetchall()
 
         if not rows:
@@ -304,12 +305,16 @@ class IntelligenceService:
         "director assistant webhook",
     )
 
-    def _system_email_filter(self) -> str:
-        """SQL fragment excluding app-generated emails from result sets."""
-        clauses = " AND ".join(
-            f"LOWER(subject) NOT LIKE '{p}%'" for p in self._SYSTEM_SUBJECT_PREFIXES
+    def _system_email_filter(self) -> tuple[str, tuple]:
+        """SQL fragment (parameterized) excluding app-generated emails from result sets.
+
+        Returns (sql_fragment, params) where sql_fragment uses ? placeholders.
+        """
+        placeholders = " AND ".join(
+            "LOWER(subject) NOT LIKE ?" for _ in self._SYSTEM_SUBJECT_PREFIXES
         )
-        return f"AND ({clauses})"
+        params = tuple(f"{p}%" for p in self._SYSTEM_SUBJECT_PREFIXES)
+        return f"AND ({placeholders})", params
 
     def get_timeline(self, query: str, limit: int = 60) -> list[dict]:
         """Chronological timeline of emails matching a topic/cluster query.
@@ -321,7 +326,7 @@ class IntelligenceService:
         3. FTS5 AND top-3 tokens   → top 3 longest/most distinctive tokens
         4. LIKE subject only on single rarest token (longest, no common words)
         """
-        sys_filter = self._system_email_filter()
+        sys_filter, sys_params = self._system_email_filter()
         _stop = {'the', 'and', 'for', 'from', 'with', 'this', 'that', 'are',
                  'was', 'has', 'have', 'not', 'but', 'all', 'our', 'can',
                  'will', 'been', 'your', 'their', 'they', 'about', 'also',
@@ -347,7 +352,7 @@ class IntelligenceService:
                            WHERE emails_fts MATCH ?
                            {sys_filter}
                            ORDER BY e.date ASC LIMIT ?""",
-                        (q, limit)
+                        (q, *sys_params, limit)
                     ).fetchall()
                 except Exception:
                     return []
@@ -359,7 +364,7 @@ class IntelligenceService:
                            WHERE subject LIKE ?
                            {sys_filter}
                            ORDER BY date ASC LIMIT ?""",
-                        (f"%{fragment}%", limit)
+                        (f"%{fragment}%", *sys_params, limit)
                     ).fetchall()
                 except Exception:
                     return []
@@ -441,10 +446,11 @@ class IntelligenceService:
 
         yield evt("status", "Generating executive summary…")
 
-        sys_filter = self._system_email_filter()
+        sys_filter, sys_params = self._system_email_filter()
         with self.cache._conn() as conn:
             stats = conn.execute(
-                f"SELECT COUNT(*) as cnt, MIN(date) as oldest, MAX(date) as newest FROM emails WHERE 1=1 {sys_filter}"
+                f"SELECT COUNT(*) as cnt, MIN(date) as oldest, MAX(date) as newest FROM emails WHERE 1=1 {sys_filter}",
+                sys_params,
             ).fetchone()
 
         email_count = stats["cnt"] if stats else 0

@@ -146,7 +146,7 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
   const [bulkDrafts, setBulkDrafts] = useState<BulkDraft[] | null>(null)
   const [generatingBulk, setGeneratingBulk] = useState(false)
   const [bulkCopiedIdx, setBulkCopiedIdx] = useState<number | null>(null)
-  const [hoverTimer, setHoverTimer] = useState<ReturnType<typeof setTimeout> | null>(null)
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [priorityEmails, setPriorityEmails] = useState<any[] | null>(null)
   const [loadingPriority, setLoadingPriority] = useState(false)
   // recipient email (lowercased) → total open count, for Sent-folder read receipts
@@ -924,7 +924,7 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
                 setHoveredId(email.id)
                 setHoverPos({ x: e.clientX, y: e.clientY })
                 if (!hoverSummary[email.id]) {
-                  const timer = setTimeout(async () => {
+                  hoverTimerRef.current = setTimeout(async () => {
                     setHoverLoading(true)
                     try {
                       const { summary } = await api.summarizeThread(email.id)
@@ -935,15 +935,14 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
                       setHoverLoading(false)
                     }
                   }, 600)
-                  setHoverTimer(timer)
                 }
               }}
               onMouseLeave={() => {
                 setHoveredId(null)
                 setHoverLoading(false)
-                if (hoverTimer) {
-                  clearTimeout(hoverTimer)
-                  setHoverTimer(null)
+                if (hoverTimerRef.current) {
+                  clearTimeout(hoverTimerRef.current)
+                  hoverTimerRef.current = null
                 }
               }}
             >
@@ -984,7 +983,7 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
                         {email.sender.replace(/<[^>]+>/, '').trim() || email.sender}
                       </span>
                       {isSentFolder && (() => {
-                        const opens = (email.recipients || []).reduce((n: number, r: string) => n + (receipts[extractEmail(r)] || 0), 0)
+                        const opens = (email.recipients ?? []).reduce((n: number, r: string) => n + (receipts[extractEmail(r)] || 0), 0)
                         return opens > 0 ? (
                           <span
                             className="flex-shrink-0 text-[10px] font-medium text-green-700 bg-green-100 rounded-full px-1.5 py-0.5 flex items-center gap-0.5"

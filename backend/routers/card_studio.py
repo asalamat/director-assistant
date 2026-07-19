@@ -1,5 +1,6 @@
 """Card Studio — brand post card generator for LinkedIn/Instagram (Pillow + AI caption + publish)."""
 
+import asyncio
 import io
 import base64
 import ipaddress
@@ -324,7 +325,8 @@ async def generate(body: GenerateBody, request: Request):
     if not PIL_AVAILABLE:
         raise HTTPException(400, "Pillow not installed on this server")
     try:
-        png = _generate_card(body.card_type, body.content or {}, body.brand or {})
+        loop = asyncio.get_event_loop()
+        png = await loop.run_in_executor(None, _generate_card, body.card_type, body.content or {}, body.brand or {})
     except Exception as e:
         raise HTTPException(502, str(e))
     b64 = base64.b64encode(png).decode("ascii")

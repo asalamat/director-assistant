@@ -379,15 +379,20 @@ export function AIProvidersPanel() {
       base_url: form.base_url, model_override: form.model_override,
     }
     const newIdx = providers.length
-    setProviders(prev => [...prev, newP])
+    const next = [...providers, newP]
+    setProviders(next)
     if (form.key) setKeys(prev => ({ ...prev, [newIdx]: form.key }))
     setShowAdd(false)
-    // Save immediately
-    const list: AIProviderSave[] = [...buildSaveList(), {
-      type: form.type, label: newP.label, key: form.key,
-      enabled: true, priority: newIdx + 1,
-      base_url: form.base_url, model_override: form.model_override,
-    }]
+    // Save immediately using next directly — avoids reading stale state from buildSaveList
+    const list: AIProviderSave[] = next.map((p, i) => ({
+      type: p.type,
+      label: p.label || p.type,
+      key: i === newIdx ? form.key : (keys[i] || ''),
+      enabled: p.enabled,
+      priority: i + 1,
+      base_url: p.base_url || '',
+      model_override: p.model_override || '',
+    }))
     await saveAll(list)
   }
 

@@ -53,7 +53,7 @@ async def import_pst(request: Request, file: UploadFile = File(...)):
     rag   = request.app.state.rag
 
     # Save uploaded file to a temp location (streaming, with size cap)
-    suffix = ".pst"
+    suffix = ".olm" if is_olm else ".pst"
     total = 0
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
         pst_path = tmp.name

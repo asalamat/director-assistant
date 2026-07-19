@@ -335,7 +335,7 @@ export function ProjectsPanel() {
     if (!plan || !selected) return
     const html = buildPlanHTML(selected, plan)
     const w = window.open('', '_blank')
-    w?.document.write(html)
+    w?.document.write(DOMPurify.sanitize(html))
     w?.document.close()
     w?.print()
   }

@@ -1,8 +1,10 @@
 """App configuration API — replaces manual .env editing."""
 
+import ipaddress
 import json
 import os
 import re
+import socket
 from pathlib import Path
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Request
@@ -129,8 +131,8 @@ async def get_config():
         # Integrations — return URLs and settings so Settings UI can populate on reload
         "webhook_urls": cfg.get("webhook_urls", []),
         "webhook_events": cfg.get("webhook_events", []),
-        "slack_webhook_url": cfg.get("slack_webhook_url", ""),
-        "teams_webhook_url": cfg.get("teams_webhook_url", ""),
+        "slack_webhook_url": (cfg.get("slack_webhook_url", "")[:30] + "…") if len(cfg.get("slack_webhook_url", "")) > 30 else cfg.get("slack_webhook_url", ""),
+        "teams_webhook_url": (cfg.get("teams_webhook_url", "")[:30] + "…") if len(cfg.get("teams_webhook_url", "")) > 30 else cfg.get("teams_webhook_url", ""),
         "slack_vip_notify": cfg.get("slack_vip_notify", False),
         "slack_auto_urgent": cfg.get("slack_auto_urgent", False),
         "teams_vip_notify": cfg.get("teams_vip_notify", False),
@@ -457,6 +459,21 @@ async def test_provider(body: dict):
                 "kimi":  "https://api.moonshot.cn/v1",
             }
             base = base_url or defaults.get(provider_type)
+            # SSRF protection: validate base_url hostname for openai-compatible providers
+            if base_url and provider_type == "openai-compatible":
+                from urllib.parse import urlparse as _urlparse
+                _parsed = _urlparse(base_url)
+                _hostname = _parsed.hostname or ""
+                if _hostname:
+                    try:
+                        _resolved = socket.gethostbyname(_hostname)
+                        _ip = ipaddress.ip_address(_resolved)
+                        if _ip.is_private or _ip.is_loopback or _ip.is_link_local or _ip.is_reserved:
+                            raise HTTPException(400, "base_url cannot target a private or internal host")
+                    except HTTPException:
+                        raise
+                    except Exception:
+                        raise HTTPException(400, "base_url hostname could not be resolved to a safe address")
             kwargs: dict = {"api_key": key or "ollama"}
             if base:
                 kwargs["base_url"] = base

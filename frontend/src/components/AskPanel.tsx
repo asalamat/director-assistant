@@ -202,8 +202,9 @@ export function AskPanel({ initialQuery, onClear }: { initialQuery?: string; onC
       })
 
       if (!response.ok) throw new Error(`Server error ${response.status}`)
+      if (!response.body) throw new Error('No response body from server')
 
-      const reader = response.body!.getReader()
+      const reader = response.body.getReader()
       const decoder = new TextDecoder()
       let buffer = ''
 

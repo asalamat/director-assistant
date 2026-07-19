@@ -34,6 +34,7 @@ export function CommandPalette({ onNavigate }: { onNavigate: (tab: Tab) => void 
   const [preview, setPreview] = useState<NLCommandPreview | null>(null)
   const [error, setError] = useState('')
   const [toast, setToast] = useState('')
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const reset = () => {
     setQuery(''); setNlText(''); setPreview(null); setError(''); setParsing(false); setExecuting(false)
@@ -82,7 +83,8 @@ export function CommandPalette({ onNavigate }: { onNavigate: (tab: Tab) => void 
     try {
       const result = await api.executeNLCommand(preview.command_id)
       setToast(`${preview.action.replace('_', ' ')} applied to ${result.executed} email(s)`)
-      setTimeout(() => setToast(''), 4000)
+      clearTimeout(toastTimerRef.current ?? undefined)
+      toastTimerRef.current = setTimeout(() => setToast(''), 4000)
       setOpen(false)
       reset()
     } catch (e: any) {

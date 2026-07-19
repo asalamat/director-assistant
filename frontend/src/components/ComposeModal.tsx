@@ -45,6 +45,12 @@ export function ComposeModal({ open, onClose, accounts, initialTo = '', initialS
   }, [open, initialTo, initialSubject, initialBody])
 
   useEffect(() => {
+    if (accounts.length > 0 && (!accountId || accountId === 0)) {
+      setAccountId(accounts[0].id)
+    }
+  }, [accounts])
+
+  useEffect(() => {
     if (!open) return
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()

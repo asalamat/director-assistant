@@ -47,6 +47,7 @@ _TO_GROQ: dict[str, str] = {
     "claude-haiku-4-5-20251001": "llama-3.1-8b-instant",
     "claude-sonnet-4-6":         "llama-3.3-70b-versatile",
     "claude-opus-4-7":           "llama-3.3-70b-versatile",
+    "claude-opus-4-8":           "llama-3.1-70b-versatile",
 }
 
 # Claude model → Gemini equivalent
@@ -54,12 +55,14 @@ _TO_GEMINI: dict[str, str] = {
     "claude-haiku-4-5-20251001": "gemini-2.0-flash-lite",
     "claude-sonnet-4-6":         "gemini-2.0-flash",
     "claude-opus-4-7":           "gemini-1.5-pro",
+    "claude-opus-4-8":           "gemini-1.5-pro",
 }
 
 _TO_KIMI: dict[str, str] = {
     "claude-haiku-4-5-20251001": "moonshot-v1-8k",
     "claude-sonnet-4-6":         "moonshot-v1-32k",
     "claude-opus-4-7":           "moonshot-v1-128k",
+    "claude-opus-4-8":           "moonshot-v1-32k",
 }
 
 _BUDGET_MODEL = {

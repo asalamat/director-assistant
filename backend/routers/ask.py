@@ -219,6 +219,7 @@ async def ask_db(req: AskRequest, request: Request):
         })
 
         answer_tokens: list[str] = []
+        error_occurred = False
         try:
             async with ai.messages.stream(
                 model="claude-haiku-4-5-20251001",
@@ -235,6 +236,7 @@ async def ask_db(req: AskRequest, request: Request):
                     answer_tokens.append(text)
                     yield f"data: {json.dumps({'type': 'token', 'text': text})}\n\n"
         except Exception as e:
+            error_occurred = True
             msg = str(e).lower()
             if "credit balance" in msg or "billing" in msg or "purchase credits" in msg:
                 err_text = "⚠️ AI credits exhausted — please top up your Anthropic account at console.anthropic.com/settings/billing"
@@ -243,6 +245,10 @@ async def ask_db(req: AskRequest, request: Request):
             else:
                 err_text = f"Error generating answer: {e}"
             yield f"data: {json.dumps({'type': 'token', 'text': err_text})}\n\n"
+
+        if error_occurred:
+            yield 'data: {"type":"done"}\n\n'
+            return
 
         sources = []
         for r in results[:8]:
@@ -338,7 +344,6 @@ async def explain_cluster(req: ExplainClusterRequest, request: Request):
 
         try:
             async with ai.messages.stream(
-                model="claude-haiku-4-5-20251001",
                 max_tokens=400,
                 system="You are an expert email analyst. Identify patterns and commonalities in emails.",
                 messages=[{"role": "user", "content": prompt}],

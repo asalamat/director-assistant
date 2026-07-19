@@ -178,8 +178,9 @@ async def _upload_to_ftp(data_uri: str, settings: dict) -> str:
     filename = f"{uuid.uuid4().hex}.png"
 
     def _ftp_upload():
-        ftp = ftplib.FTP(host)
+        ftp = ftplib.FTP_TLS(host)
         ftp.login(user, passwd)
+        ftp.prot_p()  # switch data channel to TLS (explicit FTPS)
         if path and path != "/":
             ftp.cwd(path.rstrip("/"))
         ftp.storbinary(f"STOR {filename}", io.BytesIO(img_bytes))
@@ -1047,9 +1048,10 @@ async def verify_ftp(request: Request):
     probe = f"da_probe_{uuid.uuid4().hex[:8]}.txt"
 
     def _test():
-        ftp = ftplib.FTP()
+        ftp = ftplib.FTP_TLS()
         ftp.connect(host, timeout=10)
         ftp.login(user, passwd)
+        ftp.prot_p()  # switch data channel to TLS (explicit FTPS)
         import io
         if path and path.rstrip("/"):
             ftp.cwd(path.rstrip("/"))

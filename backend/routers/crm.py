@@ -182,10 +182,14 @@ async def create_deal(req: DealCreate, request: Request):
     return {"id": cur.lastrowid, "status": "created"}
 
 
+ALLOWED_DEAL_FIELDS = {'name', 'stage', 'value', 'company', 'contact', 'notes', 'expected_close', 'probability'}
+
+
 @router.patch("/deals/{deal_id}")
 async def update_deal(deal_id: int, req: DealUpdate, request: Request):
     cache = request.app.state.cache
-    fields = {k: v for k, v in req.model_dump().items() if v is not None}
+    updates = {k: v for k, v in req.model_dump().items() if v is not None}
+    fields = {k: v for k, v in updates.items() if k in ALLOWED_DEAL_FIELDS}
     if not fields:
         raise HTTPException(400, "No fields to update")
 

@@ -1,4 +1,5 @@
 """Email-to-Project Tracker — link emails to named projects."""
+import html
 import json as _json
 import re
 import tempfile
@@ -906,27 +907,29 @@ async def client_report(project_id: int, request: Request):
         color = "#16a34a" if ph_done else ("#dc2626" if overdue else "#d97706")
         milestones_html += (
             f'<li style="margin-bottom:6px"><span style="color:{color};font-weight:bold">{icon}</span>'
-            f' <strong>{ph["name"]}</strong>: {ms}</li>'
+            f' <strong>{html.escape(ph["name"])}</strong>: {html.escape(ms)}</li>'
         )
 
     next_tasks = [t for t in task_list if t["status"] in ("in_progress", "not_started")][:3]
     next_html = "".join(
-        f'<li style="margin-bottom:4px">{t["name"]} <span style="color:#64748b;font-size:11px">({t["priority"]} priority)</span></li>'
+        f'<li style="margin-bottom:4px">{html.escape(t["name"])} <span style="color:#64748b;font-size:11px">({html.escape(t["priority"])} priority)</span></li>'
         for t in next_tasks
     )
 
     risks_html = "".join(
         f'<li style="margin-bottom:4px"><span style="color:{"#dc2626" if r["impact"]=="high" else "#d97706"}">'
-        f'{r["impact"].upper()}</span> — {r["description"]}: <em>{r.get("mitigation","")}</em></li>'
+        f'{html.escape(r["impact"]).upper()}</span> — {html.escape(r["description"])}: <em>{html.escape(r.get("mitigation",""))}</em></li>'
         for r in risks
     ) or "<li>No significant risks identified.</li>"
 
     from datetime import date as _date
     today_str = _date.today().isoformat()
 
-    html = (
+    proj_name_escaped = html.escape(proj["name"])
+    summary_escaped = html.escape(summary)
+    report_html = (
         f'<!DOCTYPE html><html><head><meta charset="utf-8">'
-        f'<title>{proj["name"]} — Client Status Report</title>'
+        f'<title>{proj_name_escaped} — Client Status Report</title>'
         f'<style>'
         f'body{{font-family:system-ui,sans-serif;max-width:760px;margin:32px auto;color:#1e293b;font-size:13px;line-height:1.6}}'
         f'h1{{font-size:22px;color:#0f172a;margin-bottom:2px}}'
@@ -936,9 +939,9 @@ async def client_report(project_id: int, request: Request):
         f'.bar{{font-family:monospace;font-size:13px;color:#2563eb;letter-spacing:1px}}'
         f'@media print{{body{{margin:0}}}}'
         f'</style></head><body>'
-        f'<h1>{proj["name"]}</h1>'
+        f'<h1>{proj_name_escaped}</h1>'
         f'<p style="color:#64748b;font-size:12px">Client Status Report &mdash; {today_str}</p>'
-        f'<h2>Executive Summary</h2><p>{summary}</p>'
+        f'<h2>Executive Summary</h2><p>{summary_escaped}</p>'
         f'<h2>Milestones</h2><ul>{milestones_html or "<li>No milestones defined yet.</li>"}</ul>'
         f'<h2>Progress</h2>'
         f'<div class="progress-wrap">'
@@ -949,7 +952,7 @@ async def client_report(project_id: int, request: Request):
         f'<h2>Risks &amp; Mitigations</h2><ul>{risks_html}</ul>'
         f'</body></html>'
     )
-    return {"html": html}
+    return {"html": report_html}
 
 
 @router.post("/{project_id}/weekly-update")

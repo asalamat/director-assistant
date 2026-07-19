@@ -1,5 +1,7 @@
 """Webhook management — test and status endpoints."""
 
+import ipaddress
+import socket
 import httpx
 from datetime import datetime, timezone
 from urllib.parse import urlparse
@@ -20,6 +22,16 @@ def _validate_webhook_url(url: str):
     host = (p.hostname or "").lower()
     if host in ("localhost", "127.0.0.1", "0.0.0.0", "::1") or host.endswith(".local"):
         raise HTTPException(400, "Webhook URL cannot target localhost")
+    # Resolve DNS and reject private/internal IP ranges (SSRF protection)
+    try:
+        resolved_ip = socket.gethostbyname(host)
+        ip_obj = ipaddress.ip_address(resolved_ip)
+        if ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local or ip_obj.is_reserved:
+            raise ValueError("resolved to private address")
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(400, "Webhook URL cannot target a private or internal host")
 
 
 @router.get("")
