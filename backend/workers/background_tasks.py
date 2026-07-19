@@ -204,12 +204,12 @@ async def _auto_sentiment_escalation(app, new_emails: list) -> None:
 
 async def _auto_autopilot(app, new_emails: list) -> None:
     """Check new emails against autopilot rules; generate and send/draft replies."""
-    if not get_effective_api_key():
-        return
     from services.autopilot_engine import handle_incoming_email, _retry_queue
     cache = app.state.cache
     rag = app.state.rag
     ai = app.state.advisor.ai
+    if not getattr(ai, '_providers', None):
+        return
 
     # Process new emails first
     for em in new_emails:
@@ -238,15 +238,14 @@ async def _autopilot_startup_recovery(app) -> None:
     """
     await asyncio.sleep(90)  # let initial poll and ingest complete first
 
-    if not get_effective_api_key():
-        return
-
     from services.autopilot_engine import handle_incoming_email
     import sqlite3
 
     cache = app.state.cache
     rag = app.state.rag
     ai = app.state.advisor.ai
+    if not getattr(ai, '_providers', None):
+        return
 
     try:
         rules = cache.list_autopilot_rules()
