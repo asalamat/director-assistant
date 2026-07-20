@@ -2,7 +2,7 @@
 
 > **Your AI-powered executive email intelligence platform.** Connects to Gmail, Microsoft 365, Yahoo, or any IMAP mailbox and uses Claude AI to help you triage faster, never miss a commitment, and stay on top of every relationship that matters.
 
-**Current version: 3.64.0** · [Releases](https://github.com/asalamat/director-assistant/releases) · MIT License
+**Current version: 3.66.11** · [Releases](https://github.com/asalamat/director-assistant/releases) · MIT License
 
 ---
 
@@ -141,6 +141,34 @@ Everything runs **locally on your machine**. Your emails never leave your device
 - **Calendar Event Creator** — pre-filled event form on any email; creates directly in Microsoft Calendar via Graph API
 - **Meeting Prep Brief** — click any calendar event in the Dashboard for an AI-generated agenda, talking points, and prior email context from all attendees
 - **Scheduled Send** — compose now, schedule delivery for any future date and time
+
+### New Features (v3.66.11 — 2026-07-20)
+- **📎 File Attachments** — reply and forward compose now has an **Attach** button; pick one or more files from disk; each appears as a chip with a remove button; all attachments sent via SMTP as standard MIME mixed/base64 email attachments
+- **Fix: Today's Focus empty panel** — the Focus tab showed nothing when all emails scored 0 after triage learning penalised dismissed senders; now zero-score unread emails are shown as fallback so the panel is never empty
+- **Fix: StatusBar (footer) hidden** — a double-prefix bug (`/api/api/stats`) caused the footer to silently stay null; path corrected to `/stats`
+
+### New Features (v3.66.3–v3.66.4 — 2026-07-19)
+- **Fix: Email Autopilot multi-provider** — auto-reply now works with all configured AI providers (not just Anthropic)
+- **Security & reliability audit (23 fixes)** — full 5-agent Ruflo swarm audit: XSS on email body rendering, SSRF on config URL fields, FTP TLS enforcement, OLM import path traversal, React render loop guards, stale timer cleanup, null guards across 8 components, AI model mapping corrections
+
+### New Features (v3.66.2 — 2026-07-17)
+- **Fix: Decision Tracker false positives** — system email senders now excluded from decision detection; removed over-broad `%decision%`/`%pending%` subject keywords; added body-phrase matching ("we have decided", "final decision", "approved by") for higher precision
+
+### New Features (v3.65.27–v3.65.28 — 2026-07-14)
+- **Advanced Config help** — Settings → Advanced Config now shows inline step-by-step guidance for Google OAuth app setup and Azure app registration (client ID, redirect URIs, required permissions)
+- **Disable all keyboard shortcuts** — toggle in Settings → General to turn off all keyboard shortcuts (for users who need unrestricted typing in compose)
+- **AI toolbar in reply/forward** — 📝 Draft from notes and ✨ Improve buttons available in the reply and forward compose toolbar alongside the existing AI Compose options
+
+### New Features (v3.65.12–v3.65.13 — 2026-07-09)
+- **Autopilot orphan recovery** — on startup the app scans for emails that arrived while the server was offline and drafts/sends replies so no incoming email is ever missed
+- **Social workers file split** — background tasks file split for maintainability (1312 → 995 lines); social automation moved to dedicated workers module
+
+### New Features (v3.65.6–v3.65.9 — 2026-07-08)
+- **Autopilot RAG fixes** — FTS corruption healed unconditionally on startup; bad-reply self-reinforcement filter prevents the AI from learning from its own sent drafts; thread LIKE query scoped to exact subject; supplemental similarity search always runs even when FTS returns results
+
+### New Features (v3.65.3–v3.65.5 — 2026-07-03)
+- **LinkedIn Autopilot DALL-E fallback** — if the preferred image model is unavailable, the autopilot automatically retries with `dall-e-3`; stuck-topic bug fixed so each scheduled post cycles to the next topic correctly
+- **AI provider status badges** — Settings → AI Providers shows a live coloured status badge (green/yellow/red) and balance check for each configured provider
 
 ### New Features (v3.66.1 — 2026-07-16: 7 New Features)
 - **🧠 AI Triage Learning** — Focus tab learns from your 👍/👎 actions; domains dismissed 3+ times score −3, boosted domains score +3 in future. Reset any time from Settings → App Settings

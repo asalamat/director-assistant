@@ -263,6 +263,7 @@ function InboxEmail() {
         <Li><strong>Save to Drafts</strong> — save any AI reply to your IMAP Drafts folder for review in your mail client</Li>
         <Li><strong>Scheduled Send</strong> — compose now, choose a future date/time, and the app sends automatically</Li>
         <Li><strong>Commitment detection</strong> — after Smart Draft, detected promises appear as pills to add to your Actions board</Li>
+        <Li><strong>📎 File attachments</strong> — click <strong>Attach</strong> in the reply/forward toolbar to attach files. Multiple files supported; each appears as a chip with a remove button. Sent via SMTP as standard email attachments.</Li>
       </UL>
 
       <H3>Read Receipts <Tag color="green">New</Tag></H3>
@@ -310,6 +311,7 @@ function CompositionSection() {
         <FeatureRow label="Tone chips (formal · casual · shorter · friendlier · direct)" desc="One-click tone adjustments. Click any chip to instantly rewrite the draft in that style." />
         <FeatureRow label="Dictate (mic icon)" desc="Speak your reply. Whisper transcribes and inserts the text at the cursor. Requires an OpenAI API key." />
         <FeatureRow label="Snippets" desc="Insert a saved canned response (snippets are created in Settings → App Settings)." />
+        <FeatureRow label="📎 Attach" desc="Attach one or more files to any reply or forward. Click Attach, pick files from your computer — they appear as removable chips below the editor and are sent via SMTP alongside the email." />
       </div>
 
       <H3>AI Tone Coach <Tag color="green">New</Tag></H3>
