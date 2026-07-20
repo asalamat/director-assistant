@@ -124,14 +124,16 @@ export function CalendarTab() {
         const { url } = await api.getGoogleAuthUrl()
         const popup = window.open(url, 'gcal-auth', 'width=520,height=680,left=200,top=80')
         if (!popup) { alert('Popup blocked — allow popups and try again.'); return }
+        let t: ReturnType<typeof setInterval>
         const onMsg = (e: MessageEvent) => {
           if (e.data?.type === 'oauth-complete' || e.data?.type === 'oauth-error') {
+            clearInterval(t)
             window.removeEventListener('message', onMsg)
             if (e.data?.type === 'oauth-complete') load(true)
           }
         }
         window.addEventListener('message', onMsg)
-        const t = setInterval(() => { if (popup.closed) { clearInterval(t); window.removeEventListener('message', onMsg) } }, 800)
+        t = setInterval(() => { if (popup.closed) { clearInterval(t); window.removeEventListener('message', onMsg) } }, 800)
       } catch { /* silent */ }
     }
 
@@ -177,14 +179,16 @@ export function CalendarTab() {
       const { url } = await api.getGoogleAuthUrl()
       const popup = window.open(url, 'gcal-auth-more', 'width=520,height=680,left=200,top=80')
       if (!popup) return
+      let t: ReturnType<typeof setInterval>
       const onMsg = (e: MessageEvent) => {
         if (e.data?.type === 'oauth-complete' || e.data?.type === 'oauth-error') {
+          clearInterval(t)
           window.removeEventListener('message', onMsg)
           if (e.data?.type === 'oauth-complete') load(true)
         }
       }
       window.addEventListener('message', onMsg)
-      const t = setInterval(() => { if (popup.closed) { clearInterval(t); window.removeEventListener('message', onMsg) } }, 800)
+      t = setInterval(() => { if (popup.closed) { clearInterval(t); window.removeEventListener('message', onMsg) } }, 800)
     } catch { /* silent */ }
   }
 

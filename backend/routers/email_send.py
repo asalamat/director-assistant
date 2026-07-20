@@ -1,4 +1,5 @@
 """Send email via SMTP for the active account."""
+import asyncio
 import smtplib
 import ssl
 from email.mime.multipart import MIMEMultipart
@@ -146,7 +147,8 @@ async def send_email(req: SendRequest, request: Request):
             msg["Bcc"] = req.bcc
         msg["Subject"] = req.subject
         msg.attach(MIMEText(req.body, "plain", "utf-8"))
-    _smtp_send(acc, msg)
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(None, _smtp_send, acc, msg)
     return {"status": "sent"}
 
 
@@ -170,5 +172,6 @@ async def send_new_email(req: ComposeRequest, request: Request):
         msg["Bcc"] = req.bcc.strip()
     msg["Subject"] = req.subject.strip()
     msg.attach(MIMEText(req.body, "plain", "utf-8"))
-    _smtp_send(acc, msg)
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(None, _smtp_send, acc, msg)
     return {"status": "sent", "to": req.to, "subject": req.subject}

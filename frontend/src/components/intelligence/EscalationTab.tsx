@@ -24,7 +24,7 @@ function saveDismissed(set: Set<string>) {
   try { localStorage.setItem(DISMISSED_KEY, JSON.stringify([...set])) } catch { /* ignore */ }
 }
 
-export function EscalationTab({ onViewThread }: { onViewThread?: (subject: string) => void }) {
+export function EscalationTab({ onViewThread }: { onViewThread?: (subject: string, emailId: string) => void }) {
   const [days, setDays] = useState(14)
   const [items, setItems] = useState<Escalation[]>([])
   const [loading, setLoading] = useState(false)
@@ -125,7 +125,7 @@ export function EscalationTab({ onViewThread }: { onViewThread?: (subject: strin
 
             <div className="pt-0.5 flex items-center gap-2">
               <button
-                onClick={() => onViewThread?.(e.subject)}
+                onClick={() => onViewThread?.(e.subject, e.latest_email_id)}
                 className="px-3 py-1.5 bg-accent text-white rounded-lg text-xs font-medium hover:bg-blue-700 transition-colors"
               >
                 View thread

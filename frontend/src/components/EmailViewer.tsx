@@ -90,7 +90,7 @@ export function EmailViewer({ email, loading, fetchError, onAnalyze, analyzing, 
     if (email?.id) {
       api.listAttachments(email.id).then(r => setAttachments(r.attachments)).catch(() => setAttachments([]))
       api.getEmailThread(email.id)
-        .then(r => setThread(r.thread))
+        .then(r => setThread(r.thread.filter((t: { id: string }) => t.id !== email.id)))
         .catch(() => setThread([]))
     }
   }, [email?.id])
@@ -125,9 +125,10 @@ export function EmailViewer({ email, loading, fetchError, onAnalyze, analyzing, 
     setComposeInitialSubject(subject)
     setComposeInitialBody(body)
     setShowCompose(true)
-    // Extract commitments for smart drafts
-    if (email && email.body) {
-      api.extractCommitments(email.id, email.body).then(res => {
+    // Extract commitments from the draft body when available, otherwise fall back to the original email body
+    const commitmentSource = body || (email?.body ?? '')
+    if (email && commitmentSource) {
+      api.extractCommitments(email.id, commitmentSource).then(res => {
         if (res.commitments.length > 0) setDraftCommitments(res.commitments)
       }).catch(() => {})
     }
@@ -145,7 +146,7 @@ export function EmailViewer({ email, loading, fetchError, onAnalyze, analyzing, 
   useEffect(() => {
     if (replyTriggerRef) replyTriggerRef.current = handleReplyClick
     if (forwardTriggerRef) forwardTriggerRef.current = handleForward
-  }, [])
+  }, [email?.id])
 
   const handleSummarizeThread = async () => {
     if (!email || summarizingThread) return

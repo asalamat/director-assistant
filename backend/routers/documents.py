@@ -35,12 +35,22 @@ async def get_folders():
 
 @router.post("/folders")
 async def set_folders(body: FoldersConfig):
+    import os
     cfg = load_app_config()
-    folders = [f.strip() for f in body.folders if f.strip()]
-    cfg["document_folders"] = folders
+    home = os.path.expanduser("~")
+    sanitized = []
+    for f in body.folders:
+        f = f.strip()
+        if not f:
+            continue
+        expanded = os.path.realpath(os.path.expanduser(f))
+        if not expanded.startswith(home):
+            raise HTTPException(400, f"Folder must be inside your home directory: {f}")
+        sanitized.append(expanded)
+    cfg["document_folders"] = sanitized
     cfg.pop("document_folder", None)   # remove legacy key
     save_app_config(cfg)
-    return {"status": "saved", "folders": folders}
+    return {"status": "saved", "folders": sanitized}
 
 
 @router.post("/ingest")

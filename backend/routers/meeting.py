@@ -94,7 +94,7 @@ async def build_agenda(req: BuildAgendaRequest, request: Request):
         try:
             results = rag.semantic_search(person, n=4)
             snippets = []
-            for doc, meta in zip(results.get("documents", [[]])[0], results.get("metadatas", [[]])[0]):
+            for doc, meta in [(r.get("document", ""), r) for r in results]:
                 subj = meta.get("subject", "")
                 sender = meta.get("sender", "")
                 snippet = doc[:200].replace("\n", " ") if doc else ""

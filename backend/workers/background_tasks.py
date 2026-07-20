@@ -457,16 +457,19 @@ async def _scheduled_send_loop(app: "object") -> None:
                     "SELECT * FROM scheduled_sends WHERE sent=0 AND send_at <= ? ORDER BY send_at LIMIT 10",
                     (now,)
                 ).fetchall()
+            loop = asyncio.get_event_loop()
             for row in rows:
                 try:
-                    from routers.email_send import _send_email
-                    await _send_email(
-                        cache=cache,
-                        account_id=row["account_id"],
-                        to_addr=row["to_addr"],
-                        subject=row["subject"],
-                        body=row["body"],
-                    )
+                    from email.mime.multipart import MIMEMultipart
+                    from email.mime.text import MIMEText
+                    from routers.email_send import _resolve_account, _smtp_send
+                    acc = _resolve_account(cache, row["account_id"])
+                    msg = MIMEMultipart()
+                    msg["From"] = acc.username
+                    msg["To"] = row["to_addr"]
+                    msg["Subject"] = row["subject"]
+                    msg.attach(MIMEText(row["body"], "plain", "utf-8"))
+                    await loop.run_in_executor(None, _smtp_send, acc, msg)
                     with cache._conn() as conn:
                         conn.execute("UPDATE scheduled_sends SET sent=1 WHERE id=?", (row["id"],))
                 except Exception as e:
@@ -566,11 +569,11 @@ async def daily_focus_task(app) -> None:
 
             with cache._conn() as conn:
                 overdue = conn.execute(
-                    "SELECT subject, due_date FROM followups WHERE due_date < ? AND status != 'done' ORDER BY due_date",
+                    "SELECT subject, due_date FROM follow_ups WHERE due_date < ? AND done = 0 ORDER BY due_date",
                     (today,),
                 ).fetchall()
                 due_today = conn.execute(
-                    "SELECT subject, due_date FROM followups WHERE due_date = ? AND status != 'done'",
+                    "SELECT subject, due_date FROM follow_ups WHERE due_date = ? AND done = 0",
                     (today,),
                 ).fetchall()
 

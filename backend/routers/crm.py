@@ -182,7 +182,7 @@ async def create_deal(req: DealCreate, request: Request):
     return {"id": cur.lastrowid, "status": "created"}
 
 
-ALLOWED_DEAL_FIELDS = {'name', 'stage', 'value', 'company', 'contact', 'notes', 'expected_close', 'probability'}
+ALLOWED_DEAL_FIELDS = {'name', 'stage', 'value', 'company', 'contact', 'contact_email', 'notes', 'expected_close', 'probability'}
 
 
 @router.patch("/deals/{deal_id}")

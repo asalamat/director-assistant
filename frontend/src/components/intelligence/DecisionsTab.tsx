@@ -3,10 +3,27 @@ import { api } from '../../api/client'
 import type { Decision } from '../../types'
 
 const THRESHOLDS = [14, 30, 60]
+const LS_KEY = 'decisions_dismissed'
+
+function loadDismissed(): Set<string> {
+  try {
+    const raw = localStorage.getItem(LS_KEY)
+    return raw ? new Set(JSON.parse(raw) as string[]) : new Set()
+  } catch {
+    return new Set()
+  }
+}
+
+function saveDismissed(ids: Set<string>) {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify([...ids]))
+  } catch { /* ignore quota errors */ }
+}
 
 export function DecisionsTab() {
   const [days, setDays] = useState(30)
   const [decisions, setDecisions] = useState<Decision[]>([])
+  const [dismissed, setDismissed] = useState<Set<string>>(loadDismissed)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [brief, setBrief] = useState<{ subject: string; text: string } | null>(null)
@@ -22,8 +39,14 @@ export function DecisionsTab() {
     return () => { cancelled = true }
   }, [days])
 
-  const dismiss = (id: string) =>
-    setDecisions(prev => prev.filter(d => d.id !== id))
+  const dismiss = (id: string) => {
+    setDismissed(prev => {
+      const next = new Set(prev)
+      next.add(id)
+      saveDismissed(next)
+      return next
+    })
+  }
 
   const generateBrief = async (d: Decision) => {
     setBriefing(d.id); setBrief(null)

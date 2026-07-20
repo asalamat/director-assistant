@@ -611,24 +611,33 @@ class EmailExtrasMixin:
 
         try:
             import httpx
-            r = httpx.post(
-                "https://login.microsoftonline.com/consumers/oauth2/v2.0/token",
-                data={
-                    "grant_type": "refresh_token",
-                    "client_id": client_id,
-                    "refresh_token": refresh_token,
-                    "scope": (
-                        "offline_access "
-                        "https://graph.microsoft.com/User.Read "
-                        "https://graph.microsoft.com/Mail.Read "
-                        "https://graph.microsoft.com/Mail.ReadWrite "
-                        "https://graph.microsoft.com/Files.Read "
-                        "https://graph.microsoft.com/Calendars.Read "
-                        "https://graph.microsoft.com/Contacts.Read"
-                    ),
-                },
-                timeout=15,
-            )
+            import asyncio as _asyncio
+            def _do_ms_refresh():
+                return httpx.post(
+                    "https://login.microsoftonline.com/consumers/oauth2/v2.0/token",
+                    data={
+                        "grant_type": "refresh_token",
+                        "client_id": client_id,
+                        "refresh_token": refresh_token,
+                        "scope": (
+                            "offline_access "
+                            "https://graph.microsoft.com/User.Read "
+                            "https://graph.microsoft.com/Mail.Read "
+                            "https://graph.microsoft.com/Mail.ReadWrite "
+                            "https://graph.microsoft.com/Files.Read "
+                            "https://graph.microsoft.com/Calendars.Read "
+                            "https://graph.microsoft.com/Contacts.Read"
+                        ),
+                    },
+                    timeout=15,
+                )
+            try:
+                loop = _asyncio.get_running_loop()
+                r = loop.run_until_complete(
+                    loop.run_in_executor(None, _do_ms_refresh)
+                )
+            except RuntimeError:
+                r = _do_ms_refresh()
             data = r.json()
             new_token = data.get("access_token")
             new_refresh = data.get("refresh_token", refresh_token)
@@ -649,16 +658,25 @@ class EmailExtrasMixin:
             return None
         try:
             import httpx
-            r = httpx.post(
-                "https://oauth2.googleapis.com/token",
-                data={
-                    "grant_type": "refresh_token",
-                    "client_id": client_id,
-                    "client_secret": client_secret,
-                    "refresh_token": refresh_token,
-                },
-                timeout=15,
-            )
+            import asyncio as _asyncio
+            def _do_google_refresh():
+                return httpx.post(
+                    "https://oauth2.googleapis.com/token",
+                    data={
+                        "grant_type": "refresh_token",
+                        "client_id": client_id,
+                        "client_secret": client_secret,
+                        "refresh_token": refresh_token,
+                    },
+                    timeout=15,
+                )
+            try:
+                loop = _asyncio.get_running_loop()
+                r = loop.run_until_complete(
+                    loop.run_in_executor(None, _do_google_refresh)
+                )
+            except RuntimeError:
+                r = _do_google_refresh()
             data = r.json()
             new_token = data.get("access_token")
             new_refresh = data.get("refresh_token", refresh_token)

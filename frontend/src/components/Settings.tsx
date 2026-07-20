@@ -197,6 +197,19 @@ export function Settings({ onConnected, initialTab }: Props) {
   const [deleteBeforeCount, setDeleteBeforeCount] = useState<number | null>(null)
   const [deleteBeforeConfirm, setDeleteBeforeConfirm] = useState(false)
 
+  const ingestEsRef = useRef<EventSource | null>(null)
+  const docIngestIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const emailReindexIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  useEffect(() => {
+    return () => {
+      ingestEsRef.current?.close()
+      ingestEsRef.current = null
+      if (docIngestIntervalRef.current) clearInterval(docIngestIntervalRef.current)
+      if (emailReindexIntervalRef.current) clearInterval(emailReindexIntervalRef.current)
+    }
+  }, [])
+
   const loadAccounts = async () => {
     try { setAccounts(await api.getAccounts()) } catch { setAccounts([]) }
   }
@@ -215,6 +228,10 @@ export function Settings({ onConnected, initialTab }: Props) {
   }, [section])
 
   const handleIngest = async (id: number | 'all') => {
+    // Close any existing stream before starting a new one
+    ingestEsRef.current?.close()
+    ingestEsRef.current = null
+
     setIngestingId(id)
     setProgress({ total: 0, processed: 0, status: 'running', message: 'Starting…' })
     try {
@@ -223,10 +240,13 @@ export function Settings({ onConnected, initialTab }: Props) {
       const es = api.subscribeAccountsIngestProgress(p => {
         setProgress(p)
         if (p.status === 'completed' || p.status === 'error') {
-          es.close(); setIngestingId(null)
+          es.close()
+          ingestEsRef.current = null
+          setIngestingId(null)
           if (p.status === 'completed') onConnected()
         }
       })
+      ingestEsRef.current = es
     } catch { setIngestingId(null) }
   }
 
@@ -411,14 +431,14 @@ export function Settings({ onConnected, initialTab }: Props) {
                     try {
                       await api.ingestDocuments()
                       let w = 0
-                      const id = setInterval(async () => {
+                      docIngestIntervalRef.current = setInterval(async () => {
                         w += 1500; const s = await api.getDocumentIngestStatus().catch(() => null)
                         if (!s || s.status !== 'running') {
-                          clearInterval(id); setDocMsg(s?.message || 'Done')
+                          clearInterval(docIngestIntervalRef.current!); setDocMsg(s?.message || 'Done')
                           api.listDocuments().then(r => setDocCount(r.total)).catch(() => {})
                           setDocIngesting(false)
                         } else setDocMsg(s.message)
-                        if (w > 120000) { clearInterval(id); setDocIngesting(false) }
+                        if (w > 120000) { clearInterval(docIngestIntervalRef.current!); setDocIngesting(false) }
                       }, 1500)
                     } catch (e: unknown) { setDocMsg(e instanceof Error ? e.message : 'Failed'); setDocIngesting(false) }
                   }} disabled={docIngesting || docFolders.length === 0}
@@ -430,14 +450,14 @@ export function Settings({ onConnected, initialTab }: Props) {
                     try {
                       await api.reindexEmails()
                       let w = 0
-                      const id = setInterval(async () => {
+                      emailReindexIntervalRef.current = setInterval(async () => {
                         w += 2000; const s = await api.getReindexEmailsStatus().catch(() => null)
                         if (!s || s.status !== 'running') {
-                          clearInterval(id)
+                          clearInterval(emailReindexIntervalRef.current!)
                           setEmailReindexMsg(s?.status === 'done' ? `Done — ${s.indexed} re-indexed` : s?.error || 'Done')
                           setEmailReindexing(false)
                         }
-                        if (w > 300000) { clearInterval(id); setEmailReindexing(false) }
+                        if (w > 300000) { clearInterval(emailReindexIntervalRef.current!); setEmailReindexing(false) }
                       }, 2000)
                     } catch (e: unknown) { setEmailReindexMsg(e instanceof Error ? e.message : 'Failed'); setEmailReindexing(false) }
                   }} disabled={emailReindexing}
@@ -656,9 +676,11 @@ export function Settings({ onConnected, initialTab }: Props) {
                           try {
                             const res = await api.clearAndReingest(clearFromDate || undefined)
                             setClearMsg(`Cleared ${res.cleared} emails. Re-importing from ${res.accounts} account${res.accounts !== 1 ? 's' : ''}…`)
-                            const es = api.subscribeAccountsIngestProgress(p => {
+                            ingestEsRef.current?.close()
+                            ingestEsRef.current = api.subscribeAccountsIngestProgress(p => {
                               if (p.status === 'completed' || p.status === 'error') {
-                                es.close(); setClearing(false); setClearMsg(p.message); onConnected()
+                                ingestEsRef.current?.close(); ingestEsRef.current = null
+                                setClearing(false); setClearMsg(p.message); onConnected()
                               }
                             })
                           } catch (e: unknown) { setClearMsg(e instanceof Error ? e.message : 'Failed'); setClearing(false) }
@@ -904,6 +926,15 @@ function InstagramSettingsPanel() {
   const [oauthDirectMsg, setOauthDirectMsg] = useState('')
   const popupRef = useRef<Window | null>(null)
   const popupDirectRef = useRef<Window | null>(null)
+  const igOauthIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const igDirectOauthIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (igOauthIntervalRef.current) clearInterval(igOauthIntervalRef.current)
+      if (igDirectOauthIntervalRef.current) clearInterval(igDirectOauthIntervalRef.current)
+    }
+  }, [])
 
   useEffect(() => {
     api.getInstagramSettings()
@@ -990,7 +1021,7 @@ function InstagramSettingsPanel() {
       if (!popup) { setOauthStatus('error'); setOauthMsg('Popup blocked — allow popups and try again'); return }
       const onMsg = (e: MessageEvent) => {
         if (e.data?.type === 'ig-oauth-complete') {
-          window.removeEventListener('message', onMsg)
+          clearInterval(igOauthIntervalRef.current!); window.removeEventListener('message', onMsg)
           setOauthStatus('done')
           setHasToken(true)
           if (e.data.username) {
@@ -1001,14 +1032,14 @@ function InstagramSettingsPanel() {
           }
           api.getInstagramSettings().then((r: any) => { setIgUserId(r.ig_user_id || ''); setConnectedUsername(r.username || '') }).catch(() => {})
         } else if (e.data?.type === 'ig-oauth-error') {
-          window.removeEventListener('message', onMsg)
+          clearInterval(igOauthIntervalRef.current!); window.removeEventListener('message', onMsg)
           setOauthStatus('error'); setOauthMsg(e.data.message || 'Connection failed')
         }
       }
       window.addEventListener('message', onMsg)
-      const t = setInterval(() => {
+      igOauthIntervalRef.current = setInterval(() => {
         if (popupRef.current?.closed) {
-          clearInterval(t); window.removeEventListener('message', onMsg)
+          clearInterval(igOauthIntervalRef.current!); window.removeEventListener('message', onMsg)
           setOauthStatus(s => s === 'waiting' ? 'idle' : s)
         }
       }, 800)
@@ -1025,7 +1056,7 @@ function InstagramSettingsPanel() {
       if (!popup) { setOauthDirectStatus('error'); setOauthDirectMsg('Popup blocked — allow popups and try again'); return }
       const onMsg = (e: MessageEvent) => {
         if (e.data?.type === 'ig-oauth-complete') {
-          window.removeEventListener('message', onMsg)
+          clearInterval(igDirectOauthIntervalRef.current!); window.removeEventListener('message', onMsg)
           setOauthDirectStatus('done')
           setHasToken(true)
           if (e.data.username) {
@@ -1036,14 +1067,14 @@ function InstagramSettingsPanel() {
           }
           api.getInstagramSettings().then((r: any) => { setIgUserId(r.ig_user_id || ''); setConnectedUsername(r.username || '') }).catch(() => {})
         } else if (e.data?.type === 'ig-oauth-error') {
-          window.removeEventListener('message', onMsg)
+          clearInterval(igDirectOauthIntervalRef.current!); window.removeEventListener('message', onMsg)
           setOauthDirectStatus('error'); setOauthDirectMsg(e.data.message || 'Connection failed')
         }
       }
       window.addEventListener('message', onMsg)
-      const t = setInterval(() => {
+      igDirectOauthIntervalRef.current = setInterval(() => {
         if (popupDirectRef.current?.closed) {
-          clearInterval(t); window.removeEventListener('message', onMsg)
+          clearInterval(igDirectOauthIntervalRef.current!); window.removeEventListener('message', onMsg)
           setOauthDirectStatus(s => s === 'waiting' ? 'idle' : s)
         }
       }, 800)

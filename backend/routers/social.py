@@ -83,6 +83,7 @@ def _ensure_tables(cache):
                 published_at TEXT,
                 linkedin_post_id TEXT,
                 status TEXT DEFAULT 'draft',
+                predicted_score REAL DEFAULT NULL,
                 created_at TEXT DEFAULT (datetime('now'))
             )
         """)
@@ -303,7 +304,7 @@ async def generate_images(body: dict, request: Request):
         return {"images": [], "error": "OpenAI API key not configured — add it in Settings → AI Providers (type: openai)"}
 
     if not openai_key.startswith("sk-"):
-        return {"images": [], "error": f"OpenAI key looks invalid (should start with 'sk-'). Current key starts with: {openai_key[:8]}…"}
+        return {"images": [], "error": "OpenAI key looks invalid — it should start with 'sk-'. Check Settings → AI Providers."}
 
     base = custom_prompt.strip() if custom_prompt else ""
     post_summary = post_text[:600] if post_text else topic
@@ -1132,12 +1133,18 @@ async def edit_approve_review_post(post_id: str, body: dict, request: Request):
     if not new_text:
         from fastapi import HTTPException
         raise HTTPException(400, "post_text is required")
+    from fastapi import HTTPException
     with cache._conn() as conn:
-        conn.execute("UPDATE linkedin_posts SET post_text=? WHERE id=?", (new_text, post_id))
         row = conn.execute("SELECT * FROM linkedin_posts WHERE id=?", (post_id,)).fetchone()
     if not row:
-        from fastapi import HTTPException
         raise HTTPException(404, "Post not found")
+    if dict(row).get("status") != "pending_review":
+        raise HTTPException(409, "Post is not in pending_review status")
+    with cache._conn() as conn:
+        conn.execute(
+            "UPDATE linkedin_posts SET post_text=? WHERE id=? AND status='pending_review'",
+            (new_text, post_id),
+        )
     post = dict(row)
     settings = _get_linkedin_settings()
     result = await _publish_to_linkedin(
@@ -1300,20 +1307,16 @@ async def record_linkedin_performance(post_id: str, body: dict, request: Request
     impressions = max(0, int(body.get("impressions", 0)))
     engagement = max(0, int(body.get("engagement", 0)))
     cache = request.app.state.cache
-    try:
-        with cache._conn() as conn:
-            conn.execute(
-                "ALTER TABLE linkedin_posts ADD COLUMN actual_impressions INTEGER DEFAULT NULL"
-            )
-    except Exception:
-        pass
-    try:
-        with cache._conn() as conn:
-            conn.execute(
-                "ALTER TABLE linkedin_posts ADD COLUMN actual_engagement INTEGER DEFAULT NULL"
-            )
-    except Exception:
-        pass
+    for col_def in [
+        "actual_impressions INTEGER DEFAULT NULL",
+        "actual_engagement INTEGER DEFAULT NULL",
+        "predicted_score REAL DEFAULT NULL",
+    ]:
+        try:
+            with cache._conn() as conn:
+                conn.execute(f"ALTER TABLE linkedin_posts ADD COLUMN {col_def}")
+        except Exception:
+            pass
     with cache._conn() as conn:
         conn.execute(
             "UPDATE linkedin_posts SET actual_impressions=?, actual_engagement=? WHERE id=?",

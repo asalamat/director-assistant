@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { api } from '../../api/client'
 import { useUIContext } from '../../contexts/UIContext'
 import type { ContactHealth, ContactHealthResponse } from '../../types'
@@ -33,14 +33,14 @@ export function ContactHealthTab() {
   const [removing, setRemoving] = useState<number | null>(null)
   const [confirmId, setConfirmId] = useState<number | null>(null)
 
-  const load = () => {
+  const load = useCallback(() => {
     setLoading(true); setError('')
     api.getContactHealth()
       .then(setData)
       .catch(e => setError(e.message || 'Failed to load contact health'))
       .finally(() => setLoading(false))
-  }
-  useEffect(load, [])
+  }, [])
+  useEffect(load, [load])
 
   const handleRemove = async (id: number) => {
     if (confirmId !== id) { setConfirmId(id); return }

@@ -141,9 +141,19 @@ def _paste_logo(img, logo_url):
         return
     try:
         _safe_url(logo_url)
+        # Resolve hostname to IP and connect directly to prevent DNS rebinding.
+        # Also disable redirects to avoid being pointed to internal addresses.
+        from urllib.parse import urlparse as _up
+        parsed = _up(logo_url)
+        resolved_ip = socket.gethostbyname(parsed.hostname or "")
+        # Re-validate resolved IP (guard against redirect to private)
+        if ipaddress.ip_address(resolved_ip).is_private:
+            return
         chunks = []
         total = 0
-        with httpx.stream("GET", logo_url, timeout=10.0, follow_redirects=True) as r:
+        with httpx.stream("GET", logo_url, timeout=10.0, follow_redirects=False) as r:
+            if r.status_code in (301, 302, 303, 307, 308):
+                return  # refuse redirects entirely
             r.raise_for_status()
             for chunk in r.iter_bytes(chunk_size=65536):
                 total += len(chunk)

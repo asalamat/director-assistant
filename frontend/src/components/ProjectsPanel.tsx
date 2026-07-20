@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import DOMPurify from 'dompurify'
 import { api } from '../api/client'
 import { EmptyState, Spinner, Button } from './ui'
@@ -200,6 +200,10 @@ export function ProjectsPanel() {
   const [savingTemplate, setSavingTemplate] = useState(false)
   const [clientReportLoading, setClientReportLoading] = useState(false)
 
+  // Tracks the current open-project request so stale results from a previous
+  // call can be discarded if the user switches projects before it resolves.
+  const openProjectToken = useRef<symbol | null>(null)
+
   const load = () => {
     setLoading(true)
     api.getProjects().then(r => setProjects(r.projects)).catch(() => setProjects([])).finally(() => setLoading(false))
@@ -248,6 +252,11 @@ export function ProjectsPanel() {
   }
 
   const openProject = async (proj: Project) => {
+    // Mint a new token for this invocation; any prior in-flight call will see
+    // that its token no longer matches and will discard its results.
+    const token = Symbol()
+    openProjectToken.current = token
+
     setSelected(proj)
     setPlan(null)
     setPlanMsg('')
@@ -263,6 +272,9 @@ export function ProjectsPanel() {
       api.getProjectTasks(proj.id),
       api.getProjectDocuments(proj.id),
     ])
+    // If the user opened a different project while these were in-flight, discard.
+    if (openProjectToken.current !== token) return
+
     if (emailsRes.status === 'fulfilled') setProjEmails(emailsRes.value.emails)
     else setProjEmails([])
     if (planRes.status === 'fulfilled' && planRes.value?.plan) setPlan(planRes.value.plan)
