@@ -178,9 +178,14 @@ async def _upload_to_ftp(data_uri: str, settings: dict) -> str:
     filename = f"{uuid.uuid4().hex}.png"
 
     def _ftp_upload():
-        ftp = ftplib.FTP_TLS(host)
-        ftp.login(user, passwd)
-        ftp.prot_p()  # switch data channel to TLS (explicit FTPS)
+        # Try FTPS (explicit TLS) first; fall back to plain FTP for servers without TLS support
+        try:
+            ftp = ftplib.FTP_TLS(host)
+            ftp.login(user, passwd)
+            ftp.prot_p()
+        except Exception:
+            ftp = ftplib.FTP(host)
+            ftp.login(user, passwd)
         if path and path != "/":
             ftp.cwd(path.rstrip("/"))
         ftp.storbinary(f"STOR {filename}", io.BytesIO(img_bytes))

@@ -350,7 +350,8 @@ async def _instagram_autopilot_loop(app: "object") -> None:
                                     if raw_url.startswith("data:") and has_ftp:
                                         try:
                                             raw_url = await _upload_to_ftp(raw_url, ig_settings)
-                                        except Exception:
+                                        except Exception as _fe:
+                                            print(f"[ig-autopilot] FTP upload failed for {mdl}: {_fe}")
                                             raw_url = ""
                                     if raw_url and not raw_url.startswith("data:"):
                                         image_url = raw_url
