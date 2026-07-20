@@ -24,21 +24,42 @@ echo   Director Assistant
 echo ============================================
 echo.
 
-:: -- Check prerequisites -------------------------------------
-
-where python >nul 2>&1
-if errorlevel 1 (
-    echo [ERROR] Python not found. Install from https://python.org and add to PATH.
-    pause
-    exit /b 1
-)
-
 :: -- Check / create virtual environment ----------------------
+:: If the venv already has python.exe we can skip the system python check.
+:: install.bat creates the venv, so on most runs we go straight to launch.
 
 if not exist "%BACKEND%\.venv\Scripts\python.exe" (
+
+    :: No venv yet — we need system python to create one
+    :: First try the per-user install location that install.bat uses
+    if not defined PYTHON_CMD (
+        if exist "%LOCALAPPDATA%\Programs\Python\Python312\python.exe" (
+            set "PYTHON_CMD=%LOCALAPPDATA%\Programs\Python\Python312\python.exe"
+        )
+    )
+    if not defined PYTHON_CMD (
+        if exist "%LOCALAPPDATA%\Programs\Python\Python313\python.exe" (
+            set "PYTHON_CMD=%LOCALAPPDATA%\Programs\Python\Python313\python.exe"
+        )
+    )
+    if not defined PYTHON_CMD (
+        if exist "%LOCALAPPDATA%\Programs\Python\Python311\python.exe" (
+            set "PYTHON_CMD=%LOCALAPPDATA%\Programs\Python\Python311\python.exe"
+        )
+    )
+    if not defined PYTHON_CMD (
+        where python >nul 2>&1
+        if not errorlevel 1 set "PYTHON_CMD=python"
+    )
+    if not defined PYTHON_CMD (
+        echo [ERROR] Python not found. Run install.bat first, or install Python from https://python.org
+        pause
+        exit /b 1
+    )
+
     echo [INFO]  Creating Python virtual environment...
     cd /d "%BACKEND%"
-    python -m venv .venv
+    "%PYTHON_CMD%" -m venv .venv
     if errorlevel 1 (
         echo [ERROR] Failed to create virtual environment.
         pause
