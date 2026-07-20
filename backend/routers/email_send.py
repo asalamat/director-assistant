@@ -1,7 +1,10 @@
 """Send email via SMTP for the active account."""
 import asyncio
+import base64 as _b64
 import smtplib
 import ssl
+from email import encoders as _enc
+from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.utils import make_msgid
@@ -62,6 +65,12 @@ _SMTP: dict[str, dict] = {
 }
 
 
+class AttachmentItem(BaseModel):
+    name: str
+    data: str   # base64-encoded file content
+    type: str   # MIME type e.g. "application/pdf"
+
+
 class SendRequest(BaseModel):
     to: str
     subject: str
@@ -70,6 +79,7 @@ class SendRequest(BaseModel):
     cc: str = ""
     bcc: str = ""
     is_html: bool = False
+    attachments: list[AttachmentItem] = []
 
 
 class ComposeRequest(BaseModel):
@@ -123,30 +133,49 @@ async def send_email(req: SendRequest, request: Request):
     cache = request.app.state.cache
     acc = _resolve_account(cache, req.account_id)
 
-    if req.is_html:
+    has_att = bool(req.attachments)
+
+    # Outer container: "mixed" when attachments present, otherwise per-content-type
+    if has_att:
+        msg = MIMEMultipart("mixed")
+    elif req.is_html:
         msg = MIMEMultipart("alternative")
-        msg["From"] = acc.username
-        msg["To"] = req.to
-        if req.cc:
-            msg["Cc"] = req.cc
-        if req.bcc:
-            msg["Bcc"] = req.bcc
-        msg["Subject"] = req.subject
-        html_body = _apply_read_receipt(cache, msg, req.to, req.body)
-        plain = _re.sub(r'<[^>]+>', ' ', req.body)
-        plain = _re.sub(r'\s+', ' ', plain).strip()
-        msg.attach(MIMEText(plain, "plain", "utf-8"))
-        msg.attach(MIMEText(html_body, "html", "utf-8"))
     else:
         msg = MIMEMultipart()
-        msg["From"] = acc.username
-        msg["To"] = req.to
-        if req.cc:
-            msg["Cc"] = req.cc
-        if req.bcc:
-            msg["Bcc"] = req.bcc
-        msg["Subject"] = req.subject
+
+    msg["From"] = acc.username
+    msg["To"] = req.to
+    if req.cc:
+        msg["Cc"] = req.cc
+    if req.bcc:
+        msg["Bcc"] = req.bcc
+    msg["Subject"] = req.subject
+
+    if req.is_html:
+        html_body = _apply_read_receipt(cache, msg, req.to, req.body)
+        plain = _re.sub(r'\s+', ' ', _re.sub(r'<[^>]+>', ' ', req.body)).strip()
+        if has_att:
+            # Nest text alternatives inside a "alternative" sub-part
+            alt = MIMEMultipart("alternative")
+            alt.attach(MIMEText(plain, "plain", "utf-8"))
+            alt.attach(MIMEText(html_body, "html", "utf-8"))
+            msg.attach(alt)
+        else:
+            msg.attach(MIMEText(plain, "plain", "utf-8"))
+            msg.attach(MIMEText(html_body, "html", "utf-8"))
+    else:
         msg.attach(MIMEText(req.body, "plain", "utf-8"))
+
+    for att in req.attachments:
+        parts = att.type.split("/", 1) if "/" in att.type else []
+        main_type = parts[0] if parts else "application"
+        sub_type = parts[1] if len(parts) > 1 else "octet-stream"
+        part = MIMEBase(main_type, sub_type)
+        part.set_payload(_b64.b64decode(att.data))
+        _enc.encode_base64(part)
+        part.add_header("Content-Disposition", "attachment", filename=att.name)
+        msg.attach(part)
+
     loop = asyncio.get_running_loop()
     await loop.run_in_executor(None, _smtp_send, acc, msg)
     return {"status": "sent"}

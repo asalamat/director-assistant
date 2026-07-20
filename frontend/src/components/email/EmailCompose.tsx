@@ -3,6 +3,9 @@ import DOMPurify from 'dompurify'
 import type { EmailMessage } from '../../types'
 import { api } from '../../api/client'
 import { useEmailContext } from '../../contexts/EmailContext'
+import { ComposeSignaturePanel } from './ComposeSignaturePanel'
+import { ComposeReviewPanel } from './ComposeReviewPanel'
+import type { ReviewData } from './ComposeReviewPanel'
 
 export interface EmailComposeProps {
   email: EmailMessage
@@ -16,7 +19,7 @@ export interface EmailComposeProps {
   onCommitmentsChange?: (commitments: string[]) => void
 }
 
-type Signature = { id: number; name: string; content: string; is_default: number; account_id: number }
+type Attachment = { name: string; data: string; type: string }
 
 export function EmailCompose({
   email,
@@ -47,10 +50,11 @@ export function EmailCompose({
   const [dictating, setDictating] = useState(false)
   const dictChunksRef = useRef<Blob[]>([])
   const dictRecorderRef = useRef<MediaRecorder | null>(null)
-  const [review, setReview] = useState<{
-    tone: string; tone_label: 'good' | 'warning' | 'issue'
-    unanswered_questions: string[]; commitments: string[]; suggestions: string[]; ready: boolean
-  } | null>(null)
+  const [review, setReview] = useState<ReviewData | null>(null)
+
+  // Attachments
+  const attachFileRef = useRef<HTMLInputElement>(null)
+  const [attachments, setAttachments] = useState<Attachment[]>([])
 
   // Undo-send state
   const [undoCountdown, setUndoCountdown] = useState<number | null>(null)
@@ -68,13 +72,11 @@ export function EmailCompose({
   const [snippets, setSnippets] = useState<{id: number; name: string; content: string}[]>([])
   const [showSnippets, setShowSnippets] = useState(false)
 
-  // Signatures state
-  const [signatures, setSignatures] = useState<Signature[]>([])
-  const [selectedSigId, setSelectedSigId] = useState<number | null>(null)
-  const [showSigEditor, setShowSigEditor] = useState(false)
-  const [newSigName, setNewSigName] = useState('')
-  const [newSigContent, setNewSigContent] = useState('')
-  const [savingSig, setSavingSig] = useState(false)
+  // Update both body state and contenteditable DOM together
+  const setBodyContent = (html: string) => {
+    setReplyBody(html)
+    if (contentRef.current) contentRef.current.innerHTML = html
+  }
 
   // Sync external initial values when the compose window opens
   useEffect(() => {
@@ -90,7 +92,7 @@ export function EmailCompose({
     setReview(null)
     setUndoCountdown(null)
     setDraftSavedAt(null)
-    setSelectedSigId(null)
+    setAttachments([])
   }, [initialTo, initialSubject, initialBody, show])
 
   // Sync initialBody to contenteditable after mount (handles Smart Draft + forward)
@@ -102,17 +104,12 @@ export function EmailCompose({
     }
   }, [show, initialBody])
 
-  // Load accounts + signatures on open
+  // Load accounts + snippets on open
   useEffect(() => {
     if (!show) return
     api.getAccounts().then(accs => {
       setAccounts(accs)
       if (accs.length === 1) setSelectedAccountId(accs[0].id)
-    }).catch(() => {})
-    api.getSignatures().then(({ signatures: sigs }) => {
-      setSignatures(sigs)
-      const def = sigs.find(s => s.is_default)
-      if (def) setSelectedSigId(def.id)
     }).catch(() => {})
     api.getSnippets().then(r => setSnippets(r.snippets)).catch(() => {})
   }, [show])
@@ -165,7 +162,7 @@ export function EmailCompose({
     const timer = setTimeout(async () => {
       try {
         const { suggestions } = await api.suggestCC(replyTo.trim(), replySubject.trim())
-        setCcSuggestions(suggestions.filter(s => !ccAddrs.includes(s.email.toLowerCase())))
+        setCcSuggestions(suggestions.filter((s: { email: string }) => !ccAddrs.includes(s.email.toLowerCase())))
       } catch { setCcSuggestions([]) }
     }, 800)
     return () => clearTimeout(timer)
@@ -177,12 +174,34 @@ export function EmailCompose({
     setCcSuggestions(prev => prev.filter(s => s.email !== email))
   }
 
+  const handleFileAttach = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    files.forEach(file => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const base64 = (reader.result as string).split(',')[1]
+        setAttachments(prev => [...prev, { name: file.name, data: base64, type: file.type || 'application/octet-stream' }])
+      }
+      reader.readAsDataURL(file)
+    })
+    e.target.value = ''
+  }
+
+  const removeAttachment = (name: string) => {
+    setAttachments(prev => prev.filter(a => a.name !== name))
+  }
+
   const doSend = async () => {
     const body = contentRef.current?.innerHTML || replyBody
     setSending(true)
     setSendMsg('')
     try {
-      await api.sendEmail({ to: replyTo, subject: replySubject, body, cc: replyCC || undefined, bcc: replyBCC || undefined, is_html: true, account_id: selectedAccountId ?? undefined })
+      await api.sendEmail({
+        to: replyTo, subject: replySubject, body,
+        cc: replyCC || undefined, bcc: replyBCC || undefined,
+        is_html: true, account_id: selectedAccountId ?? undefined,
+        attachments: attachments.length ? attachments : undefined,
+      })
       localStorage.removeItem(DRAFT_KEY)
       setSendMsg('Sent!')
       setTimeout(() => {
@@ -192,6 +211,7 @@ export function EmailCompose({
         setReplyCC('')
         setReplyBCC('')
         setShowCcBcc(false)
+        setAttachments([])
         if (contentRef.current) contentRef.current.innerHTML = ''
       }, 1500)
     } catch (e: any) {
@@ -225,11 +245,7 @@ export function EmailCompose({
     setAdjustingTone(true)
     try {
       const { result } = await api.adjustTone(replyBody, tone as any)
-      if (result) {
-        const safeResult = DOMPurify.sanitize(result, { USE_PROFILES: { html: true } })
-        setReplyBody(safeResult)
-        if (contentRef.current) contentRef.current.innerHTML = safeResult
-      }
+      if (result) setBodyContent(DOMPurify.sanitize(result, { USE_PROFILES: { html: true } }))
     } catch {} finally { setAdjustingTone(false) }
   }
 
@@ -238,11 +254,7 @@ export function EmailCompose({
     setDraftingFromIdea(true)
     try {
       const { result } = await api.draftFromIdea(replyBody, replySubject, replyTo)
-      if (result) {
-        const safeResult = DOMPurify.sanitize(result, { USE_PROFILES: { html: true } })
-        setReplyBody(safeResult)
-        if (contentRef.current) contentRef.current.innerHTML = safeResult
-      }
+      if (result) setBodyContent(DOMPurify.sanitize(result, { USE_PROFILES: { html: true } }))
     } catch {} finally { setDraftingFromIdea(false) }
   }
 
@@ -289,9 +301,7 @@ export function EmailCompose({
     } catch { setDictating(false) }
   }
 
-  const stopDictation = () => {
-    dictRecorderRef.current?.stop()
-  }
+  const stopDictation = () => { dictRecorderRef.current?.stop() }
 
   const handleAddCommitment = async (c: string) => {
     setAddingCommitment(c)
@@ -300,37 +310,6 @@ export function EmailCompose({
     } catch {}
     onCommitmentsChange?.(draftCommitments.filter(x => x !== c))
     setAddingCommitment(null)
-  }
-
-  const applySignature = (sigId: number | null) => {
-    setSelectedSigId(sigId)
-    if (sigId === null) return
-    const sig = signatures.find(s => s.id === sigId)
-    if (!sig) return
-    // Remove any previously appended signature (everything after \n\n--\n)
-    const body = replyBody.replace(/\n\n--\n[\s\S]*$/, '')
-    setReplyBody(body + '\n\n--\n' + sig.content)
-  }
-
-  const handleSaveSig = async () => {
-    if (!newSigName.trim() || !newSigContent.trim()) return
-    setSavingSig(true)
-    try {
-      await api.createSignature({ name: newSigName.trim(), content: newSigContent.trim(), is_default: false })
-      const { signatures: sigs } = await api.getSignatures()
-      setSignatures(sigs)
-      setNewSigName('')
-      setNewSigContent('')
-      setShowSigEditor(false)
-    } catch { /* silent */ } finally { setSavingSig(false) }
-  }
-
-  const handleDeleteSig = async (id: number) => {
-    try {
-      await api.deleteSignature(id)
-      setSignatures(prev => prev.filter(s => s.id !== id))
-      if (selectedSigId === id) setSelectedSigId(null)
-    } catch { /* silent */ }
   }
 
   const insertSnippet = (content: string) => {
@@ -348,9 +327,8 @@ export function EmailCompose({
 
   return (
     <>
-      {/* Reply composer — floats over email body, does not push content up */}
       <div className="absolute bottom-0 left-0 right-0 z-20 border-t border-gray-200 bg-white/95 backdrop-blur-sm shadow-2xl animate-slide-up-in flex flex-col" style={{ maxHeight: '52vh' }}>
-        {/* sticky title bar */}
+        {/* title bar */}
         <div className="px-6 pt-3 pb-2 flex items-center justify-between flex-shrink-0 border-b border-gray-100 bg-white">
           <h3 className="text-sm font-semibold text-gray-800">↩ Reply</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xs px-2 py-1 rounded hover:bg-gray-100">✕ Cancel</button>
@@ -382,18 +360,9 @@ export function EmailCompose({
             <div className="flex items-center flex-wrap gap-1.5 pl-14">
               <span className="text-[10px] text-gray-400">Suggested CC:</span>
               {ccSuggestions.map(s => (
-                <span
-                  key={s.email}
-                  className="flex items-center gap-1 text-[10px] bg-accent/10 text-accent border border-accent/20 rounded-full pl-2 pr-1 py-0.5"
-                >
-                  <button onClick={() => addCc(s.email)} title={`Add ${s.email} to CC`} className="hover:underline">
-                    {s.name || s.email}
-                  </button>
-                  <button
-                    onClick={() => setCcSuggestions(prev => prev.filter(x => x.email !== s.email))}
-                    title="Dismiss"
-                    className="text-accent/50 hover:text-red-500 font-bold px-0.5"
-                  >✕</button>
+                <span key={s.email} className="flex items-center gap-1 text-[10px] bg-accent/10 text-accent border border-accent/20 rounded-full pl-2 pr-1 py-0.5">
+                  <button onClick={() => addCc(s.email)} title={`Add ${s.email} to CC`} className="hover:underline">{s.name || s.email}</button>
+                  <button onClick={() => setCcSuggestions(prev => prev.filter(x => x.email !== s.email))} title="Dismiss" className="text-accent/50 hover:text-red-500 font-bold px-0.5">✕</button>
                 </span>
               ))}
             </div>
@@ -440,16 +409,10 @@ export function EmailCompose({
               </button>
             ))}
             <div className="w-px bg-gray-300 mx-0.5 self-stretch" />
-            <button type="button"
-              onMouseDown={e => { e.preventDefault(); document.execCommand('insertUnorderedList', false) }}
-              className="text-xs px-2 py-0.5 rounded hover:bg-gray-200 text-gray-600" title="Bullet list">
-              ≡
-            </button>
-            <button type="button"
-              onMouseDown={e => { e.preventDefault(); document.execCommand('insertOrderedList', false) }}
-              className="text-xs px-2 py-0.5 rounded hover:bg-gray-200 text-gray-600" title="Numbered list">
-              1.
-            </button>
+            <button type="button" onMouseDown={e => { e.preventDefault(); document.execCommand('insertUnorderedList', false) }}
+              className="text-xs px-2 py-0.5 rounded hover:bg-gray-200 text-gray-600" title="Bullet list">≡</button>
+            <button type="button" onMouseDown={e => { e.preventDefault(); document.execCommand('insertOrderedList', false) }}
+              className="text-xs px-2 py-0.5 rounded hover:bg-gray-200 text-gray-600" title="Numbered list">1.</button>
             <div className="w-px bg-gray-300 mx-0.5 self-stretch" />
             <button type="button"
               onMouseDown={e => {
@@ -457,50 +420,49 @@ export function EmailCompose({
                 const url = prompt('Enter URL:')
                 if (url) document.execCommand('createLink', false, url)
               }}
-              className="text-xs px-2 py-0.5 rounded hover:bg-gray-200 text-gray-600" title="Insert link">
-              🔗
-            </button>
-            <button type="button"
-              onMouseDown={e => { e.preventDefault(); document.execCommand('removeFormat', false) }}
-              className="text-xs px-2 py-0.5 rounded hover:bg-gray-200 text-gray-600" title="Clear formatting">
-              ✕
-            </button>
+              className="text-xs px-2 py-0.5 rounded hover:bg-gray-200 text-gray-600" title="Insert link">🔗</button>
+            <button type="button" onMouseDown={e => { e.preventDefault(); document.execCommand('removeFormat', false) }}
+              className="text-xs px-2 py-0.5 rounded hover:bg-gray-200 text-gray-600" title="Clear formatting">✕</button>
           </div>
           <div
             ref={contentRef}
             contentEditable
             suppressContentEditableWarning
-            onInput={() => {
-              if (contentRef.current) setReplyBody(contentRef.current.innerHTML)
-            }}
+            onInput={() => { if (contentRef.current) setReplyBody(contentRef.current.innerHTML) }}
             className="w-full min-h-[100px] text-sm border border-gray-200 border-t-0 rounded-b-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent bg-white overflow-y-auto"
             style={{ maxHeight: '200px' }}
             data-placeholder="Write your reply…"
           />
 
+          {/* Attachments list */}
+          {attachments.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {attachments.map(a => (
+                <span key={a.name} className="flex items-center gap-1 text-[10px] bg-gray-100 border border-gray-200 rounded-full pl-2 pr-1 py-0.5 text-gray-600">
+                  <span className="truncate max-w-[140px]" title={a.name}>📎 {a.name}</span>
+                  <button onClick={() => removeAttachment(a.name)} className="text-gray-400 hover:text-red-500 font-bold px-0.5">✕</button>
+                </span>
+              ))}
+            </div>
+          )}
+
           {/* AI toolbar — Draft from notes + Improve */}
           <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <button
-              onClick={handleDraftFromIdea}
-              disabled={draftingFromIdea || adjustingTone || !replyBody.trim()}
+            <button onClick={handleDraftFromIdea} disabled={draftingFromIdea || adjustingTone || !replyBody.trim()}
               title="Turn rough notes or bullet points into a complete email"
-              className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-purple-50 text-purple-700 border border-purple-200 rounded-lg hover:bg-purple-100 disabled:opacity-40 transition-colors font-medium"
-            >
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-purple-50 text-purple-700 border border-purple-200 rounded-lg hover:bg-purple-100 disabled:opacity-40 transition-colors font-medium">
               {draftingFromIdea ? <><span className="animate-spin inline-block text-[10px]">⟳</span> Drafting…</> : '✦ Draft from notes'}
             </button>
-            <button
-              onClick={() => handleAdjustTone('improve')}
-              disabled={adjustingTone || draftingFromIdea || !replyBody.trim()}
+            <button onClick={() => handleAdjustTone('improve')} disabled={adjustingTone || draftingFromIdea || !replyBody.trim()}
               title="AI rewrites your draft — keeps your opinion/disagreement, fixes grammar and clarity"
-              className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-accent/10 text-accent border border-accent/30 rounded-lg hover:bg-accent/20 disabled:opacity-40 transition-colors font-medium"
-            >
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-accent/10 text-accent border border-accent/30 rounded-lg hover:bg-accent/20 disabled:opacity-40 transition-colors font-medium">
               {adjustingTone ? <><span className="animate-spin inline-block text-[10px]">⟳</span> Improving…</> : '✦ Improve'}
             </button>
             {(draftingFromIdea || adjustingTone) && <span className="text-[10px] text-gray-400 animate-pulse">rewriting…</span>}
           </div>
 
-          {/* Tone + dictation toolbar */}
-          <div className="flex gap-1.5 flex-wrap">
+          {/* Tone + dictation + snippets + attach toolbar */}
+          <div className="flex gap-1.5 flex-wrap items-center">
             <span className="text-[10px] text-gray-400 self-center mr-1">Adjust tone:</span>
             {(['formal', 'casual', 'shorter', 'friendlier', 'direct'] as const).map(t => (
               <button key={t} onClick={() => handleAdjustTone(t)} disabled={adjustingTone || draftingFromIdea || !replyBody.trim()}
@@ -512,9 +474,7 @@ export function EmailCompose({
               onClick={dictating ? stopDictation : startDictation}
               title={dictating ? 'Stop dictation' : 'Dictate reply (Whisper)'}
               className={`flex items-center gap-1 text-xs px-2 py-1 rounded border transition-colors ${
-                dictating
-                  ? 'border-red-300 bg-red-50 text-red-600'
-                  : 'border-gray-200 text-gray-500 hover:bg-gray-50 hover:border-accent'
+                dictating ? 'border-red-300 bg-red-50 text-red-600' : 'border-gray-200 text-gray-500 hover:bg-gray-50 hover:border-accent'
               }`}
             >
               {dictating ? (
@@ -529,13 +489,9 @@ export function EmailCompose({
               )}
             </button>
             <div className="relative">
-              <button
-                type="button"
-                onClick={() => setShowSnippets(v => !v)}
-                disabled={adjustingTone}
+              <button type="button" onClick={() => setShowSnippets(v => !v)} disabled={adjustingTone}
                 className="text-[10px] px-2 py-0.5 border border-gray-200 rounded-full hover:bg-gray-100 text-gray-500"
-                title="Insert a canned response"
-              >
+                title="Insert a canned response">
                 Snippets
               </button>
               {showSnippets && snippets.length > 0 && (
@@ -556,135 +512,26 @@ export function EmailCompose({
                 </div>
               )}
             </div>
+            {/* File attach button */}
+            <button type="button" onClick={() => attachFileRef.current?.click()}
+              className="text-[10px] px-2 py-0.5 border border-gray-200 rounded-full hover:bg-gray-100 text-gray-500"
+              title="Attach a file">
+              📎 Attach
+            </button>
+            <input ref={attachFileRef} type="file" multiple className="hidden" onChange={handleFileAttach} />
           </div>
 
-          {/* Signature selector */}
-          {signatures.length > 0 && (
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] text-gray-400 flex-shrink-0">Signature:</span>
-              <select
-                value={selectedSigId ?? ''}
-                onChange={e => applySignature(e.target.value ? Number(e.target.value) : null)}
-                className="text-[11px] border border-gray-200 rounded px-1.5 py-0.5 bg-white text-gray-600 focus:outline-none focus:ring-1 focus:ring-accent"
-              >
-                <option value="">None</option>
-                {signatures.map(s => (
-                  <option key={s.id} value={s.id}>{s.name}{s.is_default ? ' (default)' : ''}</option>
-                ))}
-              </select>
-              <button
-                onClick={() => setShowSigEditor(v => !v)}
-                className="text-[10px] text-accent hover:underline flex-shrink-0"
-              >
-                Manage
-              </button>
-            </div>
-          )}
-          {signatures.length === 0 && (
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => setShowSigEditor(v => !v)}
-                className="text-[10px] text-accent hover:underline"
-              >
-                + Add signature
-              </button>
-            </div>
-          )}
-
-          {/* Inline signature editor */}
-          {showSigEditor && (
-            <div className="border border-gray-200 rounded-lg p-3 bg-white space-y-2">
-              <p className="text-[11px] font-medium text-gray-600">Signatures</p>
-              {signatures.map(s => (
-                <div key={s.id} className="flex items-center justify-between text-[11px] text-gray-600 border-b border-gray-100 pb-1">
-                  <span className="font-medium">{s.name}</span>
-                  <button onClick={() => handleDeleteSig(s.id)} className="text-red-400 hover:text-red-600 text-[10px]">Delete</button>
-                </div>
-              ))}
-              <div className="space-y-1 pt-1">
-                <input
-                  value={newSigName}
-                  onChange={e => setNewSigName(e.target.value)}
-                  placeholder="Signature name"
-                  className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent bg-white"
-                />
-                <textarea
-                  value={newSigContent}
-                  onChange={e => setNewSigContent(e.target.value)}
-                  placeholder="Signature content"
-                  rows={2}
-                  className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent resize-none bg-white"
-                />
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleSaveSig}
-                    disabled={savingSig || !newSigName.trim() || !newSigContent.trim()}
-                    className="text-[10px] px-2 py-1 bg-accent text-white rounded hover:bg-blue-700 disabled:opacity-50"
-                  >
-                    {savingSig ? 'Saving…' : 'Save'}
-                  </button>
-                  <button
-                    onClick={() => { setShowSigEditor(false); setNewSigName(''); setNewSigContent('') }}
-                    className="text-[10px] px-2 py-1 border border-gray-200 rounded text-gray-500 hover:bg-gray-50"
-                  >
-                    Done
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+          <ComposeSignaturePanel show={show} replyBody={replyBody} onBodyChange={setBodyContent} />
 
           {/* Draft saved indicator */}
           {draftSavedAt !== null && (
             <p className="text-[10px] text-gray-400">Draft saved</p>
           )}
 
-          {/* Pre-send review panel */}
-          {review && (
-            <div className={`rounded-lg border p-3 text-xs space-y-2 ${
-              review.tone_label === 'good' ? 'border-green-200 bg-green-50' :
-              review.tone_label === 'issue' ? 'border-red-200 bg-red-50' :
-              'border-amber-200 bg-amber-50'
-            }`}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <span>{review.tone_label === 'good' ? '✅' : review.tone_label === 'issue' ? '⚠️' : '💡'}</span>
-                  <span className={`font-medium ${
-                    review.tone_label === 'good' ? 'text-green-800' :
-                    review.tone_label === 'issue' ? 'text-red-800' : 'text-amber-800'
-                  }`}>{review.tone}</span>
-                </div>
-                <button onClick={() => setReview(null)} className="text-gray-400 hover:text-gray-600 text-[10px]">✕</button>
-              </div>
-              {review.unanswered_questions.length > 0 && (
-                <div>
-                  <p className="font-semibold text-red-700 mb-1">Unanswered questions:</p>
-                  <ul className="space-y-0.5 list-disc list-inside">
-                    {review.unanswered_questions.map((q, i) => <li key={i} className="text-red-700">{q}</li>)}
-                  </ul>
-                </div>
-              )}
-              {review.commitments.length > 0 && (
-                <div>
-                  <p className="font-semibold text-gray-600 mb-1">Commitments in this draft:</p>
-                  <ul className="space-y-0.5 list-disc list-inside">
-                    {review.commitments.map((c, i) => <li key={i} className="text-gray-600">{c}</li>)}
-                  </ul>
-                </div>
-              )}
-              {review.suggestions.length > 0 && (
-                <div>
-                  <p className="font-semibold text-amber-700 mb-1">Suggestions:</p>
-                  <ul className="space-y-0.5 list-disc list-inside">
-                    {review.suggestions.map((s, i) => <li key={i} className="text-amber-700">{s}</li>)}
-                  </ul>
-                </div>
-              )}
-            </div>
-          )}
+          {review && <ComposeReviewPanel review={review} onDismiss={() => setReview(null)} />}
         </div>
 
-        {/* Draft commitments (inside overlay) */}
+        {/* Draft commitments */}
         {draftCommitments.length > 0 && (
           <div className="px-6 py-2 bg-amber-50 border-t border-amber-100 flex-shrink-0">
             <p className="text-xs font-medium text-amber-700 mb-1">Commitments detected — add to action board?</p>
@@ -700,16 +547,13 @@ export function EmailCompose({
           </div>
         )}
 
-        {/* Sticky send footer — always visible */}
+        {/* Sticky send footer */}
         <div className="px-6 py-3 border-t border-gray-100 bg-white flex items-center gap-2 justify-end flex-shrink-0">
           {sendMsg && (
             <span className={`text-xs ${sendMsg === 'Sent!' ? 'text-green-600' : 'text-red-500'}`}>{sendMsg}</span>
           )}
-          <button
-            onClick={handleReview}
-            disabled={reviewing || !replyBody.trim()}
-            className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-600 disabled:opacity-50 transition-colors"
-          >
+          <button onClick={handleReview} disabled={reviewing || !replyBody.trim()}
+            className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-600 disabled:opacity-50 transition-colors">
             {reviewing ? <><span className="animate-spin inline-block text-[10px]">⟳</span> Reviewing…</> : '🔍 Review'}
           </button>
           {undoCountdown !== null ? (
@@ -718,19 +562,15 @@ export function EmailCompose({
               <button onClick={cancelSend} className="text-xs px-2 py-1 border border-gray-300 rounded text-gray-600 hover:bg-gray-100">Undo</button>
             </div>
           ) : (
-            <button
-              onClick={handleSend}
-              disabled={sending || !replyTo.trim()}
+            <button onClick={handleSend} disabled={sending || !replyTo.trim()}
               className={`flex items-center gap-1.5 text-white text-xs px-4 py-1.5 rounded-lg font-medium disabled:opacity-60 transition-colors ${
                 review?.ready ? 'bg-green-600 hover:bg-green-700' : 'bg-accent hover:bg-blue-700'
-              }`}
-            >
+              }`}>
               {sending ? <><span className="animate-spin inline-block">⟳</span> Sending…</> : review?.ready ? '✓ Send' : 'Send ↑'}
             </button>
           )}
         </div>
       </div>
-
     </>
   )
 }

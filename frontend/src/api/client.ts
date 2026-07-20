@@ -330,7 +330,7 @@ export const api = {
   },
 
   // Send email via SMTP
-  sendEmail(data: { to: string; subject: string; body: string; account_id?: number; cc?: string; bcc?: string; is_html?: boolean }): Promise<{ status: string }> {
+  sendEmail(data: { to: string; subject: string; body: string; account_id?: number; cc?: string; bcc?: string; is_html?: boolean; attachments?: { name: string; data: string; type: string }[] }): Promise<{ status: string }> {
     return request('/email/send', { method: 'POST', body: JSON.stringify(data) })
   },
 
