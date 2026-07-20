@@ -1075,20 +1075,38 @@ async def verify_ftp(request: Request):
     probe = f"da_probe_{uuid.uuid4().hex[:8]}.txt"
 
     def _test():
-        ftp = ftplib.FTP_TLS()
-        ftp.connect(host, timeout=10)
-        ftp.login(user, passwd)
-        ftp.prot_p()  # switch data channel to TLS (explicit FTPS)
         import io
+        ftp = None
+        tls_used = False
+        try:
+            ftp = ftplib.FTP_TLS()
+            ftp.connect(host, timeout=10)
+            ftp.login(user, passwd)
+            tls_used = True
+            try:
+                ftp.prot_p()
+            except ftplib.error_perm:
+                pass  # 504 — server doesn't support PROT P; continue with unencrypted data channel
+        except Exception:
+            if ftp:
+                try:
+                    ftp.quit()
+                except Exception:
+                    pass
+            ftp = ftplib.FTP()
+            ftp.connect(host, timeout=10)
+            ftp.login(user, passwd)
         if path and path.rstrip("/"):
             ftp.cwd(path.rstrip("/"))
         ftp.storbinary(f"STOR {probe}", io.BytesIO(b"ok"))
         ftp.delete(probe)
         ftp.quit()
+        return tls_used
 
     try:
-        await asyncio.to_thread(_test)
-        return {"ok": True, "message": f"FTP connected. Files will be served at {public_url}/"}
+        tls = await asyncio.to_thread(_test)
+        mode = "FTPS" if tls else "FTP"
+        return {"ok": True, "message": f"{mode} connected. Files will be served at {public_url}/"}
     except ftplib.all_errors as e:
         return {"ok": False, "message": f"FTP error: {e}"}
     except Exception as e:
