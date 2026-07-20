@@ -153,7 +153,7 @@ export const api = {
     poll: { interval_seconds: number; last_checked: string; last_new: number }
     accounts: { id: number; username: string; provider: string; last_ingested: string | null }[]
   }> {
-    return request('/api/stats')
+    return request('/stats')
   },
 
   // SSE stream for ingest progress
