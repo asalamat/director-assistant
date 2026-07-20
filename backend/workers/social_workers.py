@@ -10,7 +10,7 @@ async def _linkedin_scheduler_loop(app: "object") -> None:
             from datetime import datetime, timedelta
             now = datetime.now()
             now_str = now.strftime("%Y-%m-%dT%H:%M")
-            cutoff_str = (now - timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M")
+            cutoff_str = (now - timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M")
             with cache._conn() as conn:
                 rows = conn.execute(
                     "SELECT * FROM linkedin_posts WHERE status='scheduled' AND scheduled_at <= ? ORDER BY scheduled_at LIMIT 10",
@@ -18,7 +18,7 @@ async def _linkedin_scheduler_loop(app: "object") -> None:
                 ).fetchall()
             for row in rows:
                 try:
-                    # Posts more than 1 hour overdue were stuck due to missing scheduler — mark failed
+                    # Posts more than 24 hours overdue were stuck — mark missed
                     if (row["scheduled_at"] or "") < cutoff_str:
                         with cache._conn() as conn:
                             conn.execute(
@@ -133,11 +133,6 @@ async def _linkedin_autopilot_loop(app: "object") -> None:
             if all_tags:
                 post_text += "\n\n" + " ".join(f"#{t.lstrip('#')}" for t in all_tags)
 
-            _IMAGE_MODEL_FALLBACKS = (
-                ("gpt-image-1", {"size": "1024x1024"}),
-                ("dall-e-3",    {"size": "1024x1024"}),
-                ("dall-e-2",    {"size": "1024x1024"}),
-            )
             image_url = ""
             if content_type in ("image", "image+text"):
                 openai_key = _get_openai_key()
@@ -157,11 +152,18 @@ async def _linkedin_autopilot_loop(app: "object") -> None:
                             f"{template_prompt} {topic}." if template_prompt
                             else f"Professional LinkedIn post image for: {topic}. Clean, modern, business-appropriate."
                         )
+                    # Build model list respecting user's preferred image model
+                    from routers.social import IMAGE_MODELS as _ALL_IMG_MODELS
+                    _preferred = _get_linkedin_settings().get("image_model", "dall-e-3") or "dall-e-3"
+                    _model_list = [_preferred] + [m for m in _ALL_IMG_MODELS if m != _preferred]
                     try:
                         import httpx, base64 as _b64
                         async with httpx.AsyncClient(timeout=120.0) as http:
-                            for _img_model, _img_params in _IMAGE_MODEL_FALLBACKS:
-                                payload = {"model": _img_model, "prompt": dalle_prompt[:4000], "n": 1, **_img_params}
+                            for _img_model in _model_list:
+                                # Request b64_json directly for dall-e models to avoid expiring URLs
+                                payload: dict = {"model": _img_model, "prompt": dalle_prompt[:4000], "n": 1, "size": "1024x1024"}
+                                if _img_model in ("dall-e-3", "dall-e-2"):
+                                    payload["response_format"] = "b64_json"
                                 ir = await http.post(
                                     "https://api.openai.com/v1/images/generations",
                                     headers={"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"},
@@ -187,10 +189,9 @@ async def _linkedin_autopilot_loop(app: "object") -> None:
                                         break
                                     else:
                                         print(f"[linkedin-autopilot] {_img_model} returned 200 but no image data — trying next")
-                                        continue
                                 else:
-                                    print(f"[linkedin-autopilot] DALL-E {_img_model} {ir.status_code}: {ir.text[:200]}")
-                                    continue
+                                    err_body = ir.text[:200]
+                                    print(f"[linkedin-autopilot] {_img_model} {ir.status_code}: {err_body}")
                     except Exception as e:
                         print(f"[linkedin-autopilot] image generation failed: {e}")
 
@@ -322,6 +323,7 @@ async def _instagram_autopilot_loop(app: "object") -> None:
                 openai_key = _get_openai_key()
                 if openai_key and openai_key.startswith("sk-"):
                     ig_settings = _get_instagram_settings()
+                    has_ftp = bool(ig_settings.get("ftp_host"))
                     img_prompt = (
                         f"Vibrant square Instagram image for a post about: {topic}. "
                         f"Tone: {tone}. Instagram-appropriate, no text overlays."
@@ -336,20 +338,48 @@ async def _instagram_autopilot_loop(app: "object") -> None:
                             )
                             if ir.status_code == 200:
                                 item = ir.json().get("data", [{}])[0]
-                                raw_url = item.get("url") or (
-                                    f"data:image/png;base64,{item['b64_json']}" if item.get("b64_json") else ""
-                                )
+                                raw_url = item.get("url", "")
+                                if not raw_url and item.get("b64_json"):
+                                    if has_ftp:
+                                        raw_url = f"data:image/png;base64,{item['b64_json']}"
+                                    else:
+                                        # Can't serve base64 to Instagram without FTP — try next model
+                                        print(f"[ig-autopilot] {mdl} returned b64 but no FTP configured — trying next model")
+                                        continue
                                 if raw_url:
-                                    if raw_url.startswith("data:") and ig_settings.get("ftp_host"):
+                                    if raw_url.startswith("data:") and has_ftp:
                                         try:
                                             raw_url = await _upload_to_ftp(raw_url, ig_settings)
                                         except Exception:
                                             raw_url = ""
-                                    image_url = raw_url
-                                    break
+                                    if raw_url and not raw_url.startswith("data:"):
+                                        image_url = raw_url
+                                        break
+                                    else:
+                                        print(f"[ig-autopilot] {mdl} produced unusable image URL — trying next")
+                            else:
+                                print(f"[ig-autopilot] {mdl} {ir.status_code}: {ir.text[:200]}")
 
             hashtag_line = " ".join(f"#{h}" for h in hashtags)
             full_caption = caption + ("\n\n" + hashtag_line if hashtag_line else "")
+
+            # Instagram requires a public URL — skip post and advance schedule if no usable image
+            if content_type in ("image", "image+text") and not image_url:
+                print(f"[ig-autopilot] no usable image URL for '{topic}' — skipping post, advancing schedule")
+                new_index = (topic_index + 1) % len(topics)
+                interval_days = int(row["interval_days"] or 3)
+                post_time = row["post_time"] or "09:00"
+                _h, _m = (post_time + ":00").split(":")[:2]
+                next_dt = now + timedelta(days=interval_days)
+                next_post_at_new = next_dt.strftime(f"%Y-%m-%dT{_h.zfill(2)}:{_m.zfill(2)}")
+                with cache._conn() as conn:
+                    conn.execute(
+                        "UPDATE instagram_autopilot SET topic_index=?, next_post_at=? WHERE id=?",
+                        (new_index, next_post_at_new, row["id"]),
+                    )
+                await asyncio.sleep(300)
+                continue
+
             settings = _get_instagram_settings()
             result = await _publish_to_instagram(settings, image_url, full_caption)
             if "error" in result:

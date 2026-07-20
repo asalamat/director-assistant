@@ -780,6 +780,16 @@ async def publish(body: dict, request: Request):
 
     add_to_story = bool(body.get("add_to_story", False))
     settings = _get_instagram_settings()
+
+    # If image is a data URI, try FTP upload before passing to Instagram (which only accepts public URLs)
+    if image_url and image_url.startswith("data:") and settings.get("ftp_host"):
+        try:
+            ftp_url = await _upload_to_ftp(image_url, settings)
+            if ftp_url:
+                image_url = ftp_url
+        except Exception as _fe:
+            print(f"[ig-publish] FTP upload failed: {_fe}")
+
     result = await _publish_to_instagram(settings, image_url, full_caption)
     if "error" in result:
         with cache._conn() as conn:
