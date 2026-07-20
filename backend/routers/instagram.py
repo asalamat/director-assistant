@@ -178,12 +178,24 @@ async def _upload_to_ftp(data_uri: str, settings: dict) -> str:
     filename = f"{uuid.uuid4().hex}.png"
 
     def _ftp_upload():
-        # Try FTPS (explicit TLS) first; fall back to plain FTP for servers without TLS support
+        # 1. Try FTPS (explicit TLS) — most secure
+        # 2. If prot_p() fails (504: server accepts AUTH TLS but not encrypted data channel)
+        #    continue with FTPS control channel + unencrypted data channel
+        # 3. If TLS handshake fails entirely, fall back to plain FTP
+        ftp = None
         try:
             ftp = ftplib.FTP_TLS(host)
             ftp.login(user, passwd)
-            ftp.prot_p()
+            try:
+                ftp.prot_p()  # encrypted data channel
+            except ftplib.error_perm:
+                pass  # 504 — server doesn't support PROT P; data stays unencrypted
         except Exception:
+            if ftp:
+                try:
+                    ftp.quit()
+                except Exception:
+                    pass
             ftp = ftplib.FTP(host)
             ftp.login(user, passwd)
         if path and path != "/":
