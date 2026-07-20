@@ -250,7 +250,8 @@ def get_top_emails(cache, limit: int = 7) -> list[dict]:
 
     patterns = get_learned_patterns(cache)
 
-    scored = []
+    scored_pos: list[dict] = []
+    scored_zero: list[dict] = []
     for em in emails:
         sc, reasons = _score(em, vip_senders, has_action_ids)
         if user_rules:
@@ -258,16 +259,24 @@ def get_top_emails(cache, limit: int = 7) -> list[dict]:
             sc += rule_bonus
             reasons = (reasons + rule_reasons)[:3]
         sc = _apply_learned(em, sc, patterns)
+        entry = {
+            "id": em["id"],
+            "subject": em["subject"] or "(no subject)",
+            "sender": em["sender"] or "",
+            "date": (em["date"] or "")[:10],
+            "preview": ((em["body"] or "")[:120]).replace("\n", " "),
+            "score": sc,
+            "reasons": reasons,
+        }
         if sc > 0:
-            scored.append({
-                "id": em["id"],
-                "subject": em["subject"] or "(no subject)",
-                "sender": em["sender"] or "",
-                "date": (em["date"] or "")[:10],
-                "preview": ((em["body"] or "")[:120]).replace("\n", " "),
-                "score": sc,
-                "reasons": reasons,
-            })
+            scored_pos.append(entry)
+        else:
+            scored_zero.append(entry)
 
-    scored.sort(key=lambda x: -x["score"])
-    return scored[:limit]
+    scored_pos.sort(key=lambda x: -x["score"])
+    # Pad with most-recent zero-score unread emails so the panel is never empty
+    if len(scored_pos) < limit:
+        result = scored_pos + scored_zero[:limit - len(scored_pos)]
+    else:
+        result = scored_pos
+    return result[:limit]

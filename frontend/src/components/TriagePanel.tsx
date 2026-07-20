@@ -272,7 +272,7 @@ export function TriagePanel() {
           <p className="text-xs text-gray-400 mt-1">
             {emails.length > 0 && snoozedCount === emails.length
               ? `${snoozedCount} email${snoozedCount > 1 ? 's' : ''} snoozed.`
-              : 'All unread emails in the last 14 days are low priority.'}
+              : 'No unread emails in the last 14 days.'}
           </p>
         </div>
       )}
