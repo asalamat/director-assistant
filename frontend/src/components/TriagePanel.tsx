@@ -272,7 +272,7 @@ export function TriagePanel() {
           <p className="text-xs text-gray-400 mt-1">
             {emails.length > 0 && snoozedCount === emails.length
               ? `${snoozedCount} email${snoozedCount > 1 ? 's' : ''} snoozed.`
-              : 'No unread emails in the last 14 days.'}
+              : 'No emails found in the last 14 days.'}
           </p>
         </div>
       )}
@@ -362,7 +362,7 @@ export function TriagePanel() {
 
       {visibleEmails.length > 0 && (
         <p className="text-xs text-gray-400 text-center mt-6">
-          Showing {visibleEmails.length} highest-priority unread emails from the last 14 days.
+          Showing {visibleEmails.length} highest-priority emails from the last 14 days.
           Scores are based on urgency keywords, action items, sender frequency, and recency.
         </p>
       )}

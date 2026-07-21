@@ -222,14 +222,26 @@ def _apply_learned(email: dict, score: int, patterns: dict) -> int:
 
 
 def get_top_emails(cache, limit: int = 7) -> list[dict]:
-    """Return top N unread emails scored by urgency (last 14 days)."""
+    """Return top N emails scored by urgency (last 14 days).
+
+    Prefers unread emails; falls back to all recent emails when the account
+    marks everything as read on fetch (e.g. Yahoo IMAP).
+    """
     with cache._conn() as conn:
+        # Try unread first; if none exist, fall back to all recent emails
         rows = conn.execute(
             """SELECT id, subject, sender, date, body, is_read
                FROM emails
                WHERE is_read = 0 AND date >= datetime('now', '-14 days')
                ORDER BY date DESC LIMIT 300"""
         ).fetchall()
+        if not rows:
+            rows = conn.execute(
+                """SELECT id, subject, sender, date, body, is_read
+                   FROM emails
+                   WHERE date >= datetime('now', '-14 days')
+                   ORDER BY date DESC LIMIT 300"""
+            ).fetchall()
         emails = [dict(r) for r in rows]
 
         # VIP senders: top 30 by frequency
