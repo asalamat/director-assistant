@@ -42,11 +42,69 @@ _SENDER_EXTRACT = re.compile(
     re.IGNORECASE,
 )
 
+# Detects "who sent me the most emails" / "top senders" / "who emails me the most"
+_TOP_SENDER_QUESTION = re.compile(
+    r"\b(?:who\s+(?:sent|emails?|email[e]?d|writes?|wrote)\s+(?:me\s+)?(?:the\s+)?most"
+    r"|top\s+senders?"
+    r"|most\s+frequent\s+senders?"
+    r"|who\s+(?:contacts?|emails?)\s+me\s+(?:the\s+)?most"
+    r"|(?:most|highest)\s+emails?\s+from"
+    r"|who\s+sends?\s+(?:me\s+)?(?:the\s+)?most)\b",
+    re.IGNORECASE,
+)
+
+# Detects "how many emails this/last month/week/year/today"
+_VOLUME_QUESTION = re.compile(
+    r"\b(?:how\s+many\s+emails?\s+(?:did\s+i\s+(?:get|receive|send)|have\s+i\s+(?:got|received)|i\s+(?:received|got))?"
+    r"|(?:total|count\s+of)\s+emails?\s+(?:received|sent|in)?)\b",
+    re.IGNORECASE,
+)
+
+# Extract time period from question
+_PERIOD_EXTRACT = re.compile(
+    r"\b(this\s+(?:month|week|year)|last\s+(?:month|week|year)|today|this\s+quarter)\b",
+    re.IGNORECASE,
+)
+
 _META_WORDS = frozenset({
     "how", "many", "much", "count", "number", "total", "list",
     "email", "emails", "message", "messages", "mail",
     "from", "about", "by", "in", "for",
 })
+
+
+def _extract_period(question: str) -> str:
+    m = _PERIOD_EXTRACT.search(question)
+    return m.group(1).lower() if m else "this month"
+
+
+def _build_top_sender_fact(cache, question: str) -> str:
+    """Run a direct DB aggregation for top-sender questions. Returns a DB FACTS string."""
+    period = _extract_period(question)
+    rows = cache.top_senders_period(period=period, limit=10)
+    if not rows:
+        return f"\n\nDB FACT: No emails found for the period '{period}'."
+    lines = "\n".join(
+        f"  {i+1}. {r['sender']} — {r['count']} email{'s' if r['count'] != 1 else ''}"
+        for i, r in enumerate(rows)
+    )
+    return (
+        f"\n\nDB FACTS (aggregated directly from database, 100% accurate):\n"
+        f"Top email senders for {period}:\n{lines}\n"
+        f"Use these exact numbers and names in your answer."
+    )
+
+
+def _build_volume_fact(cache, question: str) -> str:
+    """Return total received/sent count for a period."""
+    period = _extract_period(question)
+    vol = cache.email_volume_period(period=period)
+    return (
+        f"\n\nDB FACT (aggregated directly from database, 100% accurate):\n"
+        f"For {period}: {vol['total']} total emails "
+        f"({vol['received']} received, {vol['sent']} sent).\n"
+        f"Use these exact numbers."
+    )
 
 
 def _search_query(question: str) -> str:
@@ -139,22 +197,36 @@ async def ask_db(req: AskRequest, request: Request):
             yield 'data: {"type":"done"}\n\n'
             return
 
-        # Count hint — instant DB query, done before streaming starts
-        count_hint = ""
-        if _COUNT_QUESTION.search(question):
+        # --- Aggregation shortcut: bypass RAG for statistical queries ---
+        db_fact = ""
+        is_aggregation = False
+
+        if _TOP_SENDER_QUESTION.search(question):
+            is_aggregation = True
+            db_fact = await asyncio.get_event_loop().run_in_executor(
+                None, _build_top_sender_fact, cache, question
+            )
+        elif _COUNT_QUESTION.search(question):
             sender_name = _extract_sender_name(question)
             if sender_name:
                 exact_count = cache.count_by_sender(sender_name)
-                count_hint = (
+                db_fact = (
                     f"\n\nDB FACT: There are exactly {exact_count} emails from "
                     f"'{sender_name}' in the database. Use this exact number."
                 )
+            else:
+                is_aggregation = True
+                db_fact = await asyncio.get_event_loop().run_in_executor(
+                    None, _build_volume_fact, cache, question
+                )
 
         loop = asyncio.get_event_loop()
-        results = await loop.run_in_executor(
-            None, rag.hybrid_search, _search_query(question), req.n_results
-        )
-        if not results:
+        results = []
+        if not is_aggregation:
+            results = await loop.run_in_executor(
+                None, rag.hybrid_search, _search_query(question), req.n_results
+            )
+        if not results and not is_aggregation:
             yield 'data: {"type":"token","text":"No emails or documents found in the database. Try importing emails or indexing a document folder first."}\n\n'
             yield 'data: {"type":"done"}\n\n'
             return
@@ -209,14 +281,19 @@ async def ask_db(req: AskRequest, request: Request):
         for h in req.history[-6:]:  # last 3 turns (6 messages)
             messages.append({"role": h.role, "content": h.content})
 
-        messages.append({
-            "role": "user",
-            "content": (
+        if is_aggregation:
+            # Aggregation queries: answer entirely from DB facts, no email context needed
+            user_content = f"{db_fact}\n\nQUESTION: {question}"
+        elif context:
+            user_content = (
                 f"CONTEXT ({source_desc.upper()}):\n{context}"
-                f"{count_hint}\n\n"
+                f"{db_fact}\n\n"
                 f"QUESTION: {question}"
-            ),
-        })
+            )
+        else:
+            user_content = f"{db_fact}\n\nQUESTION: {question}"
+
+        messages.append({"role": "user", "content": user_content})
 
         answer_tokens: list[str] = []
         error_occurred = False

@@ -328,6 +328,76 @@ class EmailExtrasMixin:
             ).fetchall()
         return [{"sender": r["sender"], "count": r["cnt"]} for r in rows]
 
+    # Maps period name → SQLite datetime modifier
+    _PERIOD_MODIFIERS = {
+        "today":      ("start of day", "today"),
+        "this week":  ("start of day", "-6 days"),
+        "this month": ("start of month", None),
+        "this year":  ("start of year", None),
+        "last month": (None, None),  # handled separately
+        "last week":  (None, None),  # handled separately
+    }
+
+    def top_senders_period(self, period: str = "this month", limit: int = 10) -> list[dict]:
+        """Return top senders filtered to a time period."""
+        period = period.lower().strip()
+        if period in ("today",):
+            where = "date >= date('now', 'start of day')"
+            label = "today"
+        elif period in ("this week", "week"):
+            where = "date >= date('now', '-6 days')"
+            label = "this week"
+        elif period in ("this month", "month"):
+            where = "date >= date('now', 'start of month')"
+            label = "this month"
+        elif period in ("last month",):
+            where = ("date >= date('now', 'start of month', '-1 month') "
+                     "AND date < date('now', 'start of month')")
+            label = "last month"
+        elif period in ("this year", "year"):
+            where = "date >= date('now', 'start of year')"
+            label = "this year"
+        elif period in ("last week",):
+            where = ("date >= date('now', 'start of day', '-13 days') "
+                     "AND date < date('now', 'start of day', '-6 days')")
+            label = "last week"
+        else:
+            where = "date >= date('now', 'start of month')"
+            label = "this month"
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""SELECT sender, COUNT(*) AS cnt FROM emails
+                    WHERE {where}
+                    GROUP BY sender ORDER BY cnt DESC LIMIT ?""",
+                (limit,),
+            ).fetchall()
+        return [{"sender": r["sender"], "count": r["cnt"], "period": label} for r in rows]
+
+    def email_volume_period(self, period: str = "this month") -> dict:
+        """Return total received / sent counts for a time period."""
+        period = period.lower().strip()
+        if period in ("today",):
+            where = "date >= date('now', 'start of day')"
+        elif period in ("this week", "week"):
+            where = "date >= date('now', '-6 days')"
+        elif period in ("this month", "month"):
+            where = "date >= date('now', 'start of month')"
+        elif period in ("last month",):
+            where = ("date >= date('now', 'start of month', '-1 month') "
+                     "AND date < date('now', 'start of month')")
+        elif period in ("this year", "year"):
+            where = "date >= date('now', 'start of year')"
+        else:
+            where = "date >= date('now', 'start of month')"
+        with self._conn() as conn:
+            total = conn.execute(
+                f"SELECT COUNT(*) AS cnt FROM emails WHERE {where}"
+            ).fetchone()["cnt"]
+            sent = conn.execute(
+                f"SELECT COUNT(*) AS cnt FROM emails WHERE {where} AND folder LIKE '%Sent%'"
+            ).fetchone()["cnt"]
+        return {"total": total, "sent": sent, "received": total - sent}
+
     def folder_breakdown(self) -> dict[str, int]:
         with self._conn() as conn:
             rows = conn.execute(
