@@ -205,19 +205,27 @@ async def ask_db(req: AskRequest, request: Request):
         # --- Semantic search: always runs except for pure stat aggregations ---
         results = list(extra_results)
         if not is_aggregation:
-            # Relationship queries: search by person names to find docs + broader mentions
-            rag_q = (
-                f"{relation_pair[0]} {relation_pair[1]}" if relation_pair
-                else search_query(question)
-            )
-            rag_results = await loop.run_in_executor(
-                None, rag.hybrid_search, rag_q, req.n_results
-            )
             seen_ids = {r.get("email_id") for r in results}
-            for r in rag_results:
-                if r.get("email_id") not in seen_ids:
-                    results.append(r)
-                    seen_ids.add(r.get("email_id"))
+
+            if relation_pair:
+                # Search each name separately — same as "who is Hannah" which already works.
+                # Two separate searches give better recall than one combined query.
+                for name in relation_pair:
+                    name_results = await loop.run_in_executor(
+                        None, rag.hybrid_search, name, req.n_results // 2
+                    )
+                    for r in name_results:
+                        if r.get("email_id") not in seen_ids:
+                            results.append(r)
+                            seen_ids.add(r.get("email_id"))
+            else:
+                rag_results = await loop.run_in_executor(
+                    None, rag.hybrid_search, search_query(question), req.n_results
+                )
+                for r in rag_results:
+                    if r.get("email_id") not in seen_ids:
+                        results.append(r)
+                        seen_ids.add(r.get("email_id"))
         if not results and not is_aggregation:
             yield 'data: {"type":"token","text":"No emails or documents found in the database. Try importing emails or indexing a document folder first."}\n\n'
             yield 'data: {"type":"done"}\n\n'
@@ -241,6 +249,17 @@ async def ask_db(req: AskRequest, request: Request):
         is_recommendation = bool(RECOMMENDATION_QUESTION.search(question))
         model, max_tokens = _pick_model(question, is_aggregation)
         system = _system_prompt(source_desc, is_aggregation, is_recommendation)
+        # For relationship questions, add an explicit instruction so the AI
+        # synthesizes what it finds rather than saying "I don't have enough info"
+        if relation_pair:
+            system += (
+                f" The user is specifically asking about the relationship between "
+                f"'{relation_pair[0]}' and '{relation_pair[1]}'. "
+                f"Describe how they know each other, what they work on together, "
+                f"how often they interact, and any notable context — inferred from "
+                f"the emails and documents shown. Do not say 'I cannot determine' "
+                f"if ANY relevant content is visible."
+            )
 
         # --- Build message ---
         messages = [{"role": h.role, "content": h.content} for h in req.history[-6:]]

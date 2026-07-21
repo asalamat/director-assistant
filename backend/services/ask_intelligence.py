@@ -194,11 +194,8 @@ def build_relation_fact(cache, name_a: str, name_b: str) -> tuple[str, list[dict
             unique.append(e)
 
     if not unique:
-        return (
-            f"\n\nDB FACT: No emails found directly between '{name_a}' and '{name_b}'. "
-            f"They may have had no direct email exchange, or names may be spelled differently.",
-            [],
-        )
+        # Return empty string — don't inject a negative fact that would bias the AI
+        return ("", [])
 
     lines = []
     if a_to_b:
