@@ -240,6 +240,8 @@ def get_top_emails(cache, limit: int = 7) -> list[dict]:
                 """SELECT id, subject, sender, date, body, is_read
                    FROM emails
                    WHERE date >= datetime('now', '-14 days')
+                     AND LOWER(folder) NOT LIKE '%sent%'
+                     AND LOWER(folder) NOT LIKE '%draft%'
                    ORDER BY date DESC LIMIT 300"""
             ).fetchall()
         emails = [dict(r) for r in rows]
