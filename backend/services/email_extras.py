@@ -398,6 +398,61 @@ class EmailExtrasMixin:
             ).fetchone()["cnt"]
         return {"total": total, "sent": sent, "received": total - sent}
 
+    def people_relationship_summary(self, name_a: str, name_b: str) -> dict:
+        """Return interaction stats between two people based on sender/recipients columns."""
+        a = name_a.lower().strip()
+        b = name_b.lower().strip()
+        with self._conn() as conn:
+            # Emails from A that involve B (as recipient or body mention)
+            a_to_b = conn.execute(
+                """SELECT id, subject, sender, date, body FROM emails
+                   WHERE LOWER(sender) LIKE ?
+                   AND (LOWER(recipients) LIKE ? OR LOWER(body) LIKE ?)
+                   ORDER BY date DESC LIMIT 10""",
+                (f"%{a}%", f"%{b}%", f"%{b}%"),
+            ).fetchall()
+            # Emails from B that involve A
+            b_to_a = conn.execute(
+                """SELECT id, subject, sender, date, body FROM emails
+                   WHERE LOWER(sender) LIKE ?
+                   AND (LOWER(recipients) LIKE ? OR LOWER(body) LIKE ?)
+                   ORDER BY date DESC LIMIT 10""",
+                (f"%{b}%", f"%{a}%", f"%{a}%"),
+            ).fetchall()
+            # Any email mentioning both names
+            both_mentioned = conn.execute(
+                """SELECT id, subject, sender, date, body FROM emails
+                   WHERE LOWER(body) LIKE ? AND LOWER(body) LIKE ?
+                   ORDER BY date DESC LIMIT 5""",
+                (f"%{a}%", f"%{b}%"),
+            ).fetchall()
+        return {
+            "a_to_b": [dict(r) for r in a_to_b],
+            "b_to_a": [dict(r) for r in b_to_a],
+            "both_mentioned": [dict(r) for r in both_mentioned],
+        }
+
+    def person_summary(self, name: str, limit: int = 20) -> dict:
+        """Return emails from/to a single person (by name fragment) with basic stats."""
+        n = name.lower().strip()
+        with self._conn() as conn:
+            as_sender = conn.execute(
+                """SELECT id, subject, sender, date, body, recipients FROM emails
+                   WHERE LOWER(sender) LIKE ?
+                   ORDER BY date DESC LIMIT ?""",
+                (f"%{n}%", limit),
+            ).fetchall()
+            as_recipient = conn.execute(
+                """SELECT id, subject, sender, date, body, recipients FROM emails
+                   WHERE LOWER(recipients) LIKE ?
+                   ORDER BY date DESC LIMIT ?""",
+                (f"%{n}%", limit),
+            ).fetchall()
+        return {
+            "as_sender": [dict(r) for r in as_sender],
+            "as_recipient": [dict(r) for r in as_recipient],
+        }
+
     def folder_breakdown(self) -> dict[str, int]:
         with self._conn() as conn:
             rows = conn.execute(
