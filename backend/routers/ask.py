@@ -177,15 +177,16 @@ async def ask_db(req: AskRequest, request: Request):
         loop = asyncio.get_event_loop()
 
         # --- Structured query detection: relationship / aggregation ---
+        relation_pair: tuple | None = None
         if RELATION_QUESTION.search(question) or (
             "and" in question.lower() and "relat" in question.lower()
         ):
-            pair = extract_two_names(question)
-            if pair:
+            relation_pair = extract_two_names(question)
+            if relation_pair:
                 db_fact, extra_results = await loop.run_in_executor(
-                    None, build_relation_fact, cache, pair[0], pair[1]
+                    None, build_relation_fact, cache, relation_pair[0], relation_pair[1]
                 )
-                is_aggregation = not extra_results
+                # Never set is_aggregation here — always fall through to RAG
         elif TOP_SENDER_QUESTION.search(question):
             is_aggregation = True
             db_fact = await loop.run_in_executor(None, build_top_sender_fact, cache, question)
@@ -201,12 +202,22 @@ async def ask_db(req: AskRequest, request: Request):
                 is_aggregation = True
                 db_fact = await loop.run_in_executor(None, build_volume_fact, cache, question)
 
-        # --- Semantic search (unless pure aggregation) ---
-        results = extra_results or []
-        if not is_aggregation and not extra_results:
-            results = await loop.run_in_executor(
-                None, rag.hybrid_search, search_query(question), req.n_results
+        # --- Semantic search: always runs except for pure stat aggregations ---
+        results = list(extra_results)
+        if not is_aggregation:
+            # Relationship queries: search by person names to find docs + broader mentions
+            rag_q = (
+                f"{relation_pair[0]} {relation_pair[1]}" if relation_pair
+                else search_query(question)
             )
+            rag_results = await loop.run_in_executor(
+                None, rag.hybrid_search, rag_q, req.n_results
+            )
+            seen_ids = {r.get("email_id") for r in results}
+            for r in rag_results:
+                if r.get("email_id") not in seen_ids:
+                    results.append(r)
+                    seen_ids.add(r.get("email_id"))
         if not results and not is_aggregation:
             yield 'data: {"type":"token","text":"No emails or documents found in the database. Try importing emails or indexing a document folder first."}\n\n'
             yield 'data: {"type":"done"}\n\n'
