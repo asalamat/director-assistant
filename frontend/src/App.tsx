@@ -484,15 +484,7 @@ export default function App() {
                 <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/>
               </svg>
             </div>
-            <span
-              className="text-sm font-semibold tracking-tight select-none"
-              style={{
-                background: 'linear-gradient(to bottom, #111827 0%, rgba(17,24,39,0.25) 100%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text',
-              }}
-            >Cortex Executive Inbox</span>
+            <span className="text-sm font-semibold text-gray-900 tracking-tight">Cortex Executive Inbox</span>
           </div>
           <div className="h-4 w-px bg-gray-200" />
           <span className="text-xs text-gray-400 hidden sm:inline tabular-nums">{total.toLocaleString()} emails</span>
