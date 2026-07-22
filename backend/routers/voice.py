@@ -7,7 +7,7 @@ import tempfile
 
 import httpx
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response
 
 router = APIRouter(prefix="/api/voice", tags=["voice"])
 
@@ -39,22 +39,16 @@ async def read_email(email_id: str, request: Request):
 
     voice_id = cfg.get("elevenlabs_voice_id", "21m00Tcm4TlvDq8ikWAM")  # default: Rachel
 
-    async def generate():
-        async with httpx.AsyncClient(timeout=30) as c:
-            async with c.stream(
-                "POST",
-                f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/stream",
-                headers={"xi-api-key": api_key, "Content-Type": "application/json"},
-                json={"text": text[:2500], "model_id": "eleven_turbo_v2_5",
-                      "voice_settings": {"stability": 0.5, "similarity_boost": 0.75}},
-            ) as resp:
-                if resp.status_code != 200:
-                    body_text = await resp.aread()
-                    raise HTTPException(resp.status_code, body_text.decode()[:200])
-                async for chunk in resp.aiter_bytes(4096):
-                    yield chunk
-
-    return StreamingResponse(generate(), media_type="audio/mpeg")
+    async with httpx.AsyncClient(timeout=30) as c:
+        resp = await c.post(
+            f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
+            headers={"xi-api-key": api_key, "Content-Type": "application/json"},
+            json={"text": text[:2500], "model_id": "eleven_turbo_v2_5",
+                  "voice_settings": {"stability": 0.5, "similarity_boost": 0.75}},
+        )
+    if resp.status_code != 200:
+        raise HTTPException(resp.status_code, resp.text[:300])
+    return Response(content=resp.content, media_type="audio/mpeg")
 
 
 @router.post("/transcribe")

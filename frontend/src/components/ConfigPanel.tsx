@@ -472,6 +472,27 @@ export function ConfigPanel({ onSaved }: Props) {
           {budgetMode && <p className="text-xs text-amber-700 mt-2 font-medium">Active — economy models on all calls</p>}
         </div>
 
+        {/* ElevenLabs TTS */}
+        <div className="border border-gray-200 rounded-xl p-4 space-y-3">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-800">ElevenLabs TTS</h2>
+            <p className="text-xs text-gray-500 mt-0.5">Required for Read Aloud. Get a key at <a href="https://elevenlabs.io" target="_blank" rel="noreferrer" className="text-accent underline">elevenlabs.io</a>.</p>
+          </div>
+          {config?.has_elevenlabs && !elevenLabsKey && (
+            <p className="text-xs text-green-700 bg-green-50 border border-green-200 rounded px-3 py-1.5">Key configured — enter new to replace.</p>
+          )}
+          <input type="password" value={elevenLabsKey} onChange={e => setElevenLabsKey(e.target.value)}
+            placeholder={config?.has_elevenlabs ? 'Enter new key to replace…' : 'sk_…'}
+            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-accent" />
+          <div>
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Voice ID</label>
+            <input value={elevenLabsVoiceId} onChange={e => setElevenLabsVoiceId(e.target.value)}
+              placeholder={`Current: ${(config as any)?.elevenlabs_voice_id || '21m00Tcm4TlvDq8ikWAM (Rachel)'}`}
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-accent" />
+            <p className="text-[10px] text-gray-400 mt-1">Rachel=21m00Tcm4TlvDq8ikWAM · Adam=pNInz6obpgDQGcFmaJgB · Bella=EXAVITQu4vr4xnSDxMaL</p>
+          </div>
+        </div>
+
         <SaveRow saving={saving} msg={saveMsg} onSave={handleSave} />
       </>}
 
@@ -593,27 +614,6 @@ export function ConfigPanel({ onSaved }: Props) {
               </div>
             </div>
           )}
-        </div>
-
-        {/* ElevenLabs TTS */}
-        <div className="border border-gray-200 rounded-xl p-4 space-y-3">
-          <div>
-            <h2 className="text-sm font-semibold text-gray-800">ElevenLabs TTS</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Required for Read Aloud. Get a key at <a href="https://elevenlabs.io" target="_blank" rel="noreferrer" className="text-accent underline">elevenlabs.io</a>.</p>
-          </div>
-          {config?.has_elevenlabs && !elevenLabsKey && (
-            <p className="text-xs text-green-700 bg-green-50 border border-green-200 rounded px-3 py-1.5">Key configured — enter new to replace.</p>
-          )}
-          <input type="password" value={elevenLabsKey} onChange={e => setElevenLabsKey(e.target.value)}
-            placeholder={config?.has_elevenlabs ? 'Enter new key to replace…' : 'sk_…'}
-            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-accent" />
-          <div>
-            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Voice ID</label>
-            <input value={elevenLabsVoiceId} onChange={e => setElevenLabsVoiceId(e.target.value)}
-              placeholder={`Current: ${(config as any)?.elevenlabs_voice_id || '21m00Tcm4TlvDq8ikWAM (Rachel)'}`}
-              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-accent" />
-            <p className="text-[10px] text-gray-400 mt-1">Rachel=21m00Tcm4TlvDq8ikWAM · Adam=pNInz6obpgDQGcFmaJgB · Bella=EXAVITQu4vr4xnSDxMaL</p>
-          </div>
         </div>
 
         <SaveRow saving={saving} msg={saveMsg} onSave={handleSave} />
