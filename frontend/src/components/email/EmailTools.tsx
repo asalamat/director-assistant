@@ -27,7 +27,10 @@ export function EmailTools({ email, translation, onClearTranslation, onOpenCompo
   const [financialData, setFinancialData] = useState<any | null>(null)
   const [extractingFinancials, setExtractingFinancials] = useState(false)
   const [playing, setPlaying] = useState(false)
+  const [readLoading, setReadLoading] = useState(false)
+  const [readError, setReadError] = useState<string | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const audioBlobUrl = useRef<string | null>(null)
   const [triggeringAutopilot, setTriggeringAutopilot] = useState(false)
   const [autopilotResult, setAutopilotResult] = useState<string | null>(null)
 
@@ -110,17 +113,37 @@ export function EmailTools({ email, translation, onClearTranslation, onOpenCompo
     a.click()
   }
 
-  const handleReadAloud = () => {
+  const handleReadAloud = async () => {
     if (playing) {
       audioRef.current?.pause()
       setPlaying(false)
       return
     }
-    const audio = new Audio(api.readEmailAloud(email.id))
-    audio.onended = () => setPlaying(false)
-    audio.onerror = () => setPlaying(false)
-    audio.play().then(() => setPlaying(true)).catch(() => {})
-    audioRef.current = audio
+    setReadError(null)
+    setReadLoading(true)
+    try {
+      const resp = await fetch(api.readEmailAloud(email.id))
+      if (!resp.ok) {
+        const errText = await resp.text()
+        let msg = 'ElevenLabs error'
+        try { msg = JSON.parse(errText).detail || errText } catch { msg = errText }
+        setReadError(msg.slice(0, 120))
+        return
+      }
+      const blob = await resp.blob()
+      if (audioBlobUrl.current) URL.revokeObjectURL(audioBlobUrl.current)
+      audioBlobUrl.current = URL.createObjectURL(blob)
+      const audio = new Audio(audioBlobUrl.current)
+      audio.onended = () => setPlaying(false)
+      audio.onerror = () => { setPlaying(false); setReadError('Audio playback failed') }
+      await audio.play()
+      setPlaying(true)
+      audioRef.current = audio
+    } catch (e) {
+      setReadError(e instanceof Error ? e.message : 'Failed to load audio')
+    } finally {
+      setReadLoading(false)
+    }
   }
 
   const handleTriggerAutopilot = async () => {
@@ -205,11 +228,14 @@ export function EmailTools({ email, translation, onClearTranslation, onOpenCompo
             className="text-xs text-green-600 hover:underline flex items-center gap-1 disabled:opacity-50">
             {extractingFinancials ? <><span className="animate-spin inline-block">⟳</span> Extracting…</> : '💰 Extract'}
           </button>
-          <button onClick={handleReadAloud}
-            title={playing ? 'Stop' : 'Read aloud (ElevenLabs)'}
-            className={`text-xs px-2 py-1 rounded border transition-colors ${playing ? 'border-red-200 bg-red-50 text-red-600' : 'border-gray-200 text-gray-500 hover:bg-gray-50 hover:border-accent'}`}>
-            {playing ? '⏹ Stop' : '🔊 Read'}
+          <button onClick={handleReadAloud} disabled={readLoading}
+            title={playing ? 'Stop reading' : 'Read aloud via ElevenLabs TTS'}
+            className={`text-xs px-2 py-1 rounded border transition-colors disabled:opacity-50 ${playing ? 'border-red-200 bg-red-50 text-red-600' : 'border-gray-200 text-gray-500 hover:bg-gray-50 hover:border-accent'}`}>
+            {readLoading ? <><span className="animate-spin inline-block">⟳</span> Loading…</> : playing ? '⏹ Stop' : '🔊 Read'}
           </button>
+          {readError && (
+            <span className="text-xs text-red-500 max-w-[200px] truncate" title={readError}>⚠ {readError}</span>
+          )}
           <button onClick={handleTriggerAutopilot} disabled={triggeringAutopilot}
             title="Trigger autopilot reply using your RAG knowledge base"
             className="text-xs text-blue-600 hover:underline flex items-center gap-1 disabled:opacity-50">

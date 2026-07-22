@@ -45,7 +45,7 @@ async def read_email(email_id: str, request: Request):
                 "POST",
                 f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/stream",
                 headers={"xi-api-key": api_key, "Content-Type": "application/json"},
-                json={"text": text[:2500], "model_id": "eleven_monolingual_v1",
+                json={"text": text[:2500], "model_id": "eleven_turbo_v2_5",
                       "voice_settings": {"stability": 0.5, "similarity_boost": 0.75}},
             ) as resp:
                 if resp.status_code != 200:
