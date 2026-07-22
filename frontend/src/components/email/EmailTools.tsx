@@ -135,10 +135,14 @@ export function EmailTools({ email, translation, onClearTranslation, onOpenCompo
       audioBlobUrl.current = URL.createObjectURL(blob)
       const audio = new Audio(audioBlobUrl.current)
       audio.onended = () => setPlaying(false)
-      audio.onerror = () => { setPlaying(false); setReadError('Audio playback failed') }
-      await audio.play()
-      setPlaying(true)
+      audio.onerror = () => { setPlaying(false); setReadError('Audio decode failed — check ElevenLabs key in Settings → AI') }
       audioRef.current = audio
+      try {
+        await audio.play()
+        setPlaying(true)
+      } catch {
+        setReadError('Playback blocked — check ElevenLabs key in Settings → AI tab')
+      }
     } catch (e) {
       setReadError(e instanceof Error ? e.message : 'Failed to load audio')
     } finally {

@@ -39,15 +39,21 @@ async def read_email(email_id: str, request: Request):
 
     voice_id = cfg.get("elevenlabs_voice_id", "21m00Tcm4TlvDq8ikWAM")  # default: Rachel
 
-    async with httpx.AsyncClient(timeout=30) as c:
+    async with httpx.AsyncClient(timeout=60) as c:
         resp = await c.post(
             f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
+            params={"output_format": "mp3_44100_128"},
             headers={"xi-api-key": api_key, "Content-Type": "application/json"},
             json={"text": text[:2500], "model_id": "eleven_turbo_v2_5",
                   "voice_settings": {"stability": 0.5, "similarity_boost": 0.75}},
         )
     if resp.status_code != 200:
         raise HTTPException(resp.status_code, resp.text[:300])
+    ct = resp.headers.get("content-type", "")
+    if not ct.startswith("audio/"):
+        raise HTTPException(502, f"ElevenLabs returned unexpected content: {resp.text[:200]}")
+    if len(resp.content) < 100:
+        raise HTTPException(502, "ElevenLabs returned empty audio — check your API key and voice ID")
     return Response(content=resp.content, media_type="audio/mpeg")
 
 
