@@ -653,7 +653,7 @@ export default function App() {
               className="text-[9px] font-bold tracking-widest uppercase select-none text-sidebar-text opacity-30"
               style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', letterSpacing: '0.2em' }}
             >
-              Cortex
+              Cortex Executive Inbox
             </span>
           </div>
           {/* Dashboard link */}
