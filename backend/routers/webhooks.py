@@ -53,7 +53,7 @@ async def test_webhook(req: WebhookTestRequest):
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "data": {
             "email_id": "test-001",
-            "subject": "Director Assistant webhook test",
+            "subject": "Cortex Executive Inbox webhook test",
             "sender": "system@director-assistant.local",
             "date": datetime.now(timezone.utc).isoformat(),
             "folder": "INBOX",

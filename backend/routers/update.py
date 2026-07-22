@@ -279,7 +279,7 @@ try {{
 
     # 8. Kill python/uvicorn processes
     $ErrorActionPreference = 'Continue'
-    taskkill /F /FI "WINDOWTITLE eq Director Assistant*" 2>$null | Out-Null
+    taskkill /F /FI "WINDOWTITLE eq Cortex Executive Inbox*" 2>$null | Out-Null
     taskkill /F /FI "IMAGENAME eq uvicorn.exe" 2>$null | Out-Null
     try {{
         Get-CimInstance Win32_Process -Filter "Name='python.exe' OR Name='python3.exe'" -ErrorAction Stop |
