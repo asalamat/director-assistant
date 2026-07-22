@@ -647,8 +647,17 @@ export default function App() {
               </button>
             )
           })}
+          {/* App name — vertical branding */}
+          <div className="mt-auto flex items-center justify-center py-2">
+            <span
+              className="text-[9px] font-bold tracking-widest uppercase select-none text-sidebar-text opacity-30"
+              style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', letterSpacing: '0.2em' }}
+            >
+              Cortex
+            </span>
+          </div>
           {/* Dashboard link */}
-          <div className="mt-auto pb-1">
+          <div className="pb-1">
             <a href="/api/dashboard" target="_blank" rel="noopener noreferrer" title="Executive Dashboard"
               className="relative w-11 h-11 rounded-xl flex items-center justify-center text-sidebar-text hover:text-sidebar-text-active hover:bg-sidebar-hover transition-all group">
               <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
