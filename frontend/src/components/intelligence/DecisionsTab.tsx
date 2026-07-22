@@ -63,8 +63,8 @@ export function DecisionsTab() {
   const ageColor = (n: number) =>
     n >= 7 ? 'text-red-600 bg-red-50' : n >= 3 ? 'text-amber-600 bg-amber-50' : 'text-gray-500 bg-gray-50'
 
-  const mine = decisions.filter(d => d.direction === 'mine')
-  const theirs = decisions.filter(d => d.direction === 'theirs')
+  const mine = decisions.filter(d => d.direction === 'mine' && !dismissed.has(d.id))
+  const theirs = decisions.filter(d => d.direction === 'theirs' && !dismissed.has(d.id))
 
   const Card = ({ d }: { d: Decision }) => (
     <div className="border border-gray-200 rounded-xl p-4 flex flex-col gap-2">
