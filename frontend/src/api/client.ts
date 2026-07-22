@@ -31,6 +31,11 @@ import type {
   CRMDealEmail,
   DbStats,
   AutopilotRule,
+  DraftScore,
+  Streak,
+  NegotiationRadar,
+  ResponseMemory,
+  ClientHealthScore,
 } from '../types'
 
 const BASE = '/api'
@@ -1595,6 +1600,27 @@ export const api = {
       body: JSON.stringify({ command_id: commandId }),
     })
   },
+
+  // Draft Quality Scorer
+  scoreDraft: (text: string): Promise<DraftScore> =>
+    request('/emails/score-draft', { method: 'POST', body: JSON.stringify({ draft: text }) }),
+
+  // Inbox Zero Streak
+  getStreak: (): Promise<Streak> => request('/streak'),
+  checkStreak: (inbox_count: number): Promise<Streak> =>
+    request('/streak/check', { method: 'POST', body: JSON.stringify({ inbox_count }) }),
+
+  // Negotiation Radar
+  negotiationRadar: (text: string): Promise<NegotiationRadar> =>
+    request('/emails/negotiation-radar', { method: 'POST', body: JSON.stringify({ text }) }),
+
+  // AI Response Memory
+  getResponseMemory: (sender: string): Promise<ResponseMemory> =>
+    request('/emails/response-memory?sender=' + encodeURIComponent(sender)),
+
+  // Client Health Score
+  getClientHealth: (emailAddr: string): Promise<ClientHealthScore> =>
+    request('/crm/health/' + encodeURIComponent(emailAddr)),
 
   getAutopilotRules: (): Promise<{ rules: AutopilotRule[] }> => request('/autopilot/rules'),
   addAutopilotRule: (data: { email_addr: string; display_name?: string; mode: string; prompt_hint?: string }): Promise<{ id: number; status: string }> =>

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import DOMPurify from 'dompurify'
-import type { EmailMessage } from '../../types'
+import type { EmailMessage, DraftScore } from '../../types'
 import { api } from '../../api/client'
 import { useEmailContext } from '../../contexts/EmailContext'
 import { ComposeSignaturePanel } from './ComposeSignaturePanel'
@@ -47,6 +47,10 @@ export function EmailCompose({
   const [draftingFromIdea, setDraftingFromIdea] = useState(false)
   const [addingCommitment, setAddingCommitment] = useState<string | null>(null)
   const [reviewing, setReviewing] = useState(false)
+  const [scoring, setScoring] = useState(false)
+  const [draftScore, setDraftScore] = useState<DraftScore | null>(null)
+  const [showSendLater, setShowSendLater] = useState(false)
+  const [sendLaterDate, setSendLaterDate] = useState('')
   const [dictating, setDictating] = useState(false)
   const dictChunksRef = useRef<Blob[]>([])
   const dictRecorderRef = useRef<MediaRecorder | null>(null)
@@ -270,6 +274,31 @@ export function EmailCompose({
       setReview(result)
     } catch { /* silent */ }
     setReviewing(false)
+  }
+
+  const handleScoreDraft = async () => {
+    if (!replyBody.trim() || scoring) return
+    setScoring(true)
+    setDraftScore(null)
+    try {
+      const result = await api.scoreDraft(replyBody)
+      setDraftScore(result)
+    } catch { /* silent */ }
+    setScoring(false)
+  }
+
+  const handleSendLater = async () => {
+    if (!sendLaterDate || !replyTo.trim()) return
+    try {
+      await api.scheduleSend({
+        to_addr: replyTo, subject: replySubject,
+        body: contentRef.current?.innerHTML || replyBody,
+        send_at: new Date(sendLaterDate).toISOString(),
+      })
+      setShowSendLater(false)
+      setSendLaterDate('')
+      onClose()
+    } catch { /* silent */ }
   }
 
   const startDictation = async () => {
@@ -547,14 +576,53 @@ export function EmailCompose({
           </div>
         )}
 
+        {/* Draft score panel */}
+        {draftScore && (
+          <div className="px-6 py-2 bg-gray-50 border-t border-gray-100 flex-shrink-0 space-y-1">
+            <div className="flex items-center justify-between">
+              <span className={`text-xs font-semibold ${draftScore.score >= 75 ? 'text-green-600' : draftScore.score >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
+                Draft score: {draftScore.score}/100
+              </span>
+              <button onClick={() => setDraftScore(null)} className="text-gray-400 hover:text-gray-600 text-xs">✕</button>
+            </div>
+            {draftScore.strengths.length > 0 && (
+              <p className="text-[10px] text-green-700">✓ {draftScore.strengths.join(' · ')}</p>
+            )}
+            {draftScore.suggestions.length > 0 && (
+              <p className="text-[10px] text-amber-700">⚠ {draftScore.suggestions.join(' · ')}</p>
+            )}
+          </div>
+        )}
+
+        {/* Send Later picker */}
+        {showSendLater && (
+          <div className="px-6 py-2 bg-gray-50 border-t border-gray-100 flex-shrink-0 flex items-center gap-2">
+            <input type="datetime-local" value={sendLaterDate} onChange={e => setSendLaterDate(e.target.value)}
+              className="text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent" />
+            <button onClick={handleSendLater} disabled={!sendLaterDate || !replyTo.trim()}
+              className="text-xs px-3 py-1 bg-accent text-white rounded-lg disabled:opacity-50 hover:bg-blue-700">
+              Schedule
+            </button>
+            <button onClick={() => setShowSendLater(false)} className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
+          </div>
+        )}
+
         {/* Sticky send footer */}
         <div className="px-6 py-3 border-t border-gray-100 bg-white flex items-center gap-2 justify-end flex-shrink-0">
           {sendMsg && (
             <span className={`text-xs ${sendMsg === 'Sent!' ? 'text-green-600' : 'text-red-500'}`}>{sendMsg}</span>
           )}
+          <button onClick={handleScoreDraft} disabled={scoring || !replyBody.trim()}
+            className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-600 disabled:opacity-50 transition-colors">
+            {scoring ? <><span className="animate-spin inline-block text-[10px]">⟳</span> Scoring…</> : '★ Score'}
+          </button>
           <button onClick={handleReview} disabled={reviewing || !replyBody.trim()}
             className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-600 disabled:opacity-50 transition-colors">
             {reviewing ? <><span className="animate-spin inline-block text-[10px]">⟳</span> Reviewing…</> : '🔍 Review'}
+          </button>
+          <button onClick={() => setShowSendLater(v => !v)} disabled={!replyTo.trim()}
+            className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-600 disabled:opacity-50 transition-colors">
+            Send Later
           </button>
           {undoCountdown !== null ? (
             <div className="flex items-center gap-2">

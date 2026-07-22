@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { api } from '../../api/client'
-import type { Person } from '../../types'
+import type { Person, ClientHealthScore } from '../../types'
 
 // ─── Contact heatmap ────────────────────────────────────────────────────────
 
@@ -177,6 +177,13 @@ export function PeopleTab() {
   const [editAnniversary, setEditAnniversary] = useState('')
   const [editId, setEditId] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
+  const [clientHealth, setClientHealth] = useState<Record<string, ClientHealthScore>>({})
+
+  const loadClientHealth = (email: string) => {
+    const key = email.toLowerCase()
+    if (clientHealth[key]) return
+    api.getClientHealth(key).then(h => setClientHealth(prev => ({ ...prev, [key]: h }))).catch(() => {})
+  }
 
   const refreshHints = () =>
     api.getContactHints().then(r => setHints(r.hints)).catch(() => {})
@@ -515,8 +522,22 @@ export function PeopleTab() {
                             onClick={() => setHeatmapEmail(isHeatmap ? null : p.email.toLowerCase())}
                             title={isHeatmap ? 'Hide activity heatmap' : 'Show 90-day activity heatmap'}
                             className="text-sm font-medium text-gray-800 truncate hover:text-accent transition-colors text-left"
+                            onMouseEnter={() => loadClientHealth(p.email)}
                           >{p.name}</button>
                           {isVIP && <span className="text-[10px] text-amber-500 font-semibold flex-shrink-0">VIP</span>}
+                          {(() => {
+                            const h = clientHealth[p.email.toLowerCase()]
+                            if (!h) return null
+                            const cls = h.score >= 75 ? 'bg-green-100 text-green-700' : h.score >= 50 ? 'bg-amber-100 text-amber-700' : h.score >= 25 ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700'
+                            return (
+                              <span
+                                className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 ${cls}`}
+                                title={`Response rate: ${Math.round(h.response_rate * 100)}% · Avg reply: ${h.avg_reply_hours != null ? h.avg_reply_hours.toFixed(1) + 'h' : 'n/a'} · ${h.total_emails} emails · Last: ${h.last_contact}`}
+                              >
+                                {h.score}
+                              </span>
+                            )
+                          })()}
                         </div>
                         <p className="text-xs text-gray-400 truncate">{p.email}</p>
                       </div>

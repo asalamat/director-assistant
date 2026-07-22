@@ -112,6 +112,101 @@ async def upcoming_occasions(request: Request, days: int = 7):
     return {"occasions": collect_occasions(cache, days)}
 
 
+@router.get("/health/{email_addr}")
+async def client_health(email_addr: str, request: Request):
+    """Relationship health score for a contact, computed from cached mail.
+
+    - total_emails:    inbound emails received from this sender
+    - response_rate:   fraction of their emails we replied to (0-1)
+    - avg_reply_hours: mean hours between their email and our next sent reply
+    - last_contact:    most recent inbound date
+    - recency_days:    days since last inbound
+    - score:           0-100 blended from recency + response rate + volume
+    """
+    from datetime import datetime as _dt, timezone as _tz
+
+    addr = (email_addr or "").strip().lower()
+    if not addr or "@" not in addr:
+        raise HTTPException(400, "valid email address required")
+
+    cache = request.app.state.cache
+    with cache._conn() as conn:
+        inbound = conn.execute(
+            "SELECT date FROM emails "
+            "WHERE LOWER(folder) NOT LIKE '%sent%' AND LOWER(sender) LIKE ? "
+            "ORDER BY date DESC",
+            (f"%{addr}%",),
+        ).fetchall()
+        sent = conn.execute(
+            "SELECT date FROM emails "
+            "WHERE LOWER(folder) LIKE '%sent%' AND LOWER(recipients) LIKE ? "
+            "ORDER BY date ASC",
+            (f"%{addr}%",),
+        ).fetchall()
+
+    total_emails = len(inbound)
+    sent_count = len(sent)
+
+    def _parse(d: str):
+        if not d:
+            return None
+        try:
+            return _dt.fromisoformat(d.replace("Z", "+00:00").split(".")[0].strip()[:19])
+        except (ValueError, TypeError):
+            return None
+
+    sent_times = sorted(t for t in (_parse(r["date"]) for r in sent) if t)
+
+    # For each inbound email, find our first sent reply after it → reply latency.
+    reply_gaps: list[float] = []
+    replied = 0
+    for r in inbound:
+        it = _parse(r["date"])
+        if not it:
+            continue
+        nxt = next((st for st in sent_times if st >= it), None)
+        if nxt:
+            replied += 1
+            reply_gaps.append((nxt - it).total_seconds() / 3600.0)
+
+    response_rate = round(replied / total_emails, 3) if total_emails else 0.0
+    avg_reply_hours = round(sum(reply_gaps) / len(reply_gaps), 1) if reply_gaps else None
+
+    last_dt = _parse(inbound[0]["date"]) if inbound else None
+    last_contact = inbound[0]["date"] if inbound else None
+    recency_days = None
+    if last_dt:
+        now = _dt.now(_tz.utc).replace(tzinfo=None)
+        recency_days = max(0, (now - last_dt).days)
+
+    # Blended 0-100 score.
+    if total_emails == 0:
+        score = 0
+    else:
+        # Recency: full marks within a week, decays to 0 by ~90 days.
+        if recency_days is None:
+            recency_score = 50.0
+        elif recency_days <= 7:
+            recency_score = 100.0
+        elif recency_days >= 90:
+            recency_score = 0.0
+        else:
+            recency_score = round(100.0 * (1 - (recency_days - 7) / 83.0), 1)
+        volume_score = min(100.0, total_emails * 10.0)
+        score = round(0.4 * recency_score + 0.4 * (response_rate * 100) + 0.2 * volume_score)
+
+    return {
+        "email": addr,
+        "score": int(max(0, min(100, score))),
+        "response_rate": response_rate,
+        "avg_reply_hours": avg_reply_hours,
+        "last_contact": last_contact,
+        "recency_days": recency_days,
+        "total_emails": total_emails,
+        "sent_to_them": sent_count,
+    }
+
+
 @router.get("/deals")
 async def list_deals(request: Request):
     cache = request.app.state.cache

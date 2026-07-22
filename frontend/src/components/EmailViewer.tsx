@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import DOMPurify from 'dompurify'
-import type { EmailMessage } from '../types'
+import type { EmailMessage, NegotiationSignal } from '../types'
 import { EmptyState, Spinner } from './ui'
 import { api } from '../api/client'
 import { EmailHeader } from './email/EmailHeader'
@@ -71,6 +71,9 @@ export function EmailViewer({ email, loading, fetchError, onAnalyze, analyzing, 
   const [expandedThreadIds, setExpandedThreadIds] = useState<Set<string>>(new Set())
   const [threadSummary, setThreadSummary] = useState<{summary: string; key_points: string[]; outcome: string; message_count: number} | null>(null)
   const [summarizingThread, setSummarizingThread] = useState(false)
+  const [radarOn, setRadarOn] = useState(false)
+  const [radarSignals, setRadarSignals] = useState<NegotiationSignal[]>([])
+  const [radarLoading, setRadarLoading] = useState(false)
 
   useEffect(() => {
     setShowCompose(false)
@@ -87,6 +90,9 @@ export function EmailViewer({ email, loading, fetchError, onAnalyze, analyzing, 
     setExpandedThreadIds(new Set())
     setThreadSummary(null)
     setSummarizingThread(false)
+    setRadarOn(false)
+    setRadarSignals([])
+    setRadarLoading(false)
     if (email?.id) {
       api.listAttachments(email.id).then(r => setAttachments(r.attachments)).catch(() => setAttachments([]))
       api.getEmailThread(email.id)
@@ -176,6 +182,19 @@ export function EmailViewer({ email, loading, fetchError, onAnalyze, analyzing, 
     } finally { setTranslating(false) }
   }
 
+  const handleRadarToggle = async () => {
+    if (!email) return
+    if (radarOn) { setRadarOn(false); return }
+    setRadarOn(true)
+    setRadarLoading(true)
+    setRadarSignals([])
+    try {
+      const r = await api.negotiationRadar(email.body || '')
+      setRadarSignals(r.signals)
+    } catch { /* silent */ }
+    setRadarLoading(false)
+  }
+
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center bg-white">
@@ -219,6 +238,43 @@ export function EmailViewer({ email, loading, fetchError, onAnalyze, analyzing, 
         onArchive={handleArchive}
         onRuleAdded={() => setTimeout(() => mergeRefresh(), 600)}
       />
+
+      {/* Negotiation Radar toggle + signals */}
+      <div className="px-6 pt-2 pb-0 flex-shrink-0">
+        <button
+          onClick={handleRadarToggle}
+          disabled={radarLoading}
+          className={`text-[10px] font-medium px-2.5 py-0.5 rounded-full border transition-colors ${
+            radarOn ? 'bg-amber-100 text-amber-700 border-amber-300' : 'text-gray-500 border-gray-200 hover:bg-gray-50'
+          }`}
+        >
+          {radarLoading ? '…' : radarOn ? '📡 Radar On' : '📡 Negotiation Radar'}
+        </button>
+        {radarOn && radarSignals.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-1.5">
+            {radarSignals.map((s, i) => {
+              const colorMap: Record<string, string> = {
+                price: 'bg-green-100 text-green-700 border-green-200',
+                deadline: 'bg-amber-100 text-amber-700 border-amber-200',
+                commitment: 'bg-blue-100 text-blue-700 border-blue-200',
+                concession: 'bg-purple-100 text-purple-700 border-purple-200',
+                risk: 'bg-red-100 text-red-700 border-red-200',
+              }
+              const cls = colorMap[s.type] ?? 'bg-gray-100 text-gray-600 border-gray-200'
+              const weight = s.importance === 'high' ? 'font-semibold' : s.importance === 'medium' ? 'font-medium' : 'font-normal'
+              return (
+                <span key={i} title={`${s.type} · ${s.importance}`}
+                  className={`text-[10px] px-2 py-0.5 rounded-full border ${cls} ${weight}`}>
+                  {s.phrase}
+                </span>
+              )
+            })}
+          </div>
+        )}
+        {radarOn && !radarLoading && radarSignals.length === 0 && (
+          <p className="text-[10px] text-gray-400 mt-1">No negotiation signals detected.</p>
+        )}
+      </div>
 
       {thread.length > 0 && (
         <div className="px-6 pt-4 pb-0 space-y-1 flex-shrink-0">

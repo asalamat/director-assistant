@@ -528,3 +528,48 @@ export interface AutopilotRule {
   prompt_hint: string
   created_at: string
 }
+
+export interface DraftScore {
+  score: number
+  suggestions: string[]
+  strengths: string[]
+}
+
+export interface Streak {
+  current: number
+  longest: number
+  last_zero: string | null
+}
+
+export interface NegotiationSignal {
+  phrase: string
+  type: 'price' | 'deadline' | 'commitment' | 'concession' | 'risk'
+  importance: 'low' | 'medium' | 'high'
+}
+
+export interface NegotiationRadar {
+  signals: NegotiationSignal[]
+}
+
+export interface PastReply {
+  subject: string
+  snippet: string
+  date: string
+}
+
+export interface ResponseMemory {
+  snippets: PastReply[]
+  suggested_opener: string
+  total: number
+}
+
+export interface ClientHealthScore {
+  email: string
+  score: number
+  response_rate: number
+  avg_reply_hours: number | null
+  last_contact: string
+  recency_days: number | null
+  total_emails: number
+  sent_to_them: number
+}

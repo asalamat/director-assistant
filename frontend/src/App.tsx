@@ -26,7 +26,7 @@ import { useRecommendation } from './hooks/useEmails'
 import { useEmailContext } from './contexts/EmailContext'
 import { useUIContext, type Tab } from './contexts/UIContext'
 import { api } from './api/client'
-import type { EmailSummary, AutopilotRule } from './types'
+import type { EmailSummary, AutopilotRule, Streak } from './types'
 import { OnboardingWizard } from './components/OnboardingWizard'
 
 // Simple SVG icons
@@ -143,6 +143,7 @@ export default function App() {
   const [autopilotActive, setAutopilotActive] = useState(false)
   const [autopilotPing, setAutopilotPing] = useState(false)
   const [autopilotRules, setAutopilotRules] = useState<AutopilotRule[]>([])
+  const [streak, setStreak] = useState<Streak | null>(null)
   const [importPrompt, setImportPrompt] = useState(false)
   const [importSubject, setImportSubject] = useState('')
   const [importing, setImporting] = useState(false)
@@ -197,6 +198,7 @@ export default function App() {
         setShowOnboarding(true)
       }
     }).catch(() => {})
+    api.getStreak().then(setStreak).catch(() => {})
     // Handle ?email=ID deep-link from dashboard
     const params = new URLSearchParams(window.location.search)
     const deepEmail = params.get('email')
@@ -221,6 +223,13 @@ export default function App() {
   // Feature 5: dock badge
   useEffect(() => {
     api.setDockBadge(unreadCount).catch(() => {})
+  }, [unreadCount])
+
+  // Inbox Zero Streak — check when unread count changes
+  useEffect(() => {
+    if (unreadCount === 0) {
+      api.checkStreak(0).then(setStreak).catch(() => {})
+    }
   }, [unreadCount])
 
   // Browser tab title — show unread count when tab is in background
@@ -512,6 +521,14 @@ export default function App() {
             >
               {overdueCount} overdue
             </button>
+          )}
+          {streak && streak.current > 0 && (
+            <span
+              title={`Longest streak: ${streak.longest} day${streak.longest !== 1 ? 's' : ''}`}
+              className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-orange-500/20 text-orange-300 border border-orange-500/30 select-none"
+            >
+              🔥 {streak.current} day{streak.current !== 1 ? 's' : ''}
+            </span>
           )}
           {refreshMsg && <span className="text-xs text-slate-400 animate-fade-in">{refreshMsg}</span>}
           {autopilotActive && (

@@ -52,6 +52,104 @@ class RewriteOptionsRequest(BaseModel):
 
 
 
+class ScoreDraftRequest(BaseModel):
+    draft: str = Field(max_length=8000)
+    context: str = Field(default="", max_length=8000)
+
+
+class ScheduleSendRequest(BaseModel):
+    account_id: int = 0
+    to_addr: str
+    subject: str
+    body: str = ""
+    send_at: str  # ISO datetime, e.g. "2026-07-25T09:00:00"
+
+
+class NegotiationRadarRequest(BaseModel):
+    text: str = Field(max_length=8000)
+
+
+@router.post("/score-draft")
+async def score_draft(req: ScoreDraftRequest, request: Request):
+    """Score a draft reply 1-100 with suggestions and strengths."""
+    from services.email_intelligence import score_draft as _score
+    if not req.draft.strip():
+        raise HTTPException(400, "draft required")
+    advisor = request.app.state.advisor
+    try:
+        return await _score(advisor, req.draft, req.context)
+    except Exception as e:
+        raise HTTPException(500, _safe_err(e, "Draft scoring"))
+
+
+@router.post("/schedule-send")
+async def schedule_send(req: ScheduleSendRequest, request: Request):
+    """Queue an email to be sent at a future time.
+
+    Thin alias over the shared `scheduled_sends` table + `_scheduled_send_loop`.
+    Canonical list/cancel remain on /api/scheduled-sends.
+    """
+    if not req.to_addr.strip() or not req.subject.strip():
+        raise HTTPException(400, "to_addr and subject required")
+    if not req.send_at.strip():
+        raise HTTPException(400, "send_at required")
+    sid = request.app.state.cache.schedule_send(
+        req.account_id, req.to_addr, req.subject, req.body, req.send_at
+    )
+    return {"id": sid, "send_at": req.send_at, "status": "scheduled"}
+
+
+@router.post("/negotiation-radar")
+async def negotiation_radar(req: NegotiationRadarRequest, request: Request):
+    """Extract price/deadline/commitment/concession/risk signals from email text."""
+    from services.email_intelligence import negotiation_radar as _radar
+    if not req.text.strip():
+        raise HTTPException(400, "text required")
+    advisor = request.app.state.advisor
+    try:
+        signals = await _radar(advisor, req.text)
+    except Exception as e:
+        raise HTTPException(500, _safe_err(e, "Negotiation radar"))
+    return {"signals": signals, "total": len(signals)}
+
+
+@router.get("/response-memory")
+async def response_memory(request: Request, sender: str = ""):
+    """Return the last 3 sent-email snippets to a sender + an AI-suggested opener."""
+    from services.email_intelligence import suggested_opener as _opener
+    sender = (sender or "").strip()
+    if not sender:
+        raise HTTPException(400, "sender required")
+
+    cache: EmailCache = request.app.state.cache
+    advisor = request.app.state.advisor
+    with cache._conn() as conn:
+        rows = conn.execute(
+            "SELECT subject, date, body FROM emails "
+            "WHERE LOWER(folder) LIKE '%sent%' AND LOWER(recipients) LIKE ? "
+            "ORDER BY date DESC LIMIT 3",
+            (f"%{sender.lower()}%",),
+        ).fetchall()
+
+    snippets = []
+    for r in rows:
+        body = (r["body"] or "").strip().replace("\n", " ")
+        snippets.append({
+            "subject": r["subject"] or "",
+            "date": r["date"] or "",
+            "snippet": body[:300],
+        })
+
+    opener = ""
+    if snippets:
+        try:
+            opener = await _opener(advisor, sender, [s["snippet"] for s in snippets])
+        except Exception:
+            opener = ""
+    return {"sender": sender, "snippets": snippets, "suggested_opener": opener,
+            "total": len(snippets)}
+
+
 @router.post("/topic-cluster")
 async def topic_cluster(request: Request):
     """Find emails related to a topic query — semantic clustering."""

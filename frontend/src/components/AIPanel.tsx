@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { api } from '../api/client'
-import type { AIRecommendation, EmailMessage } from '../types'
+import type { AIRecommendation, EmailMessage, PastReply } from '../types'
 
 interface Props {
   rec: AIRecommendation | null
@@ -47,6 +47,10 @@ export function AIPanel({ rec, loading, error, email }: Props) {
     total_emails: number; first_contact: string | null; last_contact: string | null; recent_subjects: string[]
   } | null>(null)
   const [loadingSender, setLoadingSender] = useState(false)
+  const [memoryOpen, setMemoryOpen] = useState(false)
+  const [memory, setMemory] = useState<{ snippets: PastReply[]; suggested_opener: string } | null>(null)
+  const [memoryLoading, setMemoryLoading] = useState(false)
+  const [memoryCopied, setMemoryCopied] = useState(false)
 
   const copy = (text: string, idx: number) => {
     navigator.clipboard.writeText(text)
@@ -137,6 +141,26 @@ export function AIPanel({ rec, loading, error, email }: Props) {
     } finally {
       setLoadingSender(false)
     }
+  }
+
+  const toggleMemory = async () => {
+    if (memoryOpen) { setMemoryOpen(false); return }
+    setMemoryOpen(true)
+    if (memory || !email) return
+    setMemoryLoading(true)
+    try {
+      const senderAddr = email.sender.match(/<(.+?)>/)?.[1] ?? email.sender
+      const r = await api.getResponseMemory(senderAddr)
+      setMemory(r)
+    } catch { setMemory({ snippets: [], suggested_opener: '' }) }
+    setMemoryLoading(false)
+  }
+
+  const copyOpener = () => {
+    if (!memory?.suggested_opener) return
+    navigator.clipboard.writeText(memory.suggested_opener)
+    setMemoryCopied(true)
+    setTimeout(() => setMemoryCopied(false), 1500)
   }
 
   if (loading) {
@@ -353,6 +377,38 @@ export function AIPanel({ rec, loading, error, email }: Props) {
             </button>
           </div>
           {senderStats && <SenderStatsCard sender={email.sender} stats={senderStats} />}
+        </Section>
+      )}
+
+      {/* AI Response Memory */}
+      {email && (
+        <Section title="Your past replies">
+          <button onClick={toggleMemory} className="text-xs text-accent hover:underline">
+            {memoryOpen ? 'Collapse' : 'Expand'}
+          </button>
+          {memoryOpen && (
+            <div className="mt-2 space-y-2">
+              {memoryLoading && <p className="text-xs text-gray-400">Loading…</p>}
+              {memory?.suggested_opener && (
+                <div className="bg-blue-50 border border-blue-100 rounded-lg p-2">
+                  <p className="text-[10px] text-blue-500 font-semibold mb-1">Suggested opener</p>
+                  <p className="text-xs text-gray-700 leading-relaxed">{memory.suggested_opener}</p>
+                  <button onClick={copyOpener} className="text-[10px] text-accent hover:underline mt-1">
+                    {memoryCopied ? '✓ Copied' : 'Copy'}
+                  </button>
+                </div>
+              )}
+              {memory?.snippets.length === 0 && !memoryLoading && (
+                <p className="text-xs text-gray-400">No past replies found.</p>
+              )}
+              {memory?.snippets.map((r, i) => (
+                <div key={i} className="bg-white border border-gray-200 rounded-lg p-2">
+                  <p className="text-xs font-medium text-gray-800 truncate">{r.subject}</p>
+                  <p className="text-[10px] text-gray-500 mt-0.5 leading-relaxed line-clamp-2">{r.snippet}</p>
+                </div>
+              ))}
+            </div>
+          )}
         </Section>
       )}
 

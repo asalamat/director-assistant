@@ -234,6 +234,13 @@ class EmailCache(EmailExtrasMixin, DocumentCacheMixin):
                 )
             """)
             conn.execute("""
+                CREATE TABLE IF NOT EXISTS inbox_streak (
+                    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+                    date     TEXT UNIQUE NOT NULL,
+                    is_zero  INTEGER DEFAULT 0
+                )
+            """)
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS vip_contacts (
                     id         INTEGER PRIMARY KEY AUTOINCREMENT,
                     email_addr TEXT NOT NULL UNIQUE,
@@ -830,3 +837,28 @@ class EmailCache(EmailExtrasMixin, DocumentCacheMixin):
                 (email_addr.strip(),),
             ).fetchone()
             return dict(row) if row else None
+
+    # ── Scheduled sends ─────────────────────────────────────────────────────
+    def schedule_send(self, account_id: int, to_addr: str, subject: str,
+                      body: str, send_at: str) -> int:
+        with self._conn() as conn:
+            cur = conn.execute(
+                "INSERT INTO scheduled_sends (account_id, to_addr, subject, body, send_at) "
+                "VALUES (?,?,?,?,?)",
+                (int(account_id or 0), to_addr, subject, body, send_at),
+            )
+            return cur.lastrowid
+
+    def list_scheduled_sends(self, sent: bool = False) -> list[dict]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT id, account_id, to_addr, subject, body, send_at, sent, created_at "
+                "FROM scheduled_sends WHERE sent = ? ORDER BY send_at",
+                (1 if sent else 0,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def cancel_scheduled_send(self, send_id: int) -> bool:
+        with self._conn() as conn:
+            cur = conn.execute("DELETE FROM scheduled_sends WHERE id = ?", (int(send_id),))
+        return cur.rowcount > 0
