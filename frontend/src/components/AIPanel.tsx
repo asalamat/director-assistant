@@ -22,6 +22,17 @@ const TONE_ICON: Record<string, string> = {
 
 const LABELS = ['Brief', 'Professional', 'Detailed']
 
+function SignalBars({ level }: { level: 'low' | 'medium' | 'high' }) {
+  const color = level === 'high' ? '#16a34a' : level === 'medium' ? '#ca8a04' : '#9ca3af'
+  return (
+    <svg width="14" height="10" viewBox="0 0 14 10" aria-hidden="true" style={{ display: 'inline', verticalAlign: 'middle' }}>
+      <rect x="0" y="7" width="3" height="3" rx="0.5" fill={color} />
+      <rect x="5" y="4" width="3" height="6" rx="0.5" fill={level === 'medium' || level === 'high' ? color : '#e5e7eb'} />
+      <rect x="10" y="1" width="3" height="9" rx="0.5" fill={level === 'high' ? color : '#e5e7eb'} />
+    </svg>
+  )
+}
+
 export function AIPanel({ rec, loading, error, email }: Props) {
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
   const [draftIdx, setDraftIdx] = useState<number | null>(null)
@@ -175,6 +186,20 @@ export function AIPanel({ rec, loading, error, email }: Props) {
         <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 animate-pop" style={{ animationDelay: '60ms' }}>
           {TONE_ICON[rec.tone] ?? '📄'} {rec.tone}
         </span>
+        {(() => {
+          const level = rec.similar_emails.length >= 3 ? 'high' : rec.similar_emails.length >= 1 ? 'medium' : 'low'
+          const label = level === 'high' ? 'High confidence' : level === 'medium' ? 'Med confidence' : 'Low confidence'
+          return (
+            <span
+              className="flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full bg-gray-100 text-gray-600 animate-pop"
+              style={{ animationDelay: '120ms' }}
+              title={`AI confidence: ${level} (${rec.similar_emails.length} similar emails found in your knowledge base)`}
+            >
+              <SignalBars level={level} />
+              {label}
+            </span>
+          )
+        })()}
         <button
           onClick={() => setShowFollowUp(true)}
           className="ml-auto text-xs border border-gray-300 text-gray-600 px-2 py-0.5 rounded hover:bg-gray-100"

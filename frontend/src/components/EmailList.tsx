@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { CATEGORY_LABELS } from '../types'
 import type { EmailSummary, EmailThread, AutopilotRule } from '../types'
 import type { SortBy, SortOrder } from '../hooks/useEmails'
@@ -56,6 +56,11 @@ interface Props {
   onCategoryChange?: (cat: string | null) => void
   onFilterChange?: (filters: FilterState) => void
   autopilotRules?: AutopilotRule[]
+}
+
+function normalizeSender(sender: string): string {
+  const m = sender.match(/<([^>]+)>/)
+  return (m ? m[1] : sender).toLowerCase().trim()
 }
 
 function isNewEmail(dateStr: string | null): boolean {
@@ -137,6 +142,15 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
   const [virtualFolder, setVirtualFolder] = useState<'snoozed' | 'set-aside' | null>(null)
   const [threads, setThreads] = useState<EmailThread[]>([])
   const [threadsLoading, setThreadsLoading] = useState(false)
+  const senderFreq = useMemo(() => {
+    const freq: Record<string, number> = {}
+    for (const e of emails) {
+      const key = normalizeSender(e.sender)
+      freq[key] = (freq[key] ?? 0) + 1
+    }
+    return freq
+  }, [emails])
+
   const sentinelRef = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
   const [hoverSummary, setHoverSummary] = useState<Record<string, string>>({})
@@ -982,6 +996,12 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
                       <span className={`text-sm truncate ${!email.is_read ? 'font-bold text-gray-900' : 'text-gray-700'}`}>
                         {email.sender.replace(/<[^>]+>/, '').trim() || email.sender}
                       </span>
+                      {(() => {
+                        const count = senderFreq[normalizeSender(email.sender)] ?? 0
+                        if (count >= 5) return <span className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-green-400" title={`${count} emails from this sender`} />
+                        if (count >= 2) return <span className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-yellow-400" title={`${count} emails from this sender`} />
+                        return null
+                      })()}
                       {isSentFolder && (() => {
                         const opens = (email.recipients ?? []).reduce((n: number, r: string) => n + (receipts[extractEmail(r)] || 0), 0)
                         return opens > 0 ? (
@@ -996,7 +1016,7 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
                     </div>
                     <span className="flex items-center gap-1 flex-shrink-0">
                       {email.preview && (
-                        <span className="text-[10px] text-gray-300">
+                        <span className="text-[10px] text-gray-400" title="Estimated read time">
                           ~{Math.max(1, Math.round((email.preview.split(' ').length * 5) / 200))}m
                         </span>
                       )}
