@@ -1,16 +1,28 @@
-# Director Assistant
+# Cortex Executive Inbox
 
-> **Your AI-powered executive email intelligence platform.** Connects to Gmail, Microsoft 365, Yahoo, or any IMAP mailbox and uses Claude AI to help you triage faster, never miss a commitment, and stay on top of every relationship that matters.
+> **AI-powered executive email intelligence — built for leaders who can't afford to miss what matters.** Connects to Gmail, Microsoft 365, Yahoo, or any IMAP mailbox and uses Claude AI (or any compatible provider) to triage faster, never miss a commitment, and stay on top of every relationship that matters.
 
-**Current version: 3.66.11** · [Releases](https://github.com/asalamat/director-assistant/releases) · MIT License
+**Current version: 3.67.2** · [Releases](https://github.com/asalamat/director-assistant/releases) · MIT License
+
+![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-blue) ![License](https://img.shields.io/badge/license-MIT-green) ![AI](https://img.shields.io/badge/AI-Claude%20%7C%20GPT%20%7C%20Gemini%20%7C%20Groq%20%7C%20Ollama-purple)
 
 ---
 
 ## What it does
 
-Director Assistant sits alongside your email client and turns raw email volume into structured intelligence — surfacing what needs your attention, drafting replies in your voice, tracking commitments automatically, and giving you a weekly executive brief that would otherwise take hours to compile.
+**Cortex Executive Inbox** is a local-first AI email assistant designed for executives, founders, and professionals who deal with high email volume. It sits alongside your existing mail client and transforms raw email into structured intelligence.
 
-Everything runs **locally on your machine**. Your emails never leave your device except for AI queries (which are sent to Anthropic or OpenAI over encrypted connections).
+| What you get | How |
+|---|---|
+| **Priority triage** | AI scores every unread email by 7 urgency signals; top items surface in the Focus tab with score badges |
+| **Zero-delay mark-as-read** | Click an email — it instantly clears from the unread list with no server round-trip |
+| **AI drafts in your voice** | Smart Draft learns your writing style from sent mail; one click creates a ready-to-send reply |
+| **Commitment tracking** | Every thread is scanned for "you owe / they owe" promises; overdue items show a badge |
+| **Relationship health** | Sender heatmap, VIP tracking, Escalation Radar, and Client Health Score (0–100) keep you current on every relationship |
+| **Weekly executive brief** | One-click summary: decisions made, who you're waiting on, relationships to nurture, upcoming deadlines |
+| **Multi-provider AI** | Works with Claude, ChatGPT, Gemini, Groq, Ollama (local), Kimi, or any OpenAI-compatible endpoint |
+
+Everything runs **locally on your machine**. Emails are stored in a local SQLite database. Only AI queries leave the device, sent over encrypted HTTPS to the provider you configure — nothing goes to any Cortex or third-party server.
 
 ---
 
@@ -141,6 +153,28 @@ Everything runs **locally on your machine**. Your emails never leave your device
 - **Calendar Event Creator** — pre-filled event form on any email; creates directly in Microsoft Calendar via Graph API
 - **Meeting Prep Brief** — click any calendar event in the Dashboard for an AI-generated agenda, talking points, and prior email context from all attendees
 - **Scheduled Send** — compose now, schedule delivery for any future date and time
+
+### New Features (v3.66.28–v3.67.2 — 2026-07-22)
+
+#### Visual & UX Improvements
+- **🟢 Sender Relationship Heatmap** — a colour dot appears next to each sender name in the email list: **green** = 5+ emails from this sender (established relationship), **yellow** = 2–4 emails (growing), no dot = first-contact. Zero AI cost — computed from the loaded email list
+- **📶 AI Confidence Signal Bars** — the AI recommendation panel now shows a 3-bar signal icon (green = high, amber = medium, grey = low) next to each recommendation, indicating how many similar past emails informed the suggestion
+- **🌑 Dark Charcoal Toolbar** — the top toolbar now uses a dark slate theme for a cleaner, more professional look and reduced eye strain in low-light environments
+- **🎯 Thread Summary Hover Card** — upgraded to a dark-theme card (`bg-slate-800` with white text) for high contrast against any background; was previously a light card that was hard to read on dark or busy backgrounds
+- **🚀 Instant Mark-as-Read** — clicking an email or using bulk "Mark read" now **instantly** removes the bold text and amber highlight from the email row — no more 1-second delay waiting for the server round-trip. Unread count badge also updates immediately
+- **🧙 First-Run Onboarding Wizard** — new users see a 3-step setup guide (Connect Email → Add AI Provider → Done) the first time they open the app, replacing the blank-screen experience
+
+#### New Features
+- **⭐ Draft Quality Scorer** — click "★ Score" in the compose window to score your draft 0–100 across clarity, tone, and completeness; highlights strengths and up to 3 improvement suggestions; colour-coded (green ≥ 70, amber ≥ 40, red < 40)
+- **⏰ Schedule Send** — "Send Later" button in compose opens a date-time picker; email is queued and sent at the chosen time even if the app is minimised
+- **🔥 Inbox Zero Streak** — the toolbar shows a fire badge counting consecutive days you cleared your unread count to zero; milestone tracker motivates sustained inbox discipline
+- **🎯 Negotiation Radar** — an "⚡ Signals" toggle in the email viewer analyses the thread for negotiation-relevant phrases, tagged as: Price, Deadline, Commitment, Concession, or Risk — each with colour-coded chips and importance rating
+- **📬 AI Response Memory** — the AI panel now includes a "Your past replies" section; collapsed by default, it surfaces your 5 most relevant previous replies to the same sender and suggests an opener based on your relationship history
+- **💼 Client Health Score** — hover any contact in Knowledge → People Graph to see a lazy-loaded health score (0–100) combining response rate, reply speed, recency, and sent-to-received ratio; colour-coded green/amber/red
+
+#### Bug Fixes
+- **Fix: Decision Tracker Dismiss** — clicking "Dismiss" on a decision card now immediately removes it from the list; previously the dismissed state was saved to localStorage but the card never disappeared from the render
+- **Fix: Bulk mark-read** — the "Mark read" action in the selection toolbar now works reliably with optimistic UI update; previously the API call succeeded but the list appeared unchanged until the next refresh
 
 ### New Features (v3.66.11 — 2026-07-20)
 - **📎 File Attachments** — reply and forward compose now has an **Attach** button; pick one or more files from disk; each appears as a chip with a remove button; all attachments sent via SMTP as standard MIME mixed/base64 email attachments

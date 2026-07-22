@@ -315,8 +315,9 @@ export default function App() {
   const handleSelect = (summary: EmailSummary) => {
     selectEmail(summary)
     setActiveTab('inbox')
-    // Mark as read + refresh list so bold/unread indicator clears
     if (!summary.is_read) {
+      markEmailsRead([summary.id])  // instant visual update
+      setUnreadCount(Math.max(0, unreadCount - 1))
       api.markEmailRead(summary.id).catch(() => {})
     }
     setTimeout(() => mergeRefresh(), 1000)
