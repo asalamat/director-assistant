@@ -476,7 +476,6 @@ export function Settings({ onConnected, initialTab }: Props) {
             <div className="space-y-6">
               <SectionHeader title="App Settings" desc="AI providers, polling, display preferences, and smart triage rules." icon={<IconCog />} />
               <ConfigPanel />
-              <VoiceDraftPanel />
               <TriageRulesPanel />
             </div>
           )}
@@ -490,7 +489,12 @@ export function Settings({ onConnected, initialTab }: Props) {
           )}
 
           {/* Writing Style */}
-          {section === 'style' && <WritingStyleSection />}
+          {section === 'style' && (
+            <div className="space-y-6">
+              <WritingStyleSection />
+              <VoiceDraftPanel />
+            </div>
+          )}
           {section === 'autopilot' && <AutopilotSection />}
 
           {/* Integrations */}
