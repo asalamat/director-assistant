@@ -71,7 +71,7 @@ def _callback_page(success: bool, username: str = "", message: str = "") -> str:
 </div>"""
 
     return f"""<!DOCTYPE html><html><head><meta charset="utf-8">
-<title>Director Assistant — Microsoft Sign-in</title></head>
+<title>Cortex Executive Inbox — Microsoft Sign-in</title></head>
 <body style="margin:0;background:#f9fafb">{body}
 <script>
 var data = {data};
@@ -458,7 +458,7 @@ async def auto_setup_microsoft_app(request: Request):
     else:
         # Create new app via Graph API
         body = _j.dumps({
-            "displayName": "Director Assistant",
+            "displayName": "Cortex Executive Inbox",
             "signInAudience": "PersonalMicrosoftAccount",
             "isFallbackPublicClient": True,
             "publicClient": {"redirectUris": [_REDIRECT_URI]},

@@ -293,7 +293,7 @@ async def send_brief_now(request: Request):
     events = await get_today_events(cache)
 
     lines = [
-        f"Director Assistant — Morning Brief",
+        f"Cortex Executive Inbox — Morning Brief",
         f"{now.strftime('%A, %B %-d, %Y')}",
         "=" * 42, "",
     ]
@@ -309,7 +309,7 @@ async def send_brief_now(request: Request):
         lines += ["🤝 OPEN COMMITMENTS:"] + [f"  • {c['description']}" for c in commitments[:5]] + [""]
     if projects:
         lines += ["📁 ACTIVE PROJECTS:"] + [f"  • {p['name']} — {p['status']}" for p in projects[:5]] + [""]
-    lines += ["---", "Sent by Director Assistant"]
+    lines += ["---", "Sent by Cortex Executive Inbox"]
 
     msg = MIMEMultipart()
     msg["From"] = smtp_acc.username

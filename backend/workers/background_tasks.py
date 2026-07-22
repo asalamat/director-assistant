@@ -587,7 +587,7 @@ async def daily_focus_task(app) -> None:
                     pass
 
             lines = [
-                f"Director Assistant — Daily Focus",
+                f"Cortex Executive Inbox — Daily Focus",
                 f"{'=' * 40}",
                 "",
             ]
@@ -607,7 +607,7 @@ async def daily_focus_task(app) -> None:
             lines.append(f"OPEN LOOPS: {open_loops_count} threads waiting on action")
             lines.append("")
             lines.append("---")
-            lines.append("Sent by Director Assistant")
+            lines.append("Sent by Cortex Executive Inbox")
 
             body_text = "\n".join(lines)
             subject = f"Daily Focus — {_date.today().strftime('%A, %B %d')}"

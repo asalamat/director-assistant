@@ -661,7 +661,7 @@ def render_dashboard(d: dict) -> str:
 <div class="wrap">
   <div class="hdr">
     <div class="hdr-left">
-      <h1>Director Assistant — Executive Brief</h1>
+      <h1>Cortex Executive Inbox — Executive Brief</h1>
       <div class="sub">{_e(gen_at)}</div>
       <div class="hint">Click any item to see full detail · <a href="/">← Back to App</a></div>
     </div>
@@ -727,7 +727,7 @@ def render_dashboard(d: dict) -> str:
   {_section("📈 Email Volume — Last 7 Days", _bar_chart(vol[-7:] if vol else [], "date", "count"))}
 
   <div class="footer">
-    Director Assistant · <a href="/api/dashboard">Refresh</a> ·
+    Cortex Executive Inbox · <a href="/api/dashboard">Refresh</a> ·
     Auto-refreshes every 30 min · Next in <span id="countdown2"></span>
     <script>
       document.getElementById('countdown2').textContent =
@@ -754,7 +754,7 @@ def render_dashboard(d: dict) -> str:
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Director Assistant — Dashboard</title>
+<title>Cortex Executive Inbox — Dashboard</title>
 <style>{_CSS}</style>
 </head>
 <body>{body}<script>{_JS}</script></body>

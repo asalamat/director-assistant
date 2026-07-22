@@ -155,7 +155,7 @@ export function PSTImport() {
       <div>
         <h2 className="text-base font-semibold text-gray-800">Import Email Archive</h2>
         <p className="text-xs text-gray-400 mt-0.5">
-          Import emails from an Outlook archive into Director Assistant. All emails will be searchable and available for AI analysis.
+          Import emails from an Outlook archive into Cortex Executive Inbox. All emails will be searchable and available for AI analysis.
         </p>
         {/* Format support badges */}
         <div className="flex gap-2 mt-2">

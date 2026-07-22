@@ -19,7 +19,7 @@ function HelpBox({ section }: { section: HelpSection }) {
       steps: [
         'Sign in at login.yahoo.com',
         'Go to Account Security → Generate app password',
-        'Select "Other app" → type "Director Assistant"',
+        'Select "Other app" → type "Cortex Executive Inbox"',
         'Copy the 16-character password shown — use it as your password here',
         'IMAP is enabled automatically for Yahoo accounts',
       ],
@@ -48,7 +48,7 @@ function HelpBox({ section }: { section: HelpSection }) {
       title: 'Office 365 — Azure App Registration',
       steps: [
         'Go to portal.azure.com → Azure Active Directory → App registrations',
-        'Click "New registration" → name it "Director Assistant"',
+        'Click "New registration" → name it "Cortex Executive Inbox"',
         'Under Authentication, add platform "Mobile and desktop" with redirect URI http://localhost',
         'Under API permissions → Add → Microsoft Graph → Mail.Read (Delegated)',
         'Grant admin consent if required by your org',

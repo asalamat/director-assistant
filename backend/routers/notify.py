@@ -116,7 +116,7 @@ async def test_slack(request: Request):
 
     result = await post_to_slack(
         webhook_url=url,
-        title="✅ Director Assistant connected to Slack",
+        title="✅ Cortex Executive Inbox connected to Slack",
         sender="system@director-assistant.local",
         subject="Connection test",
         date="Now",
@@ -137,7 +137,7 @@ async def test_teams(request: Request):
 
     result = await post_to_teams(
         webhook_url=url,
-        title="✅ Director Assistant connected to Teams",
+        title="✅ Cortex Executive Inbox connected to Teams",
         sender="system@director-assistant.local",
         subject="Connection test",
         date="Now",

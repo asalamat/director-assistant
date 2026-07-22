@@ -142,14 +142,14 @@ _SECTIONS = [
 
 
 def _brief_to_text_html(brief: dict) -> tuple[str, str]:
-    lines = ["Director Assistant — Weekly Brief", "=" * 40, ""]
+    lines = ["Cortex Executive Inbox — Weekly Brief", "=" * 40, ""]
     period = brief.get("period") or brief.get("since") or ""
     if period:
         lines.append(f"Period: {period}")
         lines.append("")
 
     html_body = '<html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#1f2937">'
-    html_body += '<h2 style="color:#1d4ed8">Director Assistant — Weekly Brief</h2>'
+    html_body += '<h2 style="color:#1d4ed8">Cortex Executive Inbox — Weekly Brief</h2>'
     if period:
         html_body += f'<p style="color:#6b7280;margin:0 0 16px">{_html.escape(str(period))}</p>'
 
@@ -183,7 +183,7 @@ def _brief_to_text_html(brief: dict) -> tuple[str, str]:
         html_body += "</ul>"
 
     html_body += '<hr style="margin-top:24px;border:none;border-top:1px solid #e5e7eb">'
-    html_body += '<p style="font-size:12px;color:#9ca3af">Sent from Director Assistant</p>'
+    html_body += '<p style="font-size:12px;color:#9ca3af">Sent from Cortex Executive Inbox</p>'
     html_body += "</body></html>"
     return "\n".join(lines), html_body
 
@@ -211,7 +211,7 @@ async def send_brief_to_inbox(request: Request):
     plain, html_body = _brief_to_text_html(brief)
 
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = "Your Director Assistant Weekly Brief"
+    msg["Subject"] = "Your Cortex Executive Inbox Weekly Brief"
     msg["From"] = to_addr
     msg["To"] = to_addr
     msg.attach(MIMEText(plain, "plain", "utf-8"))

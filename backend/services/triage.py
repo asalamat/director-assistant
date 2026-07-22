@@ -236,7 +236,7 @@ def get_top_emails(cache, limit: int = 7) -> list[dict]:
                  AND LOWER(folder) NOT LIKE '%sent%'
                  AND LOWER(folder) NOT LIKE '%draft%'
                  AND LOWER(subject) NOT LIKE '%morning brief%'
-                 AND LOWER(subject) NOT LIKE '%director assistant digest%'
+                 AND LOWER(subject) NOT LIKE '%cortex executive inbox digest%'
                  AND LOWER(subject) NOT LIKE '%weekly brief%'
                  AND LOWER(subject) NOT LIKE '%daily focus%'
                ORDER BY date DESC LIMIT 300"""
@@ -249,7 +249,7 @@ def get_top_emails(cache, limit: int = 7) -> list[dict]:
                      AND LOWER(folder) NOT LIKE '%sent%'
                      AND LOWER(folder) NOT LIKE '%draft%'
                      AND LOWER(subject) NOT LIKE '%morning brief%'
-                     AND LOWER(subject) NOT LIKE '%director assistant digest%'
+                     AND LOWER(subject) NOT LIKE '%cortex executive inbox digest%'
                      AND LOWER(subject) NOT LIKE '%weekly brief%'
                      AND LOWER(subject) NOT LIKE '%daily focus%'
                    ORDER BY date DESC LIMIT 300"""

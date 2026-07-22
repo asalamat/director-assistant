@@ -268,7 +268,7 @@ export function Settings({ onConnected, initialTab }: Props) {
                 <IconAppBadge />
               </div>
               <div>
-                <p className="text-sm font-bold text-gray-900 leading-tight">Director Assistant</p>
+                <p className="text-sm font-bold text-gray-900 leading-tight">Cortex Executive Inbox</p>
                 <p className="text-[11px] text-gray-400">Settings</p>
               </div>
             </div>

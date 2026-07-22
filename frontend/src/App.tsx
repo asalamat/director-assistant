@@ -225,15 +225,15 @@ export default function App() {
 
   // Browser tab title — show unread count when tab is in background
   useEffect(() => {
-    const base = 'Director Assistant'
+    const base = 'Cortex Executive Inbox'
     const updateTitle = () => {
       if (document.visibilityState === 'visible') {
         document.title = base
       } else {
-        document.title = unreadCount > 0 ? `Director (${unreadCount})` : base
+        document.title = unreadCount > 0 ? `Cortex (${unreadCount})` : base
       }
     }
-    document.title = unreadCount > 0 ? `Director (${unreadCount})` : base
+    document.title = unreadCount > 0 ? `Cortex (${unreadCount})` : base
     document.addEventListener('visibilitychange', updateTitle)
     return () => document.removeEventListener('visibilitychange', updateTitle)
   }, [unreadCount])
@@ -252,7 +252,7 @@ export default function App() {
         const today = new Date().toISOString().slice(0, 10)
         const count = list.filter(f => f.due_date < today).length
         if (count > 0 && prevOverdueRef.current === 0 && 'Notification' in window && Notification.permission === 'granted') {
-          new Notification('Director Assistant', { body: `${count} follow-up${count !== 1 ? 's' : ''} overdue` })
+          new Notification('Cortex Executive Inbox', { body: `${count} follow-up${count !== 1 ? 's' : ''} overdue` })
         }
         prevOverdueRef.current = count
         setOverdueCount(count)
@@ -273,7 +273,7 @@ export default function App() {
           const icon = ICONS[a.type] || '💡'
           addToast(`${icon} ${a.message}`, 'info')
           if ('Notification' in window && Notification.permission === 'granted') {
-            new Notification('Director Assistant', { body: a.message })
+            new Notification('Cortex Executive Inbox', { body: a.message })
           }
         })
       }).catch(() => {})
@@ -417,7 +417,7 @@ export default function App() {
             if (summary) {
               const senderName = latest.emails[0].sender?.split('<')[0].trim() || 'Someone'
               if ('Notification' in window && Notification.permission === 'granted') {
-                new Notification('Director Assistant — New Email', {
+                new Notification('Cortex Executive Inbox — New Email', {
                   body: `${senderName}: ${summary}`
                 })
               }
@@ -427,7 +427,7 @@ export default function App() {
         } catch { /* fall through to generic notification */ }
         addToast(msg, 'success')
         if (!richNotifSent && 'Notification' in window && Notification.permission === 'granted') {
-          new Notification('Director Assistant', { body: msg })
+          new Notification('Cortex Executive Inbox', { body: msg })
         }
       }
       setTimeout(() => setRefreshMsg(''), 3000)
@@ -484,7 +484,15 @@ export default function App() {
                 <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/>
               </svg>
             </div>
-            <span className="text-sm font-semibold text-gray-900 tracking-tight">Director Assistant</span>
+            <span
+              className="text-sm font-semibold tracking-tight select-none"
+              style={{
+                background: 'linear-gradient(to bottom, #111827 0%, rgba(17,24,39,0.25) 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+              }}
+            >Cortex Executive Inbox</span>
           </div>
           <div className="h-4 w-px bg-gray-200" />
           <span className="text-xs text-gray-400 hidden sm:inline tabular-nums">{total.toLocaleString()} emails</span>

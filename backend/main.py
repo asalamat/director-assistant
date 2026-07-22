@@ -548,7 +548,7 @@ async def lifespan(app: FastAPI):
                 pass
 
 
-app = FastAPI(title="Director Assistant API", lifespan=lifespan)
+app = FastAPI(title="Cortex Executive Inbox API", lifespan=lifespan)
 
 
 @app.exception_handler(RuntimeError)

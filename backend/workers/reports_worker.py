@@ -233,7 +233,7 @@ async def _generate_and_send_report(app) -> None:
         actions = brief.get("action_items") or []
         waiting = brief.get("waiting_for") or []
 
-        lines = ["Director Assistant — Weekly Brief", "=" * 40, "", summary, ""]
+        lines = ["Cortex Executive Inbox — Weekly Brief", "=" * 40, "", summary, ""]
         if actions:
             lines.append("ACTION ITEMS:")
             for a in actions[:10]:
@@ -246,12 +246,12 @@ async def _generate_and_send_report(app) -> None:
                 text = w.get("text", str(w)) if isinstance(w, dict) else str(w)
                 lines.append(f"  - {text}")
             lines.append("")
-        lines += ["---", "Sent by Director Assistant"]
+        lines += ["---", "Sent by Cortex Executive Inbox"]
 
         import email.mime.text, email.mime.multipart
         msg = email.mime.multipart.MIMEMultipart()
         msg["To"] = to_email
-        msg["Subject"] = "Weekly Brief — Director Assistant"
+        msg["Subject"] = "Weekly Brief — Cortex Executive Inbox"
         msg.attach(email.mime.text.MIMEText("\n".join(lines), "plain"))
 
         await _send_app_email(cache, msg, "[report-scheduler]")
@@ -300,7 +300,7 @@ async def _daily_brief_scheduler(app) -> None:
             projects = _active_projects(cache)
             events = await get_today_events(cache)
             lines = [
-                "Director Assistant — Morning Brief",
+                "Cortex Executive Inbox — Morning Brief",
                 now.strftime("%A, %B %-d, %Y"),
                 "=" * 42, "",
             ]
@@ -329,7 +329,7 @@ async def _daily_brief_scheduler(app) -> None:
                 lines += ["ACTIVE PROJECTS:"] + [
                     f"  * {p['name']} - {p['status']}" for p in projects[:5]
                 ] + [""]
-            lines += ["---", "Sent by Director Assistant"]
+            lines += ["---", "Sent by Cortex Executive Inbox"]
             accounts = cache.list_accounts()
             smtp_acc = next((a for a in accounts if getattr(a, "password", None)), None)
             if not smtp_acc:
@@ -374,7 +374,7 @@ async def _send_scheduled_digest(app) -> None:
     if not smtp_acc:
         print("[digest-scheduler] no SMTP account — skipping send")
         return
-    subject = f"Director Assistant Digest — {_date.today().strftime('%A, %B %d')}"
+    subject = f"Cortex Executive Inbox Digest — {_date.today().strftime('%A, %B %d')}"
     lines = [digest.get("summary", ""), ""]
     if digest.get("top_action_items"):
         lines += ["Action Items:"] + [f"* {a}" for a in digest["top_action_items"][:5]] + [""]

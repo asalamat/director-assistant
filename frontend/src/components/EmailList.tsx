@@ -195,8 +195,8 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
 
   useEffect(() => {
     const unread = emails.filter(e => !e.is_read).length
-    document.title = unread > 0 ? `Director (${unread})` : 'Director'
-    return () => { document.title = 'Director' }
+    document.title = unread > 0 ? `Cortex (${unread})` : 'Cortex Executive Inbox'
+    return () => { document.title = 'Cortex Executive Inbox' }
   }, [emails])
 
   const pinSearch = async () => {

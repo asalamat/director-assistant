@@ -258,7 +258,7 @@ function InboxEmail() {
 
       <H3>Compose & Send</H3>
       <UL>
-        <Li>Send new emails or replies directly from Director Assistant</Li>
+        <Li>Send new emails or replies directly from Cortex Executive Inbox</Li>
         <Li><strong>Pre-send Review</strong> — click <strong>🔍 Review</strong> before sending; AI checks tone, flags unanswered questions, lists commitments, and suggests improvements. Send button turns green when the draft passes.</Li>
         <Li><strong>Save to Drafts</strong> — save any AI reply to your IMAP Drafts folder for review in your mail client</Li>
         <Li><strong>Scheduled Send</strong> — compose now, choose a future date/time, and the app sends automatically</Li>
@@ -301,7 +301,7 @@ function CompositionSection() {
       </UL>
 
       <H3>Smart CC/BCC Suggestions <Tag color="green">New</Tag></H3>
-      <P>When you type a recipient in the <strong>To</strong> field, Director Assistant suggests people to CC or BCC based on past threads involving that recipient and the email subject. Suggestions appear as chips under the CC field — click any to add it.</P>
+      <P>When you type a recipient in the <strong>To</strong> field, Cortex Executive Inbox suggests people to CC or BCC based on past threads involving that recipient and the email subject. Suggestions appear as chips under the CC field — click any to add it.</P>
 
       <H3>AI Compose Toolbar (New Email, Reply &amp; Forward)</H3>
       <P>Every compose window — whether for a new email, a reply, or a forward — has the same AI toolbar above the send button:</P>
@@ -804,7 +804,7 @@ function KnowledgeSection() {
       </UL>
 
       <H3>Daily Focus Email <Tag color="green">New</Tag></H3>
-      <P>Director Assistant can send you an 8am summary email every morning so you start the day focused. Enable it in <strong>Settings → App Settings</strong>:</P>
+      <P>Cortex Executive Inbox can send you an 8am summary email every morning so you start the day focused. Enable it in <strong>Settings → App Settings</strong>:</P>
       <UL>
         <Li>Set <code className="bg-gray-100 px-1 rounded text-xs">daily_focus_enabled</code> to <strong>true</strong></Li>
         <Li>Set <code className="bg-gray-100 px-1 rounded text-xs">report_email_to</code> to the email address to send the brief to</Li>
@@ -898,13 +898,13 @@ function DashboardSection() {
       <H3>Action buttons in the detail modal</H3>
       <P>Every item opens a modal with the full content. Context-specific buttons appear at the top:</P>
       <UL>
-        <Li><strong>↗ Open in App</strong> — opens the exact email in Director Assistant (new tab, navigates directly)</Li>
+        <Li><strong>↗ Open in App</strong> — opens the exact email in Cortex Executive Inbox (new tab, navigates directly)</Li>
         <Li><strong>✉ Reply by Email</strong> — opens your mail client pre-addressed to the sender</Li>
         <Li><strong>✓ Mark Done</strong> — marks action items complete instantly; the item disappears from the list immediately and the tab badge updates. Enable "Show done" to see completed items.</Li>
         <Li><strong>✎ Generate Follow-up Draft</strong> — AI writes a chase email; editable textarea appears with Copy and Send via App buttons</Li>
         <Li><strong>▶ Join Meeting</strong> — opens the Teams/Zoom/Meet link for online calendar events</Li>
       </UL>
-      <Tip>The "Open in App" button opens a new tab at <code className="bg-gray-100 px-1 rounded text-xs">/?email=ID</code> and Director Assistant automatically loads that email in the viewer. No searching required.</Tip>
+      <Tip>The "Open in App" button opens a new tab at <code className="bg-gray-100 px-1 rounded text-xs">/?email=ID</code> and Cortex Executive Inbox automatically loads that email in the viewer. No searching required.</Tip>
 
       <H3>Auto-refresh</H3>
       <P>The dashboard reloads automatically every 30 minutes. A countdown timer in the top-right shows when the next refresh happens. Click <strong>Refresh now</strong> to force an immediate reload.</P>
@@ -916,7 +916,7 @@ function ProvidersSection() {
   return (
     <div>
       <H2>AI Providers — Priority & Configuration</H2>
-      <P>Director Assistant supports multiple AI providers. You can configure which is primary, set fallbacks, and reorder them in <strong>Settings → App Settings → AI Providers</strong>.</P>
+      <P>Cortex Executive Inbox supports multiple AI providers. You can configure which is primary, set fallbacks, and reorder them in <strong>Settings → App Settings → AI Providers</strong>.</P>
 
       <H3>Supported providers</H3>
       <div className="mb-4">
@@ -1011,7 +1011,7 @@ function TipsSection() {
       <P>By default, the app syncs emails from the last 7 days. Change <strong>Sync Window (days)</strong> in App Settings to go further back. Re-run Ingest after changing this setting.</P>
 
       <H3>Deleting emails</H3>
-      <P>Deleting an email in Director Assistant removes it from the <em>local cache only</em> — it is not deleted from your mail server. Re-ingesting will bring it back.</P>
+      <P>Deleting an email in Cortex Executive Inbox removes it from the <em>local cache only</em> — it is not deleted from your mail server. Re-ingesting will bring it back.</P>
 
       <H3>Password security</H3>
       <P>App Passwords are stored in your OS keychain (macOS Keychain / Windows Credential Manager), not in the app database. OAuth tokens are never exposed in any API response.</P>
@@ -1031,9 +1031,9 @@ function TipsSection() {
       <P>The dock icon badge shows your current unread email count, updated automatically every time the app polls for new mail.</P>
 
       <H3>Memory usage</H3>
-      <P>Director Assistant uses a background subprocess for AI vector search. You may see one <code className="bg-gray-100 px-1 rounded text-xs">python3</code> worker process in Activity Monitor — this is normal and expected (~1 GB).</P>
+      <P>Cortex Executive Inbox uses a background subprocess for AI vector search. You may see one <code className="bg-gray-100 px-1 rounded text-xs">python3</code> worker process in Activity Monitor — this is normal and expected (~1 GB).</P>
       <P>If you see many Python processes consuming excessive RAM after repeated restarts, they are cleaned up automatically on the next server start. You can also restart the app from the LaunchAgent to trigger cleanup immediately.</P>
-      <Tip>The app automatically kills stale background workers on startup. If memory still seems high, quit Director Assistant (Settings → Quit) and relaunch it.</Tip>
+      <Tip>The app automatically kills stale background workers on startup. If memory still seems high, quit Cortex Executive Inbox (Settings → Quit) and relaunch it.</Tip>
 
       <H3>Install &amp; Update — macOS</H3>
       <div className="mb-4">
@@ -1065,7 +1065,7 @@ function ImportSection() {
   return (
     <div>
       <H2>Import PST & OLM Archives</H2>
-      <P>Import emails from Outlook archive files directly into Director Assistant. All imported emails are indexed immediately for AI search and analysis.</P>
+      <P>Import emails from Outlook archive files directly into Cortex Executive Inbox. All imported emails are indexed immediately for AI search and analysis.</P>
 
       <P>Go to <strong>Knowledge → 📦 Import PST</strong> (bottom of the Knowledge sidebar) to access the import tool.</P>
 
@@ -1093,7 +1093,7 @@ brew install libpst
 # Ubuntu / Debian
 sudo apt-get install readpst
 
-# Then restart Director Assistant`}
+# Then restart Cortex Executive Inbox`}
       </pre>
       <Tip>The import status page shows a green ✓ OLM badge (always available) and a green ✓ PST or amber ⚠ PST badge depending on whether readpst is installed.</Tip>
 
@@ -1129,7 +1129,7 @@ function SocialSection() {
       </UL>
 
       <H2>Social Media — LinkedIn</H2>
-      <P>Write, design, and publish professional LinkedIn posts with AI-generated text and images — all from inside Director Assistant. No copywriting or design skills needed.</P>
+      <P>Write, design, and publish professional LinkedIn posts with AI-generated text and images — all from inside Cortex Executive Inbox. No copywriting or design skills needed.</P>
       <H3>LinkedIn Autopilot</H3>
       <P>LinkedIn Autopilot generates posts, creates DALL-E images, and publishes them on a schedule. Enable it in the LinkedIn section.</P>
       <UL>
@@ -1144,14 +1144,14 @@ function SocialSection() {
       <Step n={2}><strong>Create an app</strong> — click "Create app", fill in the name (e.g. "My Posting Tool"), link it to your LinkedIn Company Page (you need one; create a free one if you don't have it), and accept the terms.</Step>
       <Step n={3}><strong>Add products</strong> — in your app, go to the <strong>Products</strong> tab. Request access to <strong>"Share on LinkedIn"</strong> and <strong>"Sign In with LinkedIn using OpenID Connect"</strong>. Both are approved instantly.</Step>
       <Step n={4}><strong>Generate a token</strong> — go to the <strong>OAuth 2.0 tools</strong> tab inside your app. Under "OAuth token tools", select <strong>Member authorization</strong>. Choose these scopes: <code className="text-xs bg-gray-100 px-1 rounded">openid profile email w_member_social</code>. Click <strong>Request access token</strong> and authorize with your LinkedIn login. Copy the long token that appears.</Step>
-      <Step n={5}><strong>Save in Director Assistant</strong> — open <strong>Settings → LinkedIn</strong>. Paste the token in <strong>Access Token</strong> and click Save. You don't need to enter a User ID — the app finds it automatically.</Step>
+      <Step n={5}><strong>Save in Cortex Executive Inbox</strong> — open <strong>Settings → LinkedIn</strong>. Paste the token in <strong>Access Token</strong> and click Save. You don't need to enter a User ID — the app finds it automatically.</Step>
       <Step n={6}><strong>Verify</strong> — click the <strong>Verify Connectivity</strong> button. You should see ✓ next to LinkedIn showing your name (e.g. "Connected as Ali Salamat"). If it shows ✗, your token may be invalid — re-generate it.</Step>
 
       <Note><strong>Token expiry:</strong> LinkedIn access tokens expire after 60 days. When posting fails with a 403 error, come back to <strong>OAuth 2.0 tools</strong> and generate a fresh token, then update it in Settings → LinkedIn.</Note>
       <Note><strong>Important:</strong> Always add the <code className="text-xs bg-gray-100 px-1 rounded">w_member_social</code> scope when generating your token — this is what allows posting. If you added "Share on LinkedIn" to your app but generated the token before doing so, generate a new token to pick up the new scope.</Note>
 
       <H3>LinkedIn Voice Profiling <Tag color="green">New</Tag></H3>
-      <P>Director Assistant can learn your LinkedIn writing style and generate posts that sound like you. Go to <strong>Social → LinkedIn → Voice</strong>.</P>
+      <P>Cortex Executive Inbox can learn your LinkedIn writing style and generate posts that sound like you. Go to <strong>Social → LinkedIn → Voice</strong>.</P>
       <UL>
         <Li>Click <strong>Learn My Voice</strong> — AI analyses your past LinkedIn post history and extracts your vocabulary, tone, sentence length, and recurring themes</Li>
         <Li>Your <strong>Voice Profile</strong> card shows the learned traits (e.g. "formal", "data-driven", "short paragraphs")</Li>
@@ -1226,16 +1226,16 @@ function SocialSection() {
       </UL>
 
       <H2>Social Media — Instagram</H2>
-      <P>Write AI-generated captions, generate images, and publish directly to your Instagram Business account — all from inside Director Assistant. Includes Autopilot for automatic recurring posts.</P>
+      <P>Write AI-generated captions, generate images, and publish directly to your Instagram Business account — all from inside Cortex Executive Inbox. Includes Autopilot for automatic recurring posts.</P>
 
       <H3>One-time setup</H3>
       <Step n={1}><strong>Create a Meta Developer App</strong> — go to <strong>developers.facebook.com</strong>, create an app, and add the <strong>Instagram</strong> product. Choose <strong>"API Setup with Instagram Business Login"</strong>.</Step>
       <Step n={2}><strong>Add your Instagram account as a tester</strong> — in the Roles tab of your app, add your Instagram account as an Instagram Tester and accept the invite from within the Instagram app.</Step>
       <Step n={3}><strong>Generate a token</strong> — on the "API Setup with Instagram Business Login" page, click <strong>Generate token</strong> next to your account. Copy the token.</Step>
-      <Step n={4}><strong>Save in Director Assistant</strong> — open <strong>Settings → Instagram</strong>. Enter your Instagram App ID and App Secret in the <strong>Instagram Login</strong> section, paste the token in <strong>Paste Access Token</strong>, set your Instagram Business Account ID (shown on the same page as the token, e.g. 17841402904564641), and click <strong>Save</strong>.</Step>
+      <Step n={4}><strong>Save in Cortex Executive Inbox</strong> — open <strong>Settings → Instagram</strong>. Enter your Instagram App ID and App Secret in the <strong>Instagram Login</strong> section, paste the token in <strong>Paste Access Token</strong>, set your Instagram Business Account ID (shown on the same page as the token, e.g. 17841402904564641), and click <strong>Save</strong>.</Step>
       <Step n={5}><strong>Done</strong> — go to <strong>Social → Instagram</strong> and start creating posts.</Step>
 
-      <Note><strong>No Facebook Page required.</strong> Director Assistant uses Instagram Business Login, which authenticates directly with Instagram. You do not need to link your Instagram account to a Facebook Page.</Note>
+      <Note><strong>No Facebook Page required.</strong> Cortex Executive Inbox uses Instagram Business Login, which authenticates directly with Instagram. You do not need to link your Instagram account to a Facebook Page.</Note>
       <Note><strong>Image hosting:</strong> Instagram requires a public image URL. If you use GPT Image 1 or GPT-5.5 (which return base64), configure FTP in Settings → Instagram → FTP Image Hosting so images are automatically uploaded and given a public URL before posting.</Note>
 
       <H3>Creating a post — 5-step wizard</H3>
@@ -1268,7 +1268,7 @@ function SocialSection() {
       <H3>Troubleshooting</H3>
       <UL>
         <Li><strong>"(#10) Application does not have permission"</strong> — this means your token is not from Instagram Business Login. Use the <strong>Generate token</strong> button in the Meta Developer Portal (API Setup with Instagram Business Login page) to get the correct token. Do not use Facebook OAuth for this.</Li>
-        <Li><strong>"Media is not ready for publishing"</strong> — Instagram processes uploaded images asynchronously. Director Assistant automatically waits up to 30 seconds for the container to be ready before publishing. If this persists, your image URL may not be publicly accessible.</Li>
+        <Li><strong>"Media is not ready for publishing"</strong> — Instagram processes uploaded images asynchronously. Cortex Executive Inbox automatically waits up to 30 seconds for the container to be ready before publishing. If this persists, your image URL may not be publicly accessible.</Li>
         <Li><strong>Image preview not showing</strong> — if your image was generated as a base64 (GPT Image 1/GPT-5.5), it needs to be uploaded to FTP first. Configure FTP in Settings → Instagram → FTP Image Hosting and verify the connection with Verify FTP.</Li>
         <Li><strong>Token expires</strong> — the token generated via Instagram Business Login is valid for 60 days. Re-generate it from the Meta Developer Portal when it expires.</Li>
         <Li><strong>Text not appearing on image</strong> — make sure the "📝 Message on image" toggle is ON and a message is entered in Step 3, then click "✏️ Apply text to current image". The overlay requires the image to already be generated.</Li>
@@ -1326,7 +1326,7 @@ function AdvancedConfigSection() {
   return (
     <div>
       <H2>Advanced Configuration</H2>
-      <P>This section covers creating your own OAuth apps for Google and Microsoft so Director Assistant can access Gmail, Google Calendar, Microsoft 365 mail, and Microsoft Calendar on your behalf. You only need to do this once.</P>
+      <P>This section covers creating your own OAuth apps for Google and Microsoft so Cortex Executive Inbox can access Gmail, Google Calendar, Microsoft 365 mail, and Microsoft Calendar on your behalf. You only need to do this once.</P>
 
       {/* ── Google ── */}
       <H2>Google — Create an OAuth App</H2>
@@ -1334,7 +1334,7 @@ function AdvancedConfigSection() {
 
       <H3>Step 1 — Create a Google Cloud project</H3>
       <Step n={1}>Go to <strong>console.cloud.google.com</strong> and sign in with the Google account you want to use.</Step>
-      <Step n={2}>Click the project selector at the top, then <strong>New Project</strong>. Name it anything (e.g. "Director Assistant").</Step>
+      <Step n={2}>Click the project selector at the top, then <strong>New Project</strong>. Name it anything (e.g. "Cortex Executive Inbox").</Step>
       <Step n={3}>Click <strong>Create</strong> and wait a few seconds for the project to be ready.</Step>
 
       <H3>Step 2 — Enable the required APIs</H3>
@@ -1350,7 +1350,7 @@ function AdvancedConfigSection() {
       <H3>Step 3 — Configure OAuth consent screen</H3>
       <Step n={1}>Go to <strong>APIs &amp; Services → OAuth consent screen</strong>.</Step>
       <Step n={2}>Choose <strong>External</strong> (works for personal Gmail). Click <strong>Create</strong>.</Step>
-      <Step n={3}>Fill in <strong>App name</strong> (e.g. "Director Assistant"), your email for support, and your email for developer contact. Click <strong>Save and Continue</strong>.</Step>
+      <Step n={3}>Fill in <strong>App name</strong> (e.g. "Cortex Executive Inbox"), your email for support, and your email for developer contact. Click <strong>Save and Continue</strong>.</Step>
       <Step n={4}>On the Scopes page click <strong>Add or Remove Scopes</strong> and add:
         <pre className="bg-gray-50 border border-gray-200 rounded text-xs p-2 mt-1 font-mono overflow-x-auto">{`https://www.googleapis.com/auth/gmail.modify
 https://www.googleapis.com/auth/calendar.readonly
@@ -1367,7 +1367,7 @@ https://www.googleapis.com/auth/contacts.readonly`}</pre>
       </Step>
       <Step n={4}>Click <strong>Create</strong>. A dialog shows your <strong>Client ID</strong> and <strong>Client Secret</strong> — copy both.</Step>
 
-      <H3>Step 5 — Add credentials to Director Assistant</H3>
+      <H3>Step 5 — Add credentials to Cortex Executive Inbox</H3>
       <Step n={1}>Open <strong>Settings → App Settings</strong>.</Step>
       <Step n={2}>Paste your <strong>Client ID</strong> into <strong>Google Client ID</strong> and your <strong>Client Secret</strong> into <strong>Google Client Secret</strong>.</Step>
       <Step n={3}>Click <strong>Save</strong>.</Step>
@@ -1386,7 +1386,7 @@ https://www.googleapis.com/auth/contacts.readonly`}</pre>
       <Step n={3}>Click <strong>+ New registration</strong>.</Step>
       <Step n={4}>Fill in:
         <ul className="mt-2 space-y-1 pl-4 list-disc text-sm text-gray-600">
-          <li><strong>Name:</strong> "Director Assistant" (or any name)</li>
+          <li><strong>Name:</strong> "Cortex Executive Inbox" (or any name)</li>
           <li><strong>Supported account types:</strong> "Accounts in any organizational directory and personal Microsoft accounts"</li>
           <li><strong>Redirect URI:</strong> select <strong>Web</strong> and enter: <code className="bg-gray-100 text-xs px-1 rounded font-mono">http://localhost:8000/api/oauth/microsoft/callback</code></li>
         </ul>
@@ -1407,10 +1407,10 @@ User.Read`}</pre>
 
       <H3>Step 3 — Create a client secret</H3>
       <Step n={1}>In the left menu click <strong>Certificates &amp; secrets → + New client secret</strong>.</Step>
-      <Step n={2}>Give it a description (e.g. "Director Assistant") and choose an expiry (24 months recommended).</Step>
+      <Step n={2}>Give it a description (e.g. "Cortex Executive Inbox") and choose an expiry (24 months recommended).</Step>
       <Step n={3}>Click <strong>Add</strong>. Copy the <strong>Value</strong> shown — this is your Client Secret. You can only see it once.</Step>
 
-      <H3>Step 4 — Add credentials to Director Assistant</H3>
+      <H3>Step 4 — Add credentials to Cortex Executive Inbox</H3>
       <Step n={1}>Open <strong>Settings → App Settings</strong>.</Step>
       <Step n={2}>Paste the <strong>Application (client) ID</strong> into <strong>Microsoft Client ID</strong> and the <strong>Client Secret Value</strong> into <strong>Microsoft Client Secret</strong>.</Step>
       <Step n={3}>Click <strong>Save</strong>.</Step>
@@ -1467,7 +1467,7 @@ export function HelpModal({ onClose }: Props) {
               </svg>
             </div>
             <div>
-              <h2 className="text-base font-semibold text-gray-900">Director Assistant</h2>
+              <h2 className="text-base font-semibold text-gray-900">Cortex Executive Inbox</h2>
               <p className="text-xs text-gray-500">v{pkgJson.version} · AI-powered executive email intelligence</p>
             </div>
           </div>
@@ -1505,7 +1505,7 @@ export function HelpModal({ onClose }: Props) {
         {/* Footer */}
         <div className="px-6 py-3 border-t border-gray-100 bg-gray-50 flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs text-gray-500 font-medium">Director Assistant v{pkgJson.version}</span>
+            <span className="text-xs text-gray-500 font-medium">Cortex Executive Inbox v{pkgJson.version}</span>
             <span className="text-gray-300">·</span>
             <span className="text-xs text-gray-500">Built by <a href="mailto:ali.salamat@firstpc.ca" className="font-semibold text-gray-700 hover:text-accent-600 transition-colors">Ali Salamat</a></span>
             <span className="text-gray-300">·</span>

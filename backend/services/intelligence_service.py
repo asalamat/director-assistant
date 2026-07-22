@@ -299,10 +299,10 @@ class IntelligenceService:
 
     # Subjects of emails the app generates and sends to itself — exclude from searches
     _SYSTEM_SUBJECT_PREFIXES = (
-        "weekly brief — director assistant",
-        "director assistant digest",
-        "your director assistant weekly brief",
-        "director assistant webhook",
+        "weekly brief — cortex executive inbox",
+        "cortex executive inbox digest",
+        "your cortex executive inbox weekly brief",
+        "cortex executive inbox webhook",
     )
 
     def _system_email_filter(self) -> tuple[str, tuple]:
