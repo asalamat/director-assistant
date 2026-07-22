@@ -474,7 +474,7 @@ export default function App() {
   return (
     <div className="h-screen flex flex-col bg-surface-1 overflow-hidden">
       {/* Toolbar */}
-      <div className="h-12 flex items-center justify-between px-4 border-b border-gray-100 bg-white dark:bg-gray-900 dark:border-gray-700 shadow-[0_1px_0_0_rgb(0_0_0/0.05)] flex-shrink-0 z-10">
+      <div className="h-12 flex items-center justify-between px-4 border-b border-slate-700 bg-slate-900 shadow-[0_1px_0_0_rgb(0_0_0/0.4)] flex-shrink-0 z-10">
         <div className="flex items-center gap-3">
           {/* Logo */}
           <div className="flex items-center gap-2">
@@ -484,10 +484,10 @@ export default function App() {
                 <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/>
               </svg>
             </div>
-            <span className="text-sm font-semibold text-gray-900 tracking-tight">Cortex Executive Inbox</span>
+            <span className="text-sm font-semibold text-white tracking-tight">Cortex Executive Inbox</span>
           </div>
-          <div className="h-4 w-px bg-gray-200" />
-          <span className="text-xs text-gray-400 hidden sm:inline tabular-nums">{total.toLocaleString()} emails</span>
+          <div className="h-4 w-px bg-slate-600" />
+          <span className="text-xs text-slate-400 hidden sm:inline tabular-nums">{total.toLocaleString()} emails</span>
           {unreadCount > 0 && (
             <button
               onClick={() => {
@@ -497,7 +497,7 @@ export default function App() {
               className={`text-[11px] font-semibold px-2.5 py-1 rounded-full transition-all duration-150 ${
                 onlyUnread
                   ? 'bg-accent-500 text-white shadow-sm'
-                  : 'text-accent-500 hover:bg-accent-50 border border-accent-200'
+                  : 'text-accent-300 hover:bg-slate-700 border border-slate-600'
               }`}
               title={onlyUnread ? 'Showing unread only — click to show all' : 'Click to show unread only'}
             >
@@ -513,12 +513,12 @@ export default function App() {
               {overdueCount} overdue
             </button>
           )}
-          {refreshMsg && <span className="text-xs text-gray-400 animate-fade-in">{refreshMsg}</span>}
+          {refreshMsg && <span className="text-xs text-slate-400 animate-fade-in">{refreshMsg}</span>}
           {autopilotActive && (
             <button
               onClick={() => { setShowSettings(true) }}
               title="Email Autopilot is active — click to manage rules"
-              className="relative flex items-center gap-1 text-xs text-gray-500 hover:text-blue-600 px-1.5 py-0.5 rounded-lg hover:bg-blue-50 transition-colors"
+              className="relative flex items-center gap-1 text-xs text-slate-300 hover:text-blue-400 px-1.5 py-0.5 rounded-lg hover:bg-slate-700 transition-colors"
             >
               <span className="text-sm">🤖</span>
               <span className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ${autopilotPing ? 'bg-green-400 animate-ping' : 'bg-green-400'}`} />
@@ -544,25 +544,25 @@ export default function App() {
 
           {activeTab === 'inbox' && (<>
             <button onClick={handleRefresh} disabled={refreshing} title="Refresh inbox"
-              className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-all disabled:opacity-50">
+              className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition-all disabled:opacity-50">
               <svg className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd"/>
               </svg>
             </button>
             <button onClick={() => setImportPrompt(true)} title="Import by subject"
-              className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-all">
+              className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition-all">
               <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd"/>
               </svg>
             </button>
           </>)}
 
-          <div className="h-4 w-px bg-gray-200 mx-0.5" />
+          <div className="h-4 w-px bg-slate-600 mx-0.5" />
 
           <button
             onClick={() => setDarkMode(v => !v)}
             title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:text-gray-500 dark:hover:text-gray-200 dark:hover:bg-gray-800 transition-colors"
+            className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-700 transition-colors"
           >
             {darkMode ? (
               <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
@@ -576,19 +576,19 @@ export default function App() {
           </button>
 
           <button onClick={() => setShowHelp(true)} title="Help"
-            className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-all">
+            className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition-all">
             <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd"/>
             </svg>
           </button>
           <button onClick={() => { setSettingsInitialTab('accounts'); setShowSettings(true) }} title="Settings"
-            className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-all">
+            className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition-all">
             <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd"/>
             </svg>
           </button>
           <button onClick={handleExit} disabled={exiting} title="Quit"
-            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all disabled:opacity-50">
+            className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-red-900/40 rounded-lg transition-all disabled:opacity-50">
             <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z" clipRule="evenodd"/>
             </svg>
