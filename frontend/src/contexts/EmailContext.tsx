@@ -14,6 +14,7 @@ interface EmailContextValue {
   loadMore: () => void
   setSort: (by: 'date' | 'sender' | 'subject', order: 'asc' | 'desc') => void
   removeEmail: (id: string) => void
+  markEmailsRead: (ids: string[]) => void
 
   // Selected email (from useEmailDetail)
   selectedEmail: EmailSummary | null
@@ -51,7 +52,7 @@ export function EmailProvider({ children }: { children: ReactNode }) {
   const [unreadCount, setUnreadCount] = useState(0)
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null)
 
-  const { emails, total, loading, hasMore, refresh, mergeRefresh, loadMore, setSort, currentParams, removeEmail } = useEmails()
+  const { emails, total, loading, hasMore, refresh, mergeRefresh, loadMore, setSort, currentParams, removeEmail, markEmailsRead } = useEmails()
   const { email, loading: emailLoading, error: emailError, fetch: fetchEmail } = useEmailDetail()
 
   const selectEmail = useCallback((summary: EmailSummary) => {
@@ -69,7 +70,7 @@ export function EmailProvider({ children }: { children: ReactNode }) {
 
   return (
     <EmailContext.Provider value={{
-      emails, total, loading, hasMore, currentParams, refresh, mergeRefresh, loadMore, setSort, removeEmail,
+      emails, total, loading, hasMore, currentParams, refresh, mergeRefresh, loadMore, setSort, removeEmail, markEmailsRead,
       selectedEmail, email, emailLoading, emailError, selectEmail, clearSelectedEmail, fetchEmail,
       currentFolder, setCurrentFolder, folders, setFolders,
       onlyUnread, toggleUnread, unreadCount, setUnreadCount,

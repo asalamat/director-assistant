@@ -549,6 +549,7 @@ export interface NegotiationSignal {
 
 export interface NegotiationRadar {
   signals: NegotiationSignal[]
+  total: number
 }
 
 export interface PastReply {
@@ -558,6 +559,7 @@ export interface PastReply {
 }
 
 export interface ResponseMemory {
+  sender: string
   snippets: PastReply[]
   suggested_opener: string
   total: number
@@ -568,7 +570,7 @@ export interface ClientHealthScore {
   score: number
   response_rate: number
   avg_reply_hours: number | null
-  last_contact: string
+  last_contact: string | null
   recency_days: number | null
   total_emails: number
   sent_to_them: number

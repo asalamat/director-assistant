@@ -522,7 +522,7 @@ export function PeopleTab() {
                             onClick={() => setHeatmapEmail(isHeatmap ? null : p.email.toLowerCase())}
                             title={isHeatmap ? 'Hide activity heatmap' : 'Show 90-day activity heatmap'}
                             className="text-sm font-medium text-gray-800 truncate hover:text-accent transition-colors text-left"
-                            onMouseEnter={() => loadClientHealth(p.email)}
+                            onMouseEnter={() => p.email.includes('@') && loadClientHealth(p.email)}
                           >{p.name}</button>
                           {isVIP && <span className="text-[10px] text-amber-500 font-semibold flex-shrink-0">VIP</span>}
                           {(() => {
@@ -532,7 +532,7 @@ export function PeopleTab() {
                             return (
                               <span
                                 className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 ${cls}`}
-                                title={`Response rate: ${Math.round(h.response_rate * 100)}% · Avg reply: ${h.avg_reply_hours != null ? h.avg_reply_hours.toFixed(1) + 'h' : 'n/a'} · ${h.total_emails} emails · Last: ${h.last_contact}`}
+                                title={`Score: ${h.score} · Response rate: ${Math.round(h.response_rate * 100)}% · Avg reply: ${h.avg_reply_hours != null ? h.avg_reply_hours.toFixed(1) + 'h' : '—'} · Last contact: ${h.recency_days != null ? h.recency_days + 'd ago' : '—'} · Sent: ${h.sent_to_them} · Received: ${h.total_emails}`}
                               >
                                 {h.score}
                               </span>

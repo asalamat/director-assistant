@@ -48,7 +48,7 @@ export function AIPanel({ rec, loading, error, email }: Props) {
   } | null>(null)
   const [loadingSender, setLoadingSender] = useState(false)
   const [memoryOpen, setMemoryOpen] = useState(false)
-  const [memory, setMemory] = useState<{ snippets: PastReply[]; suggested_opener: string } | null>(null)
+  const [memory, setMemory] = useState<{ snippets: PastReply[]; suggested_opener: string; total: number } | null>(null)
   const [memoryLoading, setMemoryLoading] = useState(false)
   const [memoryCopied, setMemoryCopied] = useState(false)
 
@@ -152,7 +152,7 @@ export function AIPanel({ rec, loading, error, email }: Props) {
       const senderAddr = email.sender.match(/<(.+?)>/)?.[1] ?? email.sender
       const r = await api.getResponseMemory(senderAddr)
       setMemory(r)
-    } catch { setMemory({ snippets: [], suggested_opener: '' }) }
+    } catch { setMemory({ snippets: [], suggested_opener: '', total: 0 }) }
     setMemoryLoading(false)
   }
 
@@ -403,7 +403,10 @@ export function AIPanel({ rec, loading, error, email }: Props) {
               )}
               {memory?.snippets.map((r, i) => (
                 <div key={i} className="bg-white border border-gray-200 rounded-lg p-2">
-                  <p className="text-xs font-medium text-gray-800 truncate">{r.subject}</p>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <p className="text-xs font-medium text-gray-800 truncate">{r.subject}</p>
+                    {r.date && <p className="text-[9px] text-gray-400 flex-shrink-0">{r.date.slice(0, 10)}</p>}
+                  </div>
                   <p className="text-[10px] text-gray-500 mt-0.5 leading-relaxed line-clamp-2">{r.snippet}</p>
                 </div>
               ))}

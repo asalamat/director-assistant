@@ -160,7 +160,7 @@ export default function App() {
     }).catch(() => {})
 
   const {
-    emails, total, loading: listLoading, hasMore, currentParams, refresh, mergeRefresh, loadMore, setSort, removeEmail,
+    emails, total, loading: listLoading, hasMore, currentParams, refresh, mergeRefresh, loadMore, setSort, removeEmail, markEmailsRead,
     selectedEmail, email, emailLoading, emailError, selectEmail, clearSelectedEmail, fetchEmail,
     currentFolder, setCurrentFolder, folders, setFolders,
     onlyUnread, toggleUnread, unreadCount, setUnreadCount,
@@ -386,8 +386,10 @@ export default function App() {
   }
 
   const handleBulkMarkRead = async (ids: string[]) => {
+    const unreadCount2 = emails.filter(e => ids.includes(e.id) && !e.is_read).length
+    markEmailsRead(ids)  // optimistic: instant visual update
     await api.bulkEmailAction('mark_read', ids).catch(() => {})
-    // keep emails in list — just refresh to update read state
+    if (unreadCount2 > 0) setUnreadCount(Math.max(0, unreadCount - unreadCount2))
     mergeRefresh()
   }
 

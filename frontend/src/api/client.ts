@@ -1602,8 +1602,8 @@ export const api = {
   },
 
   // Draft Quality Scorer
-  scoreDraft: (text: string): Promise<DraftScore> =>
-    request('/emails/score-draft', { method: 'POST', body: JSON.stringify({ draft: text }) }),
+  scoreDraft: (draft: string): Promise<DraftScore> =>
+    request('/emails/score-draft', { method: 'POST', body: JSON.stringify({ draft }) }),
 
   // Inbox Zero Streak
   getStreak: (): Promise<Streak> => request('/streak'),

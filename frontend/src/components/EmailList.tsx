@@ -1096,24 +1096,24 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
                 const flip = hoverPos.y > window.innerHeight - 180
                 return (
                   <div
-                    className="fixed z-50 bg-white border border-gray-200 text-gray-700 text-xs rounded-xl px-3 py-3 shadow-lg pointer-events-none max-w-xs"
+                    className="fixed z-50 bg-slate-800 border border-slate-600 text-slate-200 text-xs rounded-xl px-3 py-3 shadow-2xl pointer-events-none max-w-xs"
                     style={{
                       left: Math.min(hoverPos.x + 14, window.innerWidth - 280),
                       ...(flip ? { bottom: window.innerHeight - hoverPos.y + 14 } : { top: hoverPos.y + 14 }),
                     }}
                   >
-                    <p className="font-semibold text-gray-800 truncate mb-1">
+                    <p className="font-semibold text-white truncate mb-1">
                       {email.subject || '(no subject)'}
                     </p>
                     {hoverSummary[email.id] ? (
-                      <p className="text-gray-600 leading-relaxed">{hoverSummary[email.id]}</p>
+                      <p className="text-slate-300 leading-relaxed">{hoverSummary[email.id]}</p>
                     ) : hoverLoading ? (
-                      <p className="flex items-center gap-1.5 text-gray-400">
-                        <span className="w-3 h-3 border border-gray-300 border-t-accent rounded-full animate-spin inline-block" />
+                      <p className="flex items-center gap-1.5 text-slate-400">
+                        <span className="w-3 h-3 border border-slate-500 border-t-blue-400 rounded-full animate-spin inline-block" />
                         Summarizing thread…
                       </p>
                     ) : (
-                      <p className="text-gray-400 line-clamp-3">{(email.preview || '').slice(0, 140)}</p>
+                      <p className="text-slate-400 line-clamp-3">{(email.preview || '').slice(0, 140)}</p>
                     )}
                   </div>
                 )

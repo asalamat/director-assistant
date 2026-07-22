@@ -62,6 +62,11 @@ export function useEmails(defaultFolder = 'INBOX') {
     setTotal((prev) => Math.max(0, prev - 1))
   }, [])
 
+  const markEmailsRead = useCallback((ids: string[]) => {
+    const idSet = new Set(ids)
+    setEmails((prev) => prev.map((e) => idSet.has(e.id) ? { ...e, is_read: true } : e))
+  }, [])
+
   // Smart merge after a poll: prepend new arrivals, remove deleted ones,
   // keep older "load more" pages intact — no full-list reload.
   const mergeRefresh = useCallback(async () => {
@@ -91,7 +96,7 @@ export function useEmails(defaultFolder = 'INBOX') {
 
   return {
     emails, total, hasMore, loading, error,
-    refresh, mergeRefresh, loadMore, setSort, removeEmail,
+    refresh, mergeRefresh, loadMore, setSort, removeEmail, markEmailsRead,
     currentParams: paramsRef.current,
   }
 }
