@@ -94,6 +94,11 @@ from services.ai_client import AIClient
 
 load_dotenv()
 
+_sentry_dsn = os.getenv("SENTRY_DSN", "")
+if _sentry_dsn:
+    import sentry_sdk
+    sentry_sdk.init(dsn=_sentry_dsn, traces_sample_rate=0.1)
+
 MAX_BODY_BYTES = 50 * 1024 * 1024  # 50 MB
 
 

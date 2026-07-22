@@ -22,3 +22,4 @@ scikit-learn>=1.3.0
 Pillow>=10.0.0
 ddgs>=7.0.0
 rumps>=0.4.0; sys_platform == "darwin"
+sentry-sdk>=2.0.0

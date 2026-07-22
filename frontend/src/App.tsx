@@ -27,6 +27,7 @@ import { useEmailContext } from './contexts/EmailContext'
 import { useUIContext, type Tab } from './contexts/UIContext'
 import { api } from './api/client'
 import type { EmailSummary, AutopilotRule } from './types'
+import { OnboardingWizard } from './components/OnboardingWizard'
 
 // Simple SVG icons
 const Icons: Partial<Record<Tab, JSX.Element>> = {
@@ -148,6 +149,7 @@ export default function App() {
   const [importMsg, setImportMsg] = useState('')
   const [exiting, setExiting] = useState(false)
   const [overdueCount, setOverdueCount] = useState(0)
+  const [showOnboarding, setShowOnboarding] = useState(false)
   const prevOverdueRef = useRef(0)
 
   const refreshOverdue = () =>
@@ -189,7 +191,12 @@ export default function App() {
       setConnected(s.connected)
       if (s.connected) { refresh(); loadFolderData() }
     }).catch(() => setConnected(false))
-    api.getAccounts().then(setAccounts).catch(() => {})
+    api.getAccounts().then(accs => {
+      setAccounts(accs)
+      if (accs.length === 0 && !localStorage.getItem('onboarding_complete')) {
+        setShowOnboarding(true)
+      }
+    }).catch(() => {})
     // Handle ?email=ID deep-link from dashboard
     const params = new URLSearchParams(window.location.search)
     const deepEmail = params.get('email')
@@ -797,6 +804,12 @@ export default function App() {
       <UpdatePopup />
       <ShortcutHelp />
       <CommandPalette onNavigate={setActiveTab} />
+      {showOnboarding && (
+        <OnboardingWizard
+          onOpenSettings={(tab) => { setSettingsInitialTab(tab as any); setShowSettings(true) }}
+          onComplete={() => { localStorage.setItem('onboarding_complete', 'true'); setShowOnboarding(false) }}
+        />
+      )}
     </div>
   )
 }
