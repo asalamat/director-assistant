@@ -29,8 +29,8 @@ export function EmailTools({ email, translation, onClearTranslation, onOpenCompo
   const [playing, setPlaying] = useState(false)
   const [readLoading, setReadLoading] = useState(false)
   const [readError, setReadError] = useState<string | null>(null)
-  const audioRef = useRef<HTMLAudioElement | null>(null)
-  const audioBlobUrl = useRef<string | null>(null)
+  const audioCtxRef = useRef<AudioContext | null>(null)
+  const sourceRef = useRef<AudioBufferSourceNode | null>(null)
   const [triggeringAutopilot, setTriggeringAutopilot] = useState(false)
   const [autopilotResult, setAutopilotResult] = useState<string | null>(null)
 
@@ -115,12 +115,18 @@ export function EmailTools({ email, translation, onClearTranslation, onOpenCompo
 
   const handleReadAloud = async () => {
     if (playing) {
-      audioRef.current?.pause()
+      try { sourceRef.current?.stop() } catch { /* already stopped */ }
+      audioCtxRef.current?.close()
+      audioCtxRef.current = null
+      sourceRef.current = null
       setPlaying(false)
       return
     }
     setReadError(null)
     setReadLoading(true)
+    // Create AudioContext synchronously inside the click handler to bypass browser autoplay policy.
+    const ctx = new AudioContext()
+    audioCtxRef.current = ctx
     try {
       const resp = await fetch(api.readEmailAloud(email.id))
       if (!resp.ok) {
@@ -128,23 +134,22 @@ export function EmailTools({ email, translation, onClearTranslation, onOpenCompo
         let msg = 'ElevenLabs error'
         try { msg = JSON.parse(errText).detail || errText } catch { msg = errText }
         setReadError(msg.slice(0, 120))
+        ctx.close()
         return
       }
-      const blob = await resp.blob()
-      if (audioBlobUrl.current) URL.revokeObjectURL(audioBlobUrl.current)
-      audioBlobUrl.current = URL.createObjectURL(blob)
-      const audio = new Audio(audioBlobUrl.current)
-      audio.onended = () => setPlaying(false)
-      audio.onerror = () => { setPlaying(false); setReadError('Audio decode failed — check ElevenLabs key in Settings → AI') }
-      audioRef.current = audio
-      try {
-        await audio.play()
-        setPlaying(true)
-      } catch {
-        setReadError('Playback blocked — check ElevenLabs key in Settings → AI tab')
-      }
+      const arrayBuffer = await resp.arrayBuffer()
+      const decoded = await ctx.decodeAudioData(arrayBuffer)
+      const source = ctx.createBufferSource()
+      source.buffer = decoded
+      source.connect(ctx.destination)
+      source.onended = () => { setPlaying(false); ctx.close(); audioCtxRef.current = null }
+      source.start(0)
+      sourceRef.current = source
+      setPlaying(true)
     } catch (e) {
-      setReadError(e instanceof Error ? e.message : 'Failed to load audio')
+      ctx.close()
+      audioCtxRef.current = null
+      setReadError(e instanceof Error ? e.message : 'Failed to play audio')
     } finally {
       setReadLoading(false)
     }
