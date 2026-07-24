@@ -30,6 +30,7 @@ from routers import config as config_router
 from routers import health as health_router
 from routers import oauth as oauth_router
 from routers import ask as ask_router
+from routers import ask_extras as ask_extras_router
 from routers import documents as documents_router
 from routers import intelligence as intelligence_router
 from routers import snooze as snooze_router
@@ -596,6 +597,7 @@ app.include_router(config_router.router)
 app.include_router(health_router.router)
 app.include_router(oauth_router.router)
 app.include_router(ask_router.router)
+app.include_router(ask_extras_router.router)
 app.include_router(documents_router.router)
 app.include_router(intelligence_router.router)
 app.include_router(snooze_router.router)
