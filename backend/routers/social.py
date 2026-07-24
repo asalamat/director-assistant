@@ -1172,6 +1172,24 @@ async def reject_review_post(post_id: str, request: Request):
     return {"status": "rejected"}
 
 
+@router.post("/linkedin/autopilot/review/{post_id}/set-image")
+async def set_review_post_image(post_id: str, body: dict, request: Request):
+    """Save a generated image URL to a pending-review post."""
+    image_url = (body.get("image_url") or "").strip()
+    if not image_url:
+        raise HTTPException(400, "image_url required")
+    cache = request.app.state.cache
+    _ensure_tables(cache)
+    with cache._conn() as conn:
+        updated = conn.execute(
+            "UPDATE linkedin_posts SET image_url=? WHERE id=? AND status='pending_review'",
+            (image_url, post_id),
+        ).rowcount
+    if not updated:
+        raise HTTPException(404, "Post not found or not pending review")
+    return {"status": "ok"}
+
+
 @router.get("/linkedin/history/{post_id}/stats")
 async def get_post_stats(post_id: str, request: Request):
     """Return LinkedIn post URL for viewing analytics in-browser (API analytics require LinkedIn partnership)."""

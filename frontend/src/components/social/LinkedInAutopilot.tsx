@@ -71,6 +71,8 @@ export function LinkedInAutopilot() {
   const [reviewLoading, setReviewLoading] = useState(false)
   const [editingReview, setEditingReview] = useState<{id: string, text: string} | null>(null)
   const [reviewAction, setReviewAction] = useState<{[id: string]: string}>({})
+  const [generatingImage, setGeneratingImage] = useState<{[id: string]: boolean}>({})
+  const [imageError, setImageError] = useState<{[id: string]: string}>({})
 
   // Engagement stats
   const [stats, setStats] = useState<{[postId: string]: {likes: number, comments: number, reposts: number}}>({})
@@ -145,6 +147,32 @@ export function LinkedInAutopilot() {
     await fetch(`/api/social/linkedin/autopilot/review/${postId}/reject`, { method: 'POST' })
     setReviewPosts(prev => prev.filter(p => p.id !== postId))
     setReviewAction(p => ({ ...p, [postId]: '' }))
+  }
+
+  const handleGenerateImage = async (post: ReviewPost) => {
+    setGeneratingImage(p => ({ ...p, [post.id]: true }))
+    setImageError(p => ({ ...p, [post.id]: '' }))
+    try {
+      const res = await fetch('/api/social/linkedin/generate-images', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic: post.topic, post_text: post.post_text }),
+      })
+      const data = await res.json()
+      if (data.error) { setImageError(p => ({ ...p, [post.id]: data.error })); return }
+      const imgUrl = data.images?.[0]?.url
+      if (!imgUrl) { setImageError(p => ({ ...p, [post.id]: 'No image returned' })); return }
+      await fetch(`/api/social/linkedin/autopilot/review/${post.id}/set-image`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_url: imgUrl }),
+      })
+      setReviewPosts(prev => prev.map(p => p.id === post.id ? { ...p, image_url: imgUrl } : p))
+    } catch (e) {
+      setImageError(p => ({ ...p, [post.id]: (e as Error).message }))
+    } finally {
+      setGeneratingImage(p => ({ ...p, [post.id]: false }))
+    }
   }
 
   const fetchStats = async (postId: string) => {
@@ -340,9 +368,22 @@ export function LinkedInAutopilot() {
                       {new Date(post.created_at).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}
                     </span>
                   </div>
-                  {post.image_url && (
+                  {post.image_url ? (
                     <img src={post.image_url} alt="" className="w-full h-24 object-cover rounded-lg mb-2" />
-                  )}
+                  ) : (post.content_type === 'image' || post.content_type === 'image+text') ? (
+                    <div className="mb-2">
+                      <button
+                        onClick={() => handleGenerateImage(post)}
+                        disabled={generatingImage[post.id]}
+                        className="w-full text-[11px] py-1.5 rounded-lg border border-dashed border-amber-400 text-amber-700 hover:bg-amber-100 disabled:opacity-50 transition-colors"
+                      >
+                        {generatingImage[post.id] ? '⟳ Generating image…' : '🖼 Generate Image'}
+                      </button>
+                      {imageError[post.id] && (
+                        <p className="text-[10px] text-red-500 mt-1 truncate" title={imageError[post.id]}>⚠ {imageError[post.id]}</p>
+                      )}
+                    </div>
+                  ) : null}
                   {editingReview?.id === post.id ? (
                     <textarea
                       value={editingReview.text}

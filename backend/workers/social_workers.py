@@ -136,6 +136,10 @@ async def _linkedin_autopilot_loop(app: "object") -> None:
             image_url = ""
             if content_type in ("image", "image+text"):
                 openai_key = _get_openai_key()
+                if not openai_key:
+                    print(f"[linkedin-autopilot] MISSING OpenAI key — no image generated for '{topic}'. Add an OpenAI key in Settings → AI tab.")
+                elif not openai_key.startswith("sk-"):
+                    print(f"[linkedin-autopilot] OpenAI key invalid (not starting with sk-) — no image for '{topic}'.")
                 if openai_key and openai_key.startswith("sk-"):
                     try:
                         style_context = f" Visual style reference: {template_prompt}." if template_prompt else ""
