@@ -229,3 +229,97 @@ def build_relation_fact(cache, name_a: str, name_b: str) -> tuple[str, list[dict
         for e in unique[:8]
     ]
     return fact, samples
+
+
+# ---------------------------------------------------------------------------
+# Formatting helpers (shared with ask router)
+# ---------------------------------------------------------------------------
+
+def format_result(i: int, r: dict, cache) -> str:
+    if r.get("source_type") == "contact":
+        return (
+            f"[{i+1}] CONTACT: {r.get('contact_name', r.get('sender', ''))} "
+            f"<{r.get('contact_email', '')}>\n"
+            f"    Notes: {r['text'][:800]}"
+        )
+    if r.get("source_type") == "document":
+        return (
+            f"[{i+1}] DOCUMENT: {r.get('filename', 'unknown')}\n"
+            f"    Type: {r.get('file_type', '').upper()}\n"
+            f"    Content: {r['text'][:2000]}"
+        )
+    email_body = r.get("text", "")
+    full_msg = cache.get(r["email_id"])
+    if full_msg:
+        raw = (full_msg.body or "").strip()
+        if not raw and full_msg.body_html:
+            raw = re.sub(r'<[^>]+>', ' ', full_msg.body_html)
+            raw = re.sub(r'\s+', ' ', raw).strip()
+        if raw:
+            email_body = raw
+    return (
+        f"[{i+1}] EMAIL — Subject: {r['subject']}\n"
+        f"    From: {r['sender']}\n"
+        f"    Date: {r['date']}\n"
+        f"    Body: {email_body[:2000]}"
+    )
+
+
+def build_sources(results: list[dict]) -> list[dict]:
+    sources = []
+    for r in results[:12]:
+        distance = r.get("_distance", 0.5)
+        relevance_pct = round(max(0.0, min(1.0, 1.0 - distance)) * 100)
+        raw_text = r.get("text", "")
+        snippet = raw_text.replace("\n", " ").strip()[:180] if raw_text else ""
+        src: dict = {
+            "email_id": r["email_id"],
+            "source_type": r.get("source_type", "email"),
+            "subject": r.get("subject", ""),
+            "sender": r.get("sender", ""),
+            "date": r.get("date", ""),
+            "relevance_pct": relevance_pct,
+            "snippet": snippet,
+        }
+        if r.get("source_type") == "document":
+            src["filename"] = r.get("filename", "")
+            src["file_type"] = r.get("file_type", "")
+        elif r.get("source_type") == "contact":
+            src["contact_email"] = r.get("contact_email", "")
+            src["contact_name"] = r.get("contact_name", "")
+        sources.append(src)
+    return sources
+
+
+def pick_model(question: str, is_aggregation: bool) -> tuple[str, int]:
+    if is_aggregation:
+        return "claude-haiku-4-5-20251001", 600
+    if RECOMMENDATION_QUESTION.search(question):
+        return "claude-sonnet-4-6", 2000
+    if RELATION_QUESTION.search(question) or (
+        "and" in question.lower() and "relat" in question.lower()
+    ):
+        return "claude-sonnet-4-6", 1500
+    return "claude-haiku-4-5-20251001", 1200
+
+
+def build_system_prompt(source_desc: str, is_aggregation: bool, is_recommendation: bool) -> str:
+    if is_aggregation:
+        return (
+            "You are an executive assistant. Answer factual questions about email statistics "
+            "using ONLY the DB FACTS provided. State numbers precisely."
+        )
+    if is_recommendation:
+        return (
+            f"You are an expert executive assistant with deep knowledge of the user's "
+            f"{source_desc}. Your job is to synthesize insights across ALL provided sources "
+            f"and give actionable recommendations, suggested next steps, and strategic advice. "
+            f"Draw connections between documents and emails. Be direct and practical. "
+            f"When you make a recommendation, cite the source email or document that supports it."
+        )
+    return (
+        f"You are an executive assistant with full access to the user's {source_desc}. "
+        f"Synthesize information across ALL provided sources to give the most complete, "
+        f"accurate answer. Pay close attention to email signatures (job titles, phones, companies). "
+        f"If the exact answer isn't in the sources, say so clearly and share what IS known."
+    )

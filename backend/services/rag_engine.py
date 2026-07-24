@@ -3,7 +3,7 @@ High-accuracy RAG engine — tuned for 100k emails / 300k vectors.
 
 Dense search:  ChromaDB HNSW (BAAI/bge-large-en-v1.5, 1024-dim cosine)
 Sparse search: SQLite FTS5 via EmailCache  ← replaces BM25 (no memory limit)
-Fusion:        Reciprocal Rank Fusion
+Fusion:        Reciprocal Rank Fusion (with time-weighted boost)
 Re-ranking:    Claude Haiku cross-encoder
 
 Why FTS5 instead of BM25:
@@ -12,14 +12,14 @@ Why FTS5 instead of BM25:
 """
 
 import re
-import json
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, List
 
 import chromadb
 from models import EmailMessage
 from services.rag_proxy import _RAGQueryProxy
+from services.rag_retrieval import RAGRetrieval
 
 if TYPE_CHECKING:
     from services.email_cache import EmailCache
@@ -29,22 +29,19 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class RAGEngine:
+class RAGEngine(RAGRetrieval):
     CHUNK_SIZE = 800
     CHUNK_OVERLAP = 150
     RRF_K = 60
-    CHROMA_UPSERT_BATCH = 500   # vectors per ChromaDB upsert call
+    CHROMA_UPSERT_BATCH = 500
 
     def __init__(self, anthropic_client: "AIClient", cache: "EmailCache"):
         self.ai = anthropic_client
-        self._cache = cache   # used for FTS5 sparse search
+        self._cache = cache
 
         db_path = Path.home() / ".director-assistant" / "chromadb"
         db_path.mkdir(parents=True, exist_ok=True)
 
-        # Main process only reads metadata from ChromaDB (get/count) — never embeds.
-        # A no-op embedding function avoids loading the 1.3 GB model here so the
-        # worker subprocess can load it alone, without CPU/memory competition.
         class _NoOpEF:
             def __call__(self, input: list) -> list:
                 return [[0.0] * 1024 for _ in input]
@@ -63,19 +60,16 @@ class RAGEngine:
             },
         )
 
-        # O(1) membership checks — built once at startup, maintained incrementally.
         self._indexed_email_ids: set[str] = set()
-        self._indexed_doc_ids: dict[str, str] = {}   # doc_id -> mtime
+        self._indexed_doc_ids: dict[str, str] = {}
         self._load_indexed_ids()
 
-        # Subprocess proxy for vector queries AND writes — avoids SIGSEGV and
-        # HNSW corruption by making the worker the sole owner of the HNSW index.
+        # Subprocess proxy: sole owner of HNSW index (avoids SIGSEGV + corruption)
         self._proxy = _RAGQueryProxy(str(db_path))
 
     # ── Startup ───────────────────────────────────────────────────────────────
 
     def _load_indexed_ids(self):
-        """Build in-memory ID sets from ChromaDB metadata. Called once at startup."""
         result = self._col.get(include=["metadatas"])
         for m in (result["metadatas"] or []):
             src = m.get("source_type", "email")
@@ -96,12 +90,10 @@ class RAGEngine:
     # ── Helpers ───────────────────────────────────────────────────────────────
 
     def _html_to_text(self, html: str) -> str:
-        # Drop entire style/script blocks
         text = re.sub(r'<(style|script)[^>]*>.*?</\1>', ' ', html, flags=re.IGNORECASE | re.DOTALL)
         text = re.sub(r'<br\s*/?>', '\n', text, flags=re.IGNORECASE)
         text = re.sub(r'</?p[^>]*>', '\n', text, flags=re.IGNORECASE)
         text = re.sub(r'<[^>]+>', ' ', text)
-        # Decode common HTML entities
         text = text.replace('&nbsp;', ' ').replace('&amp;', '&').replace('&lt;', '<') \
                    .replace('&gt;', '>').replace('&quot;', '"').replace('&#39;', "'")
         text = re.sub(r'&[a-zA-Z]{2,6};', ' ', text)
@@ -109,20 +101,15 @@ class RAGEngine:
 
     @staticmethod
     def _is_garbage_body(text: str) -> bool:
-        """Return True when the plain-text body is mostly URL-encoded tracking junk."""
         if not text or len(text) < 40:
             return False
-        # Count URL-encoded sequences like -2B, -2F (Salesforce/ExactTarget links)
         encoded_hits = len(re.findall(r'-[0-9A-F]{2}', text))
-        # If more than 10% of characters are part of these sequences it's garbage
         return (encoded_hits * 3) / len(text) > 0.10
 
     def _clean_body(self, body: str) -> str:
-        """Strip URL-encoded garbage lines and normalize whitespace."""
         lines = []
         for line in body.splitlines():
             stripped = line.strip()
-            # Skip lines that are mostly URL-encoded junk
             if stripped and not self._is_garbage_body(stripped):
                 lines.append(stripped)
         return "\n".join(lines).strip()
@@ -135,7 +122,6 @@ class RAGEngine:
         )
         body = email.body or ""
 
-        # Fall back to HTML if plain body is missing or garbage
         if not body or self._is_garbage_body(body):
             if email.body_html:
                 body = self._html_to_text(email.body_html)
@@ -164,20 +150,16 @@ class RAGEngine:
     # ── Indexing ──────────────────────────────────────────────────────────────
 
     def is_ingested(self, email_id: str) -> bool:
-        """O(1) set membership — no ChromaDB round-trip."""
         return email_id in self._indexed_email_ids
 
     def ingest_email(self, email: EmailMessage, force: bool = False) -> bool:
-        """Ingest one email. Returns True if newly added."""
         if not force and email.id in self._indexed_email_ids:
             return False
 
         chunks = self._make_chunks(email)
         ids, documents, metadatas = [], [], []
-
         for j, (text, chunk_meta) in enumerate(chunks):
-            doc_id = f"{email.id}__c{j}"
-            ids.append(doc_id)
+            ids.append(f"{email.id}__c{j}")
             documents.append(text)
             metadatas.append({
                 "email_id": email.id,
@@ -195,10 +177,7 @@ class RAGEngine:
         return True
 
     def ingest_batch(self, emails: List[EmailMessage], _ignored_known_ids=None) -> int:
-        """Batch upsert — uses the in-memory ID set for skip detection.
-        Returns count of newly added emails.
-        _ignored_known_ids kept for call-site compatibility but is unused.
-        """
+        """Batch upsert. _ignored_known_ids kept for call-site compatibility."""
         all_ids, all_docs, all_metas = [], [], []
         new_count = 0
 
@@ -224,7 +203,6 @@ class RAGEngine:
             self._indexed_email_ids.add(email.id)
             new_count += 1
 
-            # Flush to ChromaDB in batches to avoid memory spikes
             if len(all_ids) >= self.CHROMA_UPSERT_BATCH:
                 self._proxy.upsert(ids=all_ids, documents=all_docs, metadatas=all_metas)
                 all_ids, all_docs, all_metas = [], [], []
@@ -235,22 +213,14 @@ class RAGEngine:
         return new_count
 
     def clear_email_vectors(self) -> int:
-        """Drop and recreate the ChromaDB collection to fully clear all email vectors.
-
-        Simple delete leaves soft-deleted HNSW entries that never free disk space.
-        Recreating the collection is the only reliable way to reclaim space.
-        Document vectors are also cleared — user must re-index documents afterward.
-        """
+        """Drop and recreate the ChromaDB collection. Reclaims disk space."""
         count = len(self._indexed_email_ids)
         self._proxy.reset_collection()
-        # Do NOT refresh self._col here — all post-startup reads go through the proxy,
-        # so a stale main-process handle cannot cause the collection to appear unchanged.
         self._indexed_email_ids.clear()
         self._indexed_doc_ids.clear()
         return count
 
     def reindex_all_emails(self) -> int:
-        """Clear in-memory email ID set and re-embed every email from SQLite cache."""
         self._indexed_email_ids.clear()
         total = 0
         for batch in self._cache.iter_all_emails(batch_size=200):
@@ -258,7 +228,6 @@ class RAGEngine:
         return total
 
     def is_document_current(self, doc_id: str, mtime: str) -> bool:
-        """True if this exact doc version is already indexed."""
         return self._indexed_doc_ids.get(doc_id) == mtime
 
     def ingest_document(
@@ -270,24 +239,21 @@ class RAGEngine:
         file_type: str,
         modified_at: str,
     ) -> bool:
-        """Chunk and index a document. Returns True if newly added/updated."""
         header = f"File: {filename}\nType: {file_type.upper()}"
-        chunks, ids, documents, metadatas = [], [], [], []
-
+        ids, documents, metadatas = [], [], []
+        chunks = []
         i = 0
         while i < len(text):
-            segment = text[i: i + self.CHUNK_SIZE]
-            chunks.append(segment)
+            chunks.append(text[i: i + self.CHUNK_SIZE])
             i += self.CHUNK_SIZE - self.CHUNK_OVERLAP
 
         total = len(chunks)
         for j, segment in enumerate(chunks):
-            chunk_id = f"{doc_id}__c{j}"
-            ids.append(chunk_id)
+            ids.append(f"{doc_id}__c{j}")
             documents.append(f"{header}\n\n{segment}")
             metadatas.append({
                 "doc_id": doc_id,
-                "email_id": doc_id,   # reuse field so search pipeline works unchanged
+                "email_id": doc_id,
                 "source_type": "document",
                 "filename": filename,
                 "file_path": file_path,
@@ -295,7 +261,6 @@ class RAGEngine:
                 "modified_at": modified_at,
                 "chunk_index": j,
                 "chunk_total": total,
-                # stub email fields so result-building code doesn't key-error
                 "subject": filename,
                 "sender": "",
                 "date": "",
@@ -307,8 +272,6 @@ class RAGEngine:
             success = self._proxy.upsert(ids=ids, documents=documents, metadatas=metadatas)
             if success:
                 self._indexed_doc_ids[doc_id] = modified_at
-            # Always index into FTS5 regardless of HNSW status so documents
-            # are keyword-searchable even when the vector proxy is unavailable.
             self._cache.upsert_document_fts(
                 doc_id=doc_id, filename=filename, file_type=file_type,
                 file_path=file_path, modified_at=modified_at, body=text[:500_000],
@@ -321,323 +284,11 @@ class RAGEngine:
         pass
 
     def _known_ids(self) -> set[str]:
-        """Return in-memory ID set — O(1), no ChromaDB scan."""
         return self._indexed_email_ids
 
-    # ── Retrieval ─────────────────────────────────────────────────────────────
-
-    # Time-weighted scoring: emails newer than RECENCY_WINDOW_DAYS get a flat
-    # RRF-score bonus so recent context outranks equally-relevant stale email.
-    RECENCY_WINDOW_DAYS = 30
-    RECENCY_BOOST = 0.3
-
-    def _rrf(
-        self,
-        *ranked_lists: List[str],
-        email_dates: Optional[dict] = None,
-        time_weighted: bool = True,
-    ) -> List[str]:
-        """RRF fusion with optional time-weighted boost for recent emails.
-
-        When time_weighted is True and email_dates is supplied, emails dated
-        within RECENCY_WINDOW_DAYS receive a +RECENCY_BOOST bump to their fused
-        score. Set time_weighted=False to rank on pure relevance.
-        """
-        from datetime import datetime, timezone, timedelta
-        scores: dict[str, float] = {}
-        for ranked in ranked_lists:
-            for rank, id_ in enumerate(ranked):
-                scores[id_] = scores.get(id_, 0.0) + 1.0 / (self.RRF_K + rank + 1)
-        if time_weighted and email_dates:
-            cutoff = datetime.now(tz=timezone.utc) - timedelta(days=self.RECENCY_WINDOW_DAYS)
-            for id_, date_str in email_dates.items():
-                if not date_str or id_ not in scores:
-                    continue
-                try:
-                    s = str(date_str).strip()
-                    # Try formats from most to least specific; keep full string for %z formats
-                    for fmt, trunc in (
-                        ("%Y-%m-%d %H:%M:%S", 19),
-                        ("%Y-%m-%d", 10),
-                        ("%a, %d %b %Y %H:%M:%S %z", None),
-                        ("%a, %d %b %Y %H:%M:%S", 25),
-                    ):
-                        candidate = s if trunc is None else s[:trunc]
-                        try:
-                            dt = datetime.strptime(candidate, fmt)
-                            if dt.tzinfo is None:
-                                dt = dt.replace(tzinfo=timezone.utc)
-                            if dt >= cutoff:
-                                scores[id_] = scores[id_] + self.RECENCY_BOOST
-                            break
-                        except ValueError:
-                            continue
-                except Exception:
-                    pass
-        return sorted(scores, key=lambda x: scores[x], reverse=True)
-
-    # Cosine distance threshold: 0 = identical, 1 = orthogonal.
-    # Candidates with distance > this value are excluded before reranking.
-    SIMILARITY_THRESHOLD = 0.50
-
-    def hybrid_search(
-        self, query: str, n_results: int = 20, time_weighted: bool = True
-    ) -> List[dict]:
-        """Dense (ChromaDB) + Sparse (SQLite FTS5), fused with RRF.
-
-        time_weighted enables the recency boost in RRF fusion (default on).
-        """
-        count = self._proxy.count()
-        # Fall back to FTS5-only when the worker is still loading (count=0) but
-        # there are emails in the in-memory ID set or SQLite cache.
-        has_data = count > 0 or len(self._indexed_email_ids) > 0
-        if not has_data:
-            return []
-
-        n = min(n_results, max(count, n_results))
-
-        # 1. Dense semantic search — runs in isolated subprocess to prevent SIGSEGV
-        dense = self._proxy.query(query, n, ["documents", "metadatas", "distances"])
-        if dense is None:
-            # Proxy unavailable or crashed — use empty dense results, FTS5 still runs
-            logger.warning("[RAG] dense search unavailable, falling back to FTS5-only")
-            dense = {"ids": [[]], "distances": [[]], "metadatas": [[]], "documents": [[]]}
-
-        # 1b. Supplemental document-only query so documents always surface even when
-        #     the top-N mixed results are dominated by email chunks.
-        if len(self._indexed_doc_ids) > 0:
-            doc_count = min(n_results, len(self._indexed_doc_ids) * 2)
-            doc_dense = self._proxy.query(
-                query, doc_count,
-                ["documents", "metadatas", "distances"],
-                where={"source_type": "document"},
-            )
-            if doc_dense and doc_dense["ids"][0]:
-                existing_ids = set(dense["ids"][0])
-                for chunk_id, meta, doc, dist in zip(
-                    doc_dense["ids"][0], doc_dense["metadatas"][0],
-                    doc_dense["documents"][0], doc_dense["distances"][0],
-                ):
-                    if chunk_id not in existing_ids:
-                        dense["ids"][0].append(chunk_id)
-                        dense["metadatas"][0].append(meta)
-                        dense["documents"][0].append(doc)
-                        dense["distances"][0].append(dist)
-                        existing_ids.add(chunk_id)
-
-        dense_ids = dense["ids"][0]
-        dense_distances = dense["distances"][0]
-        id_to_meta = {i: m for i, m in zip(dense_ids, dense["metadatas"][0])}
-        id_to_doc = {i: d for i, d in zip(dense_ids, dense["documents"][0])}
-        id_to_dist = {i: d for i, d in zip(dense_ids, dense_distances)}
-
-        # Track best (lowest) distance per email_id
-        email_to_dist: dict[str, float] = {}
-        for chunk_id, dist in zip(dense_ids, dense_distances):
-            eid = id_to_meta.get(chunk_id, {}).get("email_id", "")
-            if eid:
-                email_to_dist[eid] = min(email_to_dist.get(eid, 999.0), dist)
-
-        # 2. Sparse full-text search via SQLite FTS5 (disk-based, no memory limit)
-        fts_summaries = self._cache.fts_search(query, limit=n)
-        fts_email_ids = [s.id for s in fts_summaries]
-
-        # 3. Separate dense results by source type.
-        #    Documents are not in the SQLite emails table, so they can't participate
-        #    in FTS5. Mixing them into the same RRF leg would penalize docs vs every
-        #    email that got a FTS5 hit (double score). Keep them separate.
-        dense_email_ids: List[str] = []
-        dense_doc_ids: List[str] = []
-        seen_dense: set[str] = set()
-        for chunk_id in dense_ids:
-            meta = id_to_meta.get(chunk_id, {})
-            eid = meta.get("email_id", "")
-            if not eid or eid in seen_dense:
-                continue
-            seen_dense.add(eid)
-            if meta.get("source_type") == "document":
-                dense_doc_ids.append(eid)
-            else:
-                dense_email_ids.append(eid)
-
-        # 4. RRF emails only (dense + FTS5), then interleave with dense-ranked docs.
-        #    2-email-per-1-doc ratio ensures relevant documents always surface.
-        #    Pass email dates so recent emails (< 30 days) get a +0.3 boost.
-        email_dates = {}
-        for chunk_id in dense_ids:
-            meta = id_to_meta.get(chunk_id, {})
-            eid = meta.get("email_id", "")
-            if eid and eid not in email_dates and meta.get("source_type") != "document":
-                email_dates[eid] = meta.get("date", "")
-        for s in fts_summaries:
-            if s.id not in email_dates:
-                email_dates[s.id] = getattr(s, "date", "") or ""
-        merged_email_ids = self._rrf(
-            dense_email_ids, fts_email_ids,
-            email_dates=email_dates, time_weighted=time_weighted,
-        )
-        merged_ids: List[str] = []
-        ei = di = 0
-        while ei < len(merged_email_ids) or di < len(dense_doc_ids):
-            for _ in range(2):
-                if ei < len(merged_email_ids):
-                    merged_ids.append(merged_email_ids[ei])
-                    ei += 1
-            if di < len(dense_doc_ids):
-                merged_ids.append(dense_doc_ids[di])
-                di += 1
-
-        # 5. Build result objects (best chunk per email for preview)
-        email_to_chunk: dict[str, tuple[str, dict]] = {}
-        for chunk_id in dense_ids:
-            meta = id_to_meta.get(chunk_id, {})
-            eid = meta.get("email_id", "")
-            if eid and eid not in email_to_chunk:
-                email_to_chunk[eid] = (id_to_doc.get(chunk_id, ""), meta)
-
-        fts_by_id = {s.id: s for s in fts_summaries}
-
-        results: List[dict] = []
-        seen: set[str] = set()
-        for email_id in merged_ids:
-            if email_id in seen:
-                continue
-            seen.add(email_id)
-
-            if email_id in email_to_chunk:
-                text, meta = email_to_chunk[email_id]
-                is_doc = meta.get("source_type") == "document"
-                # For documents always use the full SQLite body — ChromaDB chunks
-                # may not contain the relevant section (e.g. principal name is at
-                # the top but the matching chunk came from a later section).
-                if is_doc:
-                    full_body = self._cache.get_document_body(email_id)
-                    if full_body:
-                        text = full_body
-                entry = {
-                    "email_id": email_id,
-                    "source_type": meta.get("source_type", "email"),
-                    "subject": meta.get("subject", ""),
-                    "sender": meta.get("sender", ""),
-                    "date": meta.get("date", ""),
-                    "folder": meta.get("folder", ""),
-                    "text": text,
-                    "_distance": email_to_dist.get(email_id, 1.0),
-                }
-                if is_doc:
-                    entry["filename"] = meta.get("filename", "")
-                    entry["file_type"] = meta.get("file_type", "")
-                    entry["file_path"] = meta.get("file_path", "")
-                results.append(entry)
-            elif email_id in fts_by_id:
-                s = fts_by_id[email_id]
-                results.append({
-                    "email_id": email_id,
-                    "source_type": "email",
-                    "subject": s.subject,
-                    "sender": s.sender,
-                    "date": s.date or "",
-                    "folder": "",
-                    "text": s.preview,
-                    "_distance": 0.45,
-                })
-
-            if len(results) >= n_results:
-                break
-
-        # Always append document FTS5 results so documents surface even when
-        # email results fill all n_results slots. Cap at 5 docs to avoid context bloat.
-        query_words = query.strip().split()
-        include_doc_fallback = len(query_words) >= 2 or len(query_words[0]) > 5 if query_words else False
-        if include_doc_fallback:
-            doc_fts = self._cache.fts_search_documents(query, limit=5)
-            for d in doc_fts:
-                if d["doc_id"] in seen:
-                    continue
-                seen.add(d["doc_id"])
-                results.append({
-                    "email_id": d["doc_id"],
-                    "source_type": "document",
-                    "subject": d["filename"],
-                    "sender": "",
-                    "date": "",
-                    "folder": "",
-                    "text": d["snippet"],
-                    "filename": d["filename"],
-                    "file_type": d["file_type"],
-                    "file_path": d["file_path"],
-                    "_distance": 0.5,
-                })
-
-        return results
-
-    async def rerank_with_claude(
-        self, target: EmailMessage, candidates: List[dict], top_n: int = 5
-    ) -> List[dict]:
-        """Cross-encoder re-ranking via Claude Haiku.
-        Returns only genuinely relevant results — may return fewer than top_n.
-        """
-        if not candidates:
-            return []
-        if len(candidates) <= top_n:
-            return candidates
-
-        pool = candidates[:15]
-        listed = "\n".join(
-            f"{i+1}. Subject: {c['subject']} | From: {c['sender']} | Date: {c['date']}\n"
-            f"   Preview: {c['text'][:200]}"
-            for i, c in enumerate(pool)
-        )
-        prompt = (
-            f"TARGET EMAIL:\nSubject: {target.subject}\nFrom: {target.sender}\n"
-            f"Preview: {(target.body or '')[:300]}\n\n"
-            f"CANDIDATE EMAILS:\n{listed}\n\n"
-            f"Return a JSON array of candidate numbers (1-indexed) that are GENUINELY "
-            f"relevant to the target email, ordered best-first. Include at most {top_n}. "
-            f"If a candidate is unrelated, do NOT include it — accuracy matters more than "
-            f"filling the list. Return [] if none are relevant. Example: [3,1,2]"
-        )
-        try:
-            resp = await self.ai.messages.create(
-                model="claude-sonnet-4-6",
-                max_tokens=80,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            indices = json.loads(resp.content[0].text.strip())
-            reranked = [pool[i - 1] for i in indices if isinstance(i, int) and 1 <= i <= len(pool)]
-            return reranked[:top_n]
-        except Exception as e:
-            logger.warning(f"[rerank] Claude rerank failed ({type(e).__name__}: {e}), using unranked results")
-
-        return candidates[:top_n]
-
-    async def get_similar_emails(self, email: EmailMessage, n: int = 5) -> List[dict]:
-        """Full pipeline: hybrid search → distance filter → Claude re-rank."""
-        query = f"{email.subject} {(email.body or '')[:500]}"
-        candidates = self.hybrid_search(query, n_results=25)
-
-        # Exclude the email itself and those with too-low similarity
-        candidates = [
-            c for c in candidates
-            if c["email_id"] != email.id
-            and c.get("_distance", 1.0) <= self.SIMILARITY_THRESHOLD
-        ]
-
-        reranked = await self.rerank_with_claude(email, candidates, top_n=n)
-        for r in reranked:
-            r.pop("_distance", None)
-        return reranked
-
-    def semantic_search(self, query: str, n: int = 10) -> List[dict]:
-        results = self.hybrid_search(query, n_results=n)
-        for r in results:
-            r.pop("_distance", None)
-        return results
-
-    # ── Stats ─────────────────────────────────────────────────────────────────
+    # ── Stats & contacts ──────────────────────────────────────────────────────
 
     def remove_email(self, email_id: str) -> bool:
-        """Delete all chunks for an email from ChromaDB and the ID set."""
         if email_id not in self._indexed_email_ids:
             return False
         existing = self._proxy.get(where={"email_id": email_id}, include=["metadatas"])
@@ -653,7 +304,6 @@ class RAGEngine:
         return len(self._indexed_doc_ids)
 
     def list_indexed_docs(self) -> list[dict]:
-        """Return metadata for all indexed documents."""
         result = self._proxy.get(
             where={"source_type": "document"},
             include=["metadatas"],
@@ -682,7 +332,6 @@ class RAGEngine:
         }
 
     def ingest_contacts(self, cache) -> int:
-        """Index VIP and imported contact notes into the vector store."""
         docs, ids, metas = [], [], []
         with cache._conn() as conn:
             for tbl, src_label in [("vip_contacts", "vip"), ("imported_contacts", "imported")]:
@@ -715,7 +364,6 @@ class RAGEngine:
         return len(docs)
 
     def ingest_contact(self, email_addr: str, name: str, note: str, source: str = "imported") -> None:
-        """Upsert a single contact's note into the vector store."""
         if not note or not note.strip():
             return
         email = email_addr.lower()

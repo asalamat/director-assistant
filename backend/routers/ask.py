@@ -1,6 +1,5 @@
 import asyncio
 import json
-import re
 from typing import List, Optional
 
 from fastapi import APIRouter, Query, Request
@@ -11,6 +10,7 @@ from services.ask_intelligence import (
     COUNT_QUESTION, TOP_SENDER_QUESTION, RELATION_QUESTION, RECOMMENDATION_QUESTION,
     search_query, extract_sender_name, extract_two_names,
     build_top_sender_fact, build_volume_fact, build_relation_fact,
+    format_result, build_sources, pick_model, build_system_prompt,
 )
 
 router = APIRouter(prefix="/api/ask", tags=["ask"])
@@ -64,98 +64,6 @@ async def add_ask_history(req: AskHistoryEntry, request: Request):
     )
     return {"id": entry_id, "status": "saved"}
 
-
-def _format_result(i: int, r: dict, cache) -> str:
-    if r.get("source_type") == "contact":
-        return (
-            f"[{i+1}] CONTACT: {r.get('contact_name', r.get('sender', ''))} "
-            f"<{r.get('contact_email', '')}>\n"
-            f"    Notes: {r['text'][:800]}"
-        )
-    if r.get("source_type") == "document":
-        return (
-            f"[{i+1}] DOCUMENT: {r.get('filename', 'unknown')}\n"
-            f"    Type: {r.get('file_type', '').upper()}\n"
-            f"    Content: {r['text'][:2000]}"
-        )
-    email_body = r.get("text", "")
-    full_msg = cache.get(r["email_id"])
-    if full_msg:
-        raw = (full_msg.body or "").strip()
-        if not raw and full_msg.body_html:
-            raw = re.sub(r'<[^>]+>', ' ', full_msg.body_html)
-            raw = re.sub(r'\s+', ' ', raw).strip()
-        if raw:
-            email_body = raw
-    return (
-        f"[{i+1}] EMAIL — Subject: {r['subject']}\n"
-        f"    From: {r['sender']}\n"
-        f"    Date: {r['date']}\n"
-        f"    Body: {email_body[:2000]}"
-    )
-
-
-def _build_sources(results: list[dict]) -> list[dict]:
-    sources = []
-    for r in results[:12]:
-        distance = r.get("_distance", 0.5)
-        relevance_pct = round(max(0.0, min(1.0, 1.0 - distance)) * 100)
-        raw_text = r.get("text", "")
-        snippet = raw_text.replace("\n", " ").strip()[:180] if raw_text else ""
-        src: dict = {
-            "email_id": r["email_id"],
-            "source_type": r.get("source_type", "email"),
-            "subject": r.get("subject", ""),
-            "sender": r.get("sender", ""),
-            "date": r.get("date", ""),
-            "relevance_pct": relevance_pct,
-            "snippet": snippet,
-        }
-        if r.get("source_type") == "document":
-            src["filename"] = r.get("filename", "")
-            src["file_type"] = r.get("file_type", "")
-        elif r.get("source_type") == "contact":
-            src["contact_email"] = r.get("contact_email", "")
-            src["contact_name"] = r.get("contact_name", "")
-        sources.append(src)
-    return sources
-
-
-def _pick_model(question: str, is_aggregation: bool) -> tuple[str, int]:
-    """Choose AI model and max_tokens based on question type."""
-    if is_aggregation:
-        return "claude-haiku-4-5-20251001", 600
-    if RECOMMENDATION_QUESTION.search(question):
-        return "claude-sonnet-4-6", 2000
-    # Synthesis / relationship queries benefit from sonnet
-    if RELATION_QUESTION.search(question) or (
-        "and" in question.lower() and "relat" in question.lower()
-    ):
-        return "claude-sonnet-4-6", 1500
-    # Default: haiku for speed, sonnet for longer questions
-    return "claude-haiku-4-5-20251001", 1200
-
-
-def _system_prompt(source_desc: str, is_aggregation: bool, is_recommendation: bool) -> str:
-    if is_aggregation:
-        return (
-            "You are an executive assistant. Answer factual questions about email statistics "
-            "using ONLY the DB FACTS provided. State numbers precisely."
-        )
-    if is_recommendation:
-        return (
-            f"You are an expert executive assistant with deep knowledge of the user's "
-            f"{source_desc}. Your job is to synthesize insights across ALL provided sources "
-            f"and give actionable recommendations, suggested next steps, and strategic advice. "
-            f"Draw connections between documents and emails. Be direct and practical. "
-            f"When you make a recommendation, cite the source email or document that supports it."
-        )
-    return (
-        f"You are an executive assistant with full access to the user's {source_desc}. "
-        f"Synthesize information across ALL provided sources to give the most complete, "
-        f"accurate answer. Pay close attention to email signatures (job titles, phones, companies). "
-        f"If the exact answer isn't in the sources, say so clearly and share what IS known."
-    )
 
 
 async def _enrich_query(ai, question: str) -> tuple[str, list[str]]:
@@ -301,7 +209,7 @@ async def ask_db(req: AskRequest, request: Request):
         doc_results     = [r for r in results if r.get("source_type") == "document"][:8]
         email_results   = [r for r in results if r.get("source_type") not in ("document", "contact")][:12]
         ordered = contact_results + doc_results + email_results
-        context = "\n\n".join(_format_result(i, r, cache) for i, r in enumerate(ordered))
+        context = "\n\n".join(format_result(i, r, cache) for i, r in enumerate(ordered))
 
         has_docs   = any(r.get("source_type") == "document" for r in results[:15])
         has_emails = any(r.get("source_type") != "document" for r in results[:15])
@@ -312,8 +220,8 @@ async def ask_db(req: AskRequest, request: Request):
         )
 
         is_recommendation = bool(RECOMMENDATION_QUESTION.search(question))
-        model, max_tokens = _pick_model(question, is_aggregation)
-        system = _system_prompt(source_desc, is_aggregation, is_recommendation)
+        model, max_tokens = pick_model(question, is_aggregation)
+        system = build_system_prompt(source_desc, is_aggregation, is_recommendation)
 
         # Conversation memory: prepend last 3 Q/A pairs to system context
         hist = req.history[-6:]
@@ -380,7 +288,7 @@ async def ask_db(req: AskRequest, request: Request):
             yield 'data: {"type":"done"}\n\n'
             return
 
-        sources = _build_sources(results)
+        sources = build_sources(results)
         yield f"data: {json.dumps({'type': 'sources', 'sources': sources})}\n\n"
         yield 'data: {"type":"done"}\n\n'
 
