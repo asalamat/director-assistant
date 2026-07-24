@@ -821,6 +821,17 @@ function KnowledgeSection() {
       </UL>
       <P>Results show source badges — <strong>Email</strong>, <strong>Document</strong>, or <strong>Contact</strong> (emerald). Contact notes are indexed from the People tab's edit panel. All previous Ask queries are saved in the history panel.</P>
 
+      <H3>Ask Improvements — Smart Search <Tag color="green">New</Tag></H3>
+      <P>The Ask tab now uses advanced AI-powered retrieval to find more relevant results:</P>
+      <UL>
+        <Li><strong>AI Query Enrichment</strong> — your question is enhanced before searching. The AI generates a hypothetical email that would answer you, then searches for emails matching that pattern — finding results that may not contain your exact keywords.</Li>
+        <Li><strong>Query Expansion</strong> — automatically searches for related terms and synonyms so you never miss relevant emails. "Invoice overdue" also finds "payment late" and "unpaid bill".</Li>
+        <Li><strong>Multi-Hop Retrieval</strong> — after finding initial results, the AI extracts key senders and topics from those results and runs a second search pass to find thematically related emails, filling gaps and surfacing context you might have missed.</Li>
+        <Li><strong>Conversation Memory</strong> — when asking follow-up questions in the same Ask session, the AI remembers your last 3 question-answer pairs. Just type a follow-up like "Tell me more about that" and the AI understands the context without repeating yourself.</Li>
+        <Li><strong>Recent-First Scoring</strong> — emails from the last 30 days are ranked higher automatically for time-sensitive queries, so urgent items surface first.</Li>
+      </UL>
+      <Note>All retrieval improvements are transparent — you see the same results list, just smarter and more complete. No configuration needed.</Note>
+
       <H3>Document Q&A</H3>
       <P>Index local folders (PDFs, Word docs, Excel files, text files) in <strong>Settings → Documents</strong>. Indexed documents are fully searchable alongside emails and contact notes in the Ask tab.</P>
 

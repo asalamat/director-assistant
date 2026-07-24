@@ -326,19 +326,67 @@ class RAGEngine:
 
     # ── Retrieval ─────────────────────────────────────────────────────────────
 
-    def _rrf(self, *ranked_lists: List[str]) -> List[str]:
+    # Time-weighted scoring: emails newer than RECENCY_WINDOW_DAYS get a flat
+    # RRF-score bonus so recent context outranks equally-relevant stale email.
+    RECENCY_WINDOW_DAYS = 30
+    RECENCY_BOOST = 0.3
+
+    def _rrf(
+        self,
+        *ranked_lists: List[str],
+        email_dates: Optional[dict] = None,
+        time_weighted: bool = True,
+    ) -> List[str]:
+        """RRF fusion with optional time-weighted boost for recent emails.
+
+        When time_weighted is True and email_dates is supplied, emails dated
+        within RECENCY_WINDOW_DAYS receive a +RECENCY_BOOST bump to their fused
+        score. Set time_weighted=False to rank on pure relevance.
+        """
+        from datetime import datetime, timezone, timedelta
         scores: dict[str, float] = {}
         for ranked in ranked_lists:
             for rank, id_ in enumerate(ranked):
                 scores[id_] = scores.get(id_, 0.0) + 1.0 / (self.RRF_K + rank + 1)
+        if time_weighted and email_dates:
+            cutoff = datetime.now(tz=timezone.utc) - timedelta(days=self.RECENCY_WINDOW_DAYS)
+            for id_, date_str in email_dates.items():
+                if not date_str or id_ not in scores:
+                    continue
+                try:
+                    s = str(date_str).strip()
+                    # Try formats from most to least specific; keep full string for %z formats
+                    for fmt, trunc in (
+                        ("%Y-%m-%d %H:%M:%S", 19),
+                        ("%Y-%m-%d", 10),
+                        ("%a, %d %b %Y %H:%M:%S %z", None),
+                        ("%a, %d %b %Y %H:%M:%S", 25),
+                    ):
+                        candidate = s if trunc is None else s[:trunc]
+                        try:
+                            dt = datetime.strptime(candidate, fmt)
+                            if dt.tzinfo is None:
+                                dt = dt.replace(tzinfo=timezone.utc)
+                            if dt >= cutoff:
+                                scores[id_] = scores[id_] + self.RECENCY_BOOST
+                            break
+                        except ValueError:
+                            continue
+                except Exception:
+                    pass
         return sorted(scores, key=lambda x: scores[x], reverse=True)
 
     # Cosine distance threshold: 0 = identical, 1 = orthogonal.
     # Candidates with distance > this value are excluded before reranking.
     SIMILARITY_THRESHOLD = 0.50
 
-    def hybrid_search(self, query: str, n_results: int = 20) -> List[dict]:
-        """Dense (ChromaDB) + Sparse (SQLite FTS5), fused with RRF."""
+    def hybrid_search(
+        self, query: str, n_results: int = 20, time_weighted: bool = True
+    ) -> List[dict]:
+        """Dense (ChromaDB) + Sparse (SQLite FTS5), fused with RRF.
+
+        time_weighted enables the recency boost in RRF fusion (default on).
+        """
         count = self._proxy.count()
         # Fall back to FTS5-only when the worker is still loading (count=0) but
         # there are emails in the in-memory ID set or SQLite cache.
@@ -414,7 +462,20 @@ class RAGEngine:
 
         # 4. RRF emails only (dense + FTS5), then interleave with dense-ranked docs.
         #    2-email-per-1-doc ratio ensures relevant documents always surface.
-        merged_email_ids = self._rrf(dense_email_ids, fts_email_ids)
+        #    Pass email dates so recent emails (< 30 days) get a +0.3 boost.
+        email_dates = {}
+        for chunk_id in dense_ids:
+            meta = id_to_meta.get(chunk_id, {})
+            eid = meta.get("email_id", "")
+            if eid and eid not in email_dates and meta.get("source_type") != "document":
+                email_dates[eid] = meta.get("date", "")
+        for s in fts_summaries:
+            if s.id not in email_dates:
+                email_dates[s.id] = getattr(s, "date", "") or ""
+        merged_email_ids = self._rrf(
+            dense_email_ids, fts_email_ids,
+            email_dates=email_dates, time_weighted=time_weighted,
+        )
         merged_ids: List[str] = []
         ei = di = 0
         while ei < len(merged_email_ids) or di < len(dense_doc_ids):

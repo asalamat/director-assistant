@@ -32,6 +32,7 @@ class AskRequest(BaseModel):
     question: str
     n_results: int = 25
     history: List[HistoryMessage] = []
+    time_weighted: bool = True
 
 
 @router.get("/history")
@@ -157,6 +158,45 @@ def _system_prompt(source_desc: str, is_aggregation: bool, is_recommendation: bo
     )
 
 
+async def _enrich_query(ai, question: str) -> tuple[str, list[str]]:
+    """HyDE + query expansion in parallel. Returns (hyde_text, expanded_terms)."""
+    async def _hyde() -> str:
+        try:
+            r = await ai.messages.create(model="claude-haiku-4-5-20251001", max_tokens=200,
+                messages=[{"role": "user", "content": f"Write a short email (2-3 sentences) that would answer: {question}"}])
+            return r.content[0].text.strip()
+        except Exception:
+            return ""
+
+    async def _expand() -> list[str]:
+        try:
+            r = await ai.messages.create(model="claude-haiku-4-5-20251001", max_tokens=100,
+                messages=[{"role": "user", "content": f"List 5 related search terms for: {question}\nOne per line, no explanations."}])
+            return [ln.strip() for ln in r.content[0].text.strip().splitlines() if ln.strip()][:3]
+        except Exception:
+            return []
+
+    return await asyncio.gather(_hyde(), _expand())
+
+
+async def _rewrite_with_history(ai, question: str, history: list) -> str:
+    """Resolve pronouns/context from recent turns into a standalone search query."""
+    if not history:
+        return question
+    convo = "\n".join(f"{h.role}: {h.content}" for h in history[-4:])
+    try:
+        resp = await ai.messages.create(
+            model="claude-haiku-4-5-20251001", max_tokens=120,
+            messages=[{"role": "user", "content":
+                f"Given this conversation:\n{convo}\n\nRewrite this follow-up into a standalone search query "
+                f"resolving any pronouns/references. Return ONLY the rewritten query.\n\nFollow-up: {question}"}],
+        )
+        out = resp.content[0].text.strip()
+        return out or question
+    except Exception:
+        return question
+
+
 @router.post("")
 async def ask_db(req: AskRequest, request: Request):
     rag = request.app.state.rag
@@ -219,13 +259,38 @@ async def ask_db(req: AskRequest, request: Request):
                             results.append(r)
                             seen_ids.add(r.get("email_id"))
             else:
+                resolved_q = await _rewrite_with_history(ai, question, req.history)
+                base_query = search_query(resolved_q)
+
+                hyde_text, expanded_terms = await _enrich_query(ai, resolved_q)
+                enriched_parts = [base_query]
+                if hyde_text:
+                    enriched_parts.append(hyde_text[:300])
+                if expanded_terms:
+                    enriched_parts.append(" ".join(expanded_terms))
                 rag_results = await loop.run_in_executor(
-                    None, rag.hybrid_search, search_query(question), req.n_results
+                    None, rag.hybrid_search, " ".join(enriched_parts), req.n_results,
+                    req.time_weighted,
                 )
                 for r in rag_results:
                     if r.get("email_id") not in seen_ids:
                         results.append(r)
                         seen_ids.add(r.get("email_id"))
+
+                if results:
+                    hop_parts = [
+                        v for r in results[:3]
+                        for v in (r.get("subject", ""), r.get("sender", "")) if v
+                    ]
+                    if hop_parts:
+                        hop_results = await loop.run_in_executor(
+                            None, rag.hybrid_search, " ".join(hop_parts[:6]),
+                            req.n_results // 2, req.time_weighted,
+                        )
+                        for r in hop_results:
+                            if r.get("email_id") not in seen_ids:
+                                results.insert(0, r)
+                                seen_ids.add(r.get("email_id"))
         if not results and not is_aggregation:
             yield 'data: {"type":"token","text":"No emails or documents found in the database. Try importing emails or indexing a document folder first."}\n\n'
             yield 'data: {"type":"done"}\n\n'
@@ -249,6 +314,18 @@ async def ask_db(req: AskRequest, request: Request):
         is_recommendation = bool(RECOMMENDATION_QUESTION.search(question))
         model, max_tokens = _pick_model(question, is_aggregation)
         system = _system_prompt(source_desc, is_aggregation, is_recommendation)
+
+        # Conversation memory: prepend last 3 Q/A pairs to system context
+        hist = req.history[-6:]
+        conv_lines = [
+            f"Previous Q: {hist[i].content[:200].replace(chr(10),' ')}\n"
+            f"Previous A: {hist[i+1].content[:200].replace(chr(10),' ')}"
+            for i in range(0, len(hist) - 1, 2)
+            if hist[i].role == "user" and hist[i + 1].role == "assistant"
+        ]
+        if conv_lines:
+            system = f"CONVERSATION HISTORY:\n{chr(10).join(conv_lines[-3:])}\n\n{system}"
+
         # For relationship questions, add an explicit instruction so the AI
         # synthesizes what it finds rather than saying "I don't have enough info"
         if relation_pair:

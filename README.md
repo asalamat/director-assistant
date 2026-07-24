@@ -32,7 +32,7 @@ Everything runs **locally on your machine**. Emails are stored in a local SQLite
 |-----|-------------|
 | **Inbox** | Browse, search, and action your emails with AI-powered priority labels, thread view, smart sort, unread filter, and bulk operations |
 | **Focus** | Smart Daily Triage — AI scores all unread emails by 7 urgency signals and surfaces your top priority items with score badges and reason tags |
-| **Ask** | Natural-language Q&A over your entire email, document, and **contact notes** history using hybrid semantic + full-text search — results show source badges (Email / Document / Contact) |
+| **Ask** | Natural-language Q&A over your entire email, document, and **contact notes** history using hybrid semantic + full-text search with AI-powered query enrichment, multi-hop retrieval, and conversation memory — results show source badges (Email / Document / Contact) |
 | **Actions** | AI-extracted commitments and follow-ups with overdue tracking, **Delegations** tab for forwarded-to-colleague tracking, and **Overnight** tab for morning review of AI-drafted replies |
 | **VIP** | Track your most important contacts with live stats: last contact, unread count, awaiting-reply flag, and full email history |
 | **Brief** | Daily AI digest of your most important recent emails, configurable date range |
@@ -153,6 +153,15 @@ Everything runs **locally on your machine**. Emails are stored in a local SQLite
 - **Calendar Event Creator** — pre-filled event form on any email; creates directly in Microsoft Calendar via Graph API
 - **Meeting Prep Brief** — click any calendar event in the Dashboard for an AI-generated agenda, talking points, and prior email context from all attendees
 - **Scheduled Send** — compose now, schedule delivery for any future date and time
+
+### New Features (v3.68.0 — 2026-07-24)
+
+#### 🧠 5 RAG Intelligence Improvements
+- **HyDE (Hypothetical Document Embeddings)** — before searching, the AI generates a short hypothetical email that would answer your question and uses that as a search seed, finding semantically-relevant emails even when your exact keywords don't appear in them
+- **Query Expansion** — each question is automatically broadened with 3 related search terms (Haiku call, ~100 tokens); "invoice overdue" also finds "payment late" and "unpaid bill"
+- **Multi-Hop Retrieval** — after the initial result set, subjects and senders from the top 3 results drive a second search pass that surfaces thematically-linked emails not caught in the first pass
+- **Conversation Memory** — the last 3 Ask Q&A pairs are prepended as system context so follow-up questions ("Tell me more about that") work without repeating yourself
+- **Time-Weighted Scoring** — emails from the last 30 days receive a +0.3 RRF score boost, so fresh messages surface first on time-sensitive queries
 
 ### New Features (v3.66.28–v3.67.2 — 2026-07-22)
 
