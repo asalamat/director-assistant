@@ -44,6 +44,7 @@ export function MeetingNotesPanel() {
   const [loadingHistory, setLoadingHistory] = useState(false)
   const [addedTasks, setAddedTasks] = useState<Set<number>>(new Set())
   const [createdEvents, setCreatedEvents] = useState<Set<number>>(new Set())
+  const [autoFollowing, setAutoFollowing] = useState(false)
 
   useEffect(() => { loadHistory() }, [])
 
@@ -106,6 +107,19 @@ export function MeetingNotesPanel() {
       setCreatedEvents(prev => new Set([...prev, idx]))
       addToast('Event details copied', 'success')
     })
+  }
+
+  const handleAutoFollowup = async () => {
+    if (!result?.id) return
+    setAutoFollowing(true)
+    try {
+      const res = await api.autoMeetingFollowup(result.id)
+      addToast(`Created ${res.followups_created} follow-up${res.followups_created !== 1 ? 's' : ''}, ${res.commitments_created} commitment${res.commitments_created !== 1 ? 's' : ''}`, 'success')
+    } catch (e: unknown) {
+      addToast(e instanceof Error ? e.message : 'Auto follow-up failed', 'warning')
+    } finally {
+      setAutoFollowing(false)
+    }
   }
 
   const loadHistoryItem = async (id: number) => {
@@ -209,6 +223,20 @@ export function MeetingNotesPanel() {
               <div className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">{result.title}</div>
               <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">{result.summary}</p>
             </div>
+
+            {/* Auto Follow-up */}
+            {result.id && (
+              <div className="px-6 py-2 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                <span className="text-xs text-gray-500">Bulk-create chase tasks + extract commitments</span>
+                <button
+                  onClick={handleAutoFollowup}
+                  disabled={autoFollowing}
+                  className="text-xs px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+                >
+                  {autoFollowing ? 'Processing…' : 'Auto Follow-up'}
+                </button>
+              </div>
+            )}
 
             {/* Result tabs */}
             <div className="flex border-b border-gray-100 dark:border-gray-700 px-4">

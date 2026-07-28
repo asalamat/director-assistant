@@ -648,6 +648,15 @@ export const api = {
     return request('/meeting/analyze-notes', { method: 'POST', body: JSON.stringify({ notes, title }) })
   },
 
+  autoMeetingFollowup(recordingId: number): Promise<{
+    followups_created: number;
+    commitments_created: number;
+    draft_email: string;
+    meeting_title: string;
+  }> {
+    return request(`/meeting/recordings/${recordingId}/auto-followup`, { method: 'POST' })
+  },
+
   importVCard(file: File): Promise<{ imported: number; skipped: number; total: number; message: string }> {
     const form = new FormData()
     form.append('file', file)

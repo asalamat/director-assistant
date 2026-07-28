@@ -1,10 +1,12 @@
 """Meeting intelligence — audio transcription and action extraction."""
 
 import contextlib
+import datetime
 import json
 import os
 import tempfile
 from fastapi import APIRouter, HTTPException, Request, UploadFile, File
+from models import FollowUp
 from pydantic import BaseModel
 from typing import Optional, List
 
@@ -14,6 +16,28 @@ MAX_MEETING_AUDIO_BYTES = 200 * 1024 * 1024  # 200 MB
 ALLOWED_AUDIO_TYPES = {"audio/mpeg", "audio/mp4", "audio/wav", "audio/x-wav", "audio/webm",
                        "audio/ogg", "audio/flac", "audio/x-m4a", "audio/m4a", "audio/mp3",
                        "video/mp4", "video/webm", "video/mpeg"}
+
+
+async def _ai_complete(advisor, model: str, max_tokens: int, prompt: str) -> str:
+    ant = getattr(advisor.ai, "_anthropic", None)
+    resp = await (ant or advisor.ai).messages.create(
+        model=model, max_tokens=max_tokens,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return resp.content[0].text.strip()
+
+
+def _upsert_meeting(rag, rid: int, title: str, text: str) -> None:
+    try:
+        rag._proxy.upsert(
+            ids=[f"meeting__{rid}"],
+            documents=[f"Meeting: {title}\n\n{text[:6000]}"],
+            metadatas=[{"email_id": f"meeting__{rid}", "source_type": "meeting",
+                        "subject": f"Meeting: {title}", "sender": "meeting",
+                        "date": "", "meeting_id": str(rid), "meeting_title": title}],
+        )
+    except Exception:
+        pass
 
 
 async def _transcribe_file(oai_client, file_path: str) -> str:
@@ -31,9 +55,7 @@ async def _split_and_transcribe(oai_client, audio_path: str, suffix: str) -> str
     """Split large audio file into chunks and transcribe each."""
     import shutil
 
-    # Check if ffmpeg/pydub available
     if not shutil.which("ffmpeg"):
-        # No ffmpeg: just try sending the full file (may fail if truly >25 MB)
         return await _transcribe_file(oai_client, audio_path)
 
     try:
@@ -88,7 +110,6 @@ async def build_agenda(req: BuildAgendaRequest, request: Request):
     cache = request.app.state.cache
     rag = request.app.state.rag
 
-    # 1. Pull email context for each attendee via RAG
     attendee_context: list[str] = []
     for person in req.attendees[:6]:
         try:
@@ -105,7 +126,6 @@ async def build_agenda(req: BuildAgendaRequest, request: Request):
         except Exception:
             pass
 
-    # 2. Pull open follow-ups / chase items
     open_items: list[str] = []
     try:
         with cache._conn() as conn:
@@ -120,7 +140,6 @@ async def build_agenda(req: BuildAgendaRequest, request: Request):
     except Exception:
         pass
 
-    # Build context block for the prompt
     context_parts = []
     if attendee_context:
         context_parts.append("EMAIL CONTEXT:\n" + "\n\n".join(attendee_context))
@@ -168,20 +187,7 @@ Rules:
 """
 
     try:
-        ant = getattr(advisor.ai, "_anthropic", None)
-        if ant:
-            resp = await ant.messages.create(
-                model="claude-haiku-4-5-20251001", max_tokens=1800,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            raw = resp.content[0].text.strip()
-        else:
-            resp = await advisor.ai.messages.create(
-                model="claude-haiku-4-5-20251001", max_tokens=1800,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            raw = resp.content[0].text.strip()
-
+        raw = await _ai_complete(advisor, "claude-haiku-4-5-20251001", 1800, prompt)
         s, e = raw.find("{"), raw.rfind("}") + 1
         data = json.loads(raw[s:e]) if s >= 0 else {}
     except Exception as exc:
@@ -245,20 +251,7 @@ Rules:
 """
 
     try:
-        ant = getattr(advisor.ai, "_anthropic", None)
-        if ant:
-            resp = await ant.messages.create(
-                model="claude-haiku-4-5-20251001", max_tokens=2000,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            raw = resp.content[0].text.strip()
-        else:
-            resp = await advisor.ai.messages.create(
-                model="claude-haiku-4-5-20251001", max_tokens=2000,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            raw = resp.content[0].text.strip()
-
+        raw = await _ai_complete(advisor, "claude-haiku-4-5-20251001", 2000, prompt)
         s, e = raw.find("{"), raw.rfind("}") + 1
         data = json.loads(raw[s:e]) if s >= 0 else {}
     except Exception as exc:
@@ -273,7 +266,6 @@ Rules:
         "calendar_events": data.get("calendar_events", []),
     }
 
-    # Auto-save to meeting_recordings table so it appears in history
     try:
         action_texts = [a.get("task", "") for a in result["action_items"]]
         with cache._conn() as conn:
@@ -285,18 +277,7 @@ Rules:
                  title),
             )
             result["id"] = cur.lastrowid
-        rag = request.app.state.rag
-        rag._proxy.upsert(
-            ids=[f"meeting__{result['id']}"],
-            documents=[f"Meeting notes: {title}\n\n{req.notes[:6000]}"],
-            metadatas=[{
-                "email_id": f"meeting__{result['id']}",
-                "source_type": "meeting",
-                "subject": f"Meeting: {title}",
-                "sender": "meeting", "date": "",
-                "meeting_id": str(result["id"]), "meeting_title": title,
-            }],
-        )
+        _upsert_meeting(request.app.state.rag, result["id"], title, req.notes)
     except Exception:
         pass
 
@@ -324,25 +305,7 @@ async def save_recording(req: SaveRecordingRequest, request: Request):
         )
         rid = cur.lastrowid
 
-    # Index transcript into RAG so Ask can find it (source_type="meeting")
-    try:
-        rag = request.app.state.rag
-        chunk_id = f"meeting__{rid}"
-        rag._proxy.upsert(
-            ids=[chunk_id],
-            documents=[f"Meeting recording: {title}\n\n{req.transcript[:6000]}"],
-            metadatas=[{
-                "email_id": chunk_id,
-                "source_type": "meeting",
-                "subject": f"Meeting: {title}",
-                "sender": "meeting",
-                "date": "",
-                "meeting_id": str(rid),
-                "meeting_title": title,
-            }],
-        )
-    except Exception:
-        pass
+    _upsert_meeting(request.app.state.rag, rid, title, req.transcript)
 
     return {"id": rid, "title": title}
 
@@ -452,19 +415,7 @@ Respond with valid JSON only, no markdown fences:
         draft_email = ""
         action_items: list[str] = []
         try:
-            ant = getattr(advisor.ai, "_anthropic", None)
-            if ant:
-                resp = await ant.messages.create(
-                    model="claude-haiku-4-5-20251001", max_tokens=1200,
-                    messages=[{"role": "user", "content": prompt}],
-                )
-                raw = resp.content[0].text.strip()
-            else:
-                resp = await advisor.ai.messages.create(
-                    model="claude-haiku-4-5-20251001", max_tokens=1200,
-                    messages=[{"role": "user", "content": prompt}],
-                )
-                raw = resp.content[0].text.strip()
+            raw = await _ai_complete(advisor, "claude-haiku-4-5-20251001", 1200, prompt)
             s, e = raw.find("{"), raw.rfind("}") + 1
             data = json.loads(raw[s:e]) if s >= 0 else {}
             action_items = data.get("action_items", [])
@@ -482,18 +433,7 @@ Respond with valid JSON only, no markdown fences:
                     (transcript, json.dumps(action_items), draft_email, auto_title),
                 )
                 rid2 = cur2.lastrowid
-            rag_engine = request.app.state.rag
-            rag_engine._proxy.upsert(
-                ids=[f"meeting__{rid2}"],
-                documents=[f"Meeting recording: {auto_title}\n\n{transcript[:6000]}"],
-                metadatas=[{
-                    "email_id": f"meeting__{rid2}",
-                    "source_type": "meeting",
-                    "subject": f"Meeting: {auto_title}",
-                    "sender": "meeting", "date": "",
-                    "meeting_id": str(rid2), "meeting_title": auto_title,
-                }],
-            )
+            _upsert_meeting(request.app.state.rag, rid2, auto_title, transcript)
         except Exception:
             pass
 
@@ -513,3 +453,48 @@ Respond with valid JSON only, no markdown fences:
                 os.unlink(tmp_path)
             except Exception:
                 pass
+
+
+@router.post("/recordings/{recording_id}/auto-followup")
+async def auto_followup(recording_id: int, request: Request):
+    """Bulk-create chase follow-ups and extract commitments from a saved meeting."""
+    cache = request.app.state.cache
+    advisor = request.app.state.advisor
+    with cache._conn() as conn:
+        row = conn.execute("SELECT * FROM meeting_recordings WHERE id=?", (recording_id,)).fetchone()
+    if not row:
+        raise HTTPException(404, "Recording not found")
+    rec = dict(row)
+    items = json.loads(rec.get("action_items") or "[]")
+    default_due = (datetime.date.today() + datetime.timedelta(days=7)).isoformat()
+    created = 0
+    for item in items:
+        t = item.get("task", item) if isinstance(item, dict) else item
+        owner = (item.get("owner") or "") if isinstance(item, dict) else ""
+        due = ((item.get("deadline") or "") if isinstance(item, dict) else "") or default_due
+        if due == "TBD":
+            due = default_due
+        try:
+            cache.add_follow_up(FollowUp(
+                email_id=f"meeting__{recording_id}", subject=str(t)[:200],
+                sender=owner if owner and owner != "TBD" else "Meeting",
+                due_date=due, note=f"Owner: {owner}" if owner and owner not in ("TBD", "") else "",
+            ))
+            created += 1
+        except Exception:
+            pass
+    commitments = 0
+    if rec.get("transcript"):
+        try:
+            for c in await advisor.extract_commitments(rec["transcript"][:6000], []):
+                with cache._conn() as conn:
+                    conn.execute(
+                        "INSERT INTO commitments (email_id,email_subject,direction,description,counterparty,due_date) VALUES (?,?,?,?,?,?)",
+                        (f"meeting__{recording_id}", f"Meeting: {rec.get('title','')}", c.get("direction","i_owe"),
+                         c.get("description",""), c.get("counterparty",""), c.get("due_date")),
+                    )
+                commitments += 1
+        except Exception:
+            pass
+    return {"followups_created": created, "commitments_created": commitments,
+            "draft_email": rec.get("draft_email",""), "meeting_title": rec.get("title","")}
