@@ -832,6 +832,14 @@ function KnowledgeSection() {
       </UL>
       <Note>All retrieval improvements are transparent — you see the same results list, just smarter and more complete. No configuration needed.</Note>
 
+      <H3>Ask Answer Formatting <Tag color="green">New</Tag></H3>
+      <P>Ask answers are now formatted for easy reading instead of plain walls of text:</P>
+      <UL>
+        <Li><strong>Bullet points</strong> — lists use clear bullet items with spacing between sections</Li>
+        <Li><strong>Bold labels</strong> — key names, topics, and headings are bolded for fast scanning</Li>
+        <Li>Works for all answer types: recommendations, relationship summaries, topic searches, and sender counts</Li>
+      </UL>
+
       <H3>Document Q&A</H3>
       <P>Index local folders (PDFs, Word docs, Excel files, text files) in <strong>Settings → Documents</strong>. Indexed documents are fully searchable alongside emails and contact notes in the Ask tab.</P>
 
@@ -844,6 +852,43 @@ function KnowledgeSection() {
         <Li>Full transcript available in a collapsible section</Li>
       </UL>
       <Note>Requires an <strong>OpenAI API key</strong> in Settings → App Settings (used for Whisper transcription only).</Note>
+
+      <H3>🤖 Meeting Follow-up Autopilot <Tag color="green">New</Tag></H3>
+      <P>After transcribing a meeting, click the green <strong>Auto Follow-up</strong> button (appears below the summary when a recording exists) to automatically extract and save all post-meeting tasks:</P>
+      <UL>
+        <Li>AI scans the transcript for commitments, action items, and next steps</Li>
+        <Li>Follow-ups are created in your action board automatically</Li>
+        <Li>Commitments are logged against relevant contacts</Li>
+        <Li>A toast confirms how many items were created ("Created X follow-ups, X commitments")</Li>
+      </UL>
+
+      <H3>🌅 Morning Game Plan <Tag color="green">New</Tag></H3>
+      <P>Open the <strong>Morning Plan</strong> tab (toolbar) for a daily AI briefing to start your day focused:</P>
+      <UL>
+        <Li><strong>Priority Emails</strong> — top unread emails requiring action, sorted by urgency</Li>
+        <Li><strong>Open Loops</strong> — commitments and waiting-for items with their due dates; click any to jump to that email</Li>
+        <Li><strong>Quick Win</strong> — an AI-suggested high-impact, low-effort task to tackle first</Li>
+        <Li>Click <strong>Refresh</strong> to regenerate with the latest email data</Li>
+      </UL>
+
+      <H3>⚡ Inbox Zero Mode <Tag color="green">New</Tag></H3>
+      <P>Press <strong>Z</strong> in the toolbar (or the Inbox Zero button) to enter a full-screen keyboard-driven triage session:</P>
+      <UL>
+        <Li>Emails are shown one at a time — no distractions</Li>
+        <Li>Keyboard shortcuts: <strong>R</strong> Reply, <strong>A</strong> Archive, <strong>S</strong> Snooze, <strong>C</strong> Chase, <strong>D</strong> Delete</Li>
+        <Li>Progress bar shows how far through your inbox you are</Li>
+        <Li>Group tabs let you jump to a specific category (Reply Now, FYI, etc.)</Li>
+        <Li>Press <strong>Esc</strong> to exit at any time</Li>
+      </UL>
+
+      <H3>✨ AI Reply Templates <Tag color="green">New</Tag></H3>
+      <P>Click <strong>✨ AI Drafts</strong> in the reply or forward toolbar to generate three ready-to-use reply options:</P>
+      <UL>
+        <Li><strong>Brief</strong> — a concise 2-3 sentence reply</Li>
+        <Li><strong>Professional</strong> — a polished business-appropriate response</Li>
+        <Li><strong>Detailed</strong> — a thorough reply covering all points</Li>
+      </UL>
+      <P>Templates are personalised using your conversation history with the sender (via RAG), so tone and context match the relationship. Click any template to insert it into the compose window.</P>
 
       <H3>💼 CRM — Deal Pipeline <Tag color="green">New</Tag></H3>
       <P>Open <strong>Knowledge → 💼 CRM</strong> for a Kanban deal pipeline with email integration.</P>

@@ -154,6 +154,21 @@ Everything runs **locally on your machine**. Emails are stored in a local SQLite
 - **Meeting Prep Brief** — click any calendar event in the Dashboard for an AI-generated agenda, talking points, and prior email context from all attendees
 - **Scheduled Send** — compose now, schedule delivery for any future date and time
 
+### New Features (v3.70.0–v3.70.1 — 2026-07-28)
+
+#### 🚀 3 New Productivity Features
+- **🎯 Inbox Zero Mode** — keyboard-driven full-screen triage session. Press **Z** (or the Inbox Zero button in the toolbar) to enter. Emails are presented one at a time; use **R** to Reply, **A** to Archive, **S** to Snooze, **C** to Chase, or **D** to Delete. Progress bar tracks your completion. Group tabs let you jump to a specific category
+- **🤖 AI Reply Templates** — click **✨ AI Drafts** in the reply/compose toolbar to generate 3 context-aware reply options: Brief, Professional, and Detailed. Templates are built using RAG context from your conversation history with that sender so tone and content match the relationship
+- **🌅 Morning Game Plan** — open the **Morning Plan** tab for a daily AI-generated briefing: top priority emails requiring action, open loops with due dates, and an AI-suggested quick win to start your day. Click any item to jump straight to that email. Click **Refresh** to regenerate
+
+#### ✨ Ask Answer Formatting
+- Ask answers now use **bullet points**, **bold labels**, and spaced sections for easy scanning — no more walls of text. Works for all answer types: recommendations, relationship summaries, topic searches, and top-sender queries
+
+### New Features (v3.69.0 — 2026-07-26)
+
+#### 📅 Meeting Follow-up Autopilot
+- **Auto Follow-up** — after transcribing and summarising a meeting, click the green **Auto Follow-up** button to have the AI automatically create follow-up action items and log commitments extracted from the transcript. Returns a count of items created ("Created X follow-ups, X commitments") so you never forget a post-meeting task
+
 ### New Features (v3.68.0 — 2026-07-24)
 
 #### 🧠 5 RAG Intelligence Improvements
