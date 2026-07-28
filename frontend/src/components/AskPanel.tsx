@@ -2,6 +2,23 @@ import { useState, useRef, useEffect } from 'react'
 import { api } from '../api/client'
 import type { AskHistoryEntry } from '../types'
 
+function renderMarkdown(text: string) {
+  return text.split('\n').map((line, i) => {
+    if (line.startsWith('- ') || line.startsWith('* ')) {
+      const content = renderInline(line.slice(2))
+      return <div key={i} className="flex gap-1.5 items-start"><span className="mt-0.5 text-blue-400 flex-shrink-0">•</span><span>{content}</span></div>
+    }
+    if (line === '') return <div key={i} className="h-1.5" />
+    return <div key={i}>{renderInline(line)}</div>
+  })
+}
+
+function renderInline(text: string) {
+  const parts = text.split(/\*\*(.*?)\*\*/g)
+  if (parts.length === 1) return text
+  return <>{parts.map((p, i) => i % 2 === 1 ? <strong key={i} className="font-semibold">{p}</strong> : p)}</>
+}
+
 interface Source {
   email_id: string
   source_type?: string
@@ -424,7 +441,7 @@ export function AskPanel({ initialQuery, onClear }: { initialQuery?: string; onC
                         ? 'bg-accent text-white rounded-br-sm'
                         : 'bg-gray-100 text-gray-800 rounded-bl-sm'
                     }`}>
-                      {msg.text}
+                      {msg.role === 'assistant' ? renderMarkdown(msg.text) : msg.text}
                       {msg.streaming && (
                         <span className="inline-block text-gray-400 ml-0.5 align-middle animate-blink">▌</span>
                       )}

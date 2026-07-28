@@ -303,6 +303,13 @@ def pick_model(question: str, is_aggregation: bool) -> tuple[str, int]:
     return "claude-haiku-4-5-20251001", 1200
 
 
+_FORMAT_HINT = (
+    " Format your answer for easy reading: use bullet points (- item) for lists, "
+    "**bold** for key names or labels, and blank lines between sections. "
+    "Keep sentences short. Never output a wall of text."
+)
+
+
 def build_system_prompt(source_desc: str, is_aggregation: bool, is_recommendation: bool) -> str:
     if is_aggregation:
         return (
@@ -316,10 +323,12 @@ def build_system_prompt(source_desc: str, is_aggregation: bool, is_recommendatio
             f"and give actionable recommendations, suggested next steps, and strategic advice. "
             f"Draw connections between documents and emails. Be direct and practical. "
             f"When you make a recommendation, cite the source email or document that supports it."
+            + _FORMAT_HINT
         )
     return (
         f"You are an executive assistant with full access to the user's {source_desc}. "
         f"Synthesize information across ALL provided sources to give the most complete, "
         f"accurate answer. Pay close attention to email signatures (job titles, phones, companies). "
         f"If the exact answer isn't in the sources, say so clearly and share what IS known."
+        + _FORMAT_HINT
     )
