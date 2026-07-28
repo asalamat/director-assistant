@@ -103,12 +103,12 @@ async def full_health(request: Request, check_imap: bool = True):
     }
 
     # ── Poll status ───────────────────────────────────────────────────────────
-    from main import _last_poll_time, _last_poll_new, _last_poll_error
+    import routers.poll as poll
     poll_health = {
-        "status": "error" if _last_poll_error else ("ok" if _last_poll_time else "waiting"),
-        "last_checked": _last_poll_time,
-        "last_new": _last_poll_new,
-        "last_error": _last_poll_error,
+        "status": "error" if poll._last_poll_error else ("ok" if poll._last_poll_time else "waiting"),
+        "last_checked": poll._last_poll_time,
+        "last_new": poll._last_poll_new,
+        "last_error": poll._last_poll_error,
     }
 
     # ── Accounts / IMAP ───────────────────────────────────────────────────────

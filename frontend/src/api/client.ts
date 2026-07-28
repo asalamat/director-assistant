@@ -36,6 +36,7 @@ import type {
   NegotiationRadar,
   ResponseMemory,
   ClientHealthScore,
+  EmailBrief,
 } from '../types'
 
 const BASE = '/api'
@@ -1630,6 +1631,16 @@ export const api = {
   // Client Health Score
   getClientHealth: (emailAddr: string): Promise<ClientHealthScore> =>
     request('/crm/health/' + encodeURIComponent(emailAddr)),
+
+  batchTriage(): Promise<{ groups: { reply_needed: EmailBrief[]; fyi: EmailBrief[]; review: EmailBrief[]; junk: EmailBrief[] }; total: number }> {
+    return request('/triage/batch', { method: 'POST' })
+  },
+  getReplyTemplates(emailId: string): Promise<{ templates: { style: string; subject: string; body: string }[] }> {
+    return request(`/emails/${encodeURIComponent(emailId)}/reply-templates`, { method: 'POST' })
+  },
+  getMorningPlan(): Promise<{ priority_emails: EmailBrief[]; open_loops: { subject: string; sender: string; due_date?: string; email_id: string }[]; quick_win: string; generated_at: string }> {
+    return request('/intelligence/morning-plan', { method: 'POST' })
+  },
 
   getAutopilotRules: (): Promise<{ rules: AutopilotRule[] }> => request('/autopilot/rules'),
   addAutopilotRule: (data: { email_addr: string; display_name?: string; mode: string; prompt_hint?: string }): Promise<{ id: number; status: string }> =>

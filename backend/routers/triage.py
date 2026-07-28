@@ -171,3 +171,46 @@ Return ONLY the JSON, no markdown.
                 })
 
     return {"buckets": buckets, "total": len(rows)}
+
+
+@router.post("/batch")
+async def batch_triage(request: Request):
+    cache = request.app.state.cache
+    advisor = request.app.state.advisor
+
+    emails, _ = cache.list_emails(folder="INBOX", limit=50, only_unread=True)
+    if not emails:
+        return {"groups": {"reply_needed": [], "fyi": [], "review": [], "junk": []}, "total": 0}
+
+    summaries = "\n".join(
+        f"{i+1}. ID={e.email_id} | From={e.sender} | Subject={e.subject[:80]}"
+        for i, e in enumerate(emails[:40])
+    )
+    prompt = (
+        "Classify each email into exactly one of: reply_needed, fyi, review, junk.\n"
+        'Return JSON ONLY: {"classifications":[{"id":"...","category":"reply_needed|fyi|review|junk"}]}\n\n'
+        f"Emails:\n{summaries}"
+    )
+
+    ant = getattr(advisor.ai, "_anthropic", None)
+    try:
+        resp = await (ant or advisor.ai).messages.create(
+            model="claude-haiku-4-5-20251001", max_tokens=800,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        text = resp.content[0].text.strip()
+        m = re.search(r"\{.*\}", text, re.DOTALL)
+        data = json.loads(m.group(0)) if m else {"classifications": []}
+    except Exception:
+        data = {"classifications": []}
+
+    email_map = {e.email_id: e for e in emails}
+    groups: dict = {"reply_needed": [], "fyi": [], "review": [], "junk": []}
+    for c in data.get("classifications", []):
+        e = email_map.get(c["id"])
+        cat = c.get("category", "fyi")
+        if e and cat in groups:
+            groups[cat].append({"id": e.email_id, "subject": e.subject,
+                                 "sender": e.sender, "date": e.date,
+                                 "preview": (e.snippet or "")[:120]})
+    return {"groups": groups, "total": len(emails)}

@@ -28,6 +28,8 @@ import { useUIContext, type Tab } from './contexts/UIContext'
 import { api } from './api/client'
 import type { EmailSummary, AutopilotRule, Streak } from './types'
 import { OnboardingWizard } from './components/OnboardingWizard'
+import { InboxZeroMode } from './components/InboxZeroMode'
+import { MorningPlanPanel } from './components/MorningPlanPanel'
 
 // Simple SVG icons
 const Icons: Partial<Record<Tab, JSX.Element>> = {
@@ -82,19 +84,25 @@ const Icons: Partial<Record<Tab, JSX.Element>> = {
       <path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z"/>
     </svg>
   ),
+  morning_plan: (
+    <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+      <path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd"/>
+    </svg>
+  ),
 }
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'inbox',     label: 'Inbox' },
-  { id: 'triage',    label: 'Focus' },
-  { id: 'ask',       label: 'Ask' },
-  { id: 'actions',   label: 'Actions' },
-  { id: 'vip',       label: 'VIP' },
-  { id: 'groups',    label: 'Groups' },
-  { id: 'digest',    label: 'Brief' },
-  { id: 'health',    label: 'Health' },
-  { id: 'knowledge', label: 'Knowledge' },
-  { id: 'social',    label: 'Social' },
+  { id: 'inbox',        label: 'Inbox' },
+  { id: 'triage',       label: 'Focus' },
+  { id: 'ask',          label: 'Ask' },
+  { id: 'actions',      label: 'Actions' },
+  { id: 'vip',          label: 'VIP' },
+  { id: 'groups',       label: 'Groups' },
+  { id: 'digest',       label: 'Brief' },
+  { id: 'health',       label: 'Health' },
+  { id: 'knowledge',    label: 'Knowledge' },
+  { id: 'social',       label: 'Social' },
+  { id: 'morning_plan', label: 'Morning' },
 ]
 
 export default function App() {
@@ -151,6 +159,7 @@ export default function App() {
   const [exiting, setExiting] = useState(false)
   const [overdueCount, setOverdueCount] = useState(0)
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [showInboxZero, setShowInboxZero] = useState(false)
   const prevOverdueRef = useRef(0)
 
   const refreshOverdue = () =>
@@ -563,6 +572,13 @@ export default function App() {
           </button>
 
           {activeTab === 'inbox' && (<>
+            <button
+              onClick={() => setShowInboxZero(true)}
+              title="Inbox Zero Mode — process emails quickly with keyboard shortcuts"
+              className="flex items-center gap-1.5 text-[11px] font-semibold text-white bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 px-3 py-1.5 rounded-lg transition-all duration-150 shadow-sm"
+            >
+              0 Inbox Zero
+            </button>
             <button onClick={handleRefresh} disabled={refreshing} title="Refresh inbox"
               className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition-all disabled:opacity-50">
               <svg className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} viewBox="0 0 20 20" fill="currentColor">
@@ -782,6 +798,7 @@ export default function App() {
           {activeTab === 'social'    && <SocialPanel />}
           {activeTab === 'vip' && <VIPPanel />}
           {activeTab === 'groups' && <ContactGroupsPanel onSearch={(q) => { setAskContext(`Show me recent emails with ${q}`); setActiveTab('ask') }} />}
+          {activeTab === 'morning_plan' && <MorningPlanPanel />}
         </div>
       </div>
 
@@ -839,6 +856,7 @@ export default function App() {
           onComplete={() => { localStorage.setItem('onboarding_complete', 'true'); setShowOnboarding(false) }}
         />
       )}
+      {showInboxZero && <InboxZeroMode onClose={() => setShowInboxZero(false)} />}
     </div>
   )
 }

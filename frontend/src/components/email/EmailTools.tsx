@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import type { EmailMessage, QuickReplies } from '../../types'
 import { api } from '../../api/client'
+import { useUIContext } from '../../contexts/UIContext'
 
 export interface EmailToolsProps {
   email: EmailMessage
@@ -10,8 +11,11 @@ export interface EmailToolsProps {
 }
 
 export function EmailTools({ email, translation, onClearTranslation, onOpenCompose }: EmailToolsProps) {
+  const { openCompose } = useUIContext()
   const [quickReplies, setQuickReplies] = useState<QuickReplies | null>(null)
   const [loadingReplies, setLoadingReplies] = useState(false)
+  const [loadingAIDrafts, setLoadingAIDrafts] = useState(false)
+  const [aiDrafts, setAIDrafts] = useState<{ style: string; subject: string; body: string }[] | null>(null)
   const [loadingSmartDraft, setLoadingSmartDraft] = useState(false)
   const [useMyVoice, setUseMyVoice] = useState(false)
   const [hasStyle, setHasStyle] = useState(false)
@@ -170,6 +174,22 @@ export function EmailTools({ email, translation, onClearTranslation, onOpenCompo
     }
   }
 
+  const handleAIDrafts = async () => {
+    if (loadingAIDrafts) return
+    if (aiDrafts) { setAIDrafts(null); return }
+    setLoadingAIDrafts(true)
+    try {
+      const r = await api.getReplyTemplates(email.id)
+      setAIDrafts(r.templates)
+    } catch { setAIDrafts([]) }
+    finally { setLoadingAIDrafts(false) }
+  }
+
+  const handleAIDraftClick = (draft: { style: string; subject: string; body: string }) => {
+    openCompose({ to: email.sender.match(/<([^>]+)>/)?.[1] ?? email.sender, subject: draft.subject, body: draft.body })
+    setAIDrafts(null)
+  }
+
   const handleQuickReplyClick = (body: string) => {
     const senderEmail = email.sender.match(/<([^>]+)>/)?.[1] || email.sender
     onOpenCompose(senderEmail, `Re: ${email.subject || ''}`, body)
@@ -253,7 +273,29 @@ export function EmailTools({ email, translation, onClearTranslation, onOpenCompo
           {autopilotResult && (
             <span className="text-xs text-green-600 font-medium">{autopilotResult}</span>
           )}
+          <button onClick={handleAIDrafts} disabled={loadingAIDrafts}
+            title="Generate 3 AI draft replies (Brief / Professional / Detailed)"
+            className={`text-xs px-2 py-1 rounded border transition-colors disabled:opacity-50 ${aiDrafts ? 'border-indigo-300 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-indigo-600 hover:bg-indigo-50 hover:border-indigo-300'}`}>
+            {loadingAIDrafts ? <><span className="animate-spin inline-block">⟳</span> Loading…</> : aiDrafts ? '✕ AI Drafts' : '✦ AI Drafts'}
+          </button>
         </div>
+
+        {aiDrafts !== null && (
+          <div className="mt-3 bg-white border border-indigo-200 rounded-xl p-3 space-y-2">
+            <p className="text-xs font-semibold text-indigo-700 mb-1.5">AI Draft Replies — click to open in Compose:</p>
+            {aiDrafts.length === 0 ? (
+              <p className="text-xs text-gray-400 italic">No drafts available.</p>
+            ) : (
+              aiDrafts.map((d, i) => (
+                <button key={i} onClick={() => handleAIDraftClick(d)}
+                  className="block w-full text-left text-xs bg-gray-50 hover:bg-indigo-50 border border-gray-200 hover:border-indigo-300 rounded-lg px-3 py-2 transition-colors">
+                  <span className="font-medium text-indigo-600 capitalize mr-1.5">{d.style}</span>
+                  <span className="text-gray-600 line-clamp-2">{d.body}</span>
+                </button>
+              ))
+            )}
+          </div>
+        )}
 
         {attachAnalysis !== null && (
           <div className="mt-3 bg-white border border-indigo-200 rounded-xl p-3 space-y-2">

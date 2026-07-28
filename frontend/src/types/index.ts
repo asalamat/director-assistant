@@ -575,3 +575,12 @@ export interface ClientHealthScore {
   total_emails: number
   sent_to_them: number
 }
+
+export interface EmailBrief {
+  id: string
+  subject: string
+  sender: string
+  date: string | null
+  preview: string
+  folder?: string
+}

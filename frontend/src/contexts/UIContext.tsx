@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, type ReactNode } from 'react'
 
-export type Tab = 'inbox' | 'actions' | 'digest' | 'analytics' | 'templates' | 'health' | 'ask' | 'knowledge' | 'triage' | 'weekly' | 'vip' | 'chase' | 'projects' | 'groups' | 'social'
+export type Tab = 'inbox' | 'actions' | 'digest' | 'analytics' | 'templates' | 'health' | 'ask' | 'knowledge' | 'triage' | 'weekly' | 'vip' | 'chase' | 'projects' | 'groups' | 'social' | 'morning_plan'
 
 export interface ComposePrefill {
   to?: string

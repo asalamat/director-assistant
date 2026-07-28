@@ -168,6 +168,48 @@ async def _synthesize(request: Request, data: dict) -> dict:
     return result
 
 
+async def _generate_game_plan(request: Request, brief_data: dict) -> list[dict]:
+    """Generate ranked today's actions from the brief data."""
+    ai = getattr(getattr(request.app.state, "advisor", None), "ai", None)
+    if ai is None:
+        return []
+    prompt = (
+        "You are an executive chief of staff. Given today's context below, "
+        "produce a ranked list of the top 5 concrete actions for today. "
+        "Each action must be specific (include names, subjects, or deadlines where applicable). "
+        "Rank by impact × urgency. Return ONLY JSON:\n"
+        '{"actions":['
+        '{"rank":1,"action":"specific action description","why":"one-sentence reason","category":"email|meeting|project|followup|other"},'
+        '...]}\n\n'
+        f"TODAY'S CONTEXT:\n{json.dumps(brief_data, default=str)[:4000]}"
+    )
+    try:
+        ant = getattr(ai, "_anthropic", None)
+        client = ant or ai
+        model = "claude-haiku-4-5-20251001" if getattr(ai, "_budget_mode", False) else "claude-sonnet-4-6"
+        resp = await client.messages.create(
+            model=model, max_tokens=800,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = resp.content[0].text.strip()
+        match = re.search(r"\{.*\}", raw, re.DOTALL)
+        if match:
+            data = json.loads(match.group())
+            return data.get("actions", [])[:5]
+    except Exception as e:
+        _log.warning("Game plan generation failed: %s", type(e).__name__)
+    return []
+
+
+@router.get("/morning-brief/game-plan")
+async def morning_brief_game_plan(request: Request):
+    """Return (or regenerate) today's top 5 prioritized actions."""
+    cached = _cache_store.get("brief")
+    brief_data = cached["data"] if cached else {}
+    actions = await _generate_game_plan(request, brief_data)
+    return {"actions": actions, "generated_at": datetime.now().isoformat()}
+
+
 @router.get("/morning-brief")
 async def morning_brief(request: Request, force: bool = False):
     now = time.time()
@@ -195,6 +237,7 @@ async def morning_brief(request: Request, force: bool = False):
     }
     ai = await _synthesize(request, raw)
     ins = ai["insights"]
+    game_plan = await _generate_game_plan(request, raw)
 
     now_dt = datetime.now()
     brief = {
@@ -254,6 +297,7 @@ async def morning_brief(request: Request, force: bool = False):
             },
         ],
         "focus": ai["focus"],
+        "game_plan": game_plan,
         "cached": False,
     }
 
