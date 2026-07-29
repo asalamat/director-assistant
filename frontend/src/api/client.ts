@@ -1590,6 +1590,9 @@ export const api = {
   deleteInstagramTemplate(id: string): Promise<void> {
     return request(`/instagram/templates/${id}`, { method: 'DELETE' })
   },
+  searchVictimPhotos(name: string): Promise<{ images: any[]; articles: any[]; name: string }> {
+    return request('/instagram/search-victim-photos', { method: 'POST', body: JSON.stringify({ name }) })
+  },
 
   // Natural-language inbox commands
   parseNLCommand(command: string): Promise<NLCommandPreview> {

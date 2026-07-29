@@ -11,6 +11,21 @@ interface Template {
   builtin: number
 }
 
+interface VictimPhoto {
+  url: string
+  thumbnail: string
+  title: string
+  source: string
+}
+
+interface VictimArticle {
+  title: string
+  snippet: string
+  url: string
+}
+
+const FREE_IRAN_ID = '3b1801f1-1511-4a96-8b93-284368f5e5a5'
+
 const TONES = ['Inspiring', 'Educational', 'Behind-the-scenes', 'Promotional', 'Personal']
 const gradient = 'bg-gradient-to-tr from-yellow-400 via-red-500 to-purple-600'
 
@@ -58,6 +73,29 @@ export function InstagramTemplates() {
   const [fTone, setFTone] = useState('Inspiring')
   const [fPrompt, setFPrompt] = useState('')
   const [fSampleImage, setFSampleImage] = useState('')
+
+  // Victim photo search (Free Iran template)
+  const [victimName, setVictimName] = useState('')
+  const [victimSearching, setVictimSearching] = useState(false)
+  const [victimPhotos, setVictimPhotos] = useState<VictimPhoto[]>([])
+  const [victimArticles, setVictimArticles] = useState<VictimArticle[]>([])
+  const [victimError, setVictimError] = useState('')
+  const [selectedPhoto, setSelectedPhoto] = useState('')
+
+  const searchVictim = async () => {
+    if (!victimName.trim()) return
+    setVictimSearching(true); setVictimError(''); setVictimPhotos([]); setVictimArticles([])
+    try {
+      const r = await (api as any).searchVictimPhotos(victimName.trim())
+      setVictimPhotos(r.images || [])
+      setVictimArticles(r.articles || [])
+      if (!r.images?.length) setVictimError('No photos found. Try a different spelling or full name.')
+    } catch {
+      setVictimError('Search failed. Check your internet connection.')
+    } finally {
+      setVictimSearching(false)
+    }
+  }
 
   useEffect(() => { loadTemplates() }, [])
 
@@ -178,7 +216,84 @@ export function InstagramTemplates() {
               )}
             </div>
 
-            <TemplateMockup sampleImage={selected.sample_image} icon={selected.icon} name={selected.name} />
+            <TemplateMockup sampleImage={selectedPhoto || selected.sample_image} icon={selected.icon} name={selected.name} />
+
+            {/* Free Iran — victim photo search */}
+            {selected.id === FREE_IRAN_ID && (
+              <div className="border border-green-100 bg-green-50 rounded-xl p-4 space-y-3">
+                <div>
+                  <p className="text-xs font-semibold text-green-800 mb-0.5">🕊 Find Victim Photo</p>
+                  <p className="text-[11px] text-green-600">Enter the name of a person killed in Iran to search for their photo and story.</p>
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={victimName}
+                    onChange={e => setVictimName(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && searchVictim()}
+                    placeholder="e.g. Mahsa Amini"
+                    className="flex-1 text-sm border border-green-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-400 bg-white"
+                  />
+                  <button
+                    onClick={searchVictim}
+                    disabled={victimSearching || !victimName.trim()}
+                    className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50 transition"
+                  >
+                    {victimSearching ? '…' : 'Search'}
+                  </button>
+                </div>
+
+                {victimError && <p className="text-xs text-red-500">{victimError}</p>}
+
+                {victimPhotos.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Select a photo</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {victimPhotos.map((p, i) => (
+                        <button key={i} onClick={() => setSelectedPhoto(selectedPhoto === p.url ? '' : p.url)}
+                          title={p.title}
+                          className={`relative aspect-square rounded-lg overflow-hidden border-2 transition ${
+                            selectedPhoto === p.url ? 'border-green-500 ring-2 ring-green-300' : 'border-transparent hover:border-green-300'
+                          }`}>
+                          <img
+                            src={p.thumbnail || p.url}
+                            alt={p.title}
+                            className="w-full h-full object-cover"
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                          />
+                          {selectedPhoto === p.url && (
+                            <div className="absolute inset-0 bg-green-500 bg-opacity-20 flex items-center justify-center">
+                              <span className="text-white text-lg">✓</span>
+                            </div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                    {selectedPhoto && (
+                      <p className="text-[11px] text-green-700 mt-2">
+                        ✓ Photo selected — will be used as the post image.{' '}
+                        <button onClick={() => setSelectedPhoto('')} className="underline text-gray-400 hover:text-gray-600">Clear</button>
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {victimArticles.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Related articles</p>
+                    <div className="space-y-2">
+                      {victimArticles.map((a, i) => (
+                        <a key={i} href={a.url} target="_blank" rel="noreferrer"
+                          className="block bg-white rounded-lg px-3 py-2 hover:bg-gray-50 transition border border-gray-100">
+                          <p className="text-xs font-medium text-gray-800 leading-snug">{a.title}</p>
+                          <p className="text-[11px] text-gray-400 mt-0.5 leading-relaxed line-clamp-2">{a.snippet}</p>
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="bg-gray-50 rounded-xl p-4">
               <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Caption Style Prompt</p>
