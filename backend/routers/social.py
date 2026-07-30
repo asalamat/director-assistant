@@ -623,9 +623,10 @@ async def publish(body: dict, request: Request):
         conn.execute(
             """UPDATE linkedin_posts
                SET status='published', published_at=datetime('now'), linkedin_post_id=?,
-                   image_url=COALESCE(NULLIF(?, ''), image_url)
+                   image_url=COALESCE(NULLIF(?, ''), image_url),
+                   post_text=COALESCE(NULLIF(?, ''), post_text)
                WHERE id=?""",
-            (linkedin_post_id, image_url, post_id),
+            (linkedin_post_id, image_url, post_text, post_id),
         )
     return {"status": "published", "linkedin_post_id": linkedin_post_id, "image_uploaded": result.get("image_uploaded", False)}
 

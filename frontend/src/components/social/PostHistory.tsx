@@ -62,6 +62,11 @@ export function PostHistory() {
   const [statsData, setStatsData] = useState<Record<string, {linkedin_url: string | null, api_available: boolean, error?: string}>>({})
   const [statsLoading, setStatsLoading] = useState<Set<string>>(new Set())
 
+  // Regenerate text
+  const [regenOpen, setRegenOpen] = useState<Set<string>>(new Set())
+  const [regenLoading, setRegenLoading] = useState<Set<string>>(new Set())
+  const [regenText, setRegenText] = useState<Record<string, string>>({})
+
   useEffect(() => {
     let cancelled = false
     setLoading(true)
@@ -110,6 +115,55 @@ export function PostHistory() {
       setRetryError(prev => ({...prev, [post.id]: (e as Error).message}))
     } finally {
       setRetrying(prev => { const next = new Set(prev); next.delete(post.id); return next })
+    }
+  }
+
+  const handleRegenerate = async (post: LinkedInPost) => {
+    const topic = post.topic || post.subject || ''
+    if (!topic) return
+    setRegenLoading(prev => new Set(prev).add(post.id))
+    try {
+      const r = await fetch('/api/social/linkedin/generate-post', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic, subject: topic, audience: post.audience || '', tone: post.tone || 'Professional' }),
+      }).then(x => x.json())
+      const newText = r.post || ''
+      if (newText) {
+        setRegenText(prev => ({ ...prev, [post.id]: newText }))
+        setRegenOpen(prev => new Set(prev).add(post.id))
+      }
+    } catch { /* silent */ }
+    finally { setRegenLoading(prev => { const n = new Set(prev); n.delete(post.id); return n }) }
+  }
+
+  const handlePostWithRegenText = async (post: LinkedInPost) => {
+    const newText = regenText[post.id]
+    if (!newText) return
+    setRetrying(prev => new Set(prev).add(post.id))
+    setRetryError(prev => { const n = {...prev}; delete n[post.id]; return n })
+    try {
+      const r = await (api as any).publishLinkedInPost({
+        id: post.id,
+        post_text: newText,
+        content_type: post.content_type || 'image+text',
+        image_url: post.image_url || '',
+        topic: post.topic || '',
+        subject: post.subject || '',
+      })
+      if (r.error) {
+        setRetryError(prev => ({...prev, [post.id]: r.error}))
+      } else {
+        setPosts(prev => prev.map(p => p.id === post.id
+          ? {...p, status: 'published', linkedin_post_id: r.linkedin_post_id, post_text: newText}
+          : p
+        ))
+        setRegenOpen(prev => { const n = new Set(prev); n.delete(post.id); return n })
+      }
+    } catch (e) {
+      setRetryError(prev => ({...prev, [post.id]: (e as Error).message}))
+    } finally {
+      setRetrying(prev => { const n = new Set(prev); n.delete(post.id); return n })
     }
   }
 
@@ -341,6 +395,39 @@ export function PostHistory() {
                 </div>
               )}
 
+              {/* Regenerate text panel */}
+              {regenOpen.has(post.id) && regenText[post.id] && (
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 space-y-2">
+                  <p className="text-[10px] font-semibold text-blue-700 uppercase tracking-wide">✨ Regenerated text — review before posting</p>
+                  <textarea
+                    value={regenText[post.id]}
+                    onChange={e => setRegenText(prev => ({...prev, [post.id]: e.target.value}))}
+                    rows={8}
+                    className="w-full text-xs border border-blue-200 rounded-lg px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handlePostWithRegenText(post)}
+                      disabled={retrying.has(post.id)}
+                      className="text-xs font-medium text-white bg-accent px-3 py-1.5 rounded-lg hover:opacity-90 disabled:opacity-50 transition"
+                    >
+                      {retrying.has(post.id) ? 'Posting…' : '↺ Post with this text'}
+                    </button>
+                    <button
+                      onClick={() => handleRegenerate(post)}
+                      disabled={regenLoading.has(post.id)}
+                      className="text-xs font-medium px-3 py-1.5 rounded-lg border border-blue-300 text-blue-700 hover:bg-blue-100 disabled:opacity-50 transition"
+                    >
+                      {regenLoading.has(post.id) ? 'Regenerating…' : '↻ Try again'}
+                    </button>
+                    <button
+                      onClick={() => setRegenOpen(prev => { const n = new Set(prev); n.delete(post.id); return n })}
+                      className="text-xs text-gray-400 hover:text-gray-600 ml-auto"
+                    >Discard</button>
+                  </div>
+                </div>
+              )}
+
               {/* Action buttons */}
               <div className="flex items-center gap-2 flex-wrap pt-0.5">
                 {post.status === 'published' && post.linkedin_post_id && (
@@ -386,6 +473,13 @@ export function PostHistory() {
                     {retrying.has(post.id) ? 'Posting…' : post.status === 'published' ? '↺ Post Again' : '↺ Post Now'}
                   </button>
                 )}
+                <button
+                  onClick={() => handleRegenerate(post)}
+                  disabled={regenLoading.has(post.id)}
+                  className="text-xs font-medium px-3 py-1 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 disabled:opacity-50 transition"
+                >
+                  {regenLoading.has(post.id) ? '…' : '✨ Regenerate'}
+                </button>
                 <button
                   onClick={() => toggleAsk(post.id)}
                   className={`text-xs font-medium px-3 py-1 rounded-lg border transition ${
