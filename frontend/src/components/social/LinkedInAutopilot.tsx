@@ -392,7 +392,7 @@ export function LinkedInAutopilot() {
                       className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-blue-400 mb-2"
                     />
                   ) : (
-                    <p className="text-xs text-gray-700 whitespace-pre-line line-clamp-4 mb-2">{post.post_text}</p>
+                    <p className="text-xs text-gray-700 whitespace-pre-line mb-2">{post.post_text}</p>
                   )}
                   <div className="flex flex-wrap gap-1.5">
                     {editingReview?.id === post.id ? (

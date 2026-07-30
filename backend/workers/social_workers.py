@@ -100,10 +100,11 @@ async def _linkedin_autopilot_loop(app: "object") -> None:
             ant = getattr(advisor.ai, "_anthropic", None)
             post_system = (
                 "You are a LinkedIn post writer. Output ONLY the post text — "
-                "no JSON, no code blocks, no labels, no introductions."
+                "no JSON, no code blocks, no labels, no introductions. "
+                "IMPORTANT: Keep the post under 2800 characters — LinkedIn hard-truncates at 3000."
             )
             if template_prompt:
-                post_prompt = f"{template_prompt}\n\nTopic: {topic}\n\nOutput ONLY the post text."
+                post_prompt = f"{template_prompt}\n\nTopic: {topic}\n\nOutput ONLY the post text. Keep under 2800 characters."
             else:
                 post_prompt = (
                     f"Write a professional LinkedIn post about: {topic}.\n"
@@ -112,7 +113,7 @@ async def _linkedin_autopilot_loop(app: "object") -> None:
                 )
             try:
                 ai_call = ant.messages.create if ant else advisor.ai.messages.create
-                resp = await ai_call(model="claude-sonnet-4-6", max_tokens=1200,
+                resp = await ai_call(model="claude-sonnet-4-6", max_tokens=1500,
                                      system=post_system,
                                      messages=[{"role": "user", "content": post_prompt}])
                 post_text = resp.content[0].text.strip()

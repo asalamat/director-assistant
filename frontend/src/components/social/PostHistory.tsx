@@ -216,7 +216,7 @@ export function PostHistory() {
           const isExpanded = expanded.has(post.id)
           const isAskOpen = askOpen.has(post.id)
           const text = post.post_text || ''
-          const truncated = text.length > 120 ? text.slice(0, 120) + '…' : text
+          const truncated = text.length > 400 ? text.slice(0, 400) + '…' : text
 
           return (
             <div key={post.id} className="border border-gray-200 rounded-xl p-4 space-y-3">
@@ -245,7 +245,7 @@ export function PostHistory() {
               {/* Post text */}
               <p className="text-xs text-gray-600 leading-relaxed">
                 {isExpanded ? text : truncated}
-                {text.length > 120 && (
+                {text.length > 400 && (
                   <button
                     onClick={() => toggleExpand(post.id)}
                     className="ml-1 text-accent hover:underline"
