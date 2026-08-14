@@ -199,8 +199,9 @@ export default function App() {
   useEffect(() => {
     api.getStatus().then((s) => {
       setConnected(s.connected)
-      if (s.connected) { refresh(); loadFolderData() }
     }).catch(() => setConnected(false))
+    refresh()
+    loadFolderData()
     api.getAccounts().then(accs => {
       setAccounts(accs)
       if (accs.length === 0 && !localStorage.getItem('onboarding_complete')) {

@@ -178,7 +178,7 @@ async def batch_triage(request: Request):
     cache = request.app.state.cache
     advisor = request.app.state.advisor
 
-    emails, _ = cache.list_emails(folder="INBOX", limit=50, only_unread=True)
+    emails, _ = cache.list_emails(folder="INBOX", limit=50, only_unread=False)
     if not emails:
         return {"groups": {"reply_needed": [], "fyi": [], "review": [], "junk": []}, "total": 0}
 
