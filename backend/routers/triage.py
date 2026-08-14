@@ -183,7 +183,7 @@ async def batch_triage(request: Request):
         return {"groups": {"reply_needed": [], "fyi": [], "review": [], "junk": []}, "total": 0}
 
     summaries = "\n".join(
-        f"{i+1}. ID={e.email_id} | From={e.sender} | Subject={e.subject[:80]}"
+        f"{i+1}. ID={e.id} | From={e.sender} | Subject={e.subject[:80]}"
         for i, e in enumerate(emails[:40])
     )
     prompt = (
@@ -204,13 +204,13 @@ async def batch_triage(request: Request):
     except Exception:
         data = {"classifications": []}
 
-    email_map = {e.email_id: e for e in emails}
+    email_map = {e.id: e for e in emails}
     groups: dict = {"reply_needed": [], "fyi": [], "review": [], "junk": []}
     for c in data.get("classifications", []):
         e = email_map.get(c["id"])
         cat = c.get("category", "fyi")
         if e and cat in groups:
-            groups[cat].append({"id": e.email_id, "subject": e.subject,
+            groups[cat].append({"id": e.id, "subject": e.subject,
                                  "sender": e.sender, "date": e.date,
-                                 "preview": (e.snippet or "")[:120]})
+                                 "preview": (e.preview or "")[:120]})
     return {"groups": groups, "total": len(emails)}
