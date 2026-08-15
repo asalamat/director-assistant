@@ -382,7 +382,7 @@ export interface AIProviderSave {
 
 export interface SocialMessage {
   id: string
-  platform: 'instagram' | 'linkedin'
+  platform: 'instagram' | 'linkedin' | 'sms'
   type: 'dm' | 'comment' | 'mention'
   sender_name: string
   sender_id: string

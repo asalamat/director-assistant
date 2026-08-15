@@ -1268,8 +1268,22 @@ export const api = {
   syncSocialInbox(platform: string): Promise<{ fetched: number; error?: string; hint?: string }> {
     return request('/social/inbox/sync', { method: 'POST', body: JSON.stringify({ platform }) })
   },
-  getSocialUnreadCount(): Promise<{ instagram: number; linkedin: number }> {
+  getSocialUnreadCount(): Promise<{ instagram: number; linkedin: number; sms: number }> {
     return request('/social/inbox/unread-count')
+  },
+
+  // SMS
+  getSmsSettings(): Promise<{ account_sid: string; from_number: string; auth_token_set: boolean }> {
+    return request('/sms/settings')
+  },
+  saveSmsSettings(data: { account_sid?: string; auth_token?: string; from_number?: string }): Promise<{ status: string }> {
+    return request('/sms/settings', { method: 'POST', body: JSON.stringify(data) })
+  },
+  testSmsConnection(): Promise<{ ok: boolean; error?: string }> {
+    return request('/sms/test', { method: 'POST' })
+  },
+  draftSmsReply(text: string): Promise<{ draft: string; error?: string }> {
+    return request('/sms/draft-reply', { method: 'POST', body: JSON.stringify({ text }) })
   },
 
   // Post performance scoring
