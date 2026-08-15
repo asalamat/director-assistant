@@ -120,3 +120,14 @@ def test_sms_test_connection_not_configured(sms_client):
     r = sms_client.post("/api/sms/test")
     assert r.status_code == 200
     assert r.json()["ok"] is False
+
+
+def test_sms_settings_route_is_mounted(sms_client):
+    r = sms_client.get("/api/sms/settings")
+    assert r.status_code == 200
+
+
+def test_sms_test_connection_now_reachable(sms_client):
+    r = sms_client.post("/api/sms/test")
+    assert r.status_code == 200
+    assert r.json()["ok"] is False  # still unconfigured, but no longer 404

@@ -76,6 +76,7 @@ from routers import card_studio as card_studio_router
 from routers import nl_commands as nl_commands_router
 from routers import commitments as commitments_router
 from routers import social_inbox as social_inbox_router
+from routers import sms as sms_router
 from routers import weather as weather_router
 from routers import news as news_router
 from routers.contact_health import router as contact_health_router
@@ -346,6 +347,7 @@ app.include_router(card_studio_router.router)
 app.include_router(nl_commands_router.router)
 app.include_router(commitments_router.router)
 app.include_router(social_inbox_router.router)
+app.include_router(sms_router.router)
 app.include_router(weather_router.router)
 app.include_router(news_router.router)
 app.include_router(contact_health_router)
