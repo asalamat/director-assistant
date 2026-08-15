@@ -131,3 +131,141 @@ def test_sms_test_connection_now_reachable(sms_client):
     r = sms_client.post("/api/sms/test")
     assert r.status_code == 200
     assert r.json()["ok"] is False  # still unconfigured, but no longer 404
+
+
+def _make_social_inbox_cache(tmp_path):
+    import sqlite3
+    from contextlib import contextmanager
+
+    db_file = tmp_path / "social.db"
+
+    @contextmanager
+    def _conn():
+        conn = sqlite3.connect(str(db_file))
+        conn.row_factory = sqlite3.Row
+        try:
+            yield conn
+            conn.commit()
+        finally:
+            conn.close()
+
+    cache = MagicMock()
+    cache._conn = _conn
+    return cache
+
+
+def test_old_social_inbox_table_migrates_to_allow_sms(tmp_path):
+    from routers import social_inbox
+
+    cache = _make_social_inbox_cache(tmp_path)
+    # Simulate a pre-migration DB: old CHECK constraint, one existing row.
+    with cache._conn() as conn:
+        conn.execute("""
+            CREATE TABLE social_inbox (
+                id TEXT PRIMARY KEY,
+                platform TEXT NOT NULL CHECK(platform IN ('instagram','linkedin')),
+                type TEXT NOT NULL CHECK(type IN ('dm','comment','mention')),
+                sender_name TEXT DEFAULT '',
+                sender_id TEXT DEFAULT '',
+                content TEXT DEFAULT '',
+                media_url TEXT DEFAULT '',
+                parent_id TEXT DEFAULT '',
+                is_read INTEGER DEFAULT 0,
+                replied_at TEXT,
+                created_at TEXT NOT NULL,
+                fetched_at TEXT DEFAULT (datetime('now'))
+            )
+        """)
+        conn.execute(
+            "INSERT INTO social_inbox (id, platform, type, content, created_at) "
+            "VALUES ('ig_dm_1', 'instagram', 'dm', 'hello', '2026-01-01T00:00:00Z')"
+        )
+
+    social_inbox._ensure_tables(cache)  # should migrate in place
+
+    with cache._conn() as conn:
+        # Old row survived
+        row = conn.execute("SELECT * FROM social_inbox WHERE id = 'ig_dm_1'").fetchone()
+        assert row is not None
+        assert row["platform"] == "instagram"
+        # New platform value is now accepted
+        conn.execute(
+            "INSERT INTO social_inbox (id, platform, type, content, created_at) "
+            "VALUES ('sms_1', 'sms', 'dm', 'hi', '2026-01-01T00:00:00Z')"
+        )
+        count = conn.execute("SELECT COUNT(*) AS c FROM social_inbox").fetchone()["c"]
+        assert count == 2
+
+
+@pytest.mark.asyncio
+async def test_sync_platform_sms_dispatches_to_fetch_sms(tmp_path, monkeypatch):
+    from routers import social_inbox
+
+    cache = _make_social_inbox_cache(tmp_path)
+    social_inbox._ensure_tables(cache)
+
+    async def fake_fetch_sms():
+        return [{
+            "id": "sms_SM1", "platform": "sms", "type": "dm",
+            "sender_name": "+15551112222", "sender_id": "+15551112222",
+            "content": "hi", "created_at": "2026-08-14T10:00:00Z",
+        }]
+
+    monkeypatch.setattr("routers.sms._fetch_sms", fake_fetch_sms)
+    count = await social_inbox.sync_platform(cache, "sms")
+    assert count == 1
+
+    with cache._conn() as conn:
+        row = conn.execute("SELECT * FROM social_inbox WHERE id = 'sms_SM1'").fetchone()
+    assert row["content"] == "hi"
+
+
+@pytest.mark.asyncio
+async def test_unread_count_includes_sms(tmp_path):
+    from routers import social_inbox
+
+    cache = _make_social_inbox_cache(tmp_path)
+    social_inbox._ensure_tables(cache)
+    with cache._conn() as conn:
+        conn.execute(
+            "INSERT INTO social_inbox (id, platform, type, content, created_at, is_read) "
+            "VALUES ('sms_1', 'sms', 'dm', 'hi', '2026-08-14T10:00:00Z', 0)"
+        )
+
+    class FakeRequest:
+        class app:
+            class state:
+                pass
+    FakeRequest.app.state.cache = cache
+
+    result = await social_inbox.unread_count(FakeRequest())
+    assert result["sms"] == 1
+
+
+@pytest.mark.asyncio
+async def test_reply_message_sms_calls_send_sms(tmp_path, monkeypatch):
+    from routers import social_inbox
+
+    cache = _make_social_inbox_cache(tmp_path)
+    social_inbox._ensure_tables(cache)
+    with cache._conn() as conn:
+        conn.execute(
+            "INSERT INTO social_inbox (id, platform, type, sender_id, content, created_at) "
+            "VALUES ('sms_SM1', 'sms', 'dm', '+15551112222', 'hi', '2026-08-14T10:00:00Z')"
+        )
+
+    async def fake_send_sms(to, body):
+        assert to == "+15551112222"
+        assert body == "reply text"
+        return {"sid": "SMreply1"}
+
+    monkeypatch.setattr("routers.sms._send_sms", fake_send_sms)
+
+    class FakeRequest:
+        class app:
+            class state:
+                pass
+    FakeRequest.app.state.cache = cache
+
+    result = await social_inbox.reply_message("sms_SM1", {"text": "reply text"}, FakeRequest())
+    assert result["ok"] is True

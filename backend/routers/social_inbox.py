@@ -19,16 +19,45 @@ from routers.social import _get_linkedin_settings
 router = APIRouter(prefix="/api/social/inbox", tags=["social-inbox"])
 
 MAX_REPLY_CHARS = 2200
-VALID_PLATFORMS = ("instagram", "linkedin")
+VALID_PLATFORMS = ("instagram", "linkedin", "sms")
 VALID_TYPES = ("dm", "comment", "mention")
 
 
 def _ensure_tables(cache) -> None:
     with cache._conn() as conn:
+        row = conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='social_inbox'"
+        ).fetchone()
+        ddl = (row["sql"] if row else "") or ""
+        if ddl and "'sms'" not in ddl:
+            # Older DBs have CHECK(platform IN ('instagram','linkedin')) — rebuild
+            # the table to widen the constraint, preserving existing rows.
+            conn.executescript("""
+                ALTER TABLE social_inbox RENAME TO social_inbox_old;
+                CREATE TABLE social_inbox (
+                    id TEXT PRIMARY KEY,
+                    platform TEXT NOT NULL CHECK(platform IN ('instagram','linkedin','sms')),
+                    type TEXT NOT NULL CHECK(type IN ('dm','comment','mention')),
+                    sender_name TEXT DEFAULT '',
+                    sender_id TEXT DEFAULT '',
+                    content TEXT DEFAULT '',
+                    media_url TEXT DEFAULT '',
+                    parent_id TEXT DEFAULT '',
+                    is_read INTEGER DEFAULT 0,
+                    replied_at TEXT,
+                    created_at TEXT NOT NULL,
+                    fetched_at TEXT DEFAULT (datetime('now'))
+                );
+                INSERT INTO social_inbox SELECT * FROM social_inbox_old;
+                DROP TABLE social_inbox_old;
+                CREATE INDEX IF NOT EXISTS idx_social_inbox_platform
+                    ON social_inbox(platform, is_read, created_at DESC);
+            """)
+            return
         conn.execute("""
             CREATE TABLE IF NOT EXISTS social_inbox (
                 id TEXT PRIMARY KEY,
-                platform TEXT NOT NULL CHECK(platform IN ('instagram','linkedin')),
+                platform TEXT NOT NULL CHECK(platform IN ('instagram','linkedin','sms')),
                 type TEXT NOT NULL CHECK(type IN ('dm','comment','mention')),
                 sender_name TEXT DEFAULT '',
                 sender_id TEXT DEFAULT '',
@@ -317,6 +346,9 @@ async def sync_platform(cache, platform: str) -> int:
     elif platform == "linkedin":
         settings = _get_linkedin_settings()
         rows = await _fetch_linkedin(cache, settings)
+    elif platform == "sms":
+        from routers.sms import _fetch_sms
+        rows = await _fetch_sms()
     else:
         raise ValueError(f"Unknown platform: {platform}")
     return _upsert_messages(cache, rows)
@@ -365,7 +397,7 @@ async def unread_count(request: Request):
             "SELECT platform, COUNT(*) AS c FROM social_inbox "
             "WHERE is_read = 0 GROUP BY platform"
         ).fetchall()
-    counts = {"instagram": 0, "linkedin": 0}
+    counts = {"instagram": 0, "linkedin": 0, "sms": 0}
     for r in rows:
         if r["platform"] in counts:
             counts[r["platform"]] = r["c"]
@@ -393,7 +425,7 @@ async def sync_inbox(body: dict, request: Request):
     _ensure_tables(cache)
     platform = (body.get("platform") or "").strip()
     if platform not in VALID_PLATFORMS:
-        return {"error": "platform must be 'instagram' or 'linkedin'", "fetched": 0}
+        return {"error": "platform must be 'instagram', 'linkedin', or 'sms'", "fetched": 0}
     try:
         fetched = await sync_platform(cache, platform)
         hint = _PERMISSION_HINTS.get(platform, "") if fetched == 0 else ""
@@ -444,6 +476,9 @@ async def reply_message(msg_id: str, body: dict, request: Request):
             result = await _reply_instagram(_get_instagram_settings(), msg, text)
         elif msg["platform"] == "linkedin":
             result = await _reply_linkedin(_get_linkedin_settings(), msg, text)
+        elif msg["platform"] == "sms":
+            from routers.sms import _send_sms
+            result = await _send_sms(msg["sender_id"], text)
         else:
             return {"ok": False, "error": "unknown platform"}
     except Exception as e:
