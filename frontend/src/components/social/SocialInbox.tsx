@@ -2,11 +2,12 @@ import { useState, useEffect, useCallback } from 'react'
 import { api } from '../../api/client'
 import type { SocialMessage } from '../../types'
 
-type PlatformFilter = 'all' | 'instagram' | 'linkedin'
+type PlatformFilter = 'all' | 'instagram' | 'linkedin' | 'sms'
 
 const PLATFORM_BADGE: Record<string, { icon: string; cls: string; label: string }> = {
   instagram: { icon: 'IG', cls: 'bg-pink-100 text-pink-600', label: 'Instagram' },
   linkedin: { icon: 'LI', cls: 'bg-blue-100 text-blue-700', label: 'LinkedIn' },
+  sms: { icon: 'SMS', cls: 'bg-teal-100 text-teal-600', label: 'SMS' },
 }
 
 const TYPE_LABEL: Record<string, string> = { dm: 'DM', comment: 'Comment', mention: 'Mention' }
@@ -31,6 +32,7 @@ export function SocialInbox() {
   const [replyText, setReplyText] = useState('')
   const [replying, setReplying] = useState(false)
   const [feedback, setFeedback] = useState<{ id: string; ok: boolean; text: string } | null>(null)
+  const [drafting, setDrafting] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [syncMsg, setSyncMsg] = useState('')
   const [hints, setHints] = useState<string[]>([])
@@ -50,7 +52,7 @@ export function SocialInbox() {
 
   const sync = async () => {
     setSyncing(true); setSyncMsg(''); setHints([])
-    const targets = platform === 'all' ? ['instagram', 'linkedin'] : [platform]
+    const targets = platform === 'all' ? ['instagram', 'linkedin', 'sms'] : [platform]
     let total = 0
     const errors: string[] = []
     const newHints: string[] = []
@@ -101,13 +103,24 @@ export function SocialInbox() {
     }
   }
 
+  const draftReply = async (m: SocialMessage) => {
+    setDrafting(true)
+    try {
+      const r = await api.draftSmsReply(m.content)
+      if (r.draft) setReplyText(r.draft)
+    } catch {
+      // silently ignore — user can still type a manual reply
+    }
+    setDrafting(false)
+  }
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Toolbar */}
       <div className="px-6 pt-5 pb-3 flex items-center gap-2 flex-wrap flex-shrink-0">
         <h2 className="text-base font-semibold text-gray-900 mr-2">Social Inbox</h2>
         <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5">
-          {(['all', 'instagram', 'linkedin'] as PlatformFilter[]).map(p => (
+          {(['all', 'instagram', 'linkedin', 'sms'] as PlatformFilter[]).map(p => (
             <button key={p} onClick={() => setPlatform(p)}
               className={`px-2.5 py-1 rounded-md text-xs font-medium capitalize transition-colors ${
                 platform === p ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500 hover:text-gray-700'
@@ -203,6 +216,12 @@ export function SocialInbox() {
                   <div className="flex items-center gap-2">
                     {feedback?.id === m.id && (
                       <span className={`text-[11px] ${feedback.ok ? 'text-green-600' : 'text-red-500'}`}>{feedback.text}</span>
+                    )}
+                    {m.platform === 'sms' && (
+                      <button onClick={() => draftReply(m)} disabled={drafting}
+                        className="text-xs border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50 disabled:opacity-50 transition">
+                        {drafting ? 'Drafting…' : '✨ Draft Reply'}
+                      </button>
                     )}
                     <button onClick={() => sendReply(m)} disabled={replying || !replyText.trim()}
                       className="ml-auto text-xs bg-accent text-white rounded-lg px-3 py-1.5 hover:opacity-90 disabled:opacity-50 transition">
