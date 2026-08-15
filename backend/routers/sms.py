@@ -45,3 +45,59 @@ async def save_settings(body: dict):
     cfg["sms"] = sms
     save_app_config(cfg)
     return {"status": "saved"}
+
+
+async def _send_sms(to: str, body: str) -> dict:
+    """Send an SMS via Twilio. Returns {sid} on success or {error} on failure."""
+    settings = _get_sms_settings()
+    sid, token, from_number = settings["account_sid"], settings["auth_token"], settings["from_number"]
+    if not sid or not token or not from_number:
+        return {"error": "SMS not configured — go to Settings → SMS"}
+    url = f"https://api.twilio.com/2010-04-01/Accounts/{sid}/Messages.json"
+    async with httpx.AsyncClient(timeout=15.0, auth=(sid, token)) as http:
+        r = await http.post(url, data={"To": to, "From": from_number, "Body": body})
+    if r.status_code >= 300:
+        return {"error": f"Twilio send failed {r.status_code}: {r.text[:200]}"}
+    return {"sid": (r.json() or {}).get("sid", "")}
+
+
+async def _fetch_sms() -> list[dict]:
+    """Fetch recent inbound SMS messages, shaped as social_inbox rows."""
+    settings = _get_sms_settings()
+    sid, token, from_number = settings["account_sid"], settings["auth_token"], settings["from_number"]
+    if not sid or not token or not from_number:
+        raise ValueError("SMS not configured — go to Settings → SMS")
+    url = f"https://api.twilio.com/2010-04-01/Accounts/{sid}/Messages.json"
+    async with httpx.AsyncClient(timeout=15.0, auth=(sid, token)) as http:
+        r = await http.get(url, params={"To": from_number, "PageSize": 50})
+    if r.status_code >= 300:
+        raise ValueError(f"Twilio fetch failed {r.status_code}: {r.text[:200]}")
+    rows: list[dict] = []
+    for m in (r.json() or {}).get("messages", []):
+        if m.get("direction") != "inbound":
+            continue
+        msid = m.get("sid")
+        if not msid:
+            continue
+        rows.append({
+            "id": f"sms_{msid}",
+            "platform": "sms",
+            "type": "dm",
+            "sender_name": m.get("from") or "",
+            "sender_id": m.get("from") or "",
+            "content": m.get("body") or "",
+            "created_at": m.get("date_sent") or datetime.now(timezone.utc).isoformat(),
+        })
+    return rows
+
+
+@router.post("/test")
+async def test_connection():
+    """Send a test SMS to the configured From number to confirm credentials work."""
+    settings = _get_sms_settings()
+    if not settings["from_number"]:
+        return {"ok": False, "error": "Set a From Number first"}
+    result = await _send_sms(settings["from_number"], "Cortex Executive Inbox: SMS test message")
+    if "error" in result:
+        return {"ok": False, "error": result["error"]}
+    return {"ok": True}
