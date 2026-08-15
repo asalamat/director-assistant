@@ -357,7 +357,7 @@ async def sync_platform(cache, platform: str) -> int:
         rows = await _fetch_linkedin(cache, settings)
     elif platform == "sms":
         from routers.sms import _fetch_sms
-        rows = await _fetch_sms()
+        rows = await _fetch_sms(cache)
     else:
         raise ValueError(f"Unknown platform: {platform}")
     return _upsert_messages(cache, rows)

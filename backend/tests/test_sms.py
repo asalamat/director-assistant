@@ -12,6 +12,12 @@ def test_sms_is_a_protected_json_key():
 
 @pytest.fixture()
 def sms_client(tmp_path, monkeypatch):
+    # Disable the keychain entirely for this test — without this, save_settings()
+    # → save_app_config() → protect_to_keychain() writes real SMS credentials into
+    # the developer's actual OS keychain under "director-assistant-cfg"/"sms".
+    monkeypatch.setattr(config_secrets, "_unavailable", True)
+    monkeypatch.setattr(config_secrets, "_cache", {})
+
     mock_chroma = MagicMock()
     mock_chroma.get_or_create_collection.return_value.count.return_value = 0
     mock_chroma.get_or_create_collection.return_value.get.return_value = {
@@ -92,10 +98,11 @@ async def test_fetch_sms_maps_inbound_messages(monkeypatch):
     fake_response.status_code = 200
     fake_response.json.return_value = {
         "messages": [
+            # Twilio's real API returns date_sent as RFC 2822, not ISO 8601.
             {"sid": "SM111", "from": "+15551112222", "to": "+15550000000",
-             "body": "hi there", "date_sent": "2026-08-14T10:00:00Z", "direction": "inbound"},
+             "body": "hi there", "date_sent": "Fri, 14 Aug 2026 10:00:00 +0000", "direction": "inbound"},
             {"sid": "SM222", "from": "+15550000000", "to": "+15551112222",
-             "body": "outbound one, should be skipped", "date_sent": "2026-08-14T10:01:00Z",
+             "body": "outbound one, should be skipped", "date_sent": "Fri, 14 Aug 2026 10:01:00 +0000",
              "direction": "outbound-api"},
         ]
     }
@@ -107,13 +114,107 @@ async def test_fetch_sms_maps_inbound_messages(monkeypatch):
     mock_client.__aexit__ = AsyncMock(return_value=False)
 
     with patch("routers.sms.httpx.AsyncClient", return_value=mock_client):
-        rows = await sms_module._fetch_sms()
+        rows = await sms_module._fetch_sms(MagicMock())
 
     assert len(rows) == 1
     assert rows[0]["id"] == "sms_SM111"
     assert rows[0]["platform"] == "sms"
     assert rows[0]["sender_id"] == "+15551112222"
     assert rows[0]["content"] == "hi there"
+    # RFC 2822 date_sent must be normalized to ISO 8601 so unified-inbox
+    # ORDER BY created_at DESC sorts correctly against instagram/linkedin rows.
+    assert rows[0]["created_at"].startswith("2026-08-14T10:00:00")
+
+
+@pytest.mark.asyncio
+async def test_fetch_sms_resolves_sender_name_from_contact(tmp_path, monkeypatch):
+    """A contact stored with a differently-formatted phone number should still match."""
+    from routers import sms as sms_module
+
+    monkeypatch.setattr(sms_module, "_get_sms_settings", lambda: {
+        "account_sid": "ACtest", "auth_token": "tok", "from_number": "+15550000000",
+    })
+
+    cache = _make_social_inbox_cache(tmp_path)
+    with cache._conn() as conn:
+        conn.execute("""
+            CREATE TABLE imported_contacts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email_addr TEXT NOT NULL UNIQUE,
+                name TEXT DEFAULT '',
+                phones TEXT DEFAULT '[]',
+                source TEXT DEFAULT 'vcard',
+                imported_at TEXT DEFAULT (datetime('now'))
+            )
+        """)
+        conn.execute(
+            "INSERT INTO imported_contacts (email_addr, name, phones) VALUES (?, ?, ?)",
+            ("jane@example.com", "Jane Doe", '["416-555-1234"]'),
+        )
+
+    fake_response = MagicMock()
+    fake_response.status_code = 200
+    fake_response.json.return_value = {
+        "messages": [
+            {"sid": "SM333", "from": "+14165551234", "to": "+15550000000",
+             "body": "hey", "date_sent": "Fri, 14 Aug 2026 10:00:00 +0000", "direction": "inbound"},
+        ]
+    }
+
+    mock_http = AsyncMock()
+    mock_http.get.return_value = fake_response
+    mock_client = MagicMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_http)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+
+    with patch("routers.sms.httpx.AsyncClient", return_value=mock_client):
+        rows = await sms_module._fetch_sms(cache)
+
+    assert len(rows) == 1
+    assert rows[0]["sender_name"] == "Jane Doe"
+
+
+@pytest.mark.asyncio
+async def test_fetch_sms_falls_back_to_raw_phone_when_no_contact_matches(tmp_path, monkeypatch):
+    from routers import sms as sms_module
+
+    monkeypatch.setattr(sms_module, "_get_sms_settings", lambda: {
+        "account_sid": "ACtest", "auth_token": "tok", "from_number": "+15550000000",
+    })
+
+    cache = _make_social_inbox_cache(tmp_path)
+    with cache._conn() as conn:
+        conn.execute("""
+            CREATE TABLE imported_contacts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email_addr TEXT NOT NULL UNIQUE,
+                name TEXT DEFAULT '',
+                phones TEXT DEFAULT '[]',
+                source TEXT DEFAULT 'vcard',
+                imported_at TEXT DEFAULT (datetime('now'))
+            )
+        """)
+
+    fake_response = MagicMock()
+    fake_response.status_code = 200
+    fake_response.json.return_value = {
+        "messages": [
+            {"sid": "SM444", "from": "+19998887777", "to": "+15550000000",
+             "body": "hey", "date_sent": "Fri, 14 Aug 2026 10:00:00 +0000", "direction": "inbound"},
+        ]
+    }
+
+    mock_http = AsyncMock()
+    mock_http.get.return_value = fake_response
+    mock_client = MagicMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_http)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+
+    with patch("routers.sms.httpx.AsyncClient", return_value=mock_client):
+        rows = await sms_module._fetch_sms(cache)
+
+    assert len(rows) == 1
+    assert rows[0]["sender_name"] == "+19998887777"
 
 
 def test_sms_test_connection_not_configured(sms_client):
@@ -248,7 +349,7 @@ async def test_sync_platform_sms_dispatches_to_fetch_sms(tmp_path, monkeypatch):
     cache = _make_social_inbox_cache(tmp_path)
     social_inbox._ensure_tables(cache)
 
-    async def fake_fetch_sms():
+    async def fake_fetch_sms(cache):
         return [{
             "id": "sms_SM1", "platform": "sms", "type": "dm",
             "sender_name": "+15551112222", "sender_id": "+15551112222",

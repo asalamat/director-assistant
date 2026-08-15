@@ -5,7 +5,10 @@ cycle (see workers/poll.py) since this app has no public endpoint to receive
 Twilio's webhook callbacks.
 """
 
+import json
+import re
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 
 import httpx
 from fastapi import APIRouter, Request
@@ -61,7 +64,28 @@ async def _send_sms(to: str, body: str) -> dict:
     return {"sid": (r.json() or {}).get("sid", "")}
 
 
-async def _fetch_sms() -> list[dict]:
+def _lookup_contact_name(cache, phone: str) -> str:
+    """Best-effort match of an E.164 phone number to a known contact's name."""
+    digits = re.sub(r"\D", "", phone or "")
+    if not digits:
+        return ""
+    with cache._conn() as conn:
+        rows = conn.execute("SELECT name, phones FROM imported_contacts WHERE phones != '[]'").fetchall()
+    for row in rows:
+        try:
+            stored_phones = json.loads(row["phones"] or "[]")
+        except (TypeError, ValueError):
+            continue
+        for p in stored_phones:
+            stored_digits = re.sub(r"\D", "", p or "")
+            if not stored_digits:
+                continue
+            if stored_digits == digits or stored_digits[-10:] == digits[-10:]:
+                return row["name"] or ""
+    return ""
+
+
+async def _fetch_sms(cache) -> list[dict]:
     """Fetch recent inbound SMS messages, shaped as social_inbox rows."""
     settings = _get_sms_settings()
     sid, token, from_number = settings["account_sid"], settings["auth_token"], settings["from_number"]
@@ -79,14 +103,23 @@ async def _fetch_sms() -> list[dict]:
         msid = m.get("sid")
         if not msid:
             continue
+        from_number_raw = m.get("from") or ""
+        raw_date = m.get("date_sent")
+        if raw_date:
+            try:
+                created_at = parsedate_to_datetime(raw_date).isoformat()
+            except (TypeError, ValueError):
+                created_at = datetime.now(timezone.utc).isoformat()
+        else:
+            created_at = datetime.now(timezone.utc).isoformat()
         rows.append({
             "id": f"sms_{msid}",
             "platform": "sms",
             "type": "dm",
-            "sender_name": m.get("from") or "",
-            "sender_id": m.get("from") or "",
+            "sender_name": _lookup_contact_name(cache, from_number_raw) or from_number_raw,
+            "sender_id": from_number_raw,
             "content": m.get("body") or "",
-            "created_at": m.get("date_sent") or datetime.now(timezone.utc).isoformat(),
+            "created_at": created_at,
         })
     return rows
 
