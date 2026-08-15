@@ -141,6 +141,16 @@ def _is_connection_error(exc: Exception) -> bool:
     return False
 
 
+async def _poll_sms(cache) -> int:
+    """Fetch new SMS messages if configured. Returns count fetched, 0 if not configured."""
+    from routers.sms import _get_sms_settings
+    settings = _get_sms_settings()
+    if not settings["account_sid"] or not settings["auth_token"] or not settings["from_number"]:
+        return 0
+    from routers.social_inbox import sync_platform
+    return await sync_platform(cache, "sms")
+
+
 async def _do_poll_cycle(rag: RAGEngine, cache: EmailCache, app=None) -> tuple[int, list[str]]:
     async with _poll_lock:
         return await _do_poll_cycle_inner(rag, cache, app)
@@ -294,6 +304,13 @@ async def _do_poll_cycle_inner(rag: RAGEngine, cache: EmailCache, app=None) -> t
             print(f"[poll] woke {len(woken)} snoozed email(s)")
     except Exception as e:
         print(f"[poll] wake-due check failed: {e}")
+
+    try:
+        sms_new = await _poll_sms(cache)
+        if sms_new:
+            print(f"[poll] fetched {sms_new} new SMS message(s)")
+    except Exception as e:
+        print(f"[poll] SMS poll failed: {e}")
 
     _last_poll_new = new_total
     _last_poll_error = "; ".join(errors) if errors else ""

@@ -313,3 +313,44 @@ async def test_reply_message_sms_calls_send_sms(tmp_path, monkeypatch):
 
     result = await social_inbox.reply_message("sms_SM1", {"text": "reply text"}, FakeRequest())
     assert result["ok"] is True
+
+
+@pytest.mark.asyncio
+async def test_poll_cycle_skips_sms_when_not_configured(monkeypatch):
+    from workers import poll as poll_module
+    from routers import sms as sms_module
+
+    monkeypatch.setattr(sms_module, "_get_sms_settings", lambda: {
+        "account_sid": "", "auth_token": "", "from_number": "",
+    })
+
+    called = {"sync": False}
+
+    async def fake_sync_platform(cache, platform):
+        called["sync"] = True
+        return 0
+
+    monkeypatch.setattr("routers.social_inbox.sync_platform", fake_sync_platform)
+    await poll_module._poll_sms(MagicMock())
+    assert called["sync"] is False
+
+
+@pytest.mark.asyncio
+async def test_poll_cycle_syncs_sms_when_configured(monkeypatch):
+    from workers import poll as poll_module
+    from routers import sms as sms_module
+
+    monkeypatch.setattr(sms_module, "_get_sms_settings", lambda: {
+        "account_sid": "ACtest", "auth_token": "tok", "from_number": "+15550000000",
+    })
+
+    called = {"platform": None}
+
+    async def fake_sync_platform(cache, platform):
+        called["platform"] = platform
+        return 3
+
+    monkeypatch.setattr("routers.social_inbox.sync_platform", fake_sync_platform)
+    fetched = await poll_module._poll_sms(MagicMock())
+    assert called["platform"] == "sms"
+    assert fetched == 3
