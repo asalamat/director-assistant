@@ -101,3 +101,25 @@ async def test_connection():
     if "error" in result:
         return {"ok": False, "error": result["error"]}
     return {"ok": True}
+
+
+@router.post("/draft-reply")
+async def draft_reply(body: dict, request: Request):
+    """Generate a short AI reply draft for an inbound SMS thread."""
+    incoming_text = (body.get("text") or "").strip()
+    if not incoming_text:
+        return {"draft": "", "error": "text is required"}
+    advisor = request.app.state.advisor
+    prompt = (
+        "Write a short SMS reply (under 160 characters, no greeting or signature) "
+        f"to this text message:\n\n{incoming_text}"
+    )
+    try:
+        resp = await advisor.ai.messages.create(
+            model="claude-haiku-4-5-20251001", max_tokens=100,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        draft = resp.content[0].text.strip()
+    except Exception as e:
+        return {"draft": "", "error": f"Draft generation failed: {e}"}
+    return {"draft": draft}

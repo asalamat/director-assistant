@@ -354,3 +354,34 @@ async def test_poll_cycle_syncs_sms_when_configured(monkeypatch):
     fetched = await poll_module._poll_sms(MagicMock())
     assert called["platform"] == "sms"
     assert fetched == 3
+
+
+def test_draft_reply_requires_text(sms_client):
+    r = sms_client.post("/api/sms/draft-reply", json={})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["draft"] == ""
+    assert body["error"]
+
+
+def test_draft_reply_generates_draft(sms_client, monkeypatch):
+    from main import app
+
+    fake_content = MagicMock()
+    fake_content.text = "Sounds good, see you then!"
+    fake_response = MagicMock()
+    fake_response.content = [fake_content]
+
+    mock_ai = AsyncMock()
+    mock_ai.messages.create = AsyncMock(return_value=fake_response)
+
+    class FakeAdvisor:
+        ai = mock_ai
+
+    monkeypatch.setattr(app.state, "advisor", FakeAdvisor())
+
+    r = sms_client.post("/api/sms/draft-reply", json={"text": "Are we still on for 3pm?"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["draft"] == "Sounds good, see you then!"
+    assert not body.get("error")
