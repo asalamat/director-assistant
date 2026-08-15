@@ -32,7 +32,7 @@ _SIMPLE_KEYS = {
 }
 
 # Top-level keys that are JSON objects / lists — serialised as a whole.
-_JSON_KEYS = {"ai_providers", "instagram", "linkedin"}
+_JSON_KEYS = {"ai_providers", "instagram", "linkedin", "sms"}
 
 _SENSITIVE_KEYS = _SIMPLE_KEYS | _JSON_KEYS
 
