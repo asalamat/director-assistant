@@ -197,6 +197,50 @@ def test_old_social_inbox_table_migrates_to_allow_sms(tmp_path):
         assert count == 2
 
 
+def test_migration_rolls_back_cleanly_on_schema_drift(tmp_path):
+    """If a future schema drift ever makes the INSERT...SELECT column list invalid,
+    the whole migration (RENAME + CREATE + INSERT) must roll back atomically —
+    not strand data in a renamed 'social_inbox_old' table."""
+    from routers import social_inbox
+
+    cache = _make_social_inbox_cache(tmp_path)
+    # Old table is missing a column (`fetched_at`) that the migration's explicit
+    # SELECT list requires — this must fail loudly instead of silently transposing.
+    with cache._conn() as conn:
+        conn.execute("""
+            CREATE TABLE social_inbox (
+                id TEXT PRIMARY KEY,
+                platform TEXT NOT NULL CHECK(platform IN ('instagram','linkedin')),
+                type TEXT NOT NULL CHECK(type IN ('dm','comment','mention')),
+                sender_name TEXT DEFAULT '',
+                sender_id TEXT DEFAULT '',
+                content TEXT DEFAULT '',
+                media_url TEXT DEFAULT '',
+                parent_id TEXT DEFAULT '',
+                is_read INTEGER DEFAULT 0,
+                replied_at TEXT,
+                created_at TEXT NOT NULL
+            )
+        """)
+        conn.execute(
+            "INSERT INTO social_inbox (id, platform, type, content, created_at) "
+            "VALUES ('ig_dm_1', 'instagram', 'dm', 'hello', '2026-01-01T00:00:00Z')"
+        )
+
+    with pytest.raises(Exception):
+        social_inbox._ensure_tables(cache)
+
+    with cache._conn() as conn:
+        tables = {r[0] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ).fetchall()}
+        # No stranded 'social_inbox_old' table, and the original data survives.
+        assert tables == {"social_inbox"}
+        row = conn.execute("SELECT * FROM social_inbox WHERE id = 'ig_dm_1'").fetchone()
+        assert row is not None
+        assert row["platform"] == "instagram"
+
+
 @pytest.mark.asyncio
 async def test_sync_platform_sms_dispatches_to_fetch_sms(tmp_path, monkeypatch):
     from routers import social_inbox

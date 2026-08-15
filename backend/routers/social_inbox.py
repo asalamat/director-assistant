@@ -33,6 +33,7 @@ def _ensure_tables(cache) -> None:
             # Older DBs have CHECK(platform IN ('instagram','linkedin')) — rebuild
             # the table to widen the constraint, preserving existing rows.
             conn.executescript("""
+                BEGIN;
                 ALTER TABLE social_inbox RENAME TO social_inbox_old;
                 CREATE TABLE social_inbox (
                     id TEXT PRIMARY KEY,
@@ -48,10 +49,18 @@ def _ensure_tables(cache) -> None:
                     created_at TEXT NOT NULL,
                     fetched_at TEXT DEFAULT (datetime('now'))
                 );
-                INSERT INTO social_inbox SELECT * FROM social_inbox_old;
+                INSERT INTO social_inbox (
+                    id, platform, type, sender_name, sender_id, content,
+                    media_url, parent_id, is_read, replied_at, created_at, fetched_at
+                )
+                SELECT
+                    id, platform, type, sender_name, sender_id, content,
+                    media_url, parent_id, is_read, replied_at, created_at, fetched_at
+                FROM social_inbox_old;
                 DROP TABLE social_inbox_old;
                 CREATE INDEX IF NOT EXISTS idx_social_inbox_platform
                     ON social_inbox(platform, is_read, created_at DESC);
+                COMMIT;
             """)
             return
         conn.execute("""
