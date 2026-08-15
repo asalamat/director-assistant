@@ -4,6 +4,7 @@ import type { EmailProvider, Account, IngestProgress, DbStats, AutopilotRule } f
 import { ConfigPanel } from './ConfigPanel'
 import { FolderPicker } from './FolderPicker'
 import { WebhooksSettings } from './WebhooksSettings'
+import { SmsSettings } from './SmsSettings'
 import { NotifySettings } from './NotifySettings'
 import { TasksExportSettings } from './TasksExportSettings'
 import { ReportScheduleSettings } from './ReportScheduleSettings'
@@ -507,6 +508,7 @@ export function Settings({ onConnected, initialTab }: Props) {
                 <div className="space-y-4">
                   <IntegrationCard title="Slack & Teams Notifications" icon={<IconSlack />} badge="bg-purple-100 text-purple-600"><NotifySettings /></IntegrationCard>
                   <IntegrationCard title="Webhooks & Zapier" icon={<IconZap />} badge="bg-orange-100 text-orange-600"><WebhooksSettings /></IntegrationCard>
+                  <IntegrationCard title="SMS (Twilio)" icon={<span className="text-base">💬</span>} badge="bg-teal-100 text-teal-600"><SmsSettings /></IntegrationCard>
                 </div>
               </div>
 
