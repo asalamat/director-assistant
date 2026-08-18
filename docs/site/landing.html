@@ -1,0 +1,649 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cortex Executive Inbox — The inbox that files itself</title>
+<style>
+  :root {
+    --ink: #14171F;
+    --paper: #F6F3EA;
+    --paper-raised: #FBF9F3;
+    --signal: #E2572B;
+    --signal-ink: #A83D1B;
+    --amber: #C98A33;
+    --slate: #56697C;
+    --line: rgba(20, 23, 31, 0.14);
+    --line-soft: rgba(20, 23, 31, 0.08);
+    --text: var(--ink);
+    --text-quiet: #5B5A52;
+    --shadow: 0 1px 2px rgba(20,23,31,0.06), 0 8px 24px rgba(20,23,31,0.07);
+
+    --font-serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, "Noto Serif", serif;
+    --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", "IBM Plex Mono", Menlo, Consolas, monospace;
+    --font-label: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ink: #EDE9DD;
+      --paper: #14161C;
+      --paper-raised: #1B1E26;
+      --signal: #FF7A4D;
+      --signal-ink: #FFB196;
+      --amber: #E3AA5C;
+      --slate: #9FB0C2;
+      --line: rgba(237, 233, 221, 0.16);
+      --line-soft: rgba(237, 233, 221, 0.08);
+      --text: var(--ink);
+      --text-quiet: #B7B2A2;
+      --shadow: 0 1px 2px rgba(0,0,0,0.35), 0 12px 32px rgba(0,0,0,0.4);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ink: #EDE9DD;
+    --paper: #14161C;
+    --paper-raised: #1B1E26;
+    --signal: #FF7A4D;
+    --signal-ink: #FFB196;
+    --amber: #E3AA5C;
+    --slate: #9FB0C2;
+    --line: rgba(237, 233, 221, 0.16);
+    --line-soft: rgba(237, 233, 221, 0.08);
+    --text: var(--ink);
+    --text-quiet: #B7B2A2;
+    --shadow: 0 1px 2px rgba(0,0,0,0.35), 0 12px 32px rgba(0,0,0,0.4);
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--text);
+    font-family: var(--font-serif);
+    font-size: 17px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
+  }
+
+  a { color: var(--signal-ink); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
+
+  .mono {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+
+  .label {
+    font-family: var(--font-label);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-quiet);
+  }
+
+  /* ── Top bar ───────────────────────────────────────────── */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 28px 24px 0;
+  }
+  .brand {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+  .brand-mark {
+    width: 11px; height: 11px;
+    border-radius: 2px;
+    background: var(--signal);
+    transform: rotate(45deg);
+    flex-shrink: 0;
+  }
+  .brand-name {
+    font-family: var(--font-serif);
+    font-size: 19px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+  }
+  .brand-tag {
+    font-family: var(--font-label);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-quiet);
+  }
+  .topbar nav a {
+    font-family: var(--font-label);
+    font-size: 12.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-quiet);
+    text-decoration: none;
+    margin-left: 22px;
+  }
+  .topbar nav a:hover { color: var(--signal-ink); }
+
+  /* ── Memo column ───────────────────────────────────────── */
+  .memo {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  .memo-head {
+    padding-top: 56px;
+    border-top: 1px solid var(--line);
+    margin-top: 40px;
+  }
+  .memo-meta {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 6px 16px;
+    font-family: var(--font-label);
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    color: var(--text-quiet);
+    margin-bottom: 28px;
+  }
+  .memo-meta dt { text-transform: uppercase; letter-spacing: 0.1em; }
+  .memo-meta dd { margin: 0; color: var(--text); }
+
+  h1.thesis {
+    font-family: var(--font-serif);
+    font-size: clamp(34px, 6vw, 50px);
+    line-height: 1.12;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin: 0 0 20px;
+    text-wrap: balance;
+  }
+  h1.thesis em {
+    font-style: italic;
+    color: var(--signal-ink);
+  }
+
+  p.deck {
+    font-size: 19px;
+    line-height: 1.6;
+    color: var(--text-quiet);
+    max-width: 62ch;
+    margin: 0 0 34px;
+  }
+
+  .cta-row {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+  .btn-primary {
+    font-family: var(--font-label);
+    font-size: 13.5px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    color: var(--paper);
+    background: var(--ink);
+    border: 1px solid var(--ink);
+    padding: 13px 22px;
+    border-radius: 3px;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
+  .btn-primary .mono { color: var(--signal); }
+
+  .cta-note {
+    font-family: var(--font-label);
+    font-size: 12px;
+    letter-spacing: 0.03em;
+    color: var(--text-quiet);
+  }
+
+  /* ── Section rhythm ────────────────────────────────────── */
+  section { margin-top: 64px; }
+  .section-eyebrow {
+    font-family: var(--font-label);
+    font-size: 11.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--signal-ink);
+    margin: 0 0 10px;
+  }
+  h2.section-title {
+    font-family: var(--font-serif);
+    font-size: 27px;
+    font-weight: 700;
+    margin: 0 0 18px;
+    text-wrap: balance;
+  }
+  .prose { max-width: 60ch; color: var(--text); }
+  .prose p { margin: 0 0 16px; }
+
+  /* ── Exhibit panels (bleed wider than the memo column) ──── */
+  .exhibit {
+    width: 100%;
+    max-width: 780px;
+    margin: 28px auto 0;
+    background: var(--paper-raised);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+  }
+  .exhibit-label {
+    font-family: var(--font-label);
+    font-size: 10.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-quiet);
+    margin: 0 0 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .exhibit-label::before {
+    content: "";
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--signal);
+    display: inline-block;
+  }
+
+  /* Hero exhibit: triage feed */
+  .feed-row {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 14px;
+    padding: 11px 0;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .feed-row:last-child { border-bottom: none; }
+  .badge {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 3px;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+  .badge-hi { background: color-mix(in srgb, var(--signal) 16%, transparent); color: var(--signal-ink); }
+  .badge-mid { background: color-mix(in srgb, var(--amber) 20%, transparent); color: var(--amber); }
+  .badge-lo { background: var(--line-soft); color: var(--text-quiet); }
+  .feed-text { min-width: 0; }
+  .feed-from { font-weight: 700; font-size: 15px; }
+  .feed-subj { color: var(--text-quiet); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .feed-reason {
+    font-family: var(--font-label);
+    font-size: 10.5px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-quiet);
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  /* KPI exhibit */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 18px 22px;
+  }
+  .kpi { border-left: 2px solid var(--line); padding-left: 14px; }
+  .kpi-num { font-family: var(--font-mono); font-size: 27px; font-weight: 700; line-height: 1; color: var(--ink); }
+  .kpi-num.signal { color: var(--signal-ink); }
+  .kpi-num.amber { color: var(--amber); }
+  .kpi-label { font-family: var(--font-label); font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-quiet); margin-top: 4px; }
+
+  /* VIP / relationship exhibit */
+  .vip-row { display: flex; align-items: center; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--line-soft); }
+  .vip-row:last-child { border-bottom: none; }
+  .vip-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--amber); flex-shrink: 0; position: relative; }
+  .vip-dot::after {
+    content: ""; position: absolute; inset: -4px; border-radius: 50%;
+    border: 1px solid var(--amber); opacity: 0.6;
+    animation: pulse 2.6s ease-out infinite;
+  }
+  @keyframes pulse { 0% { transform: scale(0.6); opacity: 0.7; } 100% { transform: scale(1.9); opacity: 0; } }
+  .vip-name { font-weight: 700; font-size: 14.5px; flex: 1; }
+  .vip-stat { font-family: var(--font-mono); font-size: 12.5px; color: var(--text-quiet); }
+  .vip-stat.warn { color: var(--signal-ink); }
+
+  /* Chase queue exhibit — aging bars */
+  .chase-row { display: flex; align-items: center; gap: 13px; padding: 9px 0; border-bottom: 1px solid var(--line-soft); }
+  .chase-row:last-child { border-bottom: none; }
+  .chase-bar { width: 44px; height: 6px; border-radius: 3px; flex-shrink: 0; }
+  .chase-bar.d3 { background: var(--slate); }
+  .chase-bar.d7 { background: var(--amber); }
+  .chase-bar.d14 { background: var(--signal); }
+  .chase-name { font-size: 14.5px; flex: 1; }
+  .chase-age { font-family: var(--font-mono); font-size: 12px; color: var(--text-quiet); text-align: right; }
+
+  /* ── How it works ──────────────────────────────────────── */
+  .steps { display: flex; flex-direction: column; gap: 0; margin-top: 6px; }
+  .step {
+    display: grid;
+    grid-template-columns: 40px 1fr;
+    gap: 18px;
+    padding: 20px 0;
+    border-top: 1px solid var(--line);
+  }
+  .step:last-child { border-bottom: 1px solid var(--line); }
+  .step-num { font-family: var(--font-mono); font-size: 15px; color: var(--signal-ink); font-weight: 700; padding-top: 2px; }
+  .step-title { font-weight: 700; font-size: 17px; margin-bottom: 4px; }
+  .step-desc { color: var(--text-quiet); font-size: 15.5px; max-width: 54ch; }
+
+  /* ── Field report (capability memo) ───────────────────── */
+  .field {
+    display: grid;
+    gap: 30px;
+    margin-top: 8px;
+  }
+  .field-group h3 {
+    font-family: var(--font-serif);
+    font-size: 17px;
+    font-weight: 700;
+    margin: 0 0 8px;
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+  .field-group h3 .mono { font-size: 12px; color: var(--text-quiet); font-weight: 400; }
+  .field-group p { margin: 0; color: var(--text-quiet); font-size: 15px; max-width: 56ch; }
+  .field-group ul { margin: 8px 0 0; padding-left: 18px; color: var(--text); font-size: 15px; }
+  .field-group li { margin-bottom: 4px; }
+  .field-group li b { font-weight: 700; }
+
+  /* ── Comparison strip ──────────────────────────────────── */
+  .compare {
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    overflow: hidden;
+    margin-top: 8px;
+  }
+  .compare-row {
+    display: grid;
+    grid-template-columns: 1.3fr 1fr 1fr;
+    gap: 12px;
+    padding: 13px 18px;
+    border-bottom: 1px solid var(--line-soft);
+    font-size: 14.5px;
+    align-items: center;
+  }
+  .compare-row:last-child { border-bottom: none; }
+  .compare-row.head { font-family: var(--font-label); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-quiet); background: var(--line-soft); }
+  .compare-row.you { background: color-mix(in srgb, var(--signal) 6%, transparent); }
+  .compare-val { font-family: var(--font-mono); font-size: 13.5px; }
+  .compare-val.yes { color: var(--signal-ink); font-weight: 700; }
+  .compare-val.no { color: var(--text-quiet); }
+  .compare-name { font-weight: 700; }
+
+  /* ── Sign-off / CTA ────────────────────────────────────── */
+  .signoff {
+    margin-top: 72px;
+    padding: 40px 0 0;
+    border-top: 1px solid var(--line);
+  }
+  .signoff-sig {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 20px;
+    margin-bottom: 4px;
+  }
+  .signoff-role {
+    font-family: var(--font-label);
+    font-size: 11.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-quiet);
+    margin-bottom: 26px;
+  }
+
+  footer {
+    max-width: 640px;
+    margin: 56px auto 0;
+    padding: 22px 24px 48px;
+    border-top: 1px solid var(--line);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  footer .mono { font-size: 12px; color: var(--text-quiet); }
+  footer a { color: var(--text-quiet); font-size: 12px; }
+
+  @media (max-width: 600px) {
+    body { font-size: 16px; }
+    h1.thesis { font-size: 32px; }
+    .memo-meta { grid-template-columns: 1fr; }
+    .compare-row { grid-template-columns: 1.2fr 1fr 1fr; gap: 8px; padding: 12px; font-size: 13px; }
+    .topbar nav a { margin-left: 14px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true"></span>
+    <span class="brand-name">Cortex</span>
+    <span class="brand-tag">Executive&nbsp;Inbox</span>
+  </div>
+  <nav>
+    <a href="#exhibits">Inside</a>
+    <a href="#field-report">Capabilities</a>
+    <a href="#compare">Vs. the field</a>
+  </nav>
+</div>
+
+<main class="memo">
+
+  <div class="memo-head">
+    <dl class="memo-meta">
+      <dt>Re</dt><dd>Every inbox you've stopped reading in full</dd>
+      <dt>From</dt><dd>An assistant that never sleeps on a commitment</dd>
+      <dt>Runs on</dt><dd>Your machine — macOS, Windows, or Docker</dd>
+    </dl>
+
+    <h1 class="thesis">Your inbox already knows<br>what matters. <em>It just never says so.</em></h1>
+    <p class="deck">Cortex reads every email the moment it lands, scores it against seven signals of real urgency, and tells you — in one glance — what to answer, what to chase, and what to ignore. Nothing leaves your machine except the question you choose to ask an AI.</p>
+
+    <div class="cta-row">
+      <a class="btn-primary" href="https://github.com/asalamat/director-assistant">
+        Get Cortex <span class="mono">→ v3.71</span>
+      </a>
+      <span class="cta-note">MIT-licensed · local-first · no seat fees</span>
+    </div>
+  </div>
+
+  <section id="exhibits">
+    <p class="section-eyebrow">Exhibit A</p>
+    <h2 class="section-title">What lands in the Focus tab this morning</h2>
+    <p class="prose">Fourteen unread since last night. Cortex has already read all of them.</p>
+
+    <div class="exhibit">
+      <p class="exhibit-label">Focus — top of inbox, ranked by urgency score</p>
+      <div class="feed-row">
+        <span class="badge badge-hi">!!!</span>
+        <span class="feed-text"><span class="feed-from">M. Campbell, Counsel</span> <span class="feed-subj">— RE: Draft response due before Thursday's filing</span></span>
+        <span class="feed-reason">Deadline · VIP</span>
+      </div>
+      <div class="feed-row">
+        <span class="badge badge-hi">!!!</span>
+        <span class="feed-text"><span class="feed-from">K. Kempf, WSIB</span> <span class="feed-subj">— Confirming Tuesday 3:30pm, need your call-in</span></span>
+        <span class="feed-reason">Question · Time-sensitive</span>
+      </div>
+      <div class="feed-row">
+        <span class="badge badge-mid">!!</span>
+        <span class="feed-text"><span class="feed-from">Board Digest</span> <span class="feed-subj">— Weekly numbers, no action needed from you</span></span>
+        <span class="feed-reason">Recurring</span>
+      </div>
+      <div class="feed-row">
+        <span class="badge badge-lo">·</span>
+        <span class="feed-text"><span class="feed-from">Newsletter</span> <span class="feed-subj">— 15% off craft kits this weekend</span></span>
+        <span class="feed-reason">Auto-filed</span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <p class="section-eyebrow">Exhibit B</p>
+    <h2 class="section-title">The dashboard, at the hour you actually open it</h2>
+    <p class="prose">Seven tiles, no scrolling. Everything here is clickable straight back to the source email.</p>
+
+    <div class="exhibit">
+      <p class="exhibit-label">Executive Dashboard — live</p>
+      <div class="kpi-grid">
+        <div class="kpi"><div class="kpi-num signal">6</div><div class="kpi-label">Open Actions</div></div>
+        <div class="kpi"><div class="kpi-num">23</div><div class="kpi-label">Unread</div></div>
+        <div class="kpi"><div class="kpi-num amber">4</div><div class="kpi-label">Chase Queue</div></div>
+        <div class="kpi"><div class="kpi-num signal">2</div><div class="kpi-label">VIP Alerts</div></div>
+        <div class="kpi"><div class="kpi-num">1</div><div class="kpi-label">Meeting Tomorrow</div></div>
+        <div class="kpi"><div class="kpi-num">5</div><div class="kpi-label">Active Projects</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <p class="section-eyebrow">Exhibit C</p>
+    <h2 class="section-title">It notices who's gone quiet — on both sides</h2>
+    <p class="prose">Relationship health isn't a metaphor here. It's a number, updated every poll cycle.</p>
+
+    <div class="exhibit">
+      <p class="exhibit-label">VIP — last contact, live</p>
+      <div class="vip-row"><span class="vip-dot" aria-hidden="true"></span><span class="vip-name">N. Assadian</span><span class="vip-stat warn">11 days silent · you owe reply</span></div>
+      <div class="vip-row"><span class="vip-dot" aria-hidden="true"></span><span class="vip-name">Hannah S.</span><span class="vip-stat">Replied 2h ago</span></div>
+      <div class="vip-row"><span class="vip-dot" aria-hidden="true"></span><span class="vip-name">D. Chen, Miller Thomson</span><span class="vip-stat warn">Health score dropped to 61</span></div>
+    </div>
+
+    <div class="exhibit" style="margin-top:16px">
+      <p class="exhibit-label">Chase Queue — sent, still waiting</p>
+      <div class="chase-row"><span class="chase-bar d3" aria-hidden="true"></span><span class="chase-name">Contract redline to Legal</span><span class="chase-age mono">3d</span></div>
+      <div class="chase-row"><span class="chase-bar d7" aria-hidden="true"></span><span class="chase-name">Budget sign-off, Ops</span><span class="chase-age mono">7d</span></div>
+      <div class="chase-row"><span class="chase-bar d14" aria-hidden="true"></span><span class="chase-name">Intro request, WSP recruiter</span><span class="chase-age mono">14d</span></div>
+    </div>
+  </section>
+
+  <section>
+    <p class="section-eyebrow">Method</p>
+    <h2 class="section-title">Three steps, no migration</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">01</div>
+        <div>
+          <div class="step-title">Connect the mailbox you already use</div>
+          <div class="step-desc">Gmail, Microsoft 365, Yahoo, or any IMAP server — multiple accounts, searched as one. Your mail server, your credentials, nothing rehosted.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">02</div>
+        <div>
+          <div class="step-title">Cortex reads, scores, and remembers</div>
+          <div class="step-desc">Every thread is indexed locally in SQLite. Urgency, commitments, relationship health, and open loops are computed continuously — not on request.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">03</div>
+        <div>
+          <div class="step-title">You act on signal, not on volume</div>
+          <div class="step-desc">Focus tab for what's urgent today. Weekly Brief for what mattered this week. A drafted reply, in your voice, waiting when you need one.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="field-report">
+    <p class="section-eyebrow">Field report</p>
+    <h2 class="section-title">What's actually in the build</h2>
+
+    <div class="field">
+      <div class="field-group">
+        <h3>Triage &amp; drafting <span class="mono">7-signal score</span></h3>
+        <p>The part that reads everything so you don't have to.</p>
+        <ul>
+          <li><b>Smart Draft</b> writes in your voice, learned from your own sent mail.</li>
+          <li><b>Pre-send review</b> flags unanswered questions and commitments before you hit send.</li>
+          <li><b>Send-Time Optimizer</b> tells you the hour this recipient actually replies.</li>
+        </ul>
+      </div>
+      <div class="field-group">
+        <h3>Relationship intelligence <span class="mono">VIP · 0–100</span></h3>
+        <p>The part that remembers people, not just threads.</p>
+        <ul>
+          <li><b>Client Health Score</b> and <b>Escalation Radar</b> catch a relationship going quiet before it costs you one.</li>
+          <li><b>Commitment Tracker</b> scans every thread for what you owe and what's owed to you.</li>
+          <li><b>Contact Tracker</b> merges duplicates, imports vCard/CSV, syncs Microsoft 365.</li>
+        </ul>
+      </div>
+      <div class="field-group">
+        <h3>Executive reporting <span class="mono">daily · weekly</span></h3>
+        <p>The part you forward to no one, because it's already for you.</p>
+        <ul>
+          <li><b>Weekly Brief</b> and <b>Morning Brief</b> — decisions made, who's waiting, what's due.</li>
+          <li><b>Role Transition Briefing</b> summarizes your entire corpus for a first week in a new seat.</li>
+          <li><b>Knowledge hub</b> — People Graph, Open Loops, AI Clusters, Topic Timeline.</li>
+        </ul>
+      </div>
+      <div class="field-group">
+        <h3>Every channel, one inbox <span class="mono">email · sms · social</span></h3>
+        <p>The part that stopped pretending email was the only channel.</p>
+        <ul>
+          <li><b>SMS via Twilio</b>, unified alongside email — polled, not webhooked, so nothing needs a public server.</li>
+          <li><b>Social Inbox</b> for LinkedIn and Instagram DMs, plus an autopilot review queue for outbound posts.</li>
+          <li><b>CRM Pipeline</b>, <b>Job Tracker</b>, and <b>Meeting Intelligence</b> for the work that starts in email and doesn't end there.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="compare">
+    <p class="section-eyebrow">For the record</p>
+    <h2 class="section-title">Where this sits next to the field</h2>
+    <div class="compare">
+      <div class="compare-row head"><span>Capability</span><span>The field</span><span>Cortex</span></div>
+      <div class="compare-row"><span class="compare-name">Where your mail lives</span><span class="compare-val no">Their servers</span><span class="compare-val yes">Your machine</span></div>
+      <div class="compare-row"><span class="compare-name">Pricing</span><span class="compare-val no">$24–120 / seat / mo</span><span class="compare-val yes">MIT, $0</span></div>
+      <div class="compare-row you"><span class="compare-name">Relationship health scoring</span><span class="compare-val no">Rare</span><span class="compare-val yes">Built in</span></div>
+      <div class="compare-row"><span class="compare-name">AI provider</span><span class="compare-val no">One, picked for you</span><span class="compare-val yes">Claude, GPT, Gemini, Groq, local</span></div>
+      <div class="compare-row"><span class="compare-name">SMS + social in one inbox</span><span class="compare-val no">No</span><span class="compare-val yes">Yes</span></div>
+    </div>
+  </section>
+
+  <div class="signoff">
+    <p class="signoff-sig">— Built for the desk it sits on.</p>
+    <p class="signoff-role">Cortex Executive Inbox · a local-first assistant, not a service you rent</p>
+    <div class="cta-row">
+      <a class="btn-primary" href="https://github.com/asalamat/director-assistant">
+        Read the source <span class="mono">→ GitHub</span>
+      </a>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  <span class="mono">v3.71.1 · macOS 12+ · Windows 10+ · Docker</span>
+  <a href="https://github.com/asalamat/director-assistant">github.com/asalamat/director-assistant</a>
+</footer>
+
+</body>
+</html>
