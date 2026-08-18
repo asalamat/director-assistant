@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import DOMPurify from 'dompurify'
 import { api } from '../api/client'
 import type { Account } from '../types'
 import { useEmailContext } from '../contexts/EmailContext'
@@ -7,6 +8,24 @@ import { VoiceDictation } from './VoiceDictation'
 
 const AI_TONES = ['formal', 'casual', 'shorter', 'friendlier', 'direct'] as const
 type AiTone = typeof AI_TONES[number] | 'improve'
+
+const BODY_FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+
+// AI endpoints return plain prose (with \n / \n\n breaks). Turn that into real
+// paragraph markup so it doesn't collapse into one line inside contentEditable
+// or in the sent HTML email.
+function plainTextToHtml(text: string): string {
+  const escaped = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+  return escaped
+    .split(/\n\s*\n/)
+    .map(para => para.trim())
+    .filter(Boolean)
+    .map(para => `<p style="margin:0 0 1em 0">${para.replace(/\n/g, '<br>')}</p>`)
+    .join('')
+}
 
 interface Props {
   open: boolean
@@ -31,13 +50,25 @@ export function ComposeModal({ open, onClose, accounts, initialTo = '', initialS
   const [adjustingTone, setAdjustingTone] = useState(false)
   const [draftingFromIdea, setDraftingFromIdea] = useState(false)
   const toRef = useRef<HTMLInputElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
+
+  // Update both body state and the contenteditable DOM together
+  const setBodyContent = (html: string) => {
+    setBody(html)
+    if (contentRef.current) contentRef.current.innerHTML = html
+  }
 
   useEffect(() => {
     if (open) {
       setTo(initialTo)
       setSubject(initialSubject)
       setCc('')
-      setBody(initialBody)
+      const safeInitialBody = DOMPurify.sanitize(
+        initialBody.includes('<') ? initialBody : plainTextToHtml(initialBody),
+        { USE_PROFILES: { html: true } }
+      )
+      setBody(safeInitialBody)
+      if (contentRef.current) contentRef.current.innerHTML = safeInitialBody
       setMsg('')
       setSending(false)
       setTimeout(() => toRef.current?.focus(), 50)
@@ -86,7 +117,7 @@ export function ComposeModal({ open, onClose, accounts, initialTo = '', initialS
     setDraftingFromIdea(true)
     try {
       const { result } = await api.draftFromIdea(body, subject, to)
-      if (result) setBody(result)
+      if (result) setBodyContent(DOMPurify.sanitize(plainTextToHtml(result), { USE_PROFILES: { html: true } }))
     } catch { /* silent */ } finally { setDraftingFromIdea(false) }
   }
 
@@ -95,7 +126,7 @@ export function ComposeModal({ open, onClose, accounts, initialTo = '', initialS
     setAdjustingTone(true)
     try {
       const { result } = await api.adjustTone(body, tone)
-      if (result) setBody(result)
+      if (result) setBodyContent(DOMPurify.sanitize(plainTextToHtml(result), { USE_PROFILES: { html: true } }))
     } catch { /* silent */ } finally { setAdjustingTone(false) }
   }
 
@@ -107,7 +138,8 @@ export function ComposeModal({ open, onClose, accounts, initialTo = '', initialS
     setSending(true)
     setMsg('')
     try {
-      await api.sendNew({ to, cc: cc || undefined, subject, body, account_id: accountId })
+      const html = contentRef.current?.innerHTML || body
+      await api.sendEmail({ to, cc: cc || undefined, subject, body: html, is_html: true, account_id: accountId })
       setMsg('Sent!')
       setTimeout(() => { onClose(); mergeRefresh() }, 1200)
     } catch (e: unknown) {
@@ -210,13 +242,46 @@ export function ComposeModal({ open, onClose, accounts, initialTo = '', initialS
           )}
         </div>
 
+        {/* Rich text toolbar */}
+        <div className="flex gap-0.5 px-5 pt-3 pb-1 flex-wrap">
+          {[
+            { cmd: 'bold', icon: 'B', cls: 'font-bold' },
+            { cmd: 'italic', icon: 'I', cls: 'italic' },
+            { cmd: 'underline', icon: 'U', cls: 'underline' },
+          ].map(({ cmd, icon, cls }) => (
+            <button key={cmd} type="button"
+              onMouseDown={e => { e.preventDefault(); document.execCommand(cmd, false) }}
+              className={`text-xs px-2 py-0.5 rounded hover:bg-gray-100 text-gray-600 ${cls}`}
+              title={cmd.charAt(0).toUpperCase() + cmd.slice(1)}>
+              {icon}
+            </button>
+          ))}
+          <div className="w-px bg-gray-200 mx-0.5 self-stretch" />
+          <button type="button" onMouseDown={e => { e.preventDefault(); document.execCommand('insertUnorderedList', false) }}
+            className="text-xs px-2 py-0.5 rounded hover:bg-gray-100 text-gray-600" title="Bullet list">≡</button>
+          <button type="button" onMouseDown={e => { e.preventDefault(); document.execCommand('insertOrderedList', false) }}
+            className="text-xs px-2 py-0.5 rounded hover:bg-gray-100 text-gray-600" title="Numbered list">1.</button>
+          <div className="w-px bg-gray-200 mx-0.5 self-stretch" />
+          <button type="button"
+            onMouseDown={e => {
+              e.preventDefault()
+              const url = prompt('Enter URL:')
+              if (url) document.execCommand('createLink', false, url)
+            }}
+            className="text-xs px-2 py-0.5 rounded hover:bg-gray-100 text-gray-600" title="Insert link">🔗</button>
+          <button type="button" onMouseDown={e => { e.preventDefault(); document.execCommand('removeFormat', false) }}
+            className="text-xs px-2 py-0.5 rounded hover:bg-gray-100 text-gray-600" title="Clear formatting">✕</button>
+        </div>
+
         {/* Body */}
-        <textarea
-          value={body}
-          onChange={e => setBody(e.target.value)}
-          placeholder="Write your message…"
-          rows={10}
-          className="flex-1 px-5 py-4 text-sm text-gray-800 resize-none outline-none placeholder-gray-300"
+        <div
+          ref={contentRef}
+          contentEditable
+          suppressContentEditableWarning
+          onInput={() => { if (contentRef.current) setBody(contentRef.current.innerHTML) }}
+          className="flex-1 min-h-[220px] px-5 py-3 text-sm text-gray-800 outline-none overflow-y-auto empty:before:content-[attr(data-placeholder)] empty:before:text-gray-300"
+          style={{ fontFamily: BODY_FONT, lineHeight: 1.6 }}
+          data-placeholder="Write your message…"
         />
 
         {/* AI rewrite toolbar */}
@@ -250,7 +315,7 @@ export function ComposeModal({ open, onClose, accounts, initialTo = '', initialS
           </div>
         </div>
 
-        <ToneCoach text={body} onRewrite={setBody} />
+        <ToneCoach text={body} onRewrite={result => setBodyContent(DOMPurify.sanitize(plainTextToHtml(result), { USE_PROFILES: { html: true } }))} />
 
         {/* Footer */}
         <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-gray-50">
@@ -259,7 +324,12 @@ export function ComposeModal({ open, onClose, accounts, initialTo = '', initialS
           ) : <span />}
           <div className="flex items-center gap-2">
             <VoiceDictation
-              onTranscript={text => setBody(b => (b.trim() ? `${b.replace(/\s+$/, '')} ${text}` : text))}
+              onTranscript={text => {
+                if (contentRef.current) {
+                  contentRef.current.innerHTML = (contentRef.current.innerHTML + ' ' + text).trim()
+                  setBody(contentRef.current.innerHTML)
+                }
+              }}
             />
             <button
               onClick={onClose}

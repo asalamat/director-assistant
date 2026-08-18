@@ -7,6 +7,22 @@ import { ComposeSignaturePanel } from './ComposeSignaturePanel'
 import { ComposeReviewPanel } from './ComposeReviewPanel'
 import type { ReviewData } from './ComposeReviewPanel'
 
+// AI endpoints return plain prose (with \n / \n\n breaks). Turn that into real
+// paragraph markup so it doesn't collapse into one line inside contentEditable
+// or in the sent HTML email.
+function plainTextToHtml(text: string): string {
+  const escaped = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+  return escaped
+    .split(/\n\s*\n/)
+    .map(para => para.trim())
+    .filter(Boolean)
+    .map(para => `<p style="margin:0 0 1em 0">${para.replace(/\n/g, '<br>')}</p>`)
+    .join('')
+}
+
 export interface EmailComposeProps {
   email: EmailMessage
   show: boolean
@@ -249,7 +265,7 @@ export function EmailCompose({
     setAdjustingTone(true)
     try {
       const { result } = await api.adjustTone(replyBody, tone as any)
-      if (result) setBodyContent(DOMPurify.sanitize(result, { USE_PROFILES: { html: true } }))
+      if (result) setBodyContent(DOMPurify.sanitize(plainTextToHtml(result), { USE_PROFILES: { html: true } }))
     } catch {} finally { setAdjustingTone(false) }
   }
 
@@ -258,7 +274,7 @@ export function EmailCompose({
     setDraftingFromIdea(true)
     try {
       const { result } = await api.draftFromIdea(replyBody, replySubject, replyTo)
-      if (result) setBodyContent(DOMPurify.sanitize(result, { USE_PROFILES: { html: true } }))
+      if (result) setBodyContent(DOMPurify.sanitize(plainTextToHtml(result), { USE_PROFILES: { html: true } }))
     } catch {} finally { setDraftingFromIdea(false) }
   }
 
@@ -459,7 +475,7 @@ export function EmailCompose({
             suppressContentEditableWarning
             onInput={() => { if (contentRef.current) setReplyBody(contentRef.current.innerHTML) }}
             className="w-full min-h-[100px] text-sm border border-gray-200 border-t-0 rounded-b-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent bg-white overflow-y-auto"
-            style={{ maxHeight: '200px' }}
+            style={{ maxHeight: '200px', fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif", lineHeight: 1.6 }}
             data-placeholder="Write your reply…"
           />
 
