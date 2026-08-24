@@ -169,12 +169,26 @@ if errorlevel 1 (
 :: Install packages using explicit venv pip
 "!BACKEND!\.venv\Scripts\pip.exe" install -r "!BACKEND!\requirements.txt" --prefer-binary --disable-pip-version-check
 if errorlevel 1 (
+    :: Antivirus / corporate proxies that do HTTPS inspection (Kaspersky,
+    :: ESET, Avast, Zscaler, Netskope, etc.) inject a self-signed root cert
+    :: Windows trusts but Python's bundled certifi does not, breaking pip's
+    :: TLS handshake to PyPI. Retry once trusting just the two PyPI hosts.
     echo.
-    echo [ERROR] Package install failed. See error above.
-    echo         Make sure Python is 3.11 ^(chroma-hnswlib has no Windows wheel for 3.12+^).
-    echo         Python 3.11 download: https://www.python.org/downloads/release/python-3119/
+    echo [WARN]  Package install failed - retrying with a certificate-trust fallback
+    echo         ^(common when antivirus or a corporate proxy inspects HTTPS traffic^)...
     echo.
-    pause & exit /b 1
+    "!BACKEND!\.venv\Scripts\pip.exe" install -r "!BACKEND!\requirements.txt" --prefer-binary --disable-pip-version-check --trusted-host pypi.org --trusted-host files.pythonhosted.org
+    if errorlevel 1 (
+        echo.
+        echo [ERROR] Package install failed. See error above.
+        echo         Make sure Python is 3.11 ^(chroma-hnswlib has no Windows wheel for 3.12+^).
+        echo         Python 3.11 download: https://www.python.org/downloads/release/python-3119/
+        echo         If you saw a CERTIFICATE_VERIFY_FAILED / self-signed certificate error,
+        echo         your antivirus or network is intercepting HTTPS - try disabling its
+        echo         "HTTPS scanning" / "SSL inspection" feature and run install.bat again.
+        echo.
+        pause & exit /b 1
+    )
 )
 echo [OK]    Python packages ready
 
