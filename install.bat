@@ -35,12 +35,20 @@ echo ============================================================
 echo.
 
 :: -- 1. Python ----------------------------------------------------
-echo [1/6] Checking Python 3.11-3.13...
+echo [1/6] Checking Python 3.11/3.12...
 call :FIND_PYTHON
+if defined PYTHON_CMD call :CHECK_PYTHON_COMPAT
 if not defined PYTHON_CMD (
-    echo [AUTO]  Python not found ^- downloading Python 3.12.9 ^(~25 MB^)...
+    echo [AUTO]  Compatible Python not found ^- downloading Python 3.12.9 ^(~25 MB^)...
     call :INSTALL_PYTHON
-    call :FIND_PYTHON
+    set "PYTHON_CMD=!LAPP!\Programs\Python\Python312\python.exe"
+    if exist "!PYTHON_CMD!" (
+        "!PYTHON_CMD!" --version > "%TEMP%\da_pyver.tmp" 2>&1
+        set /p PYTHON_VER= < "%TEMP%\da_pyver.tmp"
+        del "%TEMP%\da_pyver.tmp" >nul 2>&1
+    ) else (
+        set "PYTHON_CMD="
+    )
 )
 if not defined PYTHON_CMD (
     echo.
@@ -54,19 +62,6 @@ if not defined PYTHON_CMD (
     pause & exit /b 1
 )
 echo [OK]    !PYTHON_VER!
-
-:: Block Python 3.14+ - no pre-built Windows wheels for scipy/chromadb
-echo !PYTHON_VER! | findstr /c:"3.14" /c:"3.15" /c:"3.16" /c:"3.17" /c:"3.18" /c:"3.19" >nul 2>&1
-if not errorlevel 1 (
-    echo.
-    echo [ERROR] Python !PYTHON_VER! is not supported on Windows.
-    echo         scipy and chromadb have no pre-built wheels for 3.14+.
-    echo.
-    echo   Install Python 3.12: https://www.python.org/downloads/release/python-3129/
-    echo   Then run install.bat again.
-    echo.
-    pause & exit /b 1
-)
 
 :: -- 2. Node.js ---------------------------------------------------
 echo [2/6] Checking Node.js 18+...
@@ -262,6 +257,19 @@ if defined PYTHON_CMD (
     "!PYTHON_CMD!" --version > "%TEMP%\da_pyver.tmp" 2>&1
     set /p PYTHON_VER= < "%TEMP%\da_pyver.tmp"
     del "%TEMP%\da_pyver.tmp" >nul 2>&1
+)
+goto :EOF
+
+:: -- Reject Python versions chroma-hnswlib has no Windows wheel for ---
+:: chroma-hnswlib (a chromadb dependency) only ships cp311/cp312 wheels
+:: on PyPI for Windows. Any other version forces a source build, which
+:: needs MSVC Build Tools most machines don't have installed.
+:CHECK_PYTHON_COMPAT
+echo !PYTHON_VER! | findstr /c:"3.11." /c:"3.12." >nul 2>&1
+if errorlevel 1 (
+    echo [WARN]  !PYTHON_VER! found, but chromadb has no Windows wheels for it ^(needs 3.11 or 3.12^).
+    set "PYTHON_CMD="
+    set "PYTHON_VER="
 )
 goto :EOF
 
