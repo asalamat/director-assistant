@@ -167,12 +167,12 @@ if errorlevel 1 (
     echo [WARN]  pip upgrade skipped - continuing with existing pip version
 )
 :: Install packages using explicit venv pip
+:: Antivirus / corporate proxies that do HTTPS inspection inject a
+:: self-signed root cert Windows trusts but Python's bundled certifi does
+:: not, breaking pip's TLS handshake to PyPI. Retry once trusting just the
+:: two PyPI hosts if the first attempt fails.
 "!BACKEND!\.venv\Scripts\pip.exe" install -r "!BACKEND!\requirements.txt" --prefer-binary --disable-pip-version-check
 if errorlevel 1 (
-    :: Antivirus / corporate proxies that do HTTPS inspection (Kaspersky,
-    :: ESET, Avast, Zscaler, Netskope, etc.) inject a self-signed root cert
-    :: Windows trusts but Python's bundled certifi does not, breaking pip's
-    :: TLS handshake to PyPI. Retry once trusting just the two PyPI hosts.
     echo.
     echo [WARN]  Package install failed - retrying with a certificate-trust fallback
     echo         ^(common when antivirus or a corporate proxy inspects HTTPS traffic^)...
