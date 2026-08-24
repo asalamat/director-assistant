@@ -1,6 +1,7 @@
 """Backup and restore — export/import the entire database + config."""
 
 import io
+import json
 import os
 import shutil
 import tempfile
@@ -109,6 +110,38 @@ async def import_backup(request: Request, file: UploadFile = File(...)):
         "ok": True,
         "message": "Backup restored. Restart the app to load the new database.",
     }
+
+
+@router.get("/config-export")
+async def export_config():
+    """Download just the app configuration — all API keys/settings, secrets resolved
+    from the OS keychain so the file is actually usable on another machine."""
+    from routers.config import load_app_config
+    cfg = load_app_config()
+    buf = io.BytesIO(json.dumps(cfg, indent=2).encode())
+    return StreamingResponse(
+        buf,
+        media_type="application/json",
+        headers={"Content-Disposition": "attachment; filename=director-assistant-config-backup.json"},
+    )
+
+
+@router.post("/config-import")
+async def import_config(file: UploadFile = File(...)):
+    """Restore configuration only (all API keys/settings) — does not touch emails.db or chroma."""
+    if not (file.filename or "").lower().endswith(".json"):
+        raise HTTPException(400, "File must be a .json config backup")
+    content = await file.read()
+    try:
+        data = json.loads(content)
+    except json.JSONDecodeError:
+        raise HTTPException(400, "File is not valid JSON")
+    if not isinstance(data, dict):
+        raise HTTPException(400, "Invalid config backup format")
+
+    from routers.config import save_app_config
+    save_app_config(data)
+    return {"ok": True, "message": "Configuration restored. Restart the app to apply."}
 
 
 @router.get("/stats")

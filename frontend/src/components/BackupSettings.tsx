@@ -5,6 +5,8 @@ export function BackupSettings() {
   const [stats, setStats] = useState<{ db_size_mb: number; last_modified: number | null } | null>(null)
   const [restoring, setRestoring] = useState(false)
   const [msg, setMsg] = useState('')
+  const [configRestoring, setConfigRestoring] = useState(false)
+  const [configMsg, setConfigMsg] = useState('')
 
   useEffect(() => {
     api.getBackupStats().then(setStats).catch(() => {})
@@ -23,6 +25,21 @@ export function BackupSettings() {
       setMsg(`✗ ${err instanceof Error ? err.message : 'Restore failed'}`)
     }
     setRestoring(false)
+  }
+
+  const handleConfigRestore = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setConfigRestoring(true)
+    setConfigMsg('')
+    try {
+      const r = await api.importConfigBackup(file)
+      setConfigMsg(`✓ ${r.message}`)
+    } catch (err: unknown) {
+      setConfigMsg(`✗ ${err instanceof Error ? err.message : 'Restore failed'}`)
+    }
+    setConfigRestoring(false)
   }
 
   const lastMod = stats?.last_modified
@@ -57,6 +74,35 @@ export function BackupSettings() {
         )}
         <p className="text-[10px] text-gray-400">
           Backup includes all emails, contacts, settings, and AI labels. Restoring replaces the current database &mdash; the app will need a restart.
+        </p>
+      </div>
+
+      <div className="border border-gray-200 rounded-xl p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <span className="text-lg">&#128273;</span>
+          <div>
+            <p className="text-sm font-semibold text-gray-800">Configuration-Only Backup</p>
+            <p className="text-xs text-gray-400 mt-0.5">All API keys &amp; settings, no emails</p>
+          </div>
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          <a
+            href={api.exportConfigBackupUrl()}
+            download="director-assistant-config-backup.json"
+            className="text-xs bg-accent text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Download config
+          </a>
+          <label className={`text-xs border border-gray-200 rounded-lg px-3 py-1.5 cursor-pointer hover:bg-gray-50 transition-colors ${configRestoring ? 'opacity-50 pointer-events-none' : ''}`}>
+            {configRestoring ? 'Restoring…' : 'Restore config'}
+            <input type="file" accept=".json" className="hidden" onChange={handleConfigRestore} disabled={configRestoring} />
+          </label>
+        </div>
+        {configMsg && (
+          <p className={`text-xs ${configMsg.startsWith('✓') ? 'text-green-600' : 'text-red-500'}`}>{configMsg}</p>
+        )}
+        <p className="text-[10px] text-gray-400">
+          Includes every API key and token (OpenAI, Anthropic, LinkedIn, Instagram, Google, ElevenLabs, webhooks, etc.) in plaintext — store this file securely. Use this to move your settings to a new machine without copying the whole email database.
         </p>
       </div>
     </div>
