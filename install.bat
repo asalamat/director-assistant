@@ -29,19 +29,19 @@ if exist "!SCRIPT_DIR!\.git" set "INSTALL_DIR=!SCRIPT_DIR!"
 echo.
 echo ============================================================
 echo   Director Assistant ^- Windows Installer (All-in-One)
-echo   Python 3.12 and Node.js 20 are auto-downloaded if missing
+echo   Python 3.11 and Node.js 20 are auto-downloaded if missing
 echo   No admin rights required.
 echo ============================================================
 echo.
 
 :: -- 1. Python ----------------------------------------------------
-echo [1/6] Checking Python 3.11/3.12...
+echo [1/6] Checking Python 3.11...
 call :FIND_PYTHON
 if defined PYTHON_CMD call :CHECK_PYTHON_COMPAT
 if not defined PYTHON_CMD (
-    echo [AUTO]  Compatible Python not found ^- downloading Python 3.12.9 ^(~25 MB^)...
+    echo [AUTO]  Compatible Python not found ^- downloading Python 3.11.9 ^(~25 MB^)...
     call :INSTALL_PYTHON
-    set "PYTHON_CMD=!LAPP!\Programs\Python\Python312\python.exe"
+    set "PYTHON_CMD=!LAPP!\Programs\Python\Python311\python.exe"
     if exist "!PYTHON_CMD!" (
         "!PYTHON_CMD!" --version > "%TEMP%\da_pyver.tmp" 2>&1
         set /p PYTHON_VER= < "%TEMP%\da_pyver.tmp"
@@ -54,8 +54,8 @@ if not defined PYTHON_CMD (
     echo.
     echo [ERROR] Python could not be installed automatically.
     echo.
-    echo   Install Python 3.12 manually:
-    echo   https://www.python.org/downloads/release/python-3129/
+    echo   Install Python 3.11 manually:
+    echo   https://www.python.org/downloads/release/python-3119/
     echo   *** Check "Add Python to PATH" during install ***
     echo   Then close this window and run install.bat again.
     echo.
@@ -141,7 +141,7 @@ if exist ".venv\Scripts\python.exe" (
     ".venv\Scripts\python.exe" --version > "%TEMP%\da_venvver.tmp" 2>&1
     set /p VENV_VER= < "%TEMP%\da_venvver.tmp"
     del "%TEMP%\da_venvver.tmp" >nul 2>&1
-    echo !VENV_VER! | findstr /c:"3.11." /c:"3.12." >nul 2>&1
+    echo !VENV_VER! | findstr /c:"3.11." >nul 2>&1
     if errorlevel 1 (
         echo        Existing virtual environment uses !VENV_VER! - removing and recreating with !PYTHON_VER!...
         rmdir /s /q ".venv"
@@ -156,7 +156,7 @@ if not exist ".venv\Scripts\python.exe" (
     "!PYTHON_CMD!" -m venv .venv
     if errorlevel 1 (
         echo [ERROR] Failed to create Python virtual environment.
-        echo         Try Python 3.12: https://www.python.org/downloads/release/python-3129/
+        echo         Try Python 3.11: https://www.python.org/downloads/release/python-3119/
         pause & exit /b 1
     )
     echo        Virtual environment created.
@@ -171,8 +171,8 @@ if errorlevel 1 (
 if errorlevel 1 (
     echo.
     echo [ERROR] Package install failed. See error above.
-    echo         Make sure Python is 3.11 or 3.12 ^(chroma-hnswlib has no Windows wheel for other versions^).
-    echo         Python 3.12 download: https://www.python.org/downloads/release/python-3129/
+    echo         Make sure Python is 3.11 ^(chroma-hnswlib has no Windows wheel for 3.12+^).
+    echo         Python 3.11 download: https://www.python.org/downloads/release/python-3119/
     echo.
     pause & exit /b 1
 )
@@ -273,22 +273,25 @@ if defined PYTHON_CMD (
 goto :EOF
 
 :: -- Reject Python versions chroma-hnswlib has no Windows wheel for ---
-:: chroma-hnswlib (a chromadb dependency) only ships cp311/cp312 wheels
-:: on PyPI for Windows. Any other version forces a source build, which
-:: needs MSVC Build Tools most machines don't have installed.
+:: chromadb 0.5.15 pins chroma-hnswlib==0.7.6 exactly, and that exact
+:: version only ships a win_amd64 wheel for cp311 (cp312+ has no Windows
+:: wheel at all, only macOS/Linux). Anything else forces a source build,
+:: which needs MSVC Build Tools most machines don't have installed.
 :CHECK_PYTHON_COMPAT
-echo !PYTHON_VER! | findstr /c:"3.11." /c:"3.12." >nul 2>&1
+echo !PYTHON_VER! | findstr /c:"3.11." >nul 2>&1
 if errorlevel 1 (
-    echo [WARN]  !PYTHON_VER! found, but chromadb has no Windows wheels for it ^(needs 3.11 or 3.12^).
+    echo [WARN]  !PYTHON_VER! found, but chromadb has no Windows wheel for it ^(needs 3.11^).
     set "PYTHON_CMD="
     set "PYTHON_VER="
 )
 goto :EOF
 
-:: -- Download and silently install Python 3.12.9 (no admin needed) --
+:: -- Download and silently install Python 3.11 (no admin needed) --
+::    chroma-hnswlib==0.7.6 (chromadb 0.5.15 pin) has no Windows wheel for
+::    cp312+ -- only 3.11 and earlier build without MSVC on Windows.
 :INSTALL_PYTHON
-set "PY_URL=https://www.python.org/ftp/python/3.12.9/python-3.12.9-amd64.exe"
-set "PY_EXE=%TEMP%\da_python312_setup.exe"
+set "PY_URL=https://www.python.org/ftp/python/3.11.9/python-3.11.9-amd64.exe"
+set "PY_EXE=%TEMP%\da_python311_setup.exe"
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
     "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri '!PY_URL!' -OutFile '!PY_EXE!' -UseBasicParsing" 2>nul
 if not exist "!PY_EXE!" (
@@ -296,12 +299,12 @@ if not exist "!PY_EXE!" (
     curl -L --silent --show-error -o "!PY_EXE!" "!PY_URL!" 2>nul
 )
 if exist "!PY_EXE!" (
-    echo [AUTO]  Installing Python 3.12.9 ^(InstallAllUsers=0, no admin^)...
+    echo [AUTO]  Installing Python 3.11.9 ^(InstallAllUsers=0, no admin^)...
     "!PY_EXE!" /quiet InstallAllUsers=0 PrependPath=1 Include_test=0 Include_doc=0 Include_launcher=1
     del "!PY_EXE!" >nul 2>&1
     :: Add expected path for current session
-    set "PATH=!LAPP!\Programs\Python\Python312;!LAPP!\Programs\Python\Python312\Scripts;!PATH!"
-    echo [OK]    Python 3.12.9 installed
+    set "PATH=!LAPP!\Programs\Python\Python311;!LAPP!\Programs\Python\Python311\Scripts;!PATH!"
+    echo [OK]    Python 3.11.9 installed
 ) else (
     echo [WARN]  Download failed. Check internet connection.
 )
