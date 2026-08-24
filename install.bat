@@ -9,15 +9,15 @@ setlocal enabledelayedexpansion enableextensions
 title Director Assistant - Installer
 chcp 65001 >nul 2>&1
 
-:: ── Pre-define paths (avoids parens issues inside for/if blocks) ──
+:: -- Pre-define paths (avoids parens issues inside for/if blocks) --
 set "PF=%ProgramFiles%"
 set "PF86=%ProgramFiles(x86)%"
 set "LAPP=%LOCALAPPDATA%"
 
-:: ── Fixed install location ────────────────────────────────────────
+:: -- Fixed install location ----------------------------------------
 set "INSTALL_DIR=%USERPROFILE%\DirectorAssistant"
 
-:: ── Detect bundled source (running from extracted ZIP or git clone) ──
+:: -- Detect bundled source (running from extracted ZIP or git clone) --
 set "SCRIPT_DIR=%~dp0"
 if "!SCRIPT_DIR:~-1!"=="\" set "SCRIPT_DIR=!SCRIPT_DIR:~0,-1!"
 set "BUNDLE_SRC="
@@ -34,11 +34,11 @@ echo   No admin rights required.
 echo ============================================================
 echo.
 
-:: ── 1. Python ────────────────────────────────────────────────────
+:: -- 1. Python ----------------------------------------------------
 echo [1/6] Checking Python 3.11-3.13...
 call :FIND_PYTHON
 if not defined PYTHON_CMD (
-    echo [AUTO]  Python not found ^— downloading Python 3.12.9 ^(~25 MB^)...
+    echo [AUTO]  Python not found ^- downloading Python 3.12.9 ^(~25 MB^)...
     call :INSTALL_PYTHON
     call :FIND_PYTHON
 )
@@ -55,7 +55,7 @@ if not defined PYTHON_CMD (
 )
 echo [OK]    !PYTHON_VER!
 
-:: Block Python 3.14+ — no pre-built Windows wheels for scipy/chromadb
+:: Block Python 3.14+ - no pre-built Windows wheels for scipy/chromadb
 echo !PYTHON_VER! | findstr /c:"3.14" /c:"3.15" /c:"3.16" /c:"3.17" /c:"3.18" /c:"3.19" >nul 2>&1
 if not errorlevel 1 (
     echo.
@@ -68,11 +68,11 @@ if not errorlevel 1 (
     pause & exit /b 1
 )
 
-:: ── 2. Node.js ───────────────────────────────────────────────────
+:: -- 2. Node.js ---------------------------------------------------
 echo [2/6] Checking Node.js 18+...
 call :FIND_NODE
 if not defined NODE_VER (
-    echo [AUTO]  Node.js not found ^— downloading Node.js 20 LTS ^(~30 MB^)...
+    echo [AUTO]  Node.js not found ^- downloading Node.js 20 LTS ^(~30 MB^)...
     call :INSTALL_NODE
     call :FIND_NODE
 )
@@ -86,7 +86,7 @@ if not defined NODE_VER (
 )
 echo [OK]    Node.js !NODE_VER!
 
-:: ── 3. App files ─────────────────────────────────────────────────
+:: -- 3. App files -------------------------------------------------
 echo [3/6] Setting up app files...
 if defined BUNDLE_SRC (
     if /i "!BUNDLE_SRC!"=="!INSTALL_DIR!" (
@@ -171,7 +171,7 @@ if errorlevel 1 (
 )
 echo [OK]    Python packages ready
 
-:: ── 5. Frontend ──────────────────────────────────────────────────
+:: -- 5. Frontend --------------------------------------------------
 echo [5/6] Building frontend ^(first run: 1-2 min^)...
 cd /d "!FRONTEND!"
 call npm install --silent
@@ -186,7 +186,7 @@ if not exist "!BACKEND!\static" mkdir "!BACKEND!\static"
 xcopy /s /e /y "!FRONTEND!\dist\*" "!BACKEND!\static\" >nul
 echo [OK]    Frontend built and embedded
 
-:: ── 6. Desktop shortcut ──────────────────────────────────────────
+:: -- 6. Desktop shortcut ------------------------------------------
 echo [6/6] Creating Desktop shortcut...
 set "SHORTCUT=%USERPROFILE%\Desktop\Director Assistant.bat"
 (
@@ -197,7 +197,7 @@ set "SHORTCUT=%USERPROFILE%\Desktop\Director Assistant.bat"
 ) > "!SHORTCUT!"
 echo [OK]    Shortcut created: Director Assistant.bat on Desktop
 
-:: ── Done ─────────────────────────────────────────────────────────
+:: -- Done ---------------------------------------------------------
 echo.
 echo ============================================================
 echo   Installation complete!
@@ -228,7 +228,7 @@ goto :EOF
 ::  SUBROUTINES
 :: ============================================================
 
-:: ── Find Python (sets PYTHON_CMD and PYTHON_VER) ─────────────────
+:: -- Find Python (sets PYTHON_CMD and PYTHON_VER) -----------------
 :FIND_PYTHON
 set "PYTHON_CMD="
 set "PYTHON_VER="
@@ -265,7 +265,7 @@ if defined PYTHON_CMD (
 )
 goto :EOF
 
-:: ── Download and silently install Python 3.12.9 (no admin needed) ──
+:: -- Download and silently install Python 3.12.9 (no admin needed) --
 :INSTALL_PYTHON
 set "PY_URL=https://www.python.org/ftp/python/3.12.9/python-3.12.9-amd64.exe"
 set "PY_EXE=%TEMP%\da_python312_setup.exe"
@@ -287,7 +287,7 @@ if exist "!PY_EXE!" (
 )
 goto :EOF
 
-:: ── Find Node.js (sets NODE_VER) ─────────────────────────────────
+:: -- Find Node.js (sets NODE_VER) ---------------------------------
 :FIND_NODE
 set "NODE_VER="
 set "NODE_EXE="
@@ -304,7 +304,7 @@ if defined NODE_EXE (
 )
 goto :EOF
 
-:: ── Download and extract Node.js 20 LTS portable (no admin needed) ──
+:: -- Download and extract Node.js 20 LTS portable (no admin needed) --
 :INSTALL_NODE
 set "NODE_VER_NUM=20.19.2"
 set "NODE_FOLDER=node-v!NODE_VER_NUM!-win-x64"
@@ -333,7 +333,7 @@ if exist "!NODE_ZIP!" (
 )
 goto :EOF
 
-:: ── Find Git (sets GIT_CMD) ───────────────────────────────────────
+:: -- Find Git (sets GIT_CMD) ---------------------------------------
 :FIND_GIT
 set "GIT_CMD="
 where git >nul 2>&1

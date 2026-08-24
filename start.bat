@@ -30,7 +30,7 @@ echo.
 
 if not exist "%BACKEND%\.venv\Scripts\python.exe" (
 
-    :: No venv yet — we need system python to create one
+    :: No venv yet - we need system python to create one
     :: First try the per-user install location that install.bat uses
     if not defined PYTHON_CMD (
         if exist "%LOCALAPPDATA%\Programs\Python\Python312\python.exe" (

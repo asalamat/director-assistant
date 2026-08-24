@@ -1279,6 +1279,8 @@ function SocialSection() {
         <Li><strong>Image not appearing on LinkedIn</strong> — images require the <code className="text-xs bg-gray-100 px-1 rounded">w_member_social</code> scope (same as text posting). If the image fails to upload, the post is still published as text-only. Regenerate your token if you see image errors.</Li>
         <Li><strong>"No posts in history"</strong> — posts are recorded when you click Publish. If no posts appear, you haven't published yet in this session, or posts failed before being saved.</Li>
         <Li><strong>Token expires after 60 days</strong> — LinkedIn tokens are not permanent. Re-generate a new one from developer.linkedin.com every 60 days. The Verify button will show ✗ when it has expired.</Li>
+        <Li><strong>"Approve & Publish" in the review queue does nothing</strong> — clicking it repeatedly with no visible result usually means your access token expired (LinkedIn returns <code className="text-xs bg-gray-100 px-1 rounded">EXPIRED_ACCESS_TOKEN</code>); the post silently stays in "pending review" every time. Run <strong>Verify Connectivity</strong> to confirm, then generate a fresh token (see steps above) and paste it into Settings → LinkedIn → Save. Retry Approve & Publish afterward.</Li>
+        <Li><strong>There's no "Login with LinkedIn" browser popup</strong> — unlike Instagram/Google/Microsoft, LinkedIn in this app is connected by manually pasting an access token (see <strong>One-time setup</strong> above), not an OAuth popup. If you're expecting a browser window to open for LinkedIn, that's not how this integration works — generate the token yourself at developer.linkedin.com and paste it into Settings.</Li>
       </UL>
 
       <H2>Social Media — Instagram</H2>

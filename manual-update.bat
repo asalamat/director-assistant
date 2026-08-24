@@ -6,7 +6,7 @@ echo   Director Assistant - Manual Update
 echo ============================================================
 echo.
 
-:: ── Locate install dir ──────────────────────────────────────
+:: -- Locate install dir --------------------------------------
 set "INSTALL_DIR=%USERPROFILE%\DirectorAssistant"
 
 :: Try source_repo.txt written by install.bat
@@ -25,7 +25,7 @@ cd /d "%INSTALL_DIR%"
 echo Location: %CD%
 echo.
 
-:: ── 1. Pull latest code ─────────────────────────────────────
+:: -- 1. Pull latest code -------------------------------------
 echo [1/4] Pulling latest code from GitHub...
 if exist ".git" (
     git pull origin main
@@ -40,7 +40,7 @@ if exist ".git" (
 )
 echo.
 
-:: ── 2. Update Python packages ────────────────────────────────
+:: -- 2. Update Python packages --------------------------------
 echo [2/4] Updating Python packages...
 if exist "backend\.venv\Scripts\pip.exe" (
     backend\.venv\Scripts\pip.exe install -q --upgrade -r backend\requirements.txt
@@ -50,7 +50,7 @@ if exist "backend\.venv\Scripts\pip.exe" (
 )
 echo.
 
-:: ── 3. Copy frontend ────────────────────────────────────────
+:: -- 3. Copy frontend ----------------------------------------
 echo [3/4] Copying frontend...
 if exist "frontend\dist" (
     if not exist "backend\static" mkdir "backend\static"
@@ -61,7 +61,7 @@ if exist "frontend\dist" (
 )
 echo.
 
-:: ── 4. Restart app ──────────────────────────────────────────
+:: -- 4. Restart app ------------------------------------------
 echo [4/4] Restarting app...
 taskkill /F /FI "WINDOWTITLE eq Director Assistant*" >nul 2>&1
 taskkill /F /FI "IMAGENAME eq python.exe" /FI "WINDOWTITLE eq *uvicorn*" >nul 2>&1
