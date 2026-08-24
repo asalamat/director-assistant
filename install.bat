@@ -135,6 +135,18 @@ echo.
 cd /d "!BACKEND!"
 :: Check for actual python.exe, not just activate.bat.
 :: A previously-cancelled install can leave activate.bat with no python.exe inside.
+:: Also rebuild if the existing venv was built with an incompatible Python
+:: (e.g. a prior run's 3.13 venv, before chroma-hnswlib's wheel gap was known).
+if exist ".venv\Scripts\python.exe" (
+    ".venv\Scripts\python.exe" --version > "%TEMP%\da_venvver.tmp" 2>&1
+    set /p VENV_VER= < "%TEMP%\da_venvver.tmp"
+    del "%TEMP%\da_venvver.tmp" >nul 2>&1
+    echo !VENV_VER! | findstr /c:"3.11." /c:"3.12." >nul 2>&1
+    if errorlevel 1 (
+        echo        Existing virtual environment uses !VENV_VER! - removing and recreating with !PYTHON_VER!...
+        rmdir /s /q ".venv"
+    )
+)
 if not exist ".venv\Scripts\python.exe" (
     if exist ".venv" (
         echo        Removing incomplete virtual environment from previous run...
@@ -159,7 +171,7 @@ if errorlevel 1 (
 if errorlevel 1 (
     echo.
     echo [ERROR] Package install failed. See error above.
-    echo         Make sure Python is 3.11-3.13 ^(not 3.14+^).
+    echo         Make sure Python is 3.11 or 3.12 ^(chroma-hnswlib has no Windows wheel for other versions^).
     echo         Python 3.12 download: https://www.python.org/downloads/release/python-3129/
     echo.
     pause & exit /b 1
