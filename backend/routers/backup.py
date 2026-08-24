@@ -112,36 +112,75 @@ async def import_backup(request: Request, file: UploadFile = File(...)):
     }
 
 
-@router.get("/config-export")
-async def export_config():
-    """Download just the app configuration — all API keys/settings, secrets resolved
-    from the OS keychain so the file is actually usable on another machine."""
-    from routers.config import load_app_config
-    cfg = load_app_config()
-    buf = io.BytesIO(json.dumps(cfg, indent=2).encode())
+def _split_json_response(data: dict, filename: str) -> StreamingResponse:
+    buf = io.BytesIO(json.dumps(data, indent=2).encode())
     return StreamingResponse(
         buf,
         media_type="application/json",
-        headers={"Content-Disposition": "attachment; filename=director-assistant-config-backup.json"},
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
 
 
-@router.post("/config-import")
-async def import_config(file: UploadFile = File(...)):
-    """Restore configuration only (all API keys/settings) — does not touch emails.db or chroma."""
-    if not (file.filename or "").lower().endswith(".json"):
-        raise HTTPException(400, "File must be a .json config backup")
-    content = await file.read()
+def _load_uploaded_json(content: bytes) -> dict:
     try:
         data = json.loads(content)
     except json.JSONDecodeError:
         raise HTTPException(400, "File is not valid JSON")
     if not isinstance(data, dict):
         raise HTTPException(400, "Invalid config backup format")
+    return data
 
-    from routers.config import save_app_config
-    save_app_config(data)
+
+@router.get("/config-export")
+async def export_config():
+    """Download general app settings only — no API keys or other secrets."""
+    from routers.config import load_app_config
+    from services.config_secrets import _SENSITIVE_KEYS
+    cfg = load_app_config()
+    general = {k: v for k, v in cfg.items() if k not in _SENSITIVE_KEYS}
+    return _split_json_response(general, "director-assistant-config-backup.json")
+
+
+@router.post("/config-import")
+async def import_config(file: UploadFile = File(...)):
+    """Restore general settings only — merges onto existing config, leaves API keys untouched."""
+    if not (file.filename or "").lower().endswith(".json"):
+        raise HTTPException(400, "File must be a .json config backup")
+    data = _load_uploaded_json(await file.read())
+
+    from routers.config import load_app_config, save_app_config
+    from services.config_secrets import _SENSITIVE_KEYS
+    cfg = load_app_config()
+    cfg.update({k: v for k, v in data.items() if k not in _SENSITIVE_KEYS})
+    save_app_config(cfg)
     return {"ok": True, "message": "Configuration restored. Restart the app to apply."}
+
+
+@router.get("/security-export")
+async def export_security_config():
+    """Download API keys & security-sensitive config only, resolved from the OS keychain
+    so the file is actually usable on another machine."""
+    from routers.config import load_app_config
+    from services.config_secrets import _SENSITIVE_KEYS
+    cfg = load_app_config()
+    secure = {k: v for k, v in cfg.items() if k in _SENSITIVE_KEYS}
+    return _split_json_response(secure, "director-assistant-security-backup.json")
+
+
+@router.post("/security-import")
+async def import_security_config(file: UploadFile = File(...)):
+    """Restore API keys & security-sensitive config only — merges onto existing config,
+    leaves general settings untouched."""
+    if not (file.filename or "").lower().endswith(".json"):
+        raise HTTPException(400, "File must be a .json config backup")
+    data = _load_uploaded_json(await file.read())
+
+    from routers.config import load_app_config, save_app_config
+    from services.config_secrets import _SENSITIVE_KEYS
+    cfg = load_app_config()
+    cfg.update({k: v for k, v in data.items() if k in _SENSITIVE_KEYS})
+    save_app_config(cfg)
+    return {"ok": True, "message": "API keys & security config restored. Restart the app to apply."}
 
 
 @router.get("/stats")

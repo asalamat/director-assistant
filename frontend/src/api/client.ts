@@ -1324,6 +1324,15 @@ export const api = {
     return fetch(`${BASE}/backup/config-import`, { method: 'POST', body: form })
       .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(new Error(e.detail || 'Restore failed'))))
   },
+  exportSecurityBackupUrl(): string {
+    return `${BASE}/backup/security-export`
+  },
+  importSecurityBackup(file: File): Promise<{ ok: boolean; message: string }> {
+    const form = new FormData()
+    form.append('file', file)
+    return fetch(`${BASE}/backup/security-import`, { method: 'POST', body: form })
+      .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(new Error(e.detail || 'Restore failed'))))
+  },
 
   // Delegations
   getDelegations(status?: string): Promise<{ delegations: any[] }> {

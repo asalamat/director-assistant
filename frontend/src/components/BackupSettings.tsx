@@ -7,6 +7,8 @@ export function BackupSettings() {
   const [msg, setMsg] = useState('')
   const [configRestoring, setConfigRestoring] = useState(false)
   const [configMsg, setConfigMsg] = useState('')
+  const [securityRestoring, setSecurityRestoring] = useState(false)
+  const [securityMsg, setSecurityMsg] = useState('')
 
   useEffect(() => {
     api.getBackupStats().then(setStats).catch(() => {})
@@ -40,6 +42,21 @@ export function BackupSettings() {
       setConfigMsg(`✗ ${err instanceof Error ? err.message : 'Restore failed'}`)
     }
     setConfigRestoring(false)
+  }
+
+  const handleSecurityRestore = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setSecurityRestoring(true)
+    setSecurityMsg('')
+    try {
+      const r = await api.importSecurityBackup(file)
+      setSecurityMsg(`✓ ${r.message}`)
+    } catch (err: unknown) {
+      setSecurityMsg(`✗ ${err instanceof Error ? err.message : 'Restore failed'}`)
+    }
+    setSecurityRestoring(false)
   }
 
   const lastMod = stats?.last_modified
@@ -79,10 +96,10 @@ export function BackupSettings() {
 
       <div className="border border-gray-200 rounded-xl p-4 space-y-3">
         <div className="flex items-center gap-2">
-          <span className="text-lg">&#128273;</span>
+          <span className="text-lg">&#9881;&#65039;</span>
           <div>
-            <p className="text-sm font-semibold text-gray-800">Configuration-Only Backup</p>
-            <p className="text-xs text-gray-400 mt-0.5">All API keys &amp; settings, no emails</p>
+            <p className="text-sm font-semibold text-gray-800">Config-Only Backup</p>
+            <p className="text-xs text-gray-400 mt-0.5">General settings, no API keys or emails</p>
           </div>
         </div>
         <div className="flex gap-2 flex-wrap">
@@ -102,7 +119,36 @@ export function BackupSettings() {
           <p className={`text-xs ${configMsg.startsWith('✓') ? 'text-green-600' : 'text-red-500'}`}>{configMsg}</p>
         )}
         <p className="text-[10px] text-gray-400">
-          Includes every API key and token (OpenAI, Anthropic, LinkedIn, Instagram, Google, ElevenLabs, webhooks, etc.) in plaintext — store this file securely. Use this to move your settings to a new machine without copying the whole email database.
+          General app settings only (schedules, folders, weather location, etc.) — no API keys. Merges onto your current config without touching credentials.
+        </p>
+      </div>
+
+      <div className="border border-gray-200 rounded-xl p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <span className="text-lg">&#128273;</span>
+          <div>
+            <p className="text-sm font-semibold text-gray-800">Security &amp; API Keys Backup</p>
+            <p className="text-xs text-gray-400 mt-0.5">Every API key &amp; token, no general settings</p>
+          </div>
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          <a
+            href={api.exportSecurityBackupUrl()}
+            download="director-assistant-security-backup.json"
+            className="text-xs bg-accent text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Download API keys
+          </a>
+          <label className={`text-xs border border-gray-200 rounded-lg px-3 py-1.5 cursor-pointer hover:bg-gray-50 transition-colors ${securityRestoring ? 'opacity-50 pointer-events-none' : ''}`}>
+            {securityRestoring ? 'Restoring…' : 'Restore API keys'}
+            <input type="file" accept=".json" className="hidden" onChange={handleSecurityRestore} disabled={securityRestoring} />
+          </label>
+        </div>
+        {securityMsg && (
+          <p className={`text-xs ${securityMsg.startsWith('✓') ? 'text-green-600' : 'text-red-500'}`}>{securityMsg}</p>
+        )}
+        <p className="text-[10px] text-gray-400">
+          Includes every API key and token (OpenAI, Anthropic, LinkedIn, Instagram, Google, ElevenLabs, webhooks, etc.) in plaintext — store this file securely. Use this to move credentials to a new machine without touching general settings.
         </p>
       </div>
     </div>
