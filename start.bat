@@ -77,7 +77,7 @@ if not exist "%BACKEND%\.venv\Scripts\python.exe" (
     )
     echo [OK]    Backend dependencies ready
 ) else (
-    echo [OK]    Virtual environment ready
+    echo [OK]    Virtual environment ready [start.bat v3.71.8]
 )
 
 if /i "%MODE%"=="dev" (
