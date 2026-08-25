@@ -338,12 +338,15 @@ set "NODE_VER="
 set "NODE_EXE="
 where node >nul 2>&1
 if not errorlevel 1 (
-    for /f "tokens=*" %%v in ('node --version 2^>^&1') do set "NODE_VER=%%v"
-    goto :EOF
+    where npm.cmd >nul 2>&1
+    if not errorlevel 1 (
+        for /f "tokens=*" %%v in ('node --version 2^>^&1') do set "NODE_VER=%%v"
+        goto :EOF
+    )
 )
-if exist "!PF!\nodejs\node.exe" set "NODE_EXE=!PF!\nodejs\node.exe" & set "PATH=!PF!\nodejs;!PATH!"
-if not defined NODE_EXE if exist "!PF86!\nodejs\node.exe" set "NODE_EXE=!PF86!\nodejs\node.exe" & set "PATH=!PF86!\nodejs;!PATH!"
-if not defined NODE_EXE if exist "!LAPP!\Programs\nodejs\node.exe" set "NODE_EXE=!LAPP!\Programs\nodejs\node.exe" & set "PATH=!LAPP!\Programs\nodejs;!PATH!"
+if exist "!PF!\nodejs\node.exe" if exist "!PF!\nodejs\npm.cmd" set "NODE_EXE=!PF!\nodejs\node.exe" & set "PATH=!PF!\nodejs;!PATH!"
+if not defined NODE_EXE if exist "!PF86!\nodejs\node.exe" if exist "!PF86!\nodejs\npm.cmd" set "NODE_EXE=!PF86!\nodejs\node.exe" & set "PATH=!PF86!\nodejs;!PATH!"
+if not defined NODE_EXE if exist "!LAPP!\Programs\nodejs\node.exe" if exist "!LAPP!\Programs\nodejs\npm.cmd" set "NODE_EXE=!LAPP!\Programs\nodejs\node.exe" & set "PATH=!LAPP!\Programs\nodejs;!PATH!"
 if defined NODE_EXE (
     for /f "tokens=*" %%v in ('"!NODE_EXE!" --version 2^>^&1') do set "NODE_VER=%%v"
 )
