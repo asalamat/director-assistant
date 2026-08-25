@@ -15,3 +15,6 @@
 {"type":"edit","file":"/Users/alisalamat/director-assistant/install.bat","success":true,"timestamp":1787677682939,"sessionId":null}
 {"type":"edit","file":"/Users/alisalamat/director-assistant/backend/routers/oauth.py","success":true,"timestamp":1787677904843,"sessionId":null}
 {"type":"edit","file":"/Users/alisalamat/director-assistant/backend/routers/oauth.py","success":true,"timestamp":1787677915984,"sessionId":null}
+{"type":"edit","file":"/Users/alisalamat/director-assistant/frontend/src/components/AddAccountForm.tsx","success":true,"timestamp":1787680642000,"sessionId":null}
+{"type":"edit","file":"/Users/alisalamat/director-assistant/frontend/src/components/ConfigPanel.tsx","success":true,"timestamp":1787680663829,"sessionId":null}
+{"type":"edit","file":"/Users/alisalamat/director-assistant/frontend/src/components/ConfigPanel.tsx","success":true,"timestamp":1787680669579,"sessionId":null}
