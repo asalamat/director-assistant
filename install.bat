@@ -195,10 +195,18 @@ echo [OK]    Python packages ready
 :: -- 5. Frontend --------------------------------------------------
 echo [5/6] Building frontend ^(first run: 1-2 min^)...
 cd /d "!FRONTEND!"
-call npm install --silent
+:: --include=dev forces devDependencies (typescript, vite, etc.) even if
+:: NODE_ENV=production is set system-wide, which silently skips them and
+:: leaves "tsc" missing from node_modules\.bin.
+call npm install --silent --include=dev
 if errorlevel 1 (
     echo [WARN]  Retrying npm install with output...
-    call npm install
+    call npm install --include=dev
+    if errorlevel 1 (echo [ERROR] npm install failed & pause & exit /b 1)
+)
+if not exist "node_modules\.bin\tsc.cmd" (
+    echo [WARN]  typescript missing after install - forcing devDependencies...
+    call npm install --include=dev typescript vite @vitejs/plugin-react
     if errorlevel 1 (echo [ERROR] npm install failed & pause & exit /b 1)
 )
 call npm run build
