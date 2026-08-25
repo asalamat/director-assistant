@@ -1,4 +1,6 @@
-@echo off
+@echo on
+:: TEMP DEBUG: echo on to capture the exact line cmd.exe fails on.
+:: Revert to @echo off once diagnosed.
 :: ============================================================
 :: Director Assistant - Windows Start Script
 :: ============================================================
