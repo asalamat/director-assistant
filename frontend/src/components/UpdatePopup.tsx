@@ -59,18 +59,22 @@ export default function UpdatePopup() {
       const res = await api.applyUpdate()
       if (res.log_path) setLogPath(res.log_path)
       setMessage('Update running — reloading when ready…')
-      await new Promise<void>(resolve => {
+      const cameBack = await new Promise<boolean>(resolve => {
         const start = Date.now()
         const poll = setInterval(async () => {
           if (Date.now() - start < 15_000) return
           try {
             const r = await fetch('/health', { cache: 'no-store' })
-            if (r.ok) { clearInterval(poll); resolve() }
+            if (r.ok) { clearInterval(poll); resolve(true) }
           } catch { /* still restarting */ }
-          if (Date.now() - start > 180_000) { clearInterval(poll); resolve() }
+          if (Date.now() - start > 180_000) { clearInterval(poll); resolve(false) }
         }, 3_000)
       })
-      window.location.reload()
+      if (cameBack) {
+        window.location.reload()
+      } else {
+        throw new Error('Server did not come back up within 3 minutes')
+      }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Update failed'
       const isSetup = msg.includes('repo') || msg.includes('venv') || msg.includes('environment') || msg.includes('install')
