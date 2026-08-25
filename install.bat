@@ -232,14 +232,26 @@ echo [OK]    Frontend built and embedded
 
 :: -- 6. Desktop shortcut ------------------------------------------
 echo [6/6] Creating Desktop shortcut...
-set "SHORTCUT=%USERPROFILE%\Desktop\Director Assistant.bat"
+:: %USERPROFILE%\Desktop doesn't exist when OneDrive has redirected Desktop
+:: elsewhere (common on managed/corporate Windows) - ask Windows for the
+:: real path instead of assuming the classic location.
+set "DESKTOP="
+for /f "usebackq delims=" %%D in (`powershell -NoProfile -Command "[Environment]::GetFolderPath('Desktop')" 2^>nul`) do set "DESKTOP=%%D"
+if not defined DESKTOP set "DESKTOP=%USERPROFILE%\Desktop"
+set "SHORTCUT=!DESKTOP!\Director Assistant.bat"
 (
     echo @echo off
     echo title Director Assistant
     echo cd /d "!INSTALL_DIR!"
     echo call start.bat
-) > "!SHORTCUT!"
-echo [OK]    Shortcut created: Director Assistant.bat on Desktop
+) > "!SHORTCUT!" 2>nul
+if exist "!SHORTCUT!" (
+    echo [OK]    Shortcut created: Director Assistant.bat on Desktop
+) else (
+    echo [WARN]  Could not create Desktop shortcut ^(!DESKTOP!^).
+    echo         You can still launch by double-clicking start.bat in:
+    echo         !INSTALL_DIR!
+)
 
 :: -- Done ---------------------------------------------------------
 echo.
