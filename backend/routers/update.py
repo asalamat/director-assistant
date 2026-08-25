@@ -279,7 +279,7 @@ try {{
 
     # 8. Kill python/uvicorn processes
     $ErrorActionPreference = 'Continue'
-    taskkill /F /FI "WINDOWTITLE eq Cortex Executive Inbox*" 2>$null | Out-Null
+    taskkill /F /FI "WINDOWTITLE eq Director Assistant*" 2>$null | Out-Null
     taskkill /F /FI "IMAGENAME eq uvicorn.exe" 2>$null | Out-Null
     try {{
         Get-CimInstance Win32_Process -Filter "Name='python.exe' OR Name='python3.exe'" -ErrorAction Stop |
@@ -295,7 +295,25 @@ try {{
     $startBat = '{install_dir}\\start.bat'
     if (Test-Path $startBat) {{
         Start-Process cmd -ArgumentList "/c `"$startBat`"" -WindowStyle Normal
-        Log 'Restart command sent — browser will open in a few seconds'
+        Log 'Restart command sent — waiting for the server to come back up...'
+
+        # Verify it actually came back instead of assuming success - a start.bat
+        # failure here previously looked identical to a working update from the
+        # log's point of view, so the user just saw "stuck" with no explanation.
+        $healthy = $false
+        for ($i = 0; $i -lt 20; $i++) {{
+            Start-Sleep 3
+            try {{
+                $resp = Invoke-WebRequest -Uri 'http://127.0.0.1:8000/health' -UseBasicParsing -TimeoutSec 3
+                if ($resp.StatusCode -eq 200) {{ $healthy = $true; break }}
+            }} catch {{}}
+        }}
+        if ($healthy) {{
+            Log '--- Server is back up. Update finished successfully. ---'
+        }} else {{
+            Log 'ERROR: start.bat did not bring the server back up within 60 seconds.'
+            Log "Try double-clicking start.bat directly in $startBat to see the error."
+        }}
     }} else {{
         Log "WARNING: start.bat not found at $startBat — please restart manually"
     }}
