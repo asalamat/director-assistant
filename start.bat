@@ -27,152 +27,154 @@ echo.
 :: -- Check / create virtual environment ----------------------
 :: If the venv already has python.exe we can skip the system python check.
 :: install.bat creates the venv, so on most runs we go straight to launch.
+if exist "%BACKEND%\.venv\Scripts\python.exe" goto VENV_READY
 
-if not exist "%BACKEND%\.venv\Scripts\python.exe" (
-
-    :: No venv yet - we need system python to create one
-    :: First try the per-user install location that install.bat uses
-    if not defined PYTHON_CMD (
-        if exist "%LOCALAPPDATA%\Programs\Python\Python312\python.exe" (
-            set "PYTHON_CMD=%LOCALAPPDATA%\Programs\Python\Python312\python.exe"
-        )
+:: No venv yet - we need system python to create one
+:: First try the per-user install location that install.bat uses
+if not defined PYTHON_CMD (
+    if exist "%LOCALAPPDATA%\Programs\Python\Python312\python.exe" (
+        set "PYTHON_CMD=%LOCALAPPDATA%\Programs\Python\Python312\python.exe"
     )
-    if not defined PYTHON_CMD (
-        if exist "%LOCALAPPDATA%\Programs\Python\Python313\python.exe" (
-            set "PYTHON_CMD=%LOCALAPPDATA%\Programs\Python\Python313\python.exe"
-        )
+)
+if not defined PYTHON_CMD (
+    if exist "%LOCALAPPDATA%\Programs\Python\Python313\python.exe" (
+        set "PYTHON_CMD=%LOCALAPPDATA%\Programs\Python\Python313\python.exe"
     )
-    if not defined PYTHON_CMD (
-        if exist "%LOCALAPPDATA%\Programs\Python\Python311\python.exe" (
-            set "PYTHON_CMD=%LOCALAPPDATA%\Programs\Python\Python311\python.exe"
-        )
+)
+if not defined PYTHON_CMD (
+    if exist "%LOCALAPPDATA%\Programs\Python\Python311\python.exe" (
+        set "PYTHON_CMD=%LOCALAPPDATA%\Programs\Python\Python311\python.exe"
     )
-    if not defined PYTHON_CMD (
-        where python >nul 2>&1
-        if not errorlevel 1 set "PYTHON_CMD=python"
-    )
-    if not defined PYTHON_CMD (
-        echo [ERROR] Python not found. Run install.bat first, or install Python from https://python.org
-        pause
-        exit /b 1
-    )
-
-    echo [INFO]  Creating Python virtual environment...
-    cd /d "%BACKEND%"
-    "%PYTHON_CMD%" -m venv .venv
-    if errorlevel 1 (
-        echo [ERROR] Failed to create virtual environment.
-        pause
-        exit /b 1
-    )
-    echo [OK]    Virtual environment created
-
-    :: Install dependencies only when venv is freshly created
-    echo [INFO]  Installing backend dependencies ^(first run only^)...
-    "%BACKEND%\.venv\Scripts\pip.exe" install -r "%BACKEND%\requirements.txt" --prefer-binary --disable-pip-version-check
-    if errorlevel 1 (
-        echo [ERROR] Failed to install backend dependencies. See error above.
-        pause
-        exit /b 1
-    )
-    echo [OK]    Backend dependencies ready
-) else (
-    echo [OK]    Virtual environment ready [start.bat v3.71.8]
+)
+if not defined PYTHON_CMD (
+    where python >nul 2>&1
+    if not errorlevel 1 set "PYTHON_CMD=python"
+)
+if not defined PYTHON_CMD (
+    echo [ERROR] Python not found. Run install.bat first, or install Python from https://python.org
+    pause
+    exit /b 1
 )
 
-if /i "%MODE%"=="dev" (
+echo [INFO]  Creating Python virtual environment...
+cd /d "%BACKEND%"
+"%PYTHON_CMD%" -m venv .venv
+if errorlevel 1 (
+    echo [ERROR] Failed to create virtual environment.
+    pause
+    exit /b 1
+)
+echo [OK]    Virtual environment created
 
-    :: -- DEV MODE --------------------------------------------
+:: Install dependencies only when venv is freshly created
+echo [INFO]  Installing backend dependencies ^(first run only^)...
+"%BACKEND%\.venv\Scripts\pip.exe" install -r "%BACKEND%\requirements.txt" --prefer-binary --disable-pip-version-check
+if errorlevel 1 (
+    echo [ERROR] Failed to install backend dependencies. See error above.
+    pause
+    exit /b 1
+)
+echo [OK]    Backend dependencies ready
+goto MODE_CHECK
 
-    call :KILL_PORT_8000
+:VENV_READY
+echo [OK]    Virtual environment ready [start.bat v3.71.9]
 
+:MODE_CHECK
+if /i "%MODE%"=="dev" goto DEV_MODE
+goto PROD_MODE
+
+:: ============================================================
+::  DEV MODE
+:: ============================================================
+:DEV_MODE
+
+call :KILL_PORT_8000
+
+where node >nul 2>&1
+if errorlevel 1 (
+    echo [ERROR] Node.js not found. Dev mode requires Node. Install from https://nodejs.org
+    pause
+    exit /b 1
+)
+
+:: Install frontend deps if needed
+if not exist "%FRONTEND%\node_modules" (
+    echo [INFO]  Installing frontend dependencies...
+    cd /d "%FRONTEND%"
+    call npm install --silent
+)
+
+echo.
+echo ============================================
+echo   Director Assistant - Dev Mode
+echo   Frontend: http://localhost:5173
+echo   Backend:  http://localhost:8000
+echo   Close this window to stop both
+echo ============================================
+echo.
+
+:: Start backend in a new window
+:: /D sets the working directory so relative venv paths work without nested quotes
+start "Director Assistant - Backend" /D "%BACKEND%" cmd /k "call .venv\Scripts\activate.bat && .venv\Scripts\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8000 --reload"
+
+:: Open browser after 4 seconds
+start "" cmd /c "timeout /t 4 >nul && start http://localhost:5173"
+
+:: Start frontend dev server (this window)
+cd /d "%FRONTEND%"
+call npm run dev
+
+goto :EOF
+
+:: ============================================================
+::  PRODUCTION MODE
+:: ============================================================
+:PROD_MODE
+
+:: Build frontend if static dir is missing
+if not exist "%BACKEND%\static\index.html" (
     where node >nul 2>&1
     if errorlevel 1 (
-        echo [ERROR] Node.js not found. Dev mode requires Node. Install from https://nodejs.org
+        echo [ERROR] Frontend not built and Node.js not found. Install Node from https://nodejs.org or copy pre-built dist/ into backend\static\.
         pause
         exit /b 1
     )
-
-    :: Install frontend deps if needed
+    echo [INFO]  Building frontend...
+    cd /d "%FRONTEND%"
     if not exist "%FRONTEND%\node_modules" (
-        echo [INFO]  Installing frontend dependencies...
-        cd /d "%FRONTEND%"
         call npm install --silent
     )
-
-    echo.
-    echo ============================================
-    echo   Director Assistant - Dev Mode
-    echo   Frontend: http://localhost:5173
-    echo   Backend:  http://localhost:8000
-    echo   Close this window to stop both
-    echo ============================================
-    echo.
-
-    :: Start backend in a new window
-    :: /D sets the working directory so relative venv paths work without nested quotes
-    start "Director Assistant - Backend" /D "%BACKEND%" cmd /k "call .venv\Scripts\activate.bat && .venv\Scripts\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8000 --reload"
-
-    :: Open browser after 4 seconds
-    start "" cmd /c "timeout /t 4 >nul && start http://localhost:5173"
-
-    :: Start frontend dev server (this window)
-    cd /d "%FRONTEND%"
-    call npm run dev
-
-) else (
-
-    :: -- PRODUCTION MODE -----------------------------------------
-
-    :: Build frontend if static dir is missing
-    if not exist "%BACKEND%\static\index.html" (
-        where node >nul 2>&1
-        if errorlevel 1 (
-            echo [ERROR] Frontend not built and Node.js not found. Install Node from https://nodejs.org or copy pre-built dist/ into backend\static\.
-            pause
-            exit /b 1
-        )
-        echo [INFO]  Building frontend...
-        cd /d "%FRONTEND%"
-        if not exist "%FRONTEND%\node_modules" (
-            call npm install --silent
-        )
-        call npm run build
-        if errorlevel 1 (
-            echo [ERROR] Frontend build failed.
-            pause
-            exit /b 1
-        )
-        if not exist "%BACKEND%\static" mkdir "%BACKEND%\static"
-        xcopy /s /e /y "%FRONTEND%\dist\*" "%BACKEND%\static\" >nul
-        echo [OK]    Frontend built
+    call npm run build
+    if errorlevel 1 (
+        echo [ERROR] Frontend build failed.
+        pause
+        exit /b 1
     )
-
-    call :KILL_PORT_8000
-
-    echo.
-    echo ============================================
-    echo   Director Assistant - Production
-    echo   http://localhost:8000
-    echo   Press Ctrl+C to stop
-    echo ============================================
-    echo.
-
-    :: Open browser after 3 seconds
-    start "" cmd /c "timeout /t 3 >nul && start http://localhost:8000"
-
-    cd /d "%BACKEND%"
-    "%BACKEND%\.venv\Scripts\python.exe" -m uvicorn main:app --host 127.0.0.1 --port 8000
-
+    if not exist "%BACKEND%\static" mkdir "%BACKEND%\static"
+    xcopy /s /e /y "%FRONTEND%\dist\*" "%BACKEND%\static\" >nul
+    echo [OK]    Frontend built
 )
 
-endlocal
+call :KILL_PORT_8000
+
+echo.
+echo ============================================
+echo   Director Assistant - Production
+echo   http://localhost:8000
+echo   Press Ctrl+C to stop
+echo ============================================
+echo.
+
+:: Open browser after 3 seconds
+start "" cmd /c "timeout /t 3 >nul && start http://localhost:8000"
+
+cd /d "%BACKEND%"
+"%BACKEND%\.venv\Scripts\python.exe" -m uvicorn main:app --host 127.0.0.1 --port 8000
+
 goto :EOF
 
 :: -- Kill whatever is listening on port 8000 -----------------------
-:: A standalone subroutine, not an inline for/f-in-if block, since a
-:: piped for/f nested inside an if-block under enabledelayedexpansion
-:: is a known cmd.exe parser trap on some Windows builds.
 :KILL_PORT_8000
 for /f "tokens=5" %%a in ('netstat -aon 2^>nul ^| findstr ":8000 "') do (
     taskkill /f /pid %%a >nul 2>&1
