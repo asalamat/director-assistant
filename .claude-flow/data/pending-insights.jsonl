@@ -13,3 +13,5 @@
 {"type":"edit","file":"/Users/alisalamat/director-assistant/start.bat","success":true,"timestamp":1787676701575,"sessionId":null}
 {"type":"edit","file":"/Users/alisalamat/director-assistant/start.bat","success":true,"timestamp":1787677302486,"sessionId":null}
 {"type":"edit","file":"/Users/alisalamat/director-assistant/install.bat","success":true,"timestamp":1787677682939,"sessionId":null}
+{"type":"edit","file":"/Users/alisalamat/director-assistant/backend/routers/oauth.py","success":true,"timestamp":1787677904843,"sessionId":null}
+{"type":"edit","file":"/Users/alisalamat/director-assistant/backend/routers/oauth.py","success":true,"timestamp":1787677915984,"sessionId":null}
