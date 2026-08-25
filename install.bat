@@ -372,10 +372,21 @@ if exist "!NODE_ZIP!" (
         ren "!LAPP!\Programs\!NODE_FOLDER!" "nodejs"
     )
     set "PATH=!NODE_DEST!;!PATH!"
+    :: Unlike the official Python installer (PrependPath=1), this is a plain
+    :: zip extract with no persistent PATH entry -- add one so npm/node are
+    :: still found from a fresh terminal after this window closes.
+    call :PERSIST_PATH "!NODE_DEST!"
     echo [OK]    Node.js !NODE_VER_NUM! installed ^(portable, no admin needed^)
 ) else (
     echo [WARN]  Download failed. Check internet connection.
 )
+goto :EOF
+
+:: -- Permanently add a directory to the current user's PATH -----------
+:PERSIST_PATH
+set "PP_DIR=%~1"
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+    "$p = [Environment]::GetEnvironmentVariable('Path','User') -split ';' | Where-Object { $_ -ne '' }; if ($p -notcontains '!PP_DIR!') { [Environment]::SetEnvironmentVariable('Path', (($p + '!PP_DIR!') -join ';'), 'User') }" 2>nul
 goto :EOF
 
 :: -- Find Git (sets GIT_CMD) ---------------------------------------
