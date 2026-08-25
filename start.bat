@@ -108,10 +108,7 @@ if /i NOT "%MODE%"=="dev" (
         echo [OK]    Frontend built
     )
 
-    :: Kill anything on port 8000
-    for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":8000 "') do (
-        taskkill /f /pid %%a >nul 2>&1
-    )
+    call :KILL_PORT_8000
 
     echo.
     echo ============================================
@@ -131,10 +128,7 @@ if /i NOT "%MODE%"=="dev" (
 
     :: -- DEV MODE --------------------------------------------
 
-    :: Kill anything on port 8000
-    for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":8000 "') do (
-        taskkill /f /pid %%a >nul 2>&1
-    )
+    call :KILL_PORT_8000
 
     where node >nul 2>&1
     if errorlevel 1 (
@@ -173,3 +167,15 @@ if /i NOT "%MODE%"=="dev" (
 )
 
 endlocal
+goto :EOF
+
+:: -- Kill whatever is listening on port 8000 -----------------------
+:: A standalone subroutine, not an inline for/f-in-if block, since a
+:: piped for/f nested inside an if-block under enabledelayedexpansion
+:: is a known cmd.exe parser trap ("The syntax of the command is
+:: incorrect") on some Windows builds.
+:KILL_PORT_8000
+for /f "tokens=5" %%a in ('netstat -aon 2^>nul ^| findstr ":8000 "') do (
+    taskkill /f /pid %%a >nul 2>&1
+)
+goto :EOF
