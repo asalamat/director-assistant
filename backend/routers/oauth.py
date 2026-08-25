@@ -235,7 +235,13 @@ async def microsoft_oauth_callback(
 @router.post("/microsoft/start")
 async def start_microsoft_oauth(body: dict, request: Request):
     """Start a Microsoft device-code flow. Falls back to this if redirect flow is unavailable."""
-    client_id = (body.get("client_id") or "").strip() or _get_stored_client_id() or _WELLKNOWN_MS_CLIENT_ID
+    if body.get("use_wellknown"):
+        # Caller explicitly wants Microsoft's own multi-tenant client ID,
+        # bypassing whatever (possibly broken/single-tenant) ms_client_id is
+        # already configured - that's the whole point of this option.
+        client_id = _WELLKNOWN_MS_CLIENT_ID
+    else:
+        client_id = (body.get("client_id") or "").strip() or _get_stored_client_id() or _WELLKNOWN_MS_CLIENT_ID
     using_wellknown = client_id == _WELLKNOWN_MS_CLIENT_ID
     username = (body.get("username") or "").strip()
 

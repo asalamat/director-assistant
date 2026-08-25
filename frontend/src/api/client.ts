@@ -448,10 +448,10 @@ export const api = {
     const q = username ? `?username=${encodeURIComponent(username)}` : ''
     return request(`/oauth/microsoft/auth-url${q}`)
   },
-  startMicrosoftOAuth(username: string): Promise<{
+  startMicrosoftOAuth(username: string, useWellknown?: boolean): Promise<{
     flow_id: string; user_code: string; verification_uri: string; verification_uri_complete: string; expires_in: number
   }> {
-    return request('/oauth/microsoft/start', { method: 'POST', body: JSON.stringify({ username }) })
+    return request('/oauth/microsoft/start', { method: 'POST', body: JSON.stringify({ username, use_wellknown: useWellknown }) })
   },
   pollMicrosoftOAuth(flow_id: string): Promise<{
     status: 'pending' | 'completed'; access_token?: string; username?: string

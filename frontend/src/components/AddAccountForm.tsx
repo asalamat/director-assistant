@@ -81,7 +81,7 @@ export function AddAccountForm({ onConnected, onCancel, onAccountAdded }: Props)
     setDeviceStatus('waiting'); setDeviceMsg(''); setError('')
     stopDevicePoll()
     try {
-      const r = await api.startMicrosoftOAuth(username.trim())
+      const r = await api.startMicrosoftOAuth(username.trim(), true)
       setDeviceUserCode(r.user_code)
       setDeviceUrl(r.verification_uri_complete || r.verification_uri)
       devicePollRef.current = setInterval(async () => {
