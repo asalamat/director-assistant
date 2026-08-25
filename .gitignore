@@ -31,19 +31,15 @@ dist/*.exe
 *.db-wal
 *.sqlite
 
-# claude-flow sessions and runtime state
-.claude-flow/sessions/
-.claude-flow/daemon-state.json
-.claude-flow/embeddings.json
-.claude-flow/metrics/
-.claude-flow/security/
-.claude-flow/swarm/
-.claude-flow/tasks/
-backend/.claude-flow/sessions/
-backend/.claude-flow/agents.json
-backend/.claude-flow/hive-mind/
-frontend/.claude-flow/daemon-state.json
-frontend/.claude-flow/logs/
+# claude-flow sessions and runtime state (whole dirs - specific files above
+# were a losing whack-a-mole against new runtime files added each session)
+.claude-flow/*
+!.claude-flow/agents/
+!.claude-flow/data/
+!.claude-flow/plugins/
+backend/.claude-flow/
+frontend/.claude-flow/*
+!frontend/.claude-flow/data/
 frontend/.claude-flow/metrics/
 
 # claude-flow config files (auto-generated)
@@ -74,3 +70,13 @@ dist/DirectorAssistant*/
 .vscode/
 *.swp
 .claude-flow/plugins/node_modules/
+
+# Build/analysis output directories (not source)
+dist/
+graphify-out/
+
+# TypeScript incremental build cache
+frontend/tsconfig.tsbuildinfo
+
+# agentdb runtime artifacts
+agentdb.rvf.idmap.json
