@@ -1,6 +1,4 @@
-@echo on
-:: TEMP DEBUG: echo on to capture the exact line cmd.exe fails on.
-:: Revert to @echo off once diagnosed.
+@echo off
 :: ============================================================
 :: Director Assistant - Windows Start Script
 :: ============================================================
@@ -82,9 +80,49 @@ if not exist "%BACKEND%\.venv\Scripts\python.exe" (
     echo [OK]    Virtual environment ready
 )
 
-:: -- PRODUCTION MODE -----------------------------------------
+if /i "%MODE%"=="dev" (
 
-if /i NOT "%MODE%"=="dev" (
+    :: -- DEV MODE --------------------------------------------
+
+    call :KILL_PORT_8000
+
+    where node >nul 2>&1
+    if errorlevel 1 (
+        echo [ERROR] Node.js not found. Dev mode requires Node. Install from https://nodejs.org
+        pause
+        exit /b 1
+    )
+
+    :: Install frontend deps if needed
+    if not exist "%FRONTEND%\node_modules" (
+        echo [INFO]  Installing frontend dependencies...
+        cd /d "%FRONTEND%"
+        call npm install --silent
+    )
+
+    echo.
+    echo ============================================
+    echo   Director Assistant - Dev Mode
+    echo   Frontend: http://localhost:5173
+    echo   Backend:  http://localhost:8000
+    echo   Close this window to stop both
+    echo ============================================
+    echo.
+
+    :: Start backend in a new window
+    :: /D sets the working directory so relative venv paths work without nested quotes
+    start "Director Assistant - Backend" /D "%BACKEND%" cmd /k "call .venv\Scripts\activate.bat && .venv\Scripts\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8000 --reload"
+
+    :: Open browser after 4 seconds
+    start "" cmd /c "timeout /t 4 >nul && start http://localhost:5173"
+
+    :: Start frontend dev server (this window)
+    cd /d "%FRONTEND%"
+    call npm run dev
+
+) else (
+
+    :: -- PRODUCTION MODE -----------------------------------------
 
     :: Build frontend if static dir is missing
     if not exist "%BACKEND%\static\index.html" (
@@ -126,46 +164,6 @@ if /i NOT "%MODE%"=="dev" (
     cd /d "%BACKEND%"
     "%BACKEND%\.venv\Scripts\python.exe" -m uvicorn main:app --host 127.0.0.1 --port 8000
 
-) else (
-
-    :: -- DEV MODE --------------------------------------------
-
-    call :KILL_PORT_8000
-
-    where node >nul 2>&1
-    if errorlevel 1 (
-        echo [ERROR] Node.js not found. Dev mode requires Node. Install from https://nodejs.org
-        pause
-        exit /b 1
-    )
-
-    :: Install frontend deps if needed
-    if not exist "%FRONTEND%\node_modules" (
-        echo [INFO]  Installing frontend dependencies...
-        cd /d "%FRONTEND%"
-        call npm install --silent
-    )
-
-    echo.
-    echo ============================================
-    echo   Director Assistant - Dev Mode
-    echo   Frontend: http://localhost:5173
-    echo   Backend:  http://localhost:8000
-    echo   Close this window to stop both
-    echo ============================================
-    echo.
-
-    :: Start backend in a new window
-    :: /D sets the working directory so relative venv paths work without nested quotes
-    start "Director Assistant - Backend" /D "%BACKEND%" cmd /k "call .venv\Scripts\activate.bat && .venv\Scripts\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8000 --reload"
-
-    :: Open browser after 4 seconds
-    start "" cmd /c "timeout /t 4 >nul && start http://localhost:5173"
-
-    :: Start frontend dev server (this window)
-    cd /d "%FRONTEND%"
-    call npm run dev
-
 )
 
 endlocal
@@ -174,8 +172,7 @@ goto :EOF
 :: -- Kill whatever is listening on port 8000 -----------------------
 :: A standalone subroutine, not an inline for/f-in-if block, since a
 :: piped for/f nested inside an if-block under enabledelayedexpansion
-:: is a known cmd.exe parser trap ("The syntax of the command is
-:: incorrect") on some Windows builds.
+:: is a known cmd.exe parser trap on some Windows builds.
 :KILL_PORT_8000
 for /f "tokens=5" %%a in ('netstat -aon 2^>nul ^| findstr ":8000 "') do (
     taskkill /f /pid %%a >nul 2>&1
