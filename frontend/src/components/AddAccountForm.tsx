@@ -5,17 +5,17 @@ import { api } from '../api/client'
 const PROVIDER_LABELS: Record<EmailProvider, string> = {
   yahoo_imap:   'Yahoo Mail',
   gmail:        'Gmail',
-  hotmail:      'Hotmail / Outlook.com',
+  hotmail:      'Outlook / Microsoft 365 (personal or work)',
   generic_imap: 'Generic IMAP',
-  office365:    'Office 365 (work)',
+  office365:    'Office 365 (advanced: app-only auth)',
 }
 
 const PROVIDER_HINTS: Record<EmailProvider, string> = {
   yahoo_imap:   'Use an App Password from Yahoo Account Security',
   gmail:        'Use an App Password (enable 2FA first) or Sign in with Google',
-  hotmail:      'Enable IMAP in Outlook Settings, then use an App Password — or Sign in with Microsoft OAuth2',
+  hotmail:      'Covers Hotmail/Outlook.com personal accounts AND work/school Microsoft 365 — Sign in with Microsoft OAuth2, or use an IMAP App Password',
   generic_imap: 'Enter your IMAP server address',
-  office365:    'Requires Tenant ID, Client ID, and Client Secret from Azure',
+  office365:    'For automated/shared mailbox access without an interactive login — requires a Tenant ID, Client ID, and Client Secret from Azure. Most people should use "Outlook / Microsoft 365" above instead.',
 }
 
 const IMAP_PROVIDERS: EmailProvider[] = ['yahoo_imap', 'gmail', 'hotmail', 'generic_imap']

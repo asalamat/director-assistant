@@ -35,8 +35,9 @@ function HelpBox({ section }: { section: HelpSection }) {
       ],
     },
     hotmail: {
-      title: 'Hotmail / Outlook.com — App Password',
+      title: 'Outlook / Microsoft 365 — App Password',
       steps: [
+        'Easier: pick "Sign in with Microsoft" on the account form instead — works for personal Outlook.com/Hotmail and work/school Microsoft 365 accounts, no app password needed',
         'Enable two-step verification on account.microsoft.com',
         'Go to Security → Advanced security options → App passwords',
         'Create a new app password → copy it',
@@ -536,7 +537,7 @@ export function ConfigPanel({ onSaved }: Props) {
                 className={`px-3 py-2 text-xs rounded-lg border transition-colors text-left ${
                   helpSection === s ? 'border-accent bg-accent/5 text-accent font-medium' : 'border-gray-200 text-gray-600 hover:border-gray-300'
                 }`}>
-                {s === 'yahoo' ? 'Yahoo IMAP' : s === 'gmail' ? 'Gmail IMAP' : s === 'hotmail' ? 'Hotmail / Outlook' : 'Office 365 (Azure)'}
+                {s === 'yahoo' ? 'Yahoo IMAP' : s === 'gmail' ? 'Gmail IMAP' : s === 'hotmail' ? 'Outlook / Microsoft 365' : 'Office 365 (advanced)'}
               </button>
             ))}
           </div>
