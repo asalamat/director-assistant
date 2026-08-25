@@ -33,8 +33,10 @@ cd "$REPO_DIR/frontend" && npm run build
 echo "==> Committing and pushing"
 cd "$REPO_DIR"
 # Stage all tracked changes + any new files in key directories.
+# frontend/src is included so new components aren't left uncommitted while
+# already-committed files import them (broke fresh-clone builds before).
 git add -u
-git add frontend/dist frontend/package-lock.json
+git add frontend/dist frontend/package-lock.json frontend/src
 git add scripts/ backend/ 2>/dev/null || true
 git diff --cached --quiet && echo "    Nothing to commit (version already at $VERSION)" || { git commit -m "chore: release v$VERSION" && git push; }
 
