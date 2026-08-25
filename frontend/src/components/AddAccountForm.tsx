@@ -36,10 +36,15 @@ export function AddAccountForm({ onConnected, onCancel, onAccountAdded }: Props)
   const [clientSecret, setClientSecret] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [hotmailMode, setHotmailMode] = useState<'password' | 'oauth'>('password')
+  const [hotmailMode, setHotmailMode] = useState<'password' | 'oauth' | 'device'>('password')
   const [oauthStatus, setOauthStatus] = useState<'idle' | 'waiting' | 'done' | 'error'>('idle')
   const [oauthMsg, setOauthMsg] = useState('')
   const oauthPopupRef = useRef<Window | null>(null)
+  const [deviceStatus, setDeviceStatus] = useState<'idle' | 'waiting' | 'done' | 'error'>('idle')
+  const [deviceMsg, setDeviceMsg] = useState('')
+  const [deviceUserCode, setDeviceUserCode] = useState('')
+  const [deviceUrl, setDeviceUrl] = useState('')
+  const devicePollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const [gmailMode, setGmailMode] = useState<'password' | 'oauth'>('password')
   const [googleStatus, setGoogleStatus] = useState<'idle' | 'waiting' | 'done' | 'error'>('idle')
   const [googleMsg, setGoogleMsg] = useState('')
@@ -68,6 +73,32 @@ export function AddAccountForm({ onConnected, onCancel, onAccountAdded }: Props)
         if (oauthPopupRef.current?.closed) { clearInterval(t); window.removeEventListener('message', onMsg); setOauthStatus(s => s === 'waiting' ? 'idle' : s) }
       }, 800)
     } catch (e: unknown) { setOauthStatus('error'); setOauthMsg(e instanceof Error ? e.message : 'Failed') }
+  }
+
+  const stopDevicePoll = () => { if (devicePollRef.current) { clearInterval(devicePollRef.current); devicePollRef.current = null } }
+
+  const handleMicrosoftDeviceSignIn = async () => {
+    setDeviceStatus('waiting'); setDeviceMsg(''); setError('')
+    stopDevicePoll()
+    try {
+      const r = await api.startMicrosoftOAuth(username.trim())
+      setDeviceUserCode(r.user_code)
+      setDeviceUrl(r.verification_uri_complete || r.verification_uri)
+      devicePollRef.current = setInterval(async () => {
+        try {
+          const p = await api.pollMicrosoftOAuth(r.flow_id)
+          if (p.status === 'completed') {
+            stopDevicePoll()
+            setDeviceStatus('done'); setDeviceMsg(`Signed in as ${p.username || 'Microsoft account'} — importing…`)
+            onAccountAdded()
+            setTimeout(() => { onCancel?.(); setDeviceStatus('idle'); setDeviceMsg(''); setUsername('') }, 2500)
+          }
+        } catch (e: unknown) {
+          stopDevicePoll()
+          setDeviceStatus('error'); setDeviceMsg(e instanceof Error ? e.message : 'Sign-in failed.')
+        }
+      }, 3000)
+    } catch (e: unknown) { setDeviceStatus('error'); setDeviceMsg(e instanceof Error ? e.message : 'Failed') }
   }
 
   const handleGoogleSignIn = async () => {
@@ -108,7 +139,7 @@ export function AddAccountForm({ onConnected, onCancel, onAccountAdded }: Props)
     finally { setLoading(false) }
   }
 
-  const useOAuth = (provider === 'hotmail' && hotmailMode === 'oauth') || (provider === 'gmail' && gmailMode === 'oauth')
+  const useOAuth = (provider === 'hotmail' && (hotmailMode === 'oauth' || hotmailMode === 'device')) || (provider === 'gmail' && gmailMode === 'oauth')
   const showPassword = IMAP_PROVIDERS.includes(provider) && !useOAuth
 
   return (
@@ -140,11 +171,11 @@ export function AddAccountForm({ onConnected, onCancel, onAccountAdded }: Props)
       )}
 
       {provider === 'hotmail' && (
-        <div className="flex gap-2 text-xs">
-          {(['password', 'oauth'] as const).map(m => (
+        <div className="flex flex-wrap gap-2 text-xs">
+          {(['password', 'oauth', 'device'] as const).map(m => (
             <button key={m} onClick={() => setHotmailMode(m)}
               className={`px-3 py-1.5 rounded-lg border font-medium transition-colors ${hotmailMode === m ? 'bg-accent text-white border-accent' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-              {m === 'password' ? 'App Password' : 'Sign in with Microsoft'}
+              {m === 'password' ? 'App Password' : m === 'oauth' ? 'Sign in with Microsoft' : 'No admin access? Sign in via code'}
             </button>
           ))}
         </div>
@@ -158,6 +189,39 @@ export function AddAccountForm({ onConnected, onCancel, onAccountAdded }: Props)
       {provider === 'hotmail' && hotmailMode === 'oauth' && (
         <OAuthPanel status={oauthStatus} msg={oauthMsg} label="Sign in with Microsoft" onSignIn={handleMicrosoftSignIn}
           icon={<svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 21 21"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg>} />
+      )}
+
+      {provider === 'hotmail' && hotmailMode === 'device' && (
+        deviceStatus === 'idle' ? (
+          <div className="space-y-2">
+            <p className="text-xs text-gray-500">
+              Uses Microsoft's own sign-in app (no Azure app registration needed) — good when your IT admin won't create one. Your org may still require an admin to approve mail access the first time.
+            </p>
+            <button onClick={handleMicrosoftDeviceSignIn}
+              className="w-full flex items-center justify-center gap-2.5 bg-white border border-gray-200 text-gray-700 rounded-lg px-4 py-2.5 text-sm font-medium hover:bg-gray-50 shadow-sm transition-colors">
+              Get sign-in code
+            </button>
+          </div>
+        ) : deviceStatus === 'waiting' ? (
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-2 text-center">
+            {deviceUserCode ? (
+              <>
+                <p className="text-xs text-blue-700">Go to <a href={deviceUrl} target="_blank" rel="noreferrer" className="underline font-medium">{deviceUrl || 'microsoft.com/devicelogin'}</a> and enter:</p>
+                <div className="font-mono text-2xl font-bold tracking-widest bg-white border border-blue-300 rounded px-3 py-2 text-blue-800 select-all">{deviceUserCode}</div>
+                <p className="text-xs text-blue-600 flex items-center justify-center gap-1.5">
+                  <span className="w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin flex-shrink-0" /> Waiting for sign-in…
+                </p>
+              </>
+            ) : <p className="text-sm text-blue-700">Getting code…</p>}
+          </div>
+        ) : deviceStatus === 'done' ? (
+          <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">{deviceMsg}</p>
+        ) : (
+          <div className="space-y-2">
+            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{deviceMsg}</p>
+            <button onClick={handleMicrosoftDeviceSignIn} className="w-full border border-gray-300 text-gray-700 text-sm py-2 rounded-lg hover:bg-gray-50">Try Again</button>
+          </div>
+        )
       )}
 
       {showPassword && (

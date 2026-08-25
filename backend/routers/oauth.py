@@ -23,6 +23,13 @@ _oauth_bg_procs: dict[str, object] = {}  # background subprocesses (e.g. az logi
 _google_states: dict[str, dict] = {}  # Google redirect-flow state → {username}
 
 _MS_AUTHORITY = "https://login.microsoftonline.com/common/oauth2/v2.0"
+# Azure CLI's own published multi-tenant public client ID. Pre-authorized for
+# basic Graph delegated scopes in effectively every tenant (it's how `az
+# login` itself works without any org registering an app) - used only as a
+# last-resort fallback for the device-code flow (no redirect_uri needed) when
+# no custom ms_client_id is configured, e.g. an org that won't let users or
+# admins register a new app.
+_WELLKNOWN_MS_CLIENT_ID = "04b07795-8ddb-461a-bbee-02f9e1bff847"
 _SCOPES = (
     "offline_access "
     "https://graph.microsoft.com/User.Read "
@@ -228,10 +235,9 @@ async def microsoft_oauth_callback(
 @router.post("/microsoft/start")
 async def start_microsoft_oauth(body: dict, request: Request):
     """Start a Microsoft device-code flow. Falls back to this if redirect flow is unavailable."""
-    client_id = (body.get("client_id") or "").strip() or _get_stored_client_id()
+    client_id = (body.get("client_id") or "").strip() or _get_stored_client_id() or _WELLKNOWN_MS_CLIENT_ID
+    using_wellknown = client_id == _WELLKNOWN_MS_CLIENT_ID
     username = (body.get("username") or "").strip()
-    if not client_id:
-        raise HTTPException(400, "Microsoft App Client ID not configured in App Settings")
 
     async with httpx.AsyncClient(timeout=15) as client:
         r = await client.post(
@@ -240,7 +246,14 @@ async def start_microsoft_oauth(body: dict, request: Request):
         )
     data = r.json()
     if "error" in data:
-        raise HTTPException(400, data.get("error_description") or data["error"])
+        msg = data.get("error_description") or data["error"]
+        if using_wellknown:
+            msg += (
+                " (used Microsoft's own multi-tenant client ID since no custom "
+                "app was configured - if your org requires admin consent for "
+                "Mail permissions, an IT admin will need to grant it once)."
+            )
+        raise HTTPException(400, msg)
 
     flow_id = data["device_code"][:24]
     _flows[flow_id] = {
@@ -268,7 +281,7 @@ async def start_microsoft_oauth(body: dict, request: Request):
 
 
 @router.get("/microsoft/poll")
-async def poll_microsoft_oauth(flow_id: str, request: Request):
+async def poll_microsoft_oauth(flow_id: str, request: Request, background_tasks: BackgroundTasks):
     """Poll device-code flow. Returns status: pending | completed."""
     if flow_id not in _flows:
         raise HTTPException(404, "Flow not found or expired")
@@ -288,14 +301,58 @@ async def poll_microsoft_oauth(flow_id: str, request: Request):
     if "access_token" in data:
         access_token = data["access_token"]
         refresh_token = data.get("refresh_token", "")
-        username = entry["username"]
+        client_id = entry["client_id"]
         del _flows[flow_id]
 
+        # Resolve actual email address from Graph /me (login_hint may have been empty)
+        username = entry["username"]
+        try:
+            async with httpx.AsyncClient(timeout=8) as client:
+                me = await client.get(
+                    "https://graph.microsoft.com/v1.0/me",
+                    headers={"Authorization": f"Bearer {access_token}"},
+                )
+            me_data = me.json()
+            username = me_data.get("mail") or me_data.get("userPrincipalName") or username
+        except Exception:
+            pass
+
         cache = request.app.state.cache
-        for acc in cache.list_accounts():
+        accounts = cache.list_accounts()
+        matched = False
+        for acc in accounts:
             if acc.username.lower() == username.lower():
                 cache.store_account_token(acc.id, access_token, refresh_token=refresh_token)
+                matched = True
                 break
+
+        if not matched and username:
+            from models import Account
+            new_acc = Account(
+                provider="hotmail",
+                username=username,
+                client_id=client_id,
+                access_token=access_token,
+            )
+            aid = cache.add_account(new_acc)
+            new_acc.id = aid
+
+            rag = request.app.state.rag
+
+            async def _bg():
+                from routers.accounts import _ingest_account, set_progress, IngestProgress
+                set_progress(IngestProgress(status="running", message="Importing Microsoft emails…"))
+                try:
+                    new, skip = await _ingest_account(new_acc, rag, cache)
+                    rag.flush_bm25()
+                    set_progress(IngestProgress(
+                        status="completed", processed=new + skip, total=new + skip,
+                        message=f"Done — {new} new emails imported",
+                    ))
+                except Exception as e:
+                    set_progress(IngestProgress(status="error", message=str(e)))
+
+            background_tasks.add_task(_bg)
 
         return {"status": "completed", "username": username}
 
