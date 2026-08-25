@@ -177,18 +177,33 @@ if errorlevel 1 (
     echo [WARN]  Package install failed - retrying with a certificate-trust fallback
     echo         ^(common when antivirus or a corporate proxy inspects HTTPS traffic^)...
     echo.
-    "!BACKEND!\.venv\Scripts\pip.exe" install -r "!BACKEND!\requirements.txt" --prefer-binary --disable-pip-version-check --trusted-host pypi.org --trusted-host files.pythonhosted.org
+    set "PIP_LOG=%TEMP%\da_pip_install.log"
+    "!BACKEND!\.venv\Scripts\pip.exe" install -r "!BACKEND!\requirements.txt" --prefer-binary --disable-pip-version-check --trusted-host pypi.org --trusted-host files.pythonhosted.org > "!PIP_LOG!" 2>&1
     if errorlevel 1 (
+        type "!PIP_LOG!"
         echo.
-        echo [ERROR] Package install failed. See error above.
-        echo         Make sure Python is 3.11 ^(chroma-hnswlib has no Windows wheel for 3.12+^).
-        echo         Python 3.11 download: https://www.python.org/downloads/release/python-3119/
-        echo         If you saw a CERTIFICATE_VERIFY_FAILED / self-signed certificate error,
-        echo         your antivirus or network is intercepting HTTPS - try disabling its
-        echo         "HTTPS scanning" / "SSL inspection" feature and run install.bat again.
+        findstr /i /c:"auth_page" /c:"blackspider" "!PIP_LOG!" >nul 2>&1
+        if not errorlevel 1 (
+            echo [ERROR] Your network's SSL-inspecting proxy is blocking pip with a
+            echo         captive-portal login gate ^(not a certificate problem^).
+            echo         Fix: open a browser, visit http://neverssl.com to trigger the
+            echo         proxy's login/auth page, sign in, then run install.bat again.
+            echo         Still stuck? Ask IT to allowlist pypi.org and
+            echo         files.pythonhosted.org for HTTPS-inspection bypass, or run this
+            echo         install from a non-corporate network.
+        ) else (
+            echo [ERROR] Package install failed. See error above.
+            echo         Make sure Python is 3.11 ^(chroma-hnswlib has no Windows wheel for 3.12+^).
+            echo         Python 3.11 download: https://www.python.org/downloads/release/python-3119/
+            echo         If you saw a CERTIFICATE_VERIFY_FAILED / self-signed certificate error,
+            echo         your antivirus or network is intercepting HTTPS - try disabling its
+            echo         "HTTPS scanning" / "SSL inspection" feature and run install.bat again.
+        )
         echo.
+        del "!PIP_LOG!" >nul 2>&1
         pause & exit /b 1
     )
+    del "!PIP_LOG!" >nul 2>&1
 )
 echo [OK]    Python packages ready
 
