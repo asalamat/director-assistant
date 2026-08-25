@@ -22,7 +22,7 @@ _pending_states: dict[str, dict] = {} # redirect-flow state → {username, clien
 _oauth_bg_procs: dict[str, object] = {}  # background subprocesses (e.g. az login)
 _google_states: dict[str, dict] = {}  # Google redirect-flow state → {username}
 
-_MS_AUTHORITY = "https://login.microsoftonline.com/consumers/oauth2/v2.0"
+_MS_AUTHORITY = "https://login.microsoftonline.com/common/oauth2/v2.0"
 _SCOPES = (
     "offline_access "
     "https://graph.microsoft.com/User.Read "
@@ -447,19 +447,25 @@ async def auto_setup_microsoft_app(request: Request):
             pass
 
     if obj_id:
-        # Update existing app to ensure public client flows enabled
+        # Update existing app to ensure public client flows enabled and both
+        # personal (Hotmail/Outlook.com) and work/school (Office 365) accounts
+        # can sign in - older installs created this app as PersonalMicrosoftAccount-only.
         await _run(
             *_az_cmd(az_exe, "rest", "--method", "PATCH",
                      "--url", f"https://graph.microsoft.com/v1.0/applications/{obj_id}",
                      "--body", _j.dumps({"isFallbackPublicClient": True,
+                                         "signInAudience": "AzureADandPersonalMicrosoftAccount",
                                          "publicClient": {"redirectUris": [_REDIRECT_URI]}})),
             timeout=30,
         )
     else:
         # Create new app via Graph API
+        # AzureADandPersonalMicrosoftAccount (not PersonalMicrosoftAccount) so
+        # Office 365 / Microsoft 365 work-or-school accounts can use this same
+        # OAuth flow, not just Hotmail/Outlook.com personal accounts.
         body = _j.dumps({
             "displayName": "Cortex Executive Inbox",
-            "signInAudience": "PersonalMicrosoftAccount",
+            "signInAudience": "AzureADandPersonalMicrosoftAccount",
             "isFallbackPublicClient": True,
             "publicClient": {"redirectUris": [_REDIRECT_URI]},
         })
