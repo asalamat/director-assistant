@@ -23,13 +23,15 @@ _oauth_bg_procs: dict[str, object] = {}  # background subprocesses (e.g. az logi
 _google_states: dict[str, dict] = {}  # Google redirect-flow state → {username}
 
 _MS_AUTHORITY = "https://login.microsoftonline.com/common/oauth2/v2.0"
-# Azure CLI's own published multi-tenant public client ID. Pre-authorized for
-# basic Graph delegated scopes in effectively every tenant (it's how `az
-# login` itself works without any org registering an app) - used only as a
-# last-resort fallback for the device-code flow (no redirect_uri needed) when
-# no custom ms_client_id is configured, e.g. an org that won't let users or
-# admins register a new app.
-_WELLKNOWN_MS_CLIENT_ID = "04b07795-8ddb-461a-bbee-02f9e1bff847"
+# Microsoft's own published "Microsoft Graph PowerShell" multi-tenant public
+# client ID (the one Connect-MgGraph uses) - the standard well-known app for
+# unregistered Microsoft Graph delegated access (Mail.Read, Calendars.*,
+# Contacts.*, etc.) across any tenant. Used only as a last-resort fallback for
+# the device-code flow (no redirect_uri needed) when no custom ms_client_id is
+# configured, e.g. an org that won't let users or admins register a new app.
+# (Azure CLI's client ID was tried first but is registered for Azure Resource
+# Manager, not Graph mail/calendar scopes, and produced AADSTS50059 for those.)
+_WELLKNOWN_MS_CLIENT_ID = "14d82eec-204b-4c2f-b7e8-296a70dab67e"
 _SCOPES = (
     "offline_access "
     "https://graph.microsoft.com/User.Read "
