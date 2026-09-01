@@ -171,7 +171,11 @@ async def apply_update():
     env["PATH"] = node_path
 
     if IS_WINDOWS:
-        _apply_windows(repo, install_dir, python, node_path, env)
+        launched, launch_error = _apply_windows(repo, install_dir, python, node_path, env)
+        if not launched:
+            return JSONResponse({"status": "error",
+                                 "message": f"Could not launch PowerShell to run the update: {launch_error}"},
+                                 status_code=500)
         log_path = _win_log_path(install_dir)
         return {"status": "updating",
                 "message": "Update started. The app will restart in ~60 seconds.",
@@ -326,8 +330,17 @@ try {{
     ps_path = temp_dir / "da_update.ps1"
     ps_path.write_text(ps, encoding="utf-8")
 
-    # Try pwsh first (PowerShell 7+), fall back to powershell (Windows PowerShell 5)
-    for ps_exe in ["pwsh", "powershell"]:
+    # Try pwsh first (PowerShell 7+), then powershell via PATH, then powershell's
+    # fixed absolute path - a PATH missing System32 (seen on this app's own
+    # portable-Node/Python installs) would otherwise fail every candidate
+    # silently, with nothing launched and no error surfaced anywhere.
+    candidates = [
+        "pwsh",
+        "powershell",
+        r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe",
+    ]
+    last_error = None
+    for ps_exe in candidates:
         try:
             subprocess.Popen(
                 [ps_exe, "-NoProfile", "-ExecutionPolicy", "Bypass",
@@ -336,9 +349,11 @@ try {{
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env,
                 creationflags=subprocess.CREATE_NO_WINDOW if IS_WINDOWS else 0,
             )
-            break
-        except FileNotFoundError:
+            return True, None
+        except Exception as e:
+            last_error = f"{ps_exe}: {e}"
             continue
+    return False, last_error
 
 
 @router.get("/log")
