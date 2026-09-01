@@ -240,7 +240,7 @@ try {{
     # 1. Download latest code
     Log 'Downloading latest version from GitHub...'
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    Invoke-WebRequest -Uri '{zip_url}' -OutFile $zip -UseBasicParsing
+    Invoke-WebRequest -Uri '{zip_url}' -OutFile $zip -UseBasicParsing -Headers @{{ 'Cache-Control' = 'no-cache'; 'Pragma' = 'no-cache' }}
     Log 'Download complete'
 
     # 2. Extract

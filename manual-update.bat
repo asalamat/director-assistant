@@ -42,7 +42,7 @@ if exist ".git" (
     set "UZIP=%TEMP%\da_manual_update.zip"
     set "UTMP=%TEMP%\da_manual_update_src"
     powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-        "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://github.com/asalamat/director-assistant/archive/refs/heads/main.zip' -OutFile '!UZIP!' -UseBasicParsing"
+        "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://github.com/asalamat/director-assistant/archive/refs/heads/main.zip' -OutFile '!UZIP!' -UseBasicParsing -Headers @{'Cache-Control'='no-cache';'Pragma'='no-cache'}"
     if not exist "!UZIP!" (
         echo [WARN] Download failed - continuing with current files
     ) else (

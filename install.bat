@@ -259,6 +259,9 @@ echo ============================================================
 echo   Installation complete!
 echo ============================================================
 echo.
+set "INSTALLED_VER="
+for /f "usebackq delims=" %%V in (`powershell -NoProfile -Command "(Get-Content '!INSTALL_DIR!\version.json' | ConvertFrom-Json).version" 2^>nul`) do set "INSTALLED_VER=%%V"
+echo   Version      : !INSTALLED_VER!
 echo   Installed to : !INSTALL_DIR!
 echo   Open browser : http://localhost:8000
 echo   Desktop icon : Director Assistant.bat

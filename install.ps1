@@ -21,11 +21,14 @@ if (Test-Path $tmp) { Remove-Item $tmp -Recurse -Force }
 New-Item -ItemType Directory -Path $tmp | Out-Null
 
 Write-Host "[1/3] Downloading from GitHub..."
+# no-cache headers hedge against a corporate proxy/cache serving a stale zip
+# for this URL instead of hitting GitHub for the current main branch.
 try {
-    Invoke-WebRequest -Uri $zipUrl -OutFile $zip -UseBasicParsing
+    Invoke-WebRequest -Uri $zipUrl -OutFile $zip -UseBasicParsing `
+        -Headers @{ 'Cache-Control' = 'no-cache'; 'Pragma' = 'no-cache' }
 } catch {
     Write-Host "[WARN] Invoke-WebRequest failed, trying curl..."
-    & curl.exe -L -o $zip $zipUrl
+    & curl.exe -L -H "Cache-Control: no-cache" -H "Pragma: no-cache" -o $zip $zipUrl
 }
 if (-not (Test-Path $zip)) { Write-Error "Download failed. Check internet connection."; exit 1 }
 Write-Host "[OK]  Downloaded"
