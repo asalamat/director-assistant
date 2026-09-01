@@ -220,7 +220,7 @@ def _win_log_path(install_dir: str) -> str:
 
 
 def _apply_windows(repo: Path, install_dir: str, python: str, node_path: str, env: dict):
-    """Windows update via GitHub ZIP download — no git or npm required on target machine."""
+    """Windows update via GitHub ZIP download - no git or npm required on target machine."""
     zip_url = "https://github.com/asalamat/director-assistant/archive/refs/heads/main.zip"
     log_path = _win_log_path(install_dir)
 
@@ -265,7 +265,7 @@ try {{
     & '{python}' -m pip install -q --upgrade -r '{install_dir}\\backend\\requirements.txt'
     Log 'pip install done'
 
-    # 5. Copy pre-built frontend dist (dist is committed — no npm needed)
+    # 5. Copy pre-built frontend dist (dist is committed - no npm needed)
     $static = '{install_dir}\\backend\\static'
     if (Test-Path $static) {{ Remove-Item $static -Recurse -Force }}
     Copy-Item "$src\\frontend\\dist" $static -Recurse
@@ -299,7 +299,7 @@ try {{
     $startBat = '{install_dir}\\start.bat'
     if (Test-Path $startBat) {{
         Start-Process cmd -ArgumentList "/c `"$startBat`"" -WindowStyle Normal
-        Log 'Restart command sent — waiting for the server to come back up...'
+        Log 'Restart command sent - waiting for the server to come back up...'
 
         # Verify it actually came back instead of assuming success - a start.bat
         # failure here previously looked identical to a working update from the
@@ -319,7 +319,7 @@ try {{
             Log "Try double-clicking start.bat directly in $startBat to see the error."
         }}
     }} else {{
-        Log "WARNING: start.bat not found at $startBat — please restart manually"
+        Log "WARNING: start.bat not found at $startBat - please restart manually"
     }}
 }} catch {{
     Log "ERROR: $_"
@@ -328,7 +328,11 @@ try {{
 """
     temp_dir = Path(os.environ.get("TEMP", "C:\\Windows\\Temp"))
     ps_path = temp_dir / "da_update.ps1"
-    ps_path.write_text(ps, encoding="utf-8")
+    # utf-8-sig (BOM) so Windows PowerShell 5.1 reliably detects UTF-8 instead
+    # of falling back to the system ANSI codepage for any non-ASCII content -
+    # a BOM-less non-ASCII .ps1 can fail to parse with no visible error since
+    # stdout/stderr are redirected to DEVNULL below.
+    ps_path.write_text(ps, encoding="utf-8-sig")
 
     # Try pwsh first (PowerShell 7+), then powershell via PATH, then powershell's
     # fixed absolute path - a PATH missing System32 (seen on this app's own
@@ -342,13 +346,17 @@ try {{
     last_error = None
     for ps_exe in candidates:
         try:
-            subprocess.Popen(
-                [ps_exe, "-NoProfile", "-ExecutionPolicy", "Bypass",
-                 "-File", str(ps_path)],
-                start_new_session=True,
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env,
-                creationflags=subprocess.CREATE_NO_WINDOW if IS_WINDOWS else 0,
-            )
+            # Redirect to the log file itself (not DEVNULL) so a crash before
+            # the script's own Log() runs even once - e.g. a parse error -
+            # still leaves a trace instead of vanishing with no evidence.
+            with open(log_path, "ab") as log_fh:
+                subprocess.Popen(
+                    [ps_exe, "-NoProfile", "-ExecutionPolicy", "Bypass",
+                     "-File", str(ps_path)],
+                    start_new_session=True,
+                    stdout=log_fh, stderr=log_fh, env=env,
+                    creationflags=subprocess.CREATE_NO_WINDOW if IS_WINDOWS else 0,
+                )
             return True, None
         except Exception as e:
             last_error = f"{ps_exe}: {e}"
