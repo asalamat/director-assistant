@@ -982,7 +982,7 @@ export const api = {
 
   // Ask docs only
   askDocsOnly(question: string): Promise<{ answer: string; sources: { filename: string; file_type: string }[] }> {
-    return request('/ask/docs', { method: 'POST', body: JSON.stringify({ question }) })
+    return request('/ask/docs-only', { method: 'POST', body: JSON.stringify({ question }) })
   },
 
   // Scheduled sends

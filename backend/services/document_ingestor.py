@@ -145,8 +145,25 @@ def _extract_worker(path_str: str, result_queue: "multiprocessing.Queue") -> Non
         result_queue.put(("error", str(e)))
 
 
+_PLAIN_TEXT_EXTENSIONS = {".txt", ".md", ".csv", ".rtf"}
+
+
 def _extract_text(path: Path) -> str:
-    """Extract text using a child process so a hung network file can be hard-killed."""
+    """Extract text using a child process so a hung network file can be hard-killed.
+
+    Plain-text formats are read inline instead - they can't hang the way a
+    PDF/DOCX/XLSX parser might, and spawning a subprocess for them re-imports
+    the whole app (including the embedding model) in the child on Windows
+    (no fork there), turning a trivial .txt read into a multi-second stall
+    per file.
+    """
+    if path.suffix.lower() in _PLAIN_TEXT_EXTENSIONS:
+        try:
+            return path.read_text(errors="replace")
+        except OSError as e:
+            logger.warning(f"[docs] extract failed {path.name}: {e}")
+            return ""
+
     import os as _os
     import signal as _signal
     ctx = multiprocessing.get_context("spawn")
@@ -228,7 +245,7 @@ def ingest_folder(folder_path: str, rag: "RAGEngine") -> int:
         if not text.strip():
             continue
 
-        rag.ingest_document(
+        ok = rag.ingest_document(
             doc_id=doc_id,
             text=text,
             filename=path.name,
@@ -236,7 +253,10 @@ def ingest_folder(folder_path: str, rag: "RAGEngine") -> int:
             file_type=path.suffix.lstrip(".").lower(),
             modified_at=mtime,
         )
-        new_count += 1
+        if ok:
+            new_count += 1
+        else:
+            logger.warning(f"[docs] storage upsert failed for {path.name} - not counted as indexed")
 
     _progress = DocIngestProgress(
         status="completed",
