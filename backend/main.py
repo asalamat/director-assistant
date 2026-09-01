@@ -8,6 +8,15 @@ from contextlib import asynccontextmanager
 for _k in ("TOKENIZERS_PARALLELISM", "OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS",
            "MKL_NUM_THREADS", "VECLIB_MAXIMUM_THREADS", "NUMEXPR_NUM_THREADS"):
     os.environ.setdefault(_k, "1" if _k != "TOKENIZERS_PARALLELISM" else "false")
+
+# Trust the OS certificate store (Windows/macOS keychain) instead of only
+# Python's bundled certifi list - a corporate proxy/antivirus doing HTTPS
+# inspection injects a root cert the OS trusts but certifi doesn't, breaking
+# TLS to any external host (pip, huggingface.co, AI providers, IMAP, etc.)
+# with CERTIFICATE_VERIFY_FAILED. Must run before anything creates an
+# ssl.SSLContext (requests/httpx/urllib3 do this lazily, but earlier is safer).
+import truststore
+truststore.inject_into_ssl()
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from dotenv import load_dotenv

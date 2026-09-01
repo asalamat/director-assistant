@@ -22,6 +22,16 @@ def worker_main(db_path_str: str, req_queue, resp_queue):
                "VECLIB_MAXIMUM_THREADS", "NUMEXPR_NUM_THREADS", "LOKY_MAX_CPU_COUNT"):
         os.environ[_k] = "1"
 
+    # This subprocess (not main.py) is what actually downloads the embedding
+    # model from huggingface.co on first run - trust the OS cert store so a
+    # corporate SSL-inspecting proxy doesn't break that download. See main.py
+    # for the full explanation; this is a separate process so needs its own.
+    try:
+        import truststore
+        truststore.inject_into_ssl()
+    except Exception:
+        pass
+
     try:
         import torch
         torch.set_num_threads(1)
