@@ -547,3 +547,4 @@
 {"type":"edit","file":"/Users/alisalamat/director-assistant/backend/requirements.txt","success":true,"timestamp":1788281758126,"sessionId":null}
 {"type":"edit","file":"/Users/alisalamat/director-assistant/backend/main.py","success":true,"timestamp":1788281765882,"sessionId":null}
 {"type":"edit","file":"/Users/alisalamat/director-assistant/backend/services/rag_worker.py","success":true,"timestamp":1788281773790,"sessionId":null}
+{"type":"edit","file":"/Users/alisalamat/director-assistant/backend/services/document_ingestor.py","success":true,"timestamp":1788283076515,"sessionId":null}
