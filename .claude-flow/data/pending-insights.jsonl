@@ -540,3 +540,6 @@
 {"type":"edit","file":"/Users/alisalamat/director-assistant/backend/routers/health.py","success":true,"timestamp":1788276616409,"sessionId":null}
 {"type":"edit","file":"/Users/alisalamat/director-assistant/frontend/src/components/HealthPanel.tsx","success":true,"timestamp":1788276635675,"sessionId":null}
 {"type":"edit","file":"/Users/alisalamat/director-assistant/frontend/src/components/HealthPanel.tsx","success":true,"timestamp":1788276642076,"sessionId":null}
+{"type":"edit","file":"/Users/alisalamat/director-assistant/backend/services/document_ingestor.py","success":true,"timestamp":1788277040497,"sessionId":null}
+{"type":"edit","file":"/Users/alisalamat/director-assistant/backend/services/document_ingestor.py","success":true,"timestamp":1788280024459,"sessionId":null}
+{"type":"edit","file":"/Users/alisalamat/director-assistant/frontend/src/api/client.ts","success":true,"timestamp":1788280040241,"sessionId":null}
