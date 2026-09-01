@@ -78,6 +78,11 @@ export function AddAccountForm({ onConnected, onCancel, onAccountAdded }: Props)
   const stopDevicePoll = () => { if (devicePollRef.current) { clearInterval(devicePollRef.current); devicePollRef.current = null } }
 
   const handleMicrosoftDeviceSignIn = async () => {
+    if (!username.trim()) {
+      setDeviceStatus('error')
+      setDeviceMsg('Enter your email address above first — Microsoft needs it to route the sign-in to your organization.')
+      return
+    }
     setDeviceStatus('waiting'); setDeviceMsg(''); setError('')
     stopDevicePoll()
     try {
@@ -195,10 +200,10 @@ export function AddAccountForm({ onConnected, onCancel, onAccountAdded }: Props)
         deviceStatus === 'idle' ? (
           <div className="space-y-2">
             <p className="text-xs text-gray-500">
-              Uses Microsoft's own sign-in app (no Azure app registration needed) — good when your IT admin won't create one. Your org may still require an admin to approve mail access the first time.
+              Uses Microsoft's own sign-in app (no Azure app registration needed) — good when your IT admin won't create one. Enter your email address above first (needed to route to your organization). Your org may still require an admin to approve mail access the first time.
             </p>
-            <button onClick={handleMicrosoftDeviceSignIn}
-              className="w-full flex items-center justify-center gap-2.5 bg-white border border-gray-200 text-gray-700 rounded-lg px-4 py-2.5 text-sm font-medium hover:bg-gray-50 shadow-sm transition-colors">
+            <button onClick={handleMicrosoftDeviceSignIn} disabled={!username.trim()}
+              className="w-full flex items-center justify-center gap-2.5 bg-white border border-gray-200 text-gray-700 rounded-lg px-4 py-2.5 text-sm font-medium hover:bg-gray-50 shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
               Get sign-in code
             </button>
           </div>
