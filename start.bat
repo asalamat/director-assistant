@@ -17,6 +17,10 @@ if "%MODE%"=="" set MODE=prod
 
 set TOKENIZERS_PARALLELISM=false
 set OMP_NUM_THREADS=1
+:: Unbuffered so log lines appear immediately instead of only on exit -
+:: matters when output is redirected to a file (start.bat > log.txt 2>&1)
+:: instead of a live console, since Python fully buffers non-tty stdout.
+set PYTHONUNBUFFERED=1
 
 echo.
 echo ============================================
