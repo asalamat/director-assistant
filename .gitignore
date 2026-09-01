@@ -72,7 +72,9 @@ dist/DirectorAssistant*/
 .claude-flow/plugins/node_modules/
 
 # Build/analysis output directories (not source)
-dist/
+# Root-anchored: frontend/dist/ is the committed pre-built bundle the
+# updater/install scripts rely on and must stay tracked.
+/dist/
 graphify-out/
 
 # TypeScript incremental build cache
