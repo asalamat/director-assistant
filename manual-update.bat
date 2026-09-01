@@ -1,4 +1,5 @@
 @echo off
+setlocal enabledelayedexpansion
 title Director Assistant - Manual Update
 echo.
 echo ============================================================
@@ -35,8 +36,32 @@ if exist ".git" (
         echo [OK] Code updated
     )
 ) else (
-    echo [INFO] ZIP install detected - use the in-app Update button for code updates.
-    echo        Continuing with pip/frontend steps...
+    :: ZIP install - no .git to pull. Download the latest ZIP the same way
+    :: the in-app updater does, and overwrite backend/frontend from it.
+    echo [INFO] ZIP install detected - downloading latest code...
+    set "UZIP=%TEMP%\da_manual_update.zip"
+    set "UTMP=%TEMP%\da_manual_update_src"
+    powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+        "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://github.com/asalamat/director-assistant/archive/refs/heads/main.zip' -OutFile '!UZIP!' -UseBasicParsing"
+    if not exist "!UZIP!" (
+        echo [WARN] Download failed - continuing with current files
+    ) else (
+        if exist "!UTMP!" rmdir /s /q "!UTMP!"
+        powershell -NoProfile -ExecutionPolicy Bypass -Command "Expand-Archive -Path '!UZIP!' -DestinationPath '!UTMP!' -Force"
+        del "!UZIP!" >nul 2>&1
+        set "USRC="
+        for /f "delims=" %%D in ('dir /b /ad "!UTMP!"') do set "USRC=!UTMP!\%%D"
+        if defined USRC (
+            robocopy "!USRC!\backend" "!INSTALL_DIR!\backend" /E /XD .venv __pycache__ /NFL /NDL /NJH /NJS >nul
+            if not exist "!INSTALL_DIR!\frontend\dist" mkdir "!INSTALL_DIR!\frontend\dist"
+            robocopy "!USRC!\frontend\dist" "!INSTALL_DIR!\frontend\dist" /E /NFL /NDL /NJH /NJS >nul
+            copy /y "!USRC!\version.json" "!INSTALL_DIR!\version.json" >nul
+            echo [OK] Code updated
+        ) else (
+            echo [WARN] Could not extract download - continuing with current files
+        )
+        rmdir /s /q "!UTMP!" >nul 2>&1
+    )
 )
 echo.
 
@@ -66,7 +91,9 @@ echo [4/4] Restarting app...
 taskkill /F /FI "WINDOWTITLE eq Director Assistant*" >nul 2>&1
 taskkill /F /FI "IMAGENAME eq python.exe" /FI "WINDOWTITLE eq *uvicorn*" >nul 2>&1
 timeout /t 3 /nobreak >nul
-start /b "" "%INSTALL_DIR%\start.bat"
+:: /D sets the working directory on `start` itself, avoiding nested quotes
+:: inside cmd /c "..." (that broke a previous version of start.bat itself).
+start "Director Assistant" /D "%INSTALL_DIR%" cmd /c "start.bat"
 echo [OK] App restarted
 echo.
 
