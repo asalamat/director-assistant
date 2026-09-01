@@ -281,6 +281,7 @@ export function AskPanel({ initialQuery, onClear }: { initialQuery?: string; onC
     setMessages([])
     setHistory([])
     setOpenSourcesIdx(new Set())
+    setShowHistory(false)
   }
 
   const handleTopicSearch = async () => {
