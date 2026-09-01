@@ -82,7 +82,7 @@ echo [OK]    Backend dependencies ready
 goto MODE_CHECK
 
 :VENV_READY
-echo [OK]    Virtual environment ready [start.bat v3.71.9]
+echo [OK]    Virtual environment ready
 
 :MODE_CHECK
 if /i "%MODE%"=="dev" goto DEV_MODE
