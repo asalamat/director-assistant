@@ -105,95 +105,124 @@ def _ocr_pdf(path_str: str) -> str:
         return ""
 
 
-def _extract_worker(path_str: str, result_queue: "multiprocessing.Queue") -> None:
-    """Runs in a child process — completely isolated from the server.
-    Calls os.setsid() so SIGKILL can be sent to the entire process group
-    (including pdftoppm grandchildren spawned by pdf2image).
+def _extract_worker_loop(req_queue: "multiprocessing.Queue", resp_queue: "multiprocessing.Queue") -> None:
+    """Runs in a persistent child process, one file at a time from the queue -
+    completely isolated from the server, but reused across the whole ingest
+    run instead of respawned per file (spawning re-imports the whole app,
+    including the embedding model, in the child on Windows since there's no
+    fork() there - that made every single file pay a multi-second penalty).
+    Calls os.setsid() so a hung file's SIGKILL can also reap pdftoppm
+    grandchildren spawned by pdf2image during OCR.
     """
     import os as _os
     try:
-        _os.setsid()   # new session → new process group
+        _os.setsid()
     except Exception:
         pass
-    try:
-        path = Path(path_str)
-        ext = path.suffix.lower()
-        text = ""
-        if ext == ".pdf":
-            from pdfminer.high_level import extract_text
-            text = extract_text(path_str) or ""
-            if _is_mostly_garbage(text):
-                text = _ocr_pdf(path_str)
-        elif ext == ".docx":
-            import docx
-            doc = docx.Document(path_str)
-            text = "\n".join(p.text for p in doc.paragraphs)
-        elif ext == ".xlsx":
-            import openpyxl
-            wb = openpyxl.load_workbook(path_str, read_only=True, data_only=True)
-            parts = []
-            for ws in wb.worksheets:
-                for row in ws.iter_rows(values_only=True):
-                    line = "\t".join(str(c) if c is not None else "" for c in row)
-                    if line.strip():
-                        parts.append(line)
-            text = "\n".join(parts)
-        elif ext in (".txt", ".md", ".csv", ".rtf"):
-            text = path.read_text(errors="replace")
-        result_queue.put(("ok", text))
-    except Exception as e:
-        result_queue.put(("error", str(e)))
+    while True:
+        path_str = req_queue.get()
+        if path_str is None:  # sentinel: shut down
+            return
+        try:
+            path = Path(path_str)
+            ext = path.suffix.lower()
+            text = ""
+            if ext == ".pdf":
+                from pdfminer.high_level import extract_text
+                text = extract_text(path_str) or ""
+                if _is_mostly_garbage(text):
+                    text = _ocr_pdf(path_str)
+            elif ext == ".docx":
+                import docx
+                doc = docx.Document(path_str)
+                text = "\n".join(p.text for p in doc.paragraphs)
+            elif ext == ".xlsx":
+                import openpyxl
+                wb = openpyxl.load_workbook(path_str, read_only=True, data_only=True)
+                parts = []
+                for ws in wb.worksheets:
+                    for row in ws.iter_rows(values_only=True):
+                        line = "\t".join(str(c) if c is not None else "" for c in row)
+                        if line.strip():
+                            parts.append(line)
+                text = "\n".join(parts)
+            elif ext in (".txt", ".md", ".csv", ".rtf"):
+                text = path.read_text(errors="replace")
+            resp_queue.put(("ok", text))
+        except Exception as e:
+            resp_queue.put(("error", str(e)))
 
 
 _PLAIN_TEXT_EXTENSIONS = {".txt", ".md", ".csv", ".rtf"}
 
 
-def _extract_text(path: Path) -> str:
-    """Extract text using a child process so a hung network file can be hard-killed.
+class _ExtractWorkerPool:
+    """Owns the single persistent extraction worker process. Restarts it
+    lazily only when it's never been started or died/hung on the previous
+    file - not on every call."""
 
-    Plain-text formats are read inline instead - they can't hang the way a
-    PDF/DOCX/XLSX parser might, and spawning a subprocess for them re-imports
-    the whole app (including the embedding model) in the child on Windows
-    (no fork there), turning a trivial .txt read into a multi-second stall
-    per file.
-    """
+    def __init__(self):
+        self._proc: "multiprocessing.Process | None" = None
+        self._req_q = None
+        self._resp_q = None
+
+    def _ensure_started(self):
+        if self._proc is not None and self._proc.is_alive():
+            return
+        ctx = multiprocessing.get_context("spawn")
+        self._req_q = ctx.Queue()
+        self._resp_q = ctx.Queue()
+        self._proc = ctx.Process(
+            target=_extract_worker_loop, args=(self._req_q, self._resp_q), daemon=True
+        )
+        self._proc.start()
+
+    def _kill(self):
+        import os as _os
+        import signal as _signal
+        if self._proc is not None:
+            try:
+                _os.killpg(_os.getpgid(self._proc.pid), _signal.SIGKILL)
+            except Exception:
+                try:
+                    self._proc.kill()
+                except Exception:
+                    pass
+            self._proc.join(timeout=3)
+        self._proc = None
+        self._req_q = None
+        self._resp_q = None
+
+    def extract(self, path: Path) -> str:
+        self._ensure_started()
+        self._req_q.put(str(path))
+        try:
+            status, payload = self._resp_q.get(timeout=_EXTRACT_TIMEOUT)
+        except Exception:
+            logger.warning(f"[docs] extract timed out after {_EXTRACT_TIMEOUT}s: {path.name}")
+            self._kill()
+            return ""
+        if status == "error":
+            logger.warning(f"[docs] extract failed {path.name}: {payload}")
+            return ""
+        return payload
+
+
+_worker_pool = _ExtractWorkerPool()
+
+
+def _extract_text(path: Path) -> str:
+    """Extract text for one file. Plain-text formats are read inline (can't
+    hang the way a PDF/DOCX/XLSX parser might); everything else goes through
+    the persistent extraction worker process so a hung file can be hard-killed
+    without taking the whole ingest run down."""
     if path.suffix.lower() in _PLAIN_TEXT_EXTENSIONS:
         try:
             return path.read_text(errors="replace")
         except OSError as e:
             logger.warning(f"[docs] extract failed {path.name}: {e}")
             return ""
-
-    import os as _os
-    import signal as _signal
-    ctx = multiprocessing.get_context("spawn")
-    q: multiprocessing.Queue = ctx.Queue()
-    p = ctx.Process(target=_extract_worker, args=(str(path), q), daemon=True)
-    p.start()
-    p.join(timeout=_EXTRACT_TIMEOUT)
-
-    if p.is_alive():
-        # Kill the entire process group to also reap pdftoppm grandchildren.
-        try:
-            _os.killpg(_os.getpgid(p.pid), _signal.SIGKILL)
-        except Exception:
-            p.kill()   # fallback: kill just the child
-        p.join(timeout=3)
-        logger.warning(f"[docs] extract failed {path.name}: timed out after {_EXTRACT_TIMEOUT}s")
-        return ""
-
-    if p.exitcode != 0:
-        logger.warning(f"[docs] extract failed {path.name}: worker exited {p.exitcode}")
-        return ""
-
-    if q.empty():
-        return ""
-
-    status, payload = q.get_nowait()
-    if status == "error":
-        logger.warning(f"[docs] extract failed {path.name}: {payload}")
-        return ""
-    return payload
+    return _worker_pool.extract(path)
 
 
 def _iter_files(folder: Path) -> Iterator[Path]:
