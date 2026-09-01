@@ -6,6 +6,7 @@ interface HealthData {
   backend: { status: string }
   rag: { status: string; indexed_emails: number; total_chunks: number; error?: string }
   database: { status: string; cached_emails: number; size_mb: number; error?: string }
+  documents: { status: string; indexed_docs: number; folders: string[]; last_ingest_status: string; last_ingest_message: string }
   ai: {
     anthropic: { status: string; has_key: boolean; key_preview: string; model: string }
     openai: { status: string; has_key: boolean; key_preview: string; model: string; role: string }
@@ -146,6 +147,14 @@ export function HealthPanel() {
           sub={data.rag.status === 'ok'
             ? `${data.rag.indexed_emails.toLocaleString()} emails indexed`
             : data.rag.error}
+        />
+        <Row
+          label="Documents"
+          status={data.documents.folders.length === 0 ? 'not_configured' : data.documents.status}
+          detail={`${data.documents.indexed_docs.toLocaleString()} indexed`}
+          sub={data.documents.folders.length === 0
+            ? 'No folders configured — Settings → Documents'
+            : data.documents.last_ingest_message || `Watching: ${data.documents.folders.join(', ')}`}
         />
       </Section>
 

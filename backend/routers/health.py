@@ -79,6 +79,19 @@ async def full_health(request: Request, check_imap: bool = True):
         except Exception as e:
             db_health["error"] = str(e)
 
+    # ── Documents ────────────────────────────────────────────────────────────
+    from routers.documents import _get_folders
+    from services.document_ingestor import get_progress as get_doc_progress
+
+    doc_progress = get_doc_progress()
+    doc_health: dict = {
+        "status": "ok" if rag else "error",
+        "indexed_docs": rag.count_unique_docs() if rag else 0,
+        "folders": _get_folders(load_app_config()),
+        "last_ingest_status": doc_progress.status,
+        "last_ingest_message": doc_progress.message,
+    }
+
     # ── AI providers ─────────────────────────────────────────────────────────
     cfg = load_app_config()
     ant_key = cfg.get("anthropic_api_key", "")
@@ -159,6 +172,7 @@ async def full_health(request: Request, check_imap: bool = True):
         "backend": {"status": "ok"},
         "rag": rag_health,
         "database": db_health,
+        "documents": doc_health,
         "ai": ai_health,
         "poll": poll_health,
         "accounts": accounts_health,
