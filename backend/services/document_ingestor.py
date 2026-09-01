@@ -61,16 +61,38 @@ _OCR_MAX_PAGES = 15   # enough for most agreements; limits pdftoppm time
 _OCR_DPI       = 100  # 100 DPI → 4× faster than 200 DPI; sufficient for text
 
 
+def _find_tesseract() -> str | None:
+    """Locate the tesseract executable across platforms. shutil.which covers
+    the common case (on PATH); these are just the well-known install
+    locations for each OS when it isn't."""
+    import shutil
+    found = shutil.which("tesseract")
+    if found:
+        return found
+    candidates = (
+        [r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+         r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe"]
+        if sys.platform == "win32"
+        else ["/opt/homebrew/bin/tesseract", "/usr/local/bin/tesseract", "/usr/bin/tesseract"]
+    )
+    for c in candidates:
+        if os.path.exists(c):
+            return c
+    return None
+
+
 def _ocr_pdf(path_str: str) -> str:
     """OCR up to _OCR_MAX_PAGES pages of a scanned PDF. Returns combined text."""
     try:
         import pytesseract
         from pdf2image import convert_from_path
-        pytesseract.pytesseract.tesseract_cmd = (
-            pytesseract.pytesseract.tesseract_cmd
-            if pytesseract.pytesseract.tesseract_cmd != "tesseract"
-            else "/opt/homebrew/bin/tesseract"
-        )
+        if pytesseract.pytesseract.tesseract_cmd == "tesseract":
+            found = _find_tesseract()
+            if found:
+                pytesseract.pytesseract.tesseract_cmd = found
+            else:
+                logger.warning(f"[docs] tesseract not found - cannot OCR {path_str}")
+                return ""
         images = convert_from_path(path_str, dpi=_OCR_DPI, last_page=_OCR_MAX_PAGES)
         pages = []
         for img in images:
