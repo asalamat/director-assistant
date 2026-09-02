@@ -29,8 +29,10 @@ def worker_main(db_path_str: str, req_queue, resp_queue):
     try:
         import truststore
         truststore.inject_into_ssl()
-    except Exception:
-        pass
+        print("[RAG worker] truststore active - trusting OS certificate store")
+    except Exception as e:
+        print(f"[RAG worker] truststore NOT active ({type(e).__name__}: {e}) - "
+              f"falling back to certifi's bundled CA list")
 
     try:
         import torch
