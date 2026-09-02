@@ -56,6 +56,14 @@ if exist ".git" (
             if not exist "!INSTALL_DIR!\frontend\dist" mkdir "!INSTALL_DIR!\frontend\dist"
             robocopy "!USRC!\frontend\dist" "!INSTALL_DIR!\frontend\dist" /E /NFL /NDL /NJH /NJS >nul
             copy /y "!USRC!\version.json" "!INSTALL_DIR!\version.json" >nul
+            :: Root-level scripts live outside backend/frontend, so the
+            :: robocopy calls above never touch them - without this, start.bat
+            :: stays stuck at whatever it was on the last full install.bat run
+            :: forever, no matter how many times this script "updates" things.
+            copy /y "!USRC!\start.bat" "!INSTALL_DIR!\start.bat" >nul 2>&1
+            copy /y "!USRC!\install.bat" "!INSTALL_DIR!\install.bat" >nul 2>&1
+            copy /y "!USRC!\install.ps1" "!INSTALL_DIR!\install.ps1" >nul 2>&1
+            copy /y "!USRC!\manual-update.bat" "!INSTALL_DIR!\manual-update.bat" >nul 2>&1
             echo [OK] Code updated
         ) else (
             echo [WARN] Could not extract download - continuing with current files
@@ -69,7 +77,19 @@ echo.
 echo [2/4] Updating Python packages...
 if exist "backend\.venv\Scripts\pip.exe" (
     backend\.venv\Scripts\pip.exe install -q --upgrade -r backend\requirements.txt
-    echo [OK] Packages updated
+    if errorlevel 1 (
+        echo [WARN] Package install failed - retrying with a certificate-trust fallback
+        echo        ^(common when antivirus or a corporate proxy inspects HTTPS traffic^)...
+        backend\.venv\Scripts\pip.exe install -q --upgrade -r backend\requirements.txt --trusted-host pypi.org --trusted-host files.pythonhosted.org
+        if errorlevel 1 (
+            echo [ERROR] Package install still failing - new dependencies ^(e.g. truststore^) were NOT installed.
+            echo         Re-run install.bat instead, or fix the network/proxy issue and try again.
+        ) else (
+            echo [OK] Packages updated
+        )
+    ) else (
+        echo [OK] Packages updated
+    )
 ) else (
     echo [WARN] venv not found - skipping pip install
 )

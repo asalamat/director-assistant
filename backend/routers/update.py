@@ -261,9 +261,33 @@ try {{
     $ErrorActionPreference = 'Stop'
     Log 'Backend files copied'
 
-    # 4. pip install new requirements
+    # 3b. Root-level scripts live outside backend/, so the robocopy above
+    # never touches them - without this, start.bat/install.bat stay stuck at
+    # whatever they were on the last full install.bat run, no matter how many
+    # times this updater runs.
+    foreach ($f in @('start.bat', 'install.bat', 'install.ps1', 'manual-update.bat')) {{
+        $srcFile = Join-Path $src $f
+        if (Test-Path $srcFile) {{ Copy-Item $srcFile '{install_dir}' -Force }}
+    }}
+    Log 'Root scripts copied'
+
+    # 4. pip install new requirements - retry with a certificate-trust
+    # fallback since a corporate proxy/antivirus doing HTTPS inspection can
+    # break pip's TLS handshake the same way it can break the app itself.
+    $ErrorActionPreference = 'Continue'
     & '{python}' -m pip install -q --upgrade -r '{install_dir}\\backend\\requirements.txt'
-    Log 'pip install done'
+    if ($LASTEXITCODE -ne 0) {{
+        Log 'pip install failed - retrying with a certificate-trust fallback'
+        & '{python}' -m pip install -q --upgrade -r '{install_dir}\\backend\\requirements.txt' --trusted-host pypi.org --trusted-host files.pythonhosted.org
+        if ($LASTEXITCODE -ne 0) {{
+            Log 'ERROR: pip install still failing - new dependencies were NOT installed. Re-run install.bat or fix the network/proxy issue.'
+        }} else {{
+            Log 'pip install done (via trusted-host fallback)'
+        }}
+    }} else {{
+        Log 'pip install done'
+    }}
+    $ErrorActionPreference = 'Stop'
 
     # 5. Copy pre-built frontend dist (dist is committed - no npm needed)
     $static = '{install_dir}\\backend\\static'
