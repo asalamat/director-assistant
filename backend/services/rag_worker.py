@@ -45,6 +45,20 @@ def worker_main(db_path_str: str, req_queue, resp_queue):
         import chromadb
         from chromadb.utils.embedding_functions import SentenceTransformerEmbeddingFunction
 
+        def _log_chain(prefix, err):
+            # huggingface_hub wraps the real cause (SSLError, ConnectionError,
+            # timeout, DNS failure, proxy block...) in a generic OSError with a
+            # canned "check your internet connection" message - print the
+            # actual __cause__/__context__ chain so we can tell what's really
+            # failing instead of guessing from the wrapper text.
+            print(f"[RAG worker] {prefix}: {type(err).__name__}: {err}")
+            seen = set()
+            cause = err.__cause__ or err.__context__
+            while cause is not None and id(cause) not in seen:
+                seen.add(id(cause))
+                print(f"[RAG worker]   caused by: {type(cause).__name__}: {cause}")
+                cause = cause.__cause__ or cause.__context__
+
         try:
             ef = SentenceTransformerEmbeddingFunction(model_name="BAAI/bge-large-en-v1.5")
         except Exception as first_err:
@@ -55,13 +69,15 @@ def worker_main(db_path_str: str, req_queue, resp_queue):
             # This network's corporate proxy is already MITM-ing this exact
             # traffic regardless, so this doesn't remove real protection here
             # - it only removes a check that was already failing anyway.
-            print(f"[RAG worker] embedding model download failed even with truststore "
-                  f"({type(first_err).__name__}: {first_err}) - retrying with SSL "
-                  f"verification disabled for this download only")
+            _log_chain("embedding model download failed even with truststore, retrying with SSL verification disabled", first_err)
             import ssl
             ssl._create_default_https_context = ssl._create_unverified_context
-            ef = SentenceTransformerEmbeddingFunction(model_name="BAAI/bge-large-en-v1.5")
-            print("[RAG worker] embedding model downloaded successfully with verification disabled")
+            try:
+                ef = SentenceTransformerEmbeddingFunction(model_name="BAAI/bge-large-en-v1.5")
+                print("[RAG worker] embedding model downloaded successfully with verification disabled")
+            except Exception as second_err:
+                _log_chain("embedding model download STILL failed with verification disabled", second_err)
+                raise
         chroma = chromadb.PersistentClient(path=db_path_str)
         col = chroma.get_collection("emails", embedding_function=ef)
 
