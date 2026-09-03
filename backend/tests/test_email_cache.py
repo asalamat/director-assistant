@@ -202,3 +202,25 @@ class TestDeleteEmail:
     def test_delete_nonexistent_returns_false(self, simple_cache):
         result = simple_cache.delete_email("never_existed")
         assert result is False
+
+
+class TestFollowUpDismissal:
+    """A deleted follow-up must stay remembered so a recurring background
+    scan (e.g. 'no reply after N days') doesn't recreate it for the same
+    email on its next run - see delete_follow_up in email_extras.py."""
+
+    def test_delete_records_dismissal(self, simple_cache):
+        from models import FollowUp
+        fid = simple_cache.add_follow_up(FollowUp(
+            email_id="waiting1", subject="Re: proposal", due_date="2026-06-10",
+        ))
+        assert simple_cache.delete_follow_up(fid) is True
+        assert simple_cache.list_follow_ups() == []
+        assert "waiting1" in simple_cache.dismissed_followup_email_ids()
+
+    def test_undeleted_followup_not_dismissed(self, simple_cache):
+        from models import FollowUp
+        simple_cache.add_follow_up(FollowUp(
+            email_id="waiting2", subject="Re: contract", due_date="2026-06-10",
+        ))
+        assert "waiting2" not in simple_cache.dismissed_followup_email_ids()

@@ -187,8 +187,24 @@ class EmailExtrasMixin:
 
     def delete_follow_up(self, fid: int) -> bool:
         with self._conn() as conn:
+            row = conn.execute("SELECT email_id FROM follow_ups WHERE id = ?", (fid,)).fetchone()
             cur = conn.execute("DELETE FROM follow_ups WHERE id = ?", (fid,))
+            # Remember this email was dismissed even after the row is gone -
+            # otherwise a recurring background scan (e.g. "no reply after N
+            # days") has no way to know the user already saw and dismissed
+            # it, and recreates a fresh follow-up for the same email on its
+            # next run, which looks identical to "delete didn't work."
+            if row and cur.rowcount > 0:
+                conn.execute(
+                    "INSERT OR IGNORE INTO dismissed_followups (email_id) VALUES (?)",
+                    (row["email_id"],),
+                )
         return cur.rowcount > 0
+
+    def dismissed_followup_email_ids(self) -> set[str]:
+        with self._conn() as conn:
+            rows = conn.execute("SELECT email_id FROM dismissed_followups").fetchall()
+        return {r["email_id"] for r in rows}
 
     # ── Triage Rules ──────────────────────────────────────────────────────────
 

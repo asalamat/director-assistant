@@ -87,7 +87,10 @@ async def _auto_deadline_extract(app, new_emails: list) -> None:
     advisor = app.state.advisor
     cache = app.state.cache
     ant = getattr(advisor.ai, "_anthropic", None)
+    skip_ids = {f.email_id for f in cache.list_follow_ups()} | cache.dismissed_followup_email_ids()
     for em in new_emails[:5]:
+        if em.id in skip_ids:
+            continue
         body = (em.body or "")[:600]
         if not body:
             continue
@@ -512,7 +515,7 @@ async def _followup_reminder_loop(app: "object") -> None:
             if not waiting:
                 continue
 
-            existing_ids = {f.email_id for f in cache.list_follow_ups()}
+            existing_ids = {f.email_id for f in cache.list_follow_ups()} | cache.dismissed_followup_email_ids()
             added = 0
             for em in waiting:
                 if em["id"] in existing_ids:

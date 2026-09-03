@@ -161,6 +161,12 @@ class EmailCache(EmailExtrasMixin, DocumentCacheMixin):
             conn.execute("CREATE INDEX IF NOT EXISTS idx_followups_done_due   ON follow_ups(done, due_date)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_action_items_email   ON action_items(email_id)")
             conn.execute("""
+                CREATE TABLE IF NOT EXISTS dismissed_followups (
+                    email_id     TEXT PRIMARY KEY,
+                    dismissed_at TEXT DEFAULT (datetime('now'))
+                )
+            """)
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS templates (
                     id           INTEGER PRIMARY KEY AUTOINCREMENT,
                     name         TEXT NOT NULL,
