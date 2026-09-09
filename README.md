@@ -369,7 +369,7 @@ Everything runs **locally on your machine**. Emails are stored in a local SQLite
 - **Auto model mapping**: when Claude models are requested but a non-Anthropic provider is active, models are automatically mapped (e.g. `claude-sonnet-4-6` → `llama-3.3-70b-versatile` on Groq)
 
 ### PST & OLM Email Archive Import
-- **Import PST files** (Outlook for Windows) — drag and drop to import; uses `readpst` (`brew install libpst`)
+- **Import PST files** (Outlook for Windows) — drag and drop to import; uses `readpst` (`brew install libpst`) on macOS, or `pypff` if installed. On Windows (no compiled parser available), falls back automatically to driving a locally installed Outlook via COM — no extra install beyond `pywin32` (pulled in by `pip install -r requirements.txt`)
 - **Import OLM files** (Outlook for Mac) — built-in parser, zero external dependencies
 - Real-time progress with email count, streaming via Server-Sent Events
 - Stable deduplication — re-importing the same file skips emails already in the database
@@ -847,6 +847,13 @@ Enable IMAP in Gmail settings:
 2. Add `http://localhost:8000/api/oauth/microsoft/callback` as a redirect URI
 3. Copy the Application (client) ID into **App Settings → Microsoft App Client ID**
 4. Use the OAuth2 sign-in flow above
+
+### Option C — No Azure Access (Windows + Outlook Desktop)
+
+No Azure app registration, no OAuth. If Outlook desktop is installed and already signed in, the app reads mail directly through Outlook via COM automation:
+
+1. Add an account with provider `outlook_com` and `username` set to the mailbox address (e.g. via `POST /api/connection/connect`)
+2. Emails are pulled live from the signed-in Outlook profile — Windows only, requires Outlook running
 
 ---
 

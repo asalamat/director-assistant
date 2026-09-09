@@ -7,10 +7,13 @@ from services.imap_provider import IMAPProvider  # noqa: F401
 from services.o365_provider import Office365Provider  # noqa: F401
 from services.graph_provider import GraphMailProvider  # noqa: F401
 from services.gmail_provider import GmailProvider  # noqa: F401
+from services.outlook_com_provider import OutlookComProvider  # noqa: F401
 from models import ConnectionConfig, EmailProviderType
 
 
 def build_provider(config: ConnectionConfig):
+    if config.provider == EmailProviderType.OUTLOOK_COM:
+        return OutlookComProvider(config)
     if config.provider == EmailProviderType.OFFICE365:
         return Office365Provider(config)
     # Gmail OAuth: access_token present, provider == gmail, no IMAP password

@@ -10,6 +10,7 @@ class EmailProviderType(str, Enum):
     HOTMAIL = "hotmail"
     GENERIC_IMAP = "generic_imap"
     OFFICE365 = "office365"
+    OUTLOOK_COM = "outlook_com"
 
 
 class EmailMessage(BaseModel):

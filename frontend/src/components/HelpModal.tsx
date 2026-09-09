@@ -1127,7 +1127,7 @@ function ImportSection() {
 
       <H3>Supported formats</H3>
       <div className="mb-4">
-        <FeatureRow label=".pst (Outlook for Windows)" desc="Uses readpst (libpst). Install with: brew install libpst on macOS or sudo apt-get install readpst on Linux." />
+        <FeatureRow label=".pst (Outlook for Windows)" desc="Uses readpst (libpst) on macOS/Linux. On Windows — where no compiled PST parser exists — falls back automatically to driving a locally installed, signed-in Outlook via COM automation." />
         <FeatureRow label=".olm (Outlook for Mac)" desc="Built-in parser — no external dependencies. Always available. Reads the ZIP+XML format used by Outlook for Mac." />
       </div>
 
@@ -1152,6 +1152,7 @@ sudo apt-get install readpst
 # Then restart Cortex Executive Inbox`}
       </pre>
       <Tip>The import status page shows a green ✓ OLM badge (always available) and a green ✓ PST or amber ⚠ PST badge depending on whether readpst is installed.</Tip>
+      <Note>On Windows, if neither pypff nor readpst is available, the app automatically falls back to reading the PST through a locally installed Outlook (COM automation) — no extra install beyond <code className="bg-gray-100 px-1 rounded text-xs">pywin32</code>, and Outlook must be running and signed in.</Note>
 
       <H3>Large archives</H3>
       <P>PST and OLM files over 1 GB may take 5–15 minutes. The app remains fully usable during import. You can import multiple files — each adds to the existing email database.</P>
@@ -1475,6 +1476,10 @@ User.Read`}</pre>
       <Step n={4}>Go to <strong>Settings → Email Accounts → Add Account</strong>, choose <strong>Microsoft 365</strong>, and click <strong>Sign in with Microsoft</strong>. A Microsoft login popup will open.</Step>
 
       <Note><strong>Token expiry:</strong> Microsoft tokens are refreshed automatically in the background. If you see 401 errors after some weeks, go to Settings → Email Accounts, remove the account, and re-add it via the Microsoft sign-in flow to get a fresh token.</Note>
+
+      <H3>No Azure Access? (Windows + Outlook Desktop)</H3>
+      <P>If you can't create an Azure app registration, there's a no-OAuth fallback: on Windows, with Outlook desktop installed and signed in, the app can read mail directly through Outlook via COM automation — no Azure app, no client secret.</P>
+      <P>This adds the account with provider <code className="bg-gray-100 px-1 rounded text-xs">outlook_com</code> (e.g. via <code className="bg-gray-100 px-1 rounded text-xs">POST /api/connection/connect</code> with your mailbox address as the username). Requires Outlook to be running; Windows only.</P>
 
       <H3>Troubleshooting</H3>
       <div className="mb-4">

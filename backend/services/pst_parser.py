@@ -4,7 +4,9 @@ PST file importer — parses Outlook .pst files and ingests emails into the cach
 Strategy (in order of preference):
   1. pypff  — Python bindings for libpff; most complete parser
   2. readpst (libpst) — command-line tool, converts PST → mbox, then parsed with mailbox module
-  3. Raise ImportError with installation instructions if neither is available
+  3. Outlook COM automation (Windows only) — no compiled parser available on Windows,
+     so fall back to driving a locally installed Outlook via win32com
+  4. Raise ImportError with installation instructions if none is available
 """
 
 from __future__ import annotations
@@ -16,6 +18,7 @@ import mailbox
 import os
 import re
 import subprocess
+import sys
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -27,7 +30,7 @@ from models import EmailMessage
 # ── Detection ─────────────────────────────────────────────────────────────────
 
 def _detect_backend() -> str:
-    """Return 'pypff', 'readpst', or raise ImportError."""
+    """Return 'pypff', 'readpst', 'outlook_com', or raise ImportError."""
     try:
         import pypff
         # Verify the expected API exists (older pypff uses pypff.file(),
@@ -43,10 +46,20 @@ def _detect_backend() -> str:
             return "readpst"
     except (FileNotFoundError, subprocess.TimeoutExpired):
         pass
+    # pypff/readpst are both C builds with no official Windows binaries, so on
+    # Windows fall back to driving a locally installed Outlook via COM.
+    if sys.platform == "win32":
+        try:
+            import win32com.client
+            win32com.client.Dispatch("Outlook.Application")
+            return "outlook_com"
+        except Exception:
+            pass
     raise ImportError(
         "No PST parser found. Install one of:\n"
         "  pip install pypff\n"
-        "  brew install libpst  (macOS, provides readpst)"
+        "  brew install libpst  (macOS, provides readpst)\n"
+        "  Windows: install Microsoft Outlook, and pip install pywin32"
     )
 
 
@@ -223,6 +236,78 @@ def _iter_readpst(pst_path: str) -> Generator[dict, None, None]:
                 continue
 
 
+# ── Outlook COM parser (Windows, no compiled PST parser available) ────────────
+
+def _iter_outlook_com(pst_path: str) -> Generator[dict, None, None]:
+    """Parse a PST via a locally installed Outlook (Windows COM automation)."""
+    import pythoncom
+    import win32com.client
+
+    pythoncom.CoInitialize()
+    store = None
+    outlook = None
+    try:
+        outlook = win32com.client.Dispatch("Outlook.Application").GetNamespace("MAPI")
+        outlook.AddStore(pst_path)
+        norm_path = os.path.normcase(os.path.abspath(pst_path))
+        for st in outlook.Stores:
+            try:
+                if os.path.normcase(os.path.abspath(st.FilePath)) == norm_path:
+                    store = st
+                    break
+            except Exception:
+                continue
+        if store is None:
+            return
+
+        def _walk(folder, folder_name: str):
+            try:
+                items = folder.Items
+                for i in range(1, items.Count + 1):
+                    try:
+                        item = items.Item(i)
+                        if getattr(item, "Class", None) != 43:  # olMail
+                            continue
+                        subject = item.Subject or ""
+                        sender = item.SenderEmailAddress or item.SenderName or ""
+                        recipients = [r.strip() for r in re.split(r"[;,]", item.To or "") if r.strip()]
+                        try:
+                            date_str = item.ReceivedTime.isoformat()
+                        except Exception:
+                            date_str = None
+                        plain = item.Body or ""
+                        html = item.HTMLBody or ""
+
+                        uid = hashlib.md5(f"{folder_name}|{subject}|{sender}|{date_str}".encode()).hexdigest()[:16]
+                        yield {
+                            "id": f"pst_{uid}",
+                            "subject": subject,
+                            "sender": sender,
+                            "recipients": recipients,
+                            "date": date_str,
+                            "body": plain,
+                            "body_html": html or None,
+                            "folder": folder_name,
+                            "is_read": True,
+                            "thread_id": None,
+                        }
+                    except Exception:
+                        continue
+            except Exception:
+                pass
+            for sub in folder.Folders:
+                yield from _walk(sub, sub.Name)
+
+        yield from _walk(store.GetRootFolder(), "INBOX")
+    finally:
+        try:
+            if outlook is not None and store is not None:
+                outlook.RemoveStore(store.GetRootFolder())
+        except Exception:
+            pass
+        pythoncom.CoUninitialize()
+
+
 # ── OLM parser (Outlook for Mac) ──────────────────────────────────────────────
 
 def _iter_olm(olm_path: str) -> Generator[dict, None, None]:
@@ -371,8 +456,10 @@ def iter_archive_emails(archive_path: str) -> Generator[dict, None, None]:
         backend = _detect_backend()
         if backend == "pypff":
             yield from _iter_pypff(archive_path)
-        else:
+        elif backend == "readpst":
             yield from _iter_readpst(archive_path)
+        else:
+            yield from _iter_outlook_com(archive_path)
 
 
 def iter_pst_emails(pst_path: str) -> Generator[dict, None, None]:
