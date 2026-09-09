@@ -340,7 +340,7 @@ export function ComposeModal({ open, onClose, accounts, initialTo = '', initialS
             <button
               onClick={handleSend}
               disabled={sending || !to.trim()}
-              className="flex items-center gap-1.5 bg-accent text-white text-sm px-4 py-1.5 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              className="flex items-center gap-1.5 bg-accent text-white text-sm px-4 py-1.5 rounded-lg hover:bg-accent-700 disabled:opacity-50 transition-colors"
             >
               {sending ? 'Sending…' : 'Send'}
             </button>

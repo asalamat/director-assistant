@@ -150,18 +150,18 @@ export function MeetingNotesPanel() {
             value={title}
             onChange={e => setTitle(e.target.value)}
             placeholder="Meeting title (optional)"
-            className="w-full text-xs border border-gray-200 rounded-lg px-3 py-1.5 mb-2 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-100"
+            className="w-full text-xs border border-gray-200 rounded-lg px-3 py-1.5 mb-2 focus:outline-none focus:ring-2 focus:ring-accent-400 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-100"
           />
           <textarea
             value={notes}
             onChange={e => setNotes(e.target.value)}
             placeholder="Paste or type your meeting notes here…&#10;&#10;Include: attendees, decisions, action items, next steps, dates."
-            className="w-full h-48 text-xs border border-gray-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-blue-400 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-100"
+            className="w-full h-48 text-xs border border-gray-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-accent-400 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-100"
           />
           <button
             onClick={handleAnalyze}
             disabled={analyzing || !notes.trim()}
-            className="mt-2 w-full bg-blue-600 text-white text-xs font-medium py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="mt-2 w-full bg-accent-600 text-white text-xs font-medium py-2 rounded-lg hover:bg-accent-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {analyzing ? 'Analyzing…' : 'Extract Action Items'}
           </button>
@@ -201,7 +201,7 @@ export function MeetingNotesPanel() {
             </svg>
             <div className="text-sm text-center px-8">
               Paste your meeting notes on the left and click<br />
-              <span className="font-medium text-blue-500">Extract Action Items</span>
+              <span className="font-medium text-accent-500">Extract Action Items</span>
             </div>
             <div className="text-xs text-gray-300 text-center px-12">
               AI will extract action items, decisions, follow-up emails, and calendar events
@@ -211,7 +211,7 @@ export function MeetingNotesPanel() {
 
         {analyzing && (
           <div className="flex-1 flex flex-col items-center justify-center gap-3 text-gray-500">
-            <div className="w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+            <div className="w-8 h-8 border-2 border-accent-400 border-t-transparent rounded-full animate-spin" />
             <div className="text-sm">Analyzing notes…</div>
           </div>
         )}
@@ -247,7 +247,7 @@ export function MeetingNotesPanel() {
                   <button
                     key={tab}
                     onClick={() => setResultTab(tab)}
-                    className={`text-xs font-medium px-3 py-2.5 border-b-2 transition-colors ${resultTab === tab ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                    className={`text-xs font-medium px-3 py-2.5 border-b-2 transition-colors ${resultTab === tab ? 'border-accent-500 text-accent-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
                   >
                     {labels[tab]}
                     {count > 0 && <span className="ml-1 bg-gray-100 text-gray-600 text-xs px-1.5 py-0.5 rounded-full">{count}</span>}
@@ -282,7 +282,7 @@ export function MeetingNotesPanel() {
                         <button
                           onClick={() => handleAddTask(item, i)}
                           disabled={addedTasks.has(i)}
-                          className="flex-shrink-0 text-xs px-2.5 py-1 rounded-lg border transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600"
+                          className="flex-shrink-0 text-xs px-2.5 py-1 rounded-lg border transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-accent-50 hover:border-accent-300 hover:text-accent-600"
                         >
                           {addedTasks.has(i) ? '✓ Added' : '+ Tasks'}
                         </button>
@@ -323,7 +323,7 @@ export function MeetingNotesPanel() {
                           </div>
                           <button
                             onClick={() => handleOpenCompose(email)}
-                            className="flex-shrink-0 text-xs px-2.5 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                            className="flex-shrink-0 text-xs px-2.5 py-1 bg-accent-600 text-white rounded-lg hover:bg-accent-700 transition-colors"
                           >
                             Compose
                           </button>
@@ -358,7 +358,7 @@ export function MeetingNotesPanel() {
                         <button
                           onClick={() => handleCopyEvent(event, i)}
                           disabled={createdEvents.has(i)}
-                          className="flex-shrink-0 text-xs px-2.5 py-1 rounded-lg border transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600"
+                          className="flex-shrink-0 text-xs px-2.5 py-1 rounded-lg border transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-accent-50 hover:border-accent-300 hover:text-accent-600"
                         >
                           {createdEvents.has(i) ? '✓ Copied' : 'Copy'}
                         </button>

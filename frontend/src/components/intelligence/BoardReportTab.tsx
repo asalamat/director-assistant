@@ -23,7 +23,7 @@ export function BoardReportTab() {
         <p className="text-xs text-gray-500 mt-0.5">AI-generated executive status report from the past 30 days of email activity.</p>
       </div>
       <button onClick={generate} disabled={loading}
-        className="flex items-center gap-2 px-5 py-2.5 bg-accent text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors text-sm font-medium w-fit">
+        className="flex items-center gap-2 px-5 py-2.5 bg-accent text-white rounded-xl hover:bg-accent-700 disabled:opacity-50 transition-colors text-sm font-medium w-fit">
         {loading ? (
           <><span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"/>Generating&hellip;</>
         ) : '📋 Generate Board Report'}

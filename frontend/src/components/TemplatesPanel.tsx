@@ -60,7 +60,7 @@ export function TemplatesPanel({ onInsert, email }: Props) {
         <h2 className="text-sm font-semibold text-gray-800">Reply Templates</h2>
         <button
           onClick={() => { setEditing(null); setDraft({ name: '', body: '' }); setFormOpen(true) }}
-          className="text-xs bg-accent text-white px-2.5 py-1 rounded hover:bg-blue-700"
+          className="text-xs bg-accent text-white px-2.5 py-1 rounded hover:bg-accent-700"
         >
           + New
         </button>
@@ -69,7 +69,7 @@ export function TemplatesPanel({ onInsert, email }: Props) {
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {/* Editor */}
         {formOpen && (
-          <div className="border border-accent rounded-xl p-3 space-y-2 bg-blue-50">
+          <div className="border border-accent rounded-xl p-3 space-y-2 bg-accent-50">
             <input
               value={draft.name}
               onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
@@ -89,7 +89,7 @@ export function TemplatesPanel({ onInsert, email }: Props) {
             <div className="flex gap-2">
               <button
                 onClick={save}
-                className="text-xs bg-accent text-white px-3 py-1.5 rounded hover:bg-blue-700"
+                className="text-xs bg-accent text-white px-3 py-1.5 rounded hover:bg-accent-700"
               >
                 {editing?.id ? 'Update' : 'Save'}
               </button>

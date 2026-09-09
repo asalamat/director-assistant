@@ -8,7 +8,7 @@ type PillFilter = 'all' | 'at_risk' | 'awaiting' | 'warming'
 
 const STATUS_META: Record<ContactHealth['status'], { ring: string; text: string; chip: string; icon: string; label: string }> = {
   healthy: { ring: 'border-green-500', text: 'text-green-600', chip: 'bg-green-50 text-green-700', icon: '🟢', label: 'Healthy' },
-  good: { ring: 'border-blue-500', text: 'text-blue-600', chip: 'bg-blue-50 text-blue-700', icon: '🟡', label: 'Good' },
+  good: { ring: 'border-accent-500', text: 'text-accent-600', chip: 'bg-accent-50 text-accent-700', icon: '🟡', label: 'Good' },
   fading: { ring: 'border-amber-500', text: 'text-amber-600', chip: 'bg-amber-50 text-amber-700', icon: '🟠', label: 'Fading' },
   at_risk: { ring: 'border-red-500', text: 'text-red-600', chip: 'bg-red-50 text-red-700', icon: '🔴', label: 'At Risk' },
   cold: { ring: 'border-gray-400', text: 'text-gray-500', chip: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300', icon: '⚫', label: 'Cold' },
@@ -156,7 +156,7 @@ export function ContactHealthTab() {
                     <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-700">📋 {c.open_commitments} commitment{c.open_commitments > 1 ? 's' : ''}</span>
                   )}
                   {c.active_deal && (
-                    <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-700 truncate max-w-[160px]">{c.active_deal.stage}</span>
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-accent-100 text-accent-700 truncate max-w-[160px]">{c.active_deal.stage}</span>
                   )}
                 </div>
                 <p className="text-[11px] text-gray-400 mt-1">
@@ -166,7 +166,7 @@ export function ContactHealthTab() {
               <div className="flex flex-col gap-1.5 flex-shrink-0">
                 <button
                   onClick={() => openCompose({ to: c.email })}
-                  className="px-3 py-1.5 bg-accent text-white rounded-lg text-xs font-medium hover:bg-blue-700 transition-colors"
+                  className="px-3 py-1.5 bg-accent text-white rounded-lg text-xs font-medium hover:bg-accent-700 transition-colors"
                 >
                   ✉ Message
                 </button>

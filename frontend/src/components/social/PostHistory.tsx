@@ -372,7 +372,7 @@ export function PostHistory() {
 
               {/* Engagement stats panel */}
               {statsOpen.has(post.id) && (
-                <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 space-y-1.5">
+                <div className="bg-accent-50 border border-accent-100 rounded-xl p-3 space-y-1.5">
                   {statsLoading.has(post.id) ? (
                     <p className="text-xs text-gray-400">Loading…</p>
                   ) : statsData[post.id]?.linkedin_url ? (
@@ -397,13 +397,13 @@ export function PostHistory() {
 
               {/* Regenerate text panel */}
               {regenOpen.has(post.id) && regenText[post.id] && (
-                <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 space-y-2">
-                  <p className="text-[10px] font-semibold text-blue-700 uppercase tracking-wide">✨ Regenerated text — review before posting</p>
+                <div className="bg-accent-50 border border-accent-200 rounded-xl p-3 space-y-2">
+                  <p className="text-[10px] font-semibold text-accent-700 uppercase tracking-wide">✨ Regenerated text — review before posting</p>
                   <textarea
                     value={regenText[post.id]}
                     onChange={e => setRegenText(prev => ({...prev, [post.id]: e.target.value}))}
                     rows={8}
-                    className="w-full text-xs border border-blue-200 rounded-lg px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white"
+                    className="w-full text-xs border border-accent-200 rounded-lg px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-accent-400 bg-white"
                   />
                   <div className="flex gap-2">
                     <button
@@ -416,7 +416,7 @@ export function PostHistory() {
                     <button
                       onClick={() => handleRegenerate(post)}
                       disabled={regenLoading.has(post.id)}
-                      className="text-xs font-medium px-3 py-1.5 rounded-lg border border-blue-300 text-blue-700 hover:bg-blue-100 disabled:opacity-50 transition"
+                      className="text-xs font-medium px-3 py-1.5 rounded-lg border border-accent-300 text-accent-700 hover:bg-accent-100 disabled:opacity-50 transition"
                     >
                       {regenLoading.has(post.id) ? 'Regenerating…' : '↻ Try again'}
                     </button>
@@ -445,8 +445,8 @@ export function PostHistory() {
                     onClick={() => toggleStats(post.id)}
                     className={`text-xs font-medium px-3 py-1 rounded-lg border transition ${
                       statsOpen.has(post.id)
-                        ? 'border-blue-300 text-blue-700 bg-blue-50'
-                        : 'border-gray-200 text-gray-600 hover:border-blue-300 hover:text-blue-600'
+                        ? 'border-accent-300 text-accent-700 bg-accent-50'
+                        : 'border-gray-200 text-gray-600 hover:border-accent-300 hover:text-accent-600'
                     }`}
                   >
                     📊 Stats
@@ -476,7 +476,7 @@ export function PostHistory() {
                 <button
                   onClick={() => handleRegenerate(post)}
                   disabled={regenLoading.has(post.id)}
-                  className="text-xs font-medium px-3 py-1 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 disabled:opacity-50 transition"
+                  className="text-xs font-medium px-3 py-1 rounded-lg border border-accent-200 text-accent-600 hover:bg-accent-50 disabled:opacity-50 transition"
                 >
                   {regenLoading.has(post.id) ? '…' : '✨ Regenerate'}
                 </button>
@@ -484,7 +484,7 @@ export function PostHistory() {
                   onClick={() => toggleAsk(post.id)}
                   className={`text-xs font-medium px-3 py-1 rounded-lg border transition ${
                     isAskOpen
-                      ? 'border-accent text-accent bg-blue-50'
+                      ? 'border-accent text-accent bg-accent-50'
                       : 'border-gray-200 text-gray-600 hover:border-accent hover:text-accent'
                   }`}
                 >

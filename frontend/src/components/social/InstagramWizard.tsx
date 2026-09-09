@@ -334,7 +334,7 @@ export function InstagramWizard({ onViewHistory }: { onViewHistory: () => void }
             <div className="flex gap-2">
               <input
                 type="text"
-                className="flex-1 px-3 py-2 border border-gray-200 rounded-xl text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400 placeholder-gray-400"
+                className="flex-1 px-3 py-2 border border-gray-200 rounded-xl text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-accent-200 focus:border-accent-400 placeholder-gray-400"
                 placeholder="Search query, e.g. 'human rights Iran 2026'"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
@@ -343,7 +343,7 @@ export function InstagramWizard({ onViewHistory }: { onViewHistory: () => void }
               <button
                 onClick={searchNews}
                 disabled={!searchQuery.trim() || searching}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-40 transition"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium border border-accent-200 bg-accent-50 text-accent-700 hover:bg-accent-100 disabled:opacity-40 transition"
               >
                 {searching ? <Spinner /> : '🔍'}
                 <span className="whitespace-nowrap">{searching ? 'Searching…' : 'Search'}</span>
@@ -351,9 +351,9 @@ export function InstagramWizard({ onViewHistory }: { onViewHistory: () => void }
             </div>
 
             {searchResults.length > 0 && (
-              <div className="rounded-xl border border-blue-100 overflow-hidden">
-                <div className="flex items-center justify-between px-3 py-2 bg-blue-50 border-b border-blue-100">
-                  <p className="text-xs font-semibold text-blue-700">Check the results you want to include</p>
+              <div className="rounded-xl border border-accent-100 overflow-hidden">
+                <div className="flex items-center justify-between px-3 py-2 bg-accent-50 border-b border-accent-100">
+                  <p className="text-xs font-semibold text-accent-700">Check the results you want to include</p>
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => setSelectedResultIdxs(
@@ -361,7 +361,7 @@ export function InstagramWizard({ onViewHistory }: { onViewHistory: () => void }
                           ? new Set()
                           : new Set(searchResults.map((_, i) => i))
                       )}
-                      className="text-[10px] text-blue-500 hover:text-blue-700 font-medium"
+                      className="text-[10px] text-accent-500 hover:text-accent-700 font-medium"
                     >
                       {selectedResultIdxs.size === searchResults.length ? 'Deselect all' : 'Select all'}
                     </button>
@@ -373,23 +373,23 @@ export function InstagramWizard({ onViewHistory }: { onViewHistory: () => void }
                     const checked = selectedResultIdxs.has(i)
                     return (
                       <div key={i} onClick={() => toggleResultIdx(i)}
-                        className={`px-3 py-2.5 cursor-pointer transition-colors ${checked ? 'bg-blue-50' : 'bg-white hover:bg-gray-50'}`}>
+                        className={`px-3 py-2.5 cursor-pointer transition-colors ${checked ? 'bg-accent-50' : 'bg-white hover:bg-gray-50'}`}>
                         <div className="flex items-start gap-2.5">
-                          <div className={`flex-shrink-0 mt-0.5 w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${checked ? 'bg-blue-500 border-blue-500' : 'border-gray-300 bg-white'}`}>
+                          <div className={`flex-shrink-0 mt-0.5 w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${checked ? 'bg-accent-500 border-accent-500' : 'border-gray-300 bg-white'}`}>
                             {checked && <span className="text-white text-[9px] font-bold leading-none">✓</span>}
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className={`text-xs font-medium line-clamp-1 ${checked ? 'text-gray-900' : 'text-gray-500'}`}>{r.title}</p>
                             {checked && <p className="text-[11px] text-gray-500 line-clamp-2 mt-0.5">{r.snippet}</p>}
                             <div className="flex items-center gap-2 mt-0.5">
-                              {r.source && <span className="text-[10px] text-blue-500 font-medium">{r.source}</span>}
+                              {r.source && <span className="text-[10px] text-accent-500 font-medium">{r.source}</span>}
                               {r.date && <span className="text-[10px] text-gray-400">{r.date}</span>}
                             </div>
                           </div>
                           {r.url && (
                             <a href={r.url} target="_blank" rel="noopener noreferrer"
                               onClick={e => e.stopPropagation()}
-                              className="flex-shrink-0 text-[10px] text-blue-400 hover:text-blue-600 mt-0.5">↗</a>
+                              className="flex-shrink-0 text-[10px] text-accent-400 hover:text-accent-600 mt-0.5">↗</a>
                           )}
                         </div>
                       </div>
@@ -397,8 +397,8 @@ export function InstagramWizard({ onViewHistory }: { onViewHistory: () => void }
                   })}
                 </div>
                 {selectedResultIdxs.size > 0 && (
-                  <div className="px-3 py-1.5 bg-blue-100 border-t border-blue-200">
-                    <p className="text-[11px] text-blue-700 font-medium">{selectedResultIdxs.size} of {searchResults.length} news items selected</p>
+                  <div className="px-3 py-1.5 bg-accent-100 border-t border-accent-200">
+                    <p className="text-[11px] text-accent-700 font-medium">{selectedResultIdxs.size} of {searchResults.length} news items selected</p>
                   </div>
                 )}
               </div>
@@ -429,7 +429,7 @@ export function InstagramWizard({ onViewHistory }: { onViewHistory: () => void }
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-700">✍️ your description</span>
                   )}
                   {selectedResultIdxs.size > 0 && (
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-100 text-blue-700">🌐 {selectedResultIdxs.size} news</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-accent-100 text-accent-700">🌐 {selectedResultIdxs.size} news</span>
                   )}
                 </div>
               </div>
@@ -483,7 +483,7 @@ export function InstagramWizard({ onViewHistory }: { onViewHistory: () => void }
               <div className="flex items-center justify-between mb-1.5">
                 <p className="text-xs font-medium text-gray-500">Caption</p>
                 <div className="flex items-center gap-2">
-                  {selectedResultIdxs.size > 0 && searchResults.length > 0 && <span className="text-[11px] text-blue-600 font-medium">🌐 {selectedResultIdxs.size} news items</span>}
+                  {selectedResultIdxs.size > 0 && searchResults.length > 0 && <span className="text-[11px] text-accent-600 font-medium">🌐 {selectedResultIdxs.size} news items</span>}
                   {usedTemplate && <span className="text-[11px] text-pink-600 font-medium">{usedTemplate.icon} {usedTemplate.name}</span>}
                 </div>
               </div>
@@ -670,7 +670,7 @@ export function InstagramWizard({ onViewHistory }: { onViewHistory: () => void }
                   <div className="px-3 py-2">
                     <p className="text-xs text-gray-800 whitespace-pre-wrap line-clamp-4">{caption}</p>
                     {hashtags.length > 0 && (
-                      <p className="text-xs text-blue-500 mt-1 line-clamp-2">{hashtags.map(h => `#${h}`).join(' ')}</p>
+                      <p className="text-xs text-accent-500 mt-1 line-clamp-2">{hashtags.map(h => `#${h}`).join(' ')}</p>
                     )}
                   </div>
                 </div>

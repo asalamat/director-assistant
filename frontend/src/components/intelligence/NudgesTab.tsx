@@ -94,7 +94,7 @@ export function NudgesTab() {
             <div className="flex items-center gap-2 pt-1 flex-wrap">
               <button
                 onClick={() => openCompose({ to: n.email })}
-                className="px-3 py-1.5 bg-accent text-white rounded-lg text-xs font-medium hover:bg-blue-700 transition-colors"
+                className="px-3 py-1.5 bg-accent text-white rounded-lg text-xs font-medium hover:bg-accent-700 transition-colors"
               >
                 Email now
               </button>

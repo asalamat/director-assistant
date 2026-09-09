@@ -56,7 +56,7 @@ export function ContactTimeline({ emailAddr }: { emailAddr: string }) {
               <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${
                 em.direction === 'sent'
                   ? 'bg-gray-100 text-gray-500'
-                  : 'bg-blue-50 text-blue-600'
+                  : 'bg-accent-50 text-accent-600'
               }`}>
                 {em.direction === 'sent' ? '↑ Sent' : '↓ Received'}
               </span>

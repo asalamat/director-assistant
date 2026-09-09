@@ -16,7 +16,7 @@ interface AgendaResult {
 }
 
 const TYPE_COLOR: Record<string, string> = {
-  update: 'bg-blue-50 text-blue-700 border-blue-200',
+  update: 'bg-accent-50 text-accent-700 border-accent-200',
   decision: 'bg-purple-50 text-purple-700 border-purple-200',
   discussion: 'bg-yellow-50 text-yellow-700 border-yellow-200',
   'action-review': 'bg-green-50 text-green-700 border-green-200',
@@ -100,7 +100,7 @@ function AgendaPanel() {
             value={meetTitle}
             onChange={e => setMeetTitle(e.target.value)}
             placeholder="Q3 review with Sarah…"
-            className="mt-1 w-full text-xs border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-100"
+            className="mt-1 w-full text-xs border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-accent-400 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-100"
           />
         </div>
 
@@ -109,7 +109,7 @@ function AgendaPanel() {
           <div className="mt-1 flex gap-1 flex-wrap">
             {[15, 30, 45, 60, 90].map(d => (
               <button key={d} onClick={() => setDuration(d)}
-                className={`text-xs px-2.5 py-1 rounded-lg border transition-colors ${duration === d ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}>
+                className={`text-xs px-2.5 py-1 rounded-lg border transition-colors ${duration === d ? 'bg-accent-600 text-white border-accent-600' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}>
                 {d}m
               </button>
             ))}
@@ -120,9 +120,9 @@ function AgendaPanel() {
           <label className="text-xs font-medium text-gray-600 dark:text-gray-400">Attendees</label>
           <div className="mt-1 flex flex-wrap gap-1 p-2 border border-gray-200 rounded-lg dark:border-gray-600 dark:bg-gray-800 min-h-[2.5rem]">
             {attendees.map(a => (
-              <span key={a} className="flex items-center gap-1 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+              <span key={a} className="flex items-center gap-1 text-xs bg-accent-100 text-accent-700 px-2 py-0.5 rounded-full">
                 {a}
-                <button onClick={() => setAttendees(prev => prev.filter(x => x !== a))} className="text-blue-400 hover:text-blue-700">×</button>
+                <button onClick={() => setAttendees(prev => prev.filter(x => x !== a))} className="text-accent-400 hover:text-accent-700">×</button>
               </span>
             ))}
             <input
@@ -155,14 +155,14 @@ function AgendaPanel() {
             onChange={e => setNotes(e.target.value)}
             placeholder="Topics you want to cover, recent issues, goals…"
             rows={4}
-            className="mt-1 w-full text-xs border border-gray-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-blue-400 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-100"
+            className="mt-1 w-full text-xs border border-gray-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-accent-400 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-100"
           />
         </div>
 
         <button
           onClick={handleBuild}
           disabled={building || !meetTitle.trim()}
-          className="w-full bg-blue-600 text-white text-xs font-medium py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="w-full bg-accent-600 text-white text-xs font-medium py-2 rounded-lg hover:bg-accent-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {building ? 'Building agenda…' : 'Build Agenda'}
         </button>
@@ -175,14 +175,14 @@ function AgendaPanel() {
             <svg className="w-12 h-12 opacity-30" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
             </svg>
-            <p className="text-sm">Fill in meeting details and click <span className="font-medium text-blue-500">Build Agenda</span></p>
+            <p className="text-sm">Fill in meeting details and click <span className="font-medium text-accent-500">Build Agenda</span></p>
             <p className="text-xs text-gray-300 text-center px-12">AI will pull context from your emails and open follow-ups to build a smart agenda</p>
           </div>
         )}
 
         {building && (
           <div className="flex flex-col items-center justify-center h-full gap-3 text-gray-500">
-            <div className="w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+            <div className="w-8 h-8 border-2 border-accent-400 border-t-transparent rounded-full animate-spin" />
             <p className="text-sm">Building your agenda…</p>
             <p className="text-xs text-gray-400">Pulling email context + open follow-ups</p>
           </div>
@@ -452,7 +452,7 @@ export function MeetingTab() {
     <div className="flex items-center gap-1 px-4 pt-3 pb-0 border-b border-gray-100 dark:border-gray-700 flex-shrink-0">
       {MODES.map(m => (
         <button key={m.id} onClick={() => setMode(m.id)}
-          className={`text-xs font-medium px-3 py-2 border-b-2 transition-colors ${mode === m.id ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+          className={`text-xs font-medium px-3 py-2 border-b-2 transition-colors ${mode === m.id ? 'border-accent-500 text-accent-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
           {m.label}
         </button>
       ))}
@@ -491,7 +491,7 @@ export function MeetingTab() {
       {/* Record controls */}
       {state === 'idle' && (
         <button onClick={start}
-          className="flex items-center gap-2 px-5 py-3 bg-accent text-white rounded-xl hover:bg-blue-700 transition-colors text-sm font-medium w-fit">
+          className="flex items-center gap-2 px-5 py-3 bg-accent text-white rounded-xl hover:bg-accent-700 transition-colors text-sm font-medium w-fit">
           <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
             <path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clipRule="evenodd" />
           </svg>

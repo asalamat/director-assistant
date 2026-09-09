@@ -267,7 +267,7 @@ export function EmailTools({ email, translation, onClearTranslation, onOpenCompo
           )}
           <button onClick={handleTriggerAutopilot} disabled={triggeringAutopilot}
             title="Trigger autopilot reply using your RAG knowledge base"
-            className="text-xs text-blue-600 hover:underline flex items-center gap-1 disabled:opacity-50">
+            className="text-xs text-accent-600 hover:underline flex items-center gap-1 disabled:opacity-50">
             {triggeringAutopilot ? <><span className="animate-spin inline-block">⟳</span> Replying…</> : '🤖 Auto-Reply'}
           </button>
           {autopilotResult && (
@@ -317,7 +317,7 @@ export function EmailTools({ email, translation, onClearTranslation, onOpenCompo
                       const badgeColors: Record<string, string> = {
                         invoice: 'bg-yellow-100 text-yellow-800',
                         contract: 'bg-indigo-100 text-indigo-800',
-                        proposal: 'bg-blue-100 text-blue-800',
+                        proposal: 'bg-accent-100 text-accent-800',
                         report: 'bg-purple-100 text-purple-800',
                         receipt: 'bg-green-100 text-green-800',
                         other: 'bg-gray-100 text-gray-700',
@@ -429,7 +429,7 @@ export function EmailTools({ email, translation, onClearTranslation, onOpenCompo
               <button
                 key={label}
                 onClick={() => handleQuickReplyClick(text)}
-                className="block w-full text-left text-xs bg-gray-50 hover:bg-blue-50 border border-gray-200 hover:border-accent rounded-lg px-3 py-2 transition-colors"
+                className="block w-full text-left text-xs bg-gray-50 hover:bg-accent-50 border border-gray-200 hover:border-accent rounded-lg px-3 py-2 transition-colors"
               >
                 <span className="font-medium text-accent mr-1.5">{label}</span>
                 <span className="text-gray-600 line-clamp-2">{text}</span>

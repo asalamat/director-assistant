@@ -147,12 +147,12 @@ function TaskCard({ task, onUpdate, onDelete, projectId, onAssignEmail }: TaskCa
             <div>
               <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide block mb-0.5">Assignee</label>
               <input value={assignee} onChange={e => setAssignee(e.target.value)}
-                className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400" />
+                className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent-400" />
             </div>
             <div>
               <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide block mb-0.5">Priority</label>
               <select value={priority} onChange={e => setPriority(e.target.value)}
-                className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white">
+                className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent-400 bg-white">
                 <option value="high">High</option>
                 <option value="medium">Medium</option>
                 <option value="low">Low</option>
@@ -162,7 +162,7 @@ function TaskCard({ task, onUpdate, onDelete, projectId, onAssignEmail }: TaskCa
               <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide block mb-0.5">Rate ($/hr)</label>
               <input type="number" min="0" step="5" value={hourlyRate}
                 onChange={e => setHourlyRate(e.target.value)}
-                className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400" />
+                className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent-400" />
             </div>
             <div>
               <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide block mb-0.5">Est. Cost</label>
@@ -192,12 +192,12 @@ function TaskCard({ task, onUpdate, onDelete, projectId, onAssignEmail }: TaskCa
             <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide block mb-0.5">Depends on (comma-separated)</label>
             <input value={dependsOn} onChange={e => setDependsOn(e.target.value)}
               placeholder="e.g. Design mockups, API spec"
-              className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400" />
+              className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent-400" />
           </div>
 
           <div className="flex items-center gap-2">
             <button onClick={save} disabled={saving}
-              className="text-xs bg-blue-500 text-white px-2.5 py-1 rounded-lg hover:bg-blue-600 disabled:opacity-50">
+              className="text-xs bg-accent-500 text-white px-2.5 py-1 rounded-lg hover:bg-accent-600 disabled:opacity-50">
               {saving ? '…' : 'Save'}
             </button>
             <div className="flex gap-1 ml-auto">
@@ -212,11 +212,11 @@ function TaskCard({ task, onUpdate, onDelete, projectId, onAssignEmail }: TaskCa
 
           {/* Assignment email prompt */}
           {showAssignPrompt && (
-            <div className="flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
-              <span className="text-xs text-blue-700 flex-1">Send assignment email to <strong>{savedAssignee}</strong>?</span>
+            <div className="flex items-center gap-2 bg-accent-50 border border-accent-100 rounded-lg px-3 py-2">
+              <span className="text-xs text-accent-700 flex-1">Send assignment email to <strong>{savedAssignee}</strong>?</span>
               <button
                 onClick={() => { onAssignEmail(task.id, savedAssignee); setShowAssignPrompt(false) }}
-                className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded-lg hover:bg-blue-600">
+                className="text-xs bg-accent-500 text-white px-2 py-0.5 rounded-lg hover:bg-accent-600">
                 Yes
               </button>
               <button
@@ -254,7 +254,7 @@ function TaskCard({ task, onUpdate, onDelete, projectId, onAssignEmail }: TaskCa
             <div className="flex gap-1.5">
               <textarea value={newComment} onChange={e => setNewComment(e.target.value)}
                 rows={2} placeholder="Add a comment…"
-                className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-blue-400" />
+                className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-accent-400" />
               <button onClick={submitComment} disabled={addingComment || !newComment.trim()}
                 className="text-xs bg-teal-500 text-white px-2.5 rounded-lg hover:bg-teal-600 disabled:opacity-40 self-end pb-1 pt-1">
                 {addingComment ? '…' : 'Add'}
@@ -269,7 +269,7 @@ function TaskCard({ task, onUpdate, onDelete, projectId, onAssignEmail }: TaskCa
 
 const COLUMN_CONFIG: { status: TaskStatus; label: string; headerCls: string }[] = [
   { status: 'not_started', label: 'Not Started', headerCls: 'bg-gray-100 text-gray-600' },
-  { status: 'in_progress', label: 'In Progress', headerCls: 'bg-blue-100 text-blue-700' },
+  { status: 'in_progress', label: 'In Progress', headerCls: 'bg-accent-100 text-accent-700' },
   { status: 'done',        label: 'Done',        headerCls: 'bg-green-100 text-green-700' },
   { status: 'blocked',     label: 'Blocked',     headerCls: 'bg-red-100 text-red-600' },
 ]
@@ -372,9 +372,9 @@ export function ProjectTaskBoard({ projectId }: Props) {
                     <input autoFocus value={newTaskName} onChange={e => setNewTaskName(e.target.value)}
                       onKeyDown={e => { if (e.key === 'Enter') addTask(status); if (e.key === 'Escape') { setAddingIn(null); setNewTaskName('') } }}
                       placeholder="Task name…"
-                      className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400" />
+                      className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent-400" />
                     <button onClick={() => addTask(status)}
-                      className="text-xs bg-blue-500 text-white px-2 rounded-lg hover:bg-blue-600">+</button>
+                      className="text-xs bg-accent-500 text-white px-2 rounded-lg hover:bg-accent-600">+</button>
                     <button onClick={() => { setAddingIn(null); setNewTaskName('') }}
                       className="text-xs text-gray-400 hover:text-gray-600">✕</button>
                   </div>

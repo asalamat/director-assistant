@@ -42,7 +42,7 @@ function EventCard({ event, multiAccount }: { event: CalEvent; multiAccount?: bo
         <p className="font-bold text-sm text-gray-900 dark:text-gray-100 truncate">{event.title}</p>
         <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
           {multiAccount && event.calendar_account && (
-            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-300 truncate max-w-[140px]">
+            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-accent-50 dark:bg-accent-950/50 text-accent-600 dark:text-accent-300 truncate max-w-[140px]">
               {event.calendar_account}
             </span>
           )}

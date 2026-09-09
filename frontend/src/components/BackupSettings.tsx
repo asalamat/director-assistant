@@ -77,7 +77,7 @@ export function BackupSettings() {
           <a
             href={api.exportBackupUrl()}
             download="director-assistant-backup.zip"
-            className="text-xs bg-accent text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors"
+            className="text-xs bg-accent text-white px-3 py-1.5 rounded-lg hover:bg-accent-700 transition-colors"
           >
             Download backup
           </a>
@@ -106,7 +106,7 @@ export function BackupSettings() {
           <a
             href={api.exportConfigBackupUrl()}
             download="director-assistant-config-backup.json"
-            className="text-xs bg-accent text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors"
+            className="text-xs bg-accent text-white px-3 py-1.5 rounded-lg hover:bg-accent-700 transition-colors"
           >
             Download config
           </a>
@@ -135,7 +135,7 @@ export function BackupSettings() {
           <a
             href={api.exportSecurityBackupUrl()}
             download="director-assistant-security-backup.json"
-            className="text-xs bg-accent text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors"
+            className="text-xs bg-accent text-white px-3 py-1.5 rounded-lg hover:bg-accent-700 transition-colors"
           >
             Download API keys
           </a>

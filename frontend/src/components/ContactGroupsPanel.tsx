@@ -7,7 +7,7 @@ interface Member { name: string; email: string }
 interface Group { name: string; color: string; members: Member[] }
 
 const COLOR_MAP: Record<string, string> = {
-  blue:   'bg-blue-100 text-blue-700 border-blue-200',
+  blue:   'bg-accent-100 text-accent-700 border-accent-200',
   green:  'bg-green-100 text-green-700 border-green-200',
   purple: 'bg-purple-100 text-purple-700 border-purple-200',
   orange: 'bg-orange-100 text-orange-700 border-orange-200',
@@ -16,7 +16,7 @@ const COLOR_MAP: Record<string, string> = {
 }
 
 const DOT_MAP: Record<string, string> = {
-  blue: 'bg-blue-500', green: 'bg-green-500', purple: 'bg-purple-500',
+  blue: 'bg-accent-500', green: 'bg-green-500', purple: 'bg-purple-500',
   orange: 'bg-orange-500', red: 'bg-red-500', gray: 'bg-gray-400',
 }
 
@@ -57,7 +57,7 @@ export function ContactGroupsPanel({ onSearch }: { onSearch?: (query: string) =>
         <button
           onClick={handleGenerate}
           disabled={generating}
-          className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-accent text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+          className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-accent text-white rounded-lg hover:bg-accent-700 disabled:opacity-50 transition-colors"
         >
           {generating ? (
             <span className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" />

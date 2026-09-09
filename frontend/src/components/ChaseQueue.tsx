@@ -194,7 +194,7 @@ export function ChaseQueue({ onOpenCompose }: { onOpenCompose?: (opts: { to: str
             <option value={7}>7+ days</option>
             <option value={14}>14+ days</option>
           </select>
-          <button onClick={load} className="text-xs text-gray-400 hover:text-accent px-2 py-1 rounded hover:bg-blue-50 transition-colors" title="Refresh">↺</button>
+          <button onClick={load} className="text-xs text-gray-400 hover:text-accent px-2 py-1 rounded hover:bg-accent-50 transition-colors" title="Refresh">↺</button>
         </div>
       </div>
 
@@ -224,14 +224,14 @@ export function ChaseQueue({ onOpenCompose }: { onOpenCompose?: (opts: { to: str
                   onClick={() => draftReply(email)}
                   disabled={draftingFollowup === email.id}
                   title="Draft a follow-up reply"
-                  className="text-[10px] text-gray-400 hover:text-accent hover:bg-blue-50 rounded px-1.5 py-0.5 transition-colors leading-none disabled:opacity-50 flex items-center gap-0.5"
+                  className="text-[10px] text-gray-400 hover:text-accent hover:bg-accent-50 rounded px-1.5 py-0.5 transition-colors leading-none disabled:opacity-50 flex items-center gap-0.5"
                 >
                   {draftingFollowup === email.id ? <Spinner size="sm" /> : '✍'}
                 </button>
                 <button
                   onClick={() => editingId === email.id ? setEditingId(null) : openEdit(email)}
                   title="Edit — snooze or add note"
-                  className={`text-xs rounded p-0.5 transition-colors leading-none ${editingId === email.id ? 'text-blue-500 bg-blue-50' : 'text-gray-300 hover:text-gray-500 hover:bg-white/60'}`}
+                  className={`text-xs rounded p-0.5 transition-colors leading-none ${editingId === email.id ? 'text-accent-500 bg-accent-50' : 'text-gray-300 hover:text-gray-500 hover:bg-white/60'}`}
                 >
                   ✎
                 </button>
@@ -247,7 +247,7 @@ export function ChaseQueue({ onOpenCompose }: { onOpenCompose?: (opts: { to: str
             <p className="text-xs text-gray-500 mb-1">To: {email.recipient || email.sender}</p>
 
             {notes[email.id] && editingId !== email.id && (
-              <p className="text-xs text-blue-600 bg-blue-50 rounded px-2 py-1 mb-2 italic">📝 {notes[email.id]}</p>
+              <p className="text-xs text-accent-600 bg-accent-50 rounded px-2 py-1 mb-2 italic">📝 {notes[email.id]}</p>
             )}
 
             {/* Inline edit panel */}
@@ -259,7 +259,7 @@ export function ChaseQueue({ onOpenCompose }: { onOpenCompose?: (opts: { to: str
                   <div className="flex gap-1.5 flex-wrap">
                     {[1, 3, 7, 14].map(d => (
                       <button key={d} onClick={() => snooze(email.id, d)}
-                        className="text-xs px-2.5 py-1 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600 transition-colors">
+                        className="text-xs px-2.5 py-1 rounded-lg border border-gray-200 hover:border-accent-300 hover:bg-accent-50 hover:text-accent-600 transition-colors">
                         {d}d
                       </button>
                     ))}
@@ -273,11 +273,11 @@ export function ChaseQueue({ onOpenCompose }: { onOpenCompose?: (opts: { to: str
                     onChange={e => setDraftNote(e.target.value)}
                     placeholder="Add a reminder note…"
                     rows={2}
-                    className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-blue-400"
+                    className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-accent-400"
                   />
                   <div className="flex gap-2 mt-1.5">
                     <button onClick={() => saveNote(email.id)}
-                      className="text-xs bg-accent text-white px-2.5 py-1 rounded-lg hover:bg-blue-700 transition-colors">
+                      className="text-xs bg-accent text-white px-2.5 py-1 rounded-lg hover:bg-accent-700 transition-colors">
                       Save
                     </button>
                     <button onClick={() => setEditingId(null)}
@@ -297,7 +297,7 @@ export function ChaseQueue({ onOpenCompose }: { onOpenCompose?: (opts: { to: str
                   {onOpenCompose && (
                     <button
                       onClick={() => onOpenCompose({ to: drafts[email.id].to, subject: drafts[email.id].subject, body: drafts[email.id].draft })}
-                      className="text-xs bg-accent text-white px-2.5 py-1 rounded-lg hover:bg-blue-700 transition-colors">
+                      className="text-xs bg-accent text-white px-2.5 py-1 rounded-lg hover:bg-accent-700 transition-colors">
                       Open in Compose
                     </button>
                   )}
@@ -340,7 +340,7 @@ export function ChaseQueue({ onOpenCompose }: { onOpenCompose?: (opts: { to: str
                   </div>
                   <button onClick={() => unsnooze(email.id)}
                     title="Wake up now"
-                    className="text-xs text-gray-400 hover:text-accent flex-shrink-0 px-2 py-1 rounded hover:bg-blue-50 transition-colors">
+                    className="text-xs text-gray-400 hover:text-accent flex-shrink-0 px-2 py-1 rounded hover:bg-accent-50 transition-colors">
                     Wake
                   </button>
                 </div>
@@ -369,7 +369,7 @@ export function ChaseQueue({ onOpenCompose }: { onOpenCompose?: (opts: { to: str
                 </div>
                 <button onClick={() => restore(email.id)}
                   title="Restore to queue"
-                  className="text-xs text-gray-400 hover:text-accent flex-shrink-0 px-2 py-1 rounded hover:bg-blue-50 transition-colors">
+                  className="text-xs text-gray-400 hover:text-accent flex-shrink-0 px-2 py-1 rounded hover:bg-accent-50 transition-colors">
                   Restore
                 </button>
               </div>

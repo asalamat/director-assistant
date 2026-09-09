@@ -173,7 +173,7 @@ export function InboxZeroMode({ onClose }: Props) {
         {/* Action buttons */}
         <div className="flex gap-2 flex-wrap">
           {[
-            { key: 'reply', label: 'R — Reply', cls: 'bg-blue-600 hover:bg-blue-500' },
+            { key: 'reply', label: 'R — Reply', cls: 'bg-accent-600 hover:bg-accent-500' },
             { key: 'archive', label: 'A — Archive', cls: 'bg-gray-700 hover:bg-gray-600' },
             { key: 'snooze', label: 'S — Snooze', cls: 'bg-yellow-600 hover:bg-yellow-500' },
             { key: 'chase', label: 'C — Chase', cls: 'bg-purple-700 hover:bg-purple-600' },

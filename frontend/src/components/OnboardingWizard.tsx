@@ -31,7 +31,7 @@ export function OnboardingWizard({ onOpenSettings, onComplete }: Props) {
   return (
     <div className="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
-        <div className="bg-gradient-to-br from-blue-600 to-blue-800 px-8 py-6 text-white">
+        <div className="bg-gradient-to-br from-accent-600 to-accent-800 px-8 py-6 text-white">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
               <svg className="w-4.5 h-4.5 text-white" viewBox="0 0 20 20" fill="currentColor">
@@ -41,7 +41,7 @@ export function OnboardingWizard({ onOpenSettings, onComplete }: Props) {
             </div>
             <h1 className="text-lg font-bold">Welcome to Cortex Executive Inbox</h1>
           </div>
-          <p className="text-blue-100 text-sm">Set up your workspace in 2 steps.</p>
+          <p className="text-accent-100 text-sm">Set up your workspace in 2 steps.</p>
           <div className="flex gap-1.5 mt-4">
             {[1, 2, 3].map(n => (
               <div key={n} className={`h-1 flex-1 rounded-full transition-all duration-300 ${n <= step ? 'bg-white' : 'bg-white/30'}`} />
@@ -61,7 +61,7 @@ export function OnboardingWizard({ onOpenSettings, onComplete }: Props) {
               </div>
               <button
                 onClick={() => onOpenSettings('accounts')}
-                className="w-full bg-blue-600 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 mb-2.5"
+                className="w-full bg-accent-600 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-accent-700 transition-colors flex items-center justify-center gap-2 mb-2.5"
               >
                 <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
                   <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd"/>
@@ -92,7 +92,7 @@ export function OnboardingWizard({ onOpenSettings, onComplete }: Props) {
               </div>
               <button
                 onClick={() => onOpenSettings('ai')}
-                className="w-full bg-blue-600 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 mb-2.5"
+                className="w-full bg-accent-600 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-accent-700 transition-colors flex items-center justify-center gap-2 mb-2.5"
               >
                 Open Settings → AI Providers
               </button>
@@ -115,7 +115,7 @@ export function OnboardingWizard({ onOpenSettings, onComplete }: Props) {
               </p>
               <button
                 onClick={onComplete}
-                className="w-full bg-blue-600 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors"
+                className="w-full bg-accent-600 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-accent-700 transition-colors"
               >
                 Start using Cortex Executive Inbox
               </button>

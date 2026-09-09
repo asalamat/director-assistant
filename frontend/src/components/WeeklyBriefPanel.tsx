@@ -85,7 +85,7 @@ function EmailChip({ email, onSelect }: { email: SourceEmail; onSelect: (id: str
   return (
     <button
       onClick={() => onSelect(email.id)}
-      className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-lg px-2 py-1 text-xs hover:border-accent hover:bg-blue-50 transition-colors group max-w-full"
+      className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-lg px-2 py-1 text-xs hover:border-accent hover:bg-accent-50 transition-colors group max-w-full"
       title={`${email.sender} · ${email.subject}`}
     >
       <svg className="w-3 h-3 text-gray-300 group-hover:text-accent flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
@@ -166,7 +166,7 @@ function BriefItemRow({
           onClick={findRelated}
           title="Find related emails"
           className={`flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded transition-colors opacity-0 group-hover:opacity-100 ${
-            expanded ? 'text-accent bg-blue-50' : 'text-gray-400 hover:text-accent hover:bg-blue-50'
+            expanded ? 'text-accent bg-accent-50' : 'text-gray-400 hover:text-accent hover:bg-accent-50'
           }`}
         >
           {expanded ? 'hide' : '🔍'}
@@ -314,7 +314,7 @@ export function WeeklyBriefPanel() {
                 setCopied(true)
                 setTimeout(() => setCopied(false), 1500)
               }}
-              className="text-xs text-gray-400 hover:text-accent px-2 py-1 rounded hover:bg-blue-50 transition-colors flex items-center gap-1"
+              className="text-xs text-gray-400 hover:text-accent px-2 py-1 rounded hover:bg-accent-50 transition-colors flex items-center gap-1"
             >
               {copied ? '✓ Copied' : '📋 Copy'}
             </button>
@@ -323,7 +323,7 @@ export function WeeklyBriefPanel() {
                 const date = new Date().toISOString().slice(0, 10)
                 downloadMd(briefToMarkdown(brief!), `weekly-brief-${date}.md`)
               }}
-              className="text-xs text-gray-400 hover:text-accent px-2 py-1 rounded hover:bg-blue-50 transition-colors"
+              className="text-xs text-gray-400 hover:text-accent px-2 py-1 rounded hover:bg-accent-50 transition-colors"
             >
               ↓ .md
             </button>
@@ -331,7 +331,7 @@ export function WeeklyBriefPanel() {
               onClick={handleSendToInbox}
               disabled={sending}
               title="Email this brief to yourself"
-              className="text-xs text-gray-400 hover:text-accent px-2 py-1 rounded hover:bg-blue-50 transition-colors flex items-center gap-1 disabled:opacity-50"
+              className="text-xs text-gray-400 hover:text-accent px-2 py-1 rounded hover:bg-accent-50 transition-colors flex items-center gap-1 disabled:opacity-50"
             >
               {sending ? (
                 <span className="w-3 h-3 border border-accent border-t-transparent rounded-full animate-spin" />
@@ -344,7 +344,7 @@ export function WeeklyBriefPanel() {
               {sending ? 'Sending…' : 'Send to inbox'}
             </button>
             <button onClick={() => generate(true)} title="Regenerate"
-              className="text-xs text-gray-400 hover:text-accent px-2 py-1 rounded hover:bg-blue-50 transition-colors flex items-center gap-1">
+              className="text-xs text-gray-400 hover:text-accent px-2 py-1 rounded hover:bg-accent-50 transition-colors flex items-center gap-1">
               ↺ Refresh
             </button>
           </div>
@@ -369,9 +369,9 @@ export function WeeklyBriefPanel() {
       <div className="flex-1 overflow-y-auto px-4 py-3">
         {/* Summary */}
         {brief?.summary && (
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-xl p-4 mb-4 shadow-card">
-            <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-1.5">This week's overview</p>
-            <p className="text-sm text-blue-900 leading-relaxed">{brief.summary}</p>
+          <div className="bg-gradient-to-r from-accent-50 to-indigo-50 border border-accent-100 rounded-xl p-4 mb-4 shadow-card">
+            <p className="text-xs font-semibold text-accent-600 uppercase tracking-wide mb-1.5">This week's overview</p>
+            <p className="text-sm text-accent-900 leading-relaxed">{brief.summary}</p>
           </div>
         )}
 

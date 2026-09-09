@@ -365,7 +365,7 @@ export function KnowledgeGraph({ onSearchPerson }: { onSearchPerson?: (name: str
                 : 'Project'}
             </div>
             {tooltip.node.type === 'person' && onSearchPerson && (
-              <div className="mt-1 text-blue-500">Click to search emails</div>
+              <div className="mt-1 text-accent-500">Click to search emails</div>
             )}
           </div>
         )}

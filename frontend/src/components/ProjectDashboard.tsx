@@ -38,7 +38,7 @@ function TaskBar({ counts, total }: { counts: Record<string, number>; total: num
   if (total === 0) return <div className="w-full h-2 bg-gray-100 rounded-full" />
   const segs = [
     { key: 'done',        color: 'bg-green-400' },
-    { key: 'in_progress', color: 'bg-blue-400' },
+    { key: 'in_progress', color: 'bg-accent-400' },
     { key: 'blocked',     color: 'bg-red-400' },
     { key: 'not_started', color: 'bg-gray-200' },
   ]
@@ -107,7 +107,7 @@ export function ProjectDashboard({ project, tasks, plan, recommendations }: Proj
         <div className="flex gap-2 flex-wrap">
           {([
             { k: 'done'        as const, label: 'Done',  color: 'bg-green-400' },
-            { k: 'in_progress' as const, label: 'WIP',   color: 'bg-blue-400' },
+            { k: 'in_progress' as const, label: 'WIP',   color: 'bg-accent-400' },
             { k: 'blocked'     as const, label: 'Block', color: 'bg-red-400' },
           ] as const).map(s => counts[s.k] > 0 ? (
             <span key={s.k} className="flex items-center gap-0.5 text-[9px] text-gray-500">

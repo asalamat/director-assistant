@@ -556,7 +556,7 @@ export default function App() {
             <button
               onClick={() => { setShowSettings(true) }}
               title="Email Autopilot is active — click to manage rules"
-              className="relative flex items-center gap-1 text-xs text-slate-300 hover:text-blue-400 px-1.5 py-0.5 rounded-lg hover:bg-slate-700 transition-colors"
+              className="relative flex items-center gap-1 text-xs text-slate-300 hover:text-accent-400 px-1.5 py-0.5 rounded-lg hover:bg-slate-700 transition-colors"
             >
               <span className="text-sm">🤖</span>
               <span className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ${autopilotPing ? 'bg-green-400 animate-ping' : 'bg-green-400'}`} />
@@ -836,7 +836,7 @@ export default function App() {
               <button
                 onClick={handleImport}
                 disabled={importing || !importSubject.trim()}
-                className="text-xs bg-accent text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 disabled:opacity-60 flex items-center gap-1"
+                className="text-xs bg-accent text-white px-3 py-1.5 rounded-lg hover:bg-accent-700 disabled:opacity-60 flex items-center gap-1"
               >
                 {importing ? <><span className="animate-spin">⟳</span> Searching…</> : 'Import'}
               </button>

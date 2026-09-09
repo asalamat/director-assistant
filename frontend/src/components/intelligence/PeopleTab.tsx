@@ -549,7 +549,7 @@ export function PeopleTab() {
                       <div className="flex items-center gap-1.5 mt-1.5 ml-9 flex-wrap">
                         {hints[p.email.toLowerCase()].phones.slice(0, 2).map((ph, i) => (
                           <a key={i} href={`tel:${ph.replace(/\s/g, '')}`}
-                            className="text-[10px] text-blue-500 hover:text-blue-700 bg-blue-50 border border-blue-100 rounded px-1.5 py-0.5 font-mono"
+                            className="text-[10px] text-accent-500 hover:text-accent-700 bg-accent-50 border border-accent-100 rounded px-1.5 py-0.5 font-mono"
                             onClick={e => e.stopPropagation()}>
                             📞 {ph}
                           </a>
@@ -682,7 +682,7 @@ export function PeopleTab() {
                       <button
                         onClick={saveEdit}
                         disabled={saving}
-                        className="text-xs bg-accent text-white px-3 py-1 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                        className="text-xs bg-accent text-white px-3 py-1 rounded-lg hover:bg-accent-700 disabled:opacity-50 transition-colors"
                       >{saving ? 'Saving…' : 'Save'}</button>
                     </div>
                   </div>

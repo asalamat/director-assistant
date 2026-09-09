@@ -17,7 +17,7 @@ const COLUMNS: { key: BucketKey; title: string; emoji: string; header: string }[
   { key: 'reply_now', title: 'Reply Now', emoji: '🟢', header: 'bg-green-600' },
   { key: 'needs_thought', title: 'Needs Thought', emoji: '🟡', header: 'bg-amber-500' },
   { key: 'fyi_archive', title: 'Archive', emoji: '📦', header: 'bg-gray-500' },
-  { key: 'delegate', title: 'Delegate', emoji: '👥', header: 'bg-blue-600' },
+  { key: 'delegate', title: 'Delegate', emoji: '👥', header: 'bg-accent-600' },
 ]
 
 export function InboxSprint({ open, onClose, onChanged }: Props) {

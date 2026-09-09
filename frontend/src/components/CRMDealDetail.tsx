@@ -139,7 +139,7 @@ export function CRMDealDetail({ deal, onClose, onChanged, onDraft }: Props) {
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-medium text-gray-800 truncate">{e.subject || '(no subject)'}</p>
                     <p className="text-[11px] text-gray-400 truncate">{e.sender} · {e.date?.slice(0, 10)}</p>
-                    <span className={`inline-block mt-1 text-[9px] px-1.5 py-0.5 rounded ${e.direction === 'outbound' ? 'bg-blue-50 text-accent' : 'bg-gray-100 text-gray-500'}`}>{e.direction}</span>
+                    <span className={`inline-block mt-1 text-[9px] px-1.5 py-0.5 rounded ${e.direction === 'outbound' ? 'bg-accent-50 text-accent' : 'bg-gray-100 text-gray-500'}`}>{e.direction}</span>
                   </div>
                   <button onClick={() => unlink(e.email_id)} className="text-gray-300 hover:text-red-500 text-xs flex-shrink-0">✕</button>
                 </div>

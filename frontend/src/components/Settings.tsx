@@ -19,7 +19,7 @@ type Section = 'accounts' | 'documents' | 'app' | 'rules' | 'integrations' | 'da
 const PROVIDER_COLORS: Record<EmailProvider, string> = {
   yahoo_imap:   'bg-purple-100 text-purple-700',
   gmail:        'bg-red-100 text-red-700',
-  hotmail:      'bg-blue-100 text-blue-700',
+  hotmail:      'bg-accent-100 text-accent-700',
   generic_imap: 'bg-gray-100 text-gray-700',
   office365:    'bg-teal-100 text-teal-700',
   outlook_com:  'bg-sky-100 text-sky-700',
@@ -152,7 +152,7 @@ const NAV_GROUPS: NavGroup[] = [
 ]
 
 const INPUT_CLS = 'w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors'
-const BTN_PRIMARY = 'bg-accent text-white rounded-xl px-4 py-2 text-sm font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50'
+const BTN_PRIMARY = 'bg-accent text-white rounded-xl px-4 py-2 text-sm font-semibold hover:bg-accent-700 transition-colors disabled:opacity-50'
 const BTN_SECONDARY = 'border border-gray-200 bg-white text-gray-700 rounded-xl px-4 py-2 text-sm font-semibold hover:bg-gray-50 transition-colors disabled:opacity-50'
 const BTN_DESTRUCTIVE = 'border border-red-200 bg-white text-red-600 rounded-xl px-4 py-2 text-sm font-semibold hover:bg-red-50 transition-colors disabled:opacity-50'
 
@@ -526,7 +526,7 @@ export function Settings({ onConnected, initialTab }: Props) {
               <div>
                 <p className="text-[11px] font-bold text-gray-500 uppercase tracking-widest mb-3">Social Media</p>
                 <div className="space-y-4">
-                  <IntegrationCard title="LinkedIn" icon={<IconLinkedIn />} badge="bg-blue-100 text-blue-700"><LinkedInSettingsPanel /></IntegrationCard>
+                  <IntegrationCard title="LinkedIn" icon={<IconLinkedIn />} badge="bg-accent-100 text-accent-700"><LinkedInSettingsPanel /></IntegrationCard>
                   <IntegrationCard title="Instagram" icon={<IconInstagram />} badge="bg-pink-100 text-pink-600"><InstagramSettingsPanel /></IntegrationCard>
                 </div>
               </div>
@@ -647,7 +647,7 @@ export function Settings({ onConnected, initialTab }: Props) {
                   {updateStatus.checking ? 'Checking…' : 'Check for Updates'}
                 </button>
                 {updateStatus.msg && (
-                  <p className={`text-xs mt-2 font-medium ${updateStatus.available ? 'text-blue-600' : 'text-gray-500'}`}>{updateStatus.msg}</p>
+                  <p className={`text-xs mt-2 font-medium ${updateStatus.available ? 'text-accent-600' : 'text-gray-500'}`}>{updateStatus.msg}</p>
                 )}
                 {updateStatus.available && (
                   <button onClick={async () => {
@@ -1209,7 +1209,7 @@ function InstagramSettingsPanel() {
           </select>
           <p className="text-[11px] text-gray-400 mt-1.5">DALL-E 3 / DALL-E 2 return a public URL directly. GPT Image 1 / GPT-5.5 return base64 — configure FTP below to auto-upload.</p>
           <button onClick={testImageKey} disabled={imgKeyTesting}
-            className="mt-2 px-3 py-2 text-xs font-semibold rounded-xl border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors disabled:opacity-50">
+            className="mt-2 px-3 py-2 text-xs font-semibold rounded-xl border border-accent-200 bg-accent-50 text-accent-700 hover:bg-accent-100 transition-colors disabled:opacity-50">
             {imgKeyTesting ? 'Testing…' : 'Test OpenAI image key'}
           </button>
           {imgKeyResult && (
@@ -1469,12 +1469,12 @@ function AutopilotSection() {
       </div>
 
       {/* User name — used in all AI-generated autopilot replies */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-2">Your Name</p>
-        <p className="text-xs text-blue-600 mb-3">The AI signs replies and refers to you by this name. Leave blank to use a generic greeting.</p>
+      <div className="bg-accent-50 border border-accent-200 rounded-lg p-4">
+        <p className="text-xs font-semibold text-accent-700 uppercase tracking-wide mb-2">Your Name</p>
+        <p className="text-xs text-accent-600 mb-3">The AI signs replies and refers to you by this name. Leave blank to use a generic greeting.</p>
         <div className="flex gap-2 items-center">
           <input
-            className="flex-1 border border-blue-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white"
+            className="flex-1 border border-accent-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-accent-400 bg-white"
             placeholder="e.g. Ali Salamat"
             value={userName}
             onChange={e => setUserName(e.target.value)}
@@ -1483,11 +1483,11 @@ function AutopilotSection() {
           <button
             onClick={saveName}
             disabled={savingName}
-            className="px-4 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50 whitespace-nowrap"
+            className="px-4 py-1.5 bg-accent-600 text-white text-sm rounded hover:bg-accent-700 disabled:opacity-50 whitespace-nowrap"
           >
             {savingName ? 'Saving…' : 'Save'}
           </button>
-          {nameMsg && <span className="text-xs text-blue-700 font-medium">{nameMsg}</span>}
+          {nameMsg && <span className="text-xs text-accent-700 font-medium">{nameMsg}</span>}
         </div>
       </div>
 
@@ -1496,28 +1496,28 @@ function AutopilotSection() {
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Email Address</label>
-            <input className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" placeholder="sender@example.com" value={newEmail} onChange={e => setNewEmail(e.target.value)} onKeyDown={e => e.key === 'Enter' && addRule()} />
+            <input className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-accent-400" placeholder="sender@example.com" value={newEmail} onChange={e => setNewEmail(e.target.value)} onKeyDown={e => e.key === 'Enter' && addRule()} />
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Display Name (optional)</label>
-            <input className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" placeholder="Jane Smith" value={newName} onChange={e => setNewName(e.target.value)} />
+            <input className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-accent-400" placeholder="Jane Smith" value={newName} onChange={e => setNewName(e.target.value)} />
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Action</label>
-            <select className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" value={newMode} onChange={e => setNewMode(e.target.value as 'reply' | 'draft')}>
+            <select className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-accent-400" value={newMode} onChange={e => setNewMode(e.target.value as 'reply' | 'draft')}>
               <option value="draft">Save as Draft</option>
               <option value="reply">Auto Reply (send immediately)</option>
             </select>
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Custom Instructions</label>
-            <input className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" placeholder="e.g. be brief and formal" value={newHint} onChange={e => setNewHint(e.target.value)} />
+            <input className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-accent-400" placeholder="e.g. be brief and formal" value={newHint} onChange={e => setNewHint(e.target.value)} />
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <button onClick={addRule} disabled={saving || !newEmail.trim()} className="px-4 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50 transition-colors">
+          <button onClick={addRule} disabled={saving || !newEmail.trim()} className="px-4 py-1.5 bg-accent-600 text-white text-sm rounded hover:bg-accent-700 disabled:opacity-50 transition-colors">
             {saving ? 'Saving…' : '+ Add Rule'}
           </button>
           {msg && <span className="text-sm text-green-600">{msg}</span>}
@@ -1532,7 +1532,7 @@ function AutopilotSection() {
         <div className="space-y-2">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{rules.length} rule{rules.length !== 1 ? 's' : ''}</p>
           {rules.map(rule => (
-            <div key={rule.id} className={`flex items-center gap-3 bg-white border rounded-lg px-4 py-3 transition-colors ${addedIds.has(rule.id) ? 'border-blue-300 bg-blue-50' : 'border-gray-200'}`}>
+            <div key={rule.id} className={`flex items-center gap-3 bg-white border rounded-lg px-4 py-3 transition-colors ${addedIds.has(rule.id) ? 'border-accent-300 bg-accent-50' : 'border-gray-200'}`}>
               <span className="text-lg">🤖</span>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-900 truncate">{rule.display_name || rule.email_addr}</p>
@@ -1542,7 +1542,7 @@ function AutopilotSection() {
               <select
                 value={rule.mode}
                 onChange={e => updateMode(rule.id, e.target.value, rule.prompt_hint)}
-                className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white"
+                className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-accent-400 bg-white"
               >
                 <option value="draft">Draft</option>
                 <option value="reply">Auto Reply</option>
@@ -1560,7 +1560,7 @@ function AutopilotSection() {
       <div>
         <div className="flex items-center justify-between mb-2">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Recent Activity</p>
-          <button onClick={reloadActivity} className="text-xs text-blue-500 hover:underline">Refresh</button>
+          <button onClick={reloadActivity} className="text-xs text-accent-500 hover:underline">Refresh</button>
         </div>
         {activityLoading ? (
           <p className="text-sm text-gray-400">Loading…</p>
@@ -1577,7 +1577,7 @@ function AutopilotSection() {
                   <div className="flex items-center gap-2">
                     <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
                       a.action === 'reply_sent' ? 'bg-green-100 text-green-700' :
-                      a.action === 'draft_saved' ? 'bg-blue-100 text-blue-700' :
+                      a.action === 'draft_saved' ? 'bg-accent-100 text-accent-700' :
                       'bg-red-100 text-red-700'
                     }`}>
                       {a.action === 'reply_sent' ? 'Auto-Reply Sent' :
@@ -1677,14 +1677,14 @@ function WritingStyleSection() {
       </div>
 
       {/* Info box */}
-      <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4 text-xs text-blue-700 space-y-1">
+      <div className="rounded-2xl border border-accent-100 bg-accent-50 p-4 text-xs text-accent-700 space-y-1">
         <p className="font-semibold">Where this applies</p>
-        <ul className="list-disc pl-4 space-y-0.5 text-blue-600">
+        <ul className="list-disc pl-4 space-y-0.5 text-accent-600">
           <li>Smart Draft (single email reply)</li>
           <li>Bulk Draft (multiple emails at once)</li>
           <li>Voice Draft (AI voice-matched reply)</li>
         </ul>
-        <p className="text-blue-500 pt-1">
+        <p className="text-accent-500 pt-1">
           Tip: the AI also learns from your sent emails automatically — go to Intelligence → Smart Draft to run the style analysis.
         </p>
       </div>

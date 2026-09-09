@@ -79,7 +79,7 @@ export function TasksExportSettings() {
       </Section>
 
       <button onClick={save} disabled={saving}
-        className="text-xs bg-accent text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+        className="text-xs bg-accent text-white px-3 py-1.5 rounded-lg hover:bg-accent-700 disabled:opacity-50 transition-colors">
         {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save Integrations'}
       </button>
     </div>

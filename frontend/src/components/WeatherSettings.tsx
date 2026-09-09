@@ -67,9 +67,9 @@ export function WeatherSettings({ config, onChange }: Props) {
       <p className="text-xs text-gray-500 mb-3">Show current conditions for your location in the header. Powered by Open-Meteo (free, no API key).</p>
 
       {savedLocation && (
-        <div className="flex items-center gap-2 mb-3 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
-          <span className="text-sm text-blue-800 flex-1">📍 {savedLocation}</span>
-          <button onClick={clear} className="text-xs text-blue-500 hover:text-blue-700 underline">Change</button>
+        <div className="flex items-center gap-2 mb-3 bg-accent-50 border border-accent-200 rounded-lg px-3 py-2">
+          <span className="text-sm text-accent-800 flex-1">📍 {savedLocation}</span>
+          <button onClick={clear} className="text-xs text-accent-500 hover:text-accent-700 underline">Change</button>
         </div>
       )}
 
@@ -87,7 +87,7 @@ export function WeatherSettings({ config, onChange }: Props) {
               <button
                 key={`${r.latitude},${r.longitude},${i}`}
                 onClick={() => pick(r)}
-                className="w-full text-left text-sm px-3 py-2 hover:bg-blue-50 border-b border-gray-50 last:border-0"
+                className="w-full text-left text-sm px-3 py-2 hover:bg-accent-50 border-b border-gray-50 last:border-0"
               >
                 {r.label}
               </button>

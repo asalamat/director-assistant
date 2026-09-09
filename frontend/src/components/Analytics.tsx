@@ -204,9 +204,9 @@ export function Analytics() {
         <>
           {/* Summary cards */}
           <div className="grid grid-cols-3 gap-3">
-            <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-center">
-              <p className="text-2xl font-bold text-blue-600">{data.total_emails.toLocaleString()}</p>
-              <p className="text-xs text-blue-500">Total emails</p>
+            <div className="bg-accent-50 border border-accent-100 rounded-xl p-3 text-center">
+              <p className="text-2xl font-bold text-accent-600">{data.total_emails.toLocaleString()}</p>
+              <p className="text-xs text-accent-500">Total emails</p>
               <div className="mt-1 flex flex-col items-center gap-0.5">
                 <DeltaBadge d={delta(data.total_emails, prevTotal)} />
                 {prevTotal > 0 && (

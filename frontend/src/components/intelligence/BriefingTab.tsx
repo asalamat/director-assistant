@@ -85,7 +85,7 @@ export function BriefingTab() {
           <button
             onClick={handleGenerate}
             disabled={running}
-            className="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-blue-700 disabled:opacity-60 transition-colors flex items-center gap-2"
+            className="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-700 disabled:opacity-60 transition-colors flex items-center gap-2"
           >
             {running ? (
               <><span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin inline-block" /> Analyzing…</>
@@ -104,9 +104,9 @@ export function BriefingTab() {
       )}
 
       {summary && (
-        <div className="bg-white border border-blue-300 border-l-4 rounded-xl p-5">
-          <h3 className="text-sm font-bold text-blue-700 mb-3 flex items-center gap-2">
-            <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-600 text-[10px] flex items-center justify-center flex-shrink-0">AI</span>
+        <div className="bg-white border border-accent-300 border-l-4 rounded-xl p-5">
+          <h3 className="text-sm font-bold text-accent-700 mb-3 flex items-center gap-2">
+            <span className="w-5 h-5 rounded-full bg-accent-100 text-accent-600 text-[10px] flex items-center justify-center flex-shrink-0">AI</span>
             Executive Summary
           </h3>
           <div className="space-y-2">

@@ -6,7 +6,7 @@ type PlatformFilter = 'all' | 'instagram' | 'linkedin' | 'sms'
 
 const PLATFORM_BADGE: Record<string, { icon: string; cls: string; label: string }> = {
   instagram: { icon: 'IG', cls: 'bg-pink-100 text-pink-600', label: 'Instagram' },
-  linkedin: { icon: 'LI', cls: 'bg-blue-100 text-blue-700', label: 'LinkedIn' },
+  linkedin: { icon: 'LI', cls: 'bg-accent-100 text-accent-700', label: 'LinkedIn' },
   sms: { icon: 'SMS', cls: 'bg-teal-100 text-teal-600', label: 'SMS' },
 }
 
@@ -183,7 +183,7 @@ export function SocialInbox() {
           return (
             <div key={m.id}
               className={`border rounded-xl transition-colors cursor-pointer ${
-                m.is_read ? 'border-gray-200 bg-white' : 'border-accent/30 bg-blue-50/40'
+                m.is_read ? 'border-gray-200 bg-white' : 'border-accent/30 bg-accent-50/40'
               }`}>
               <div className="p-3 flex gap-3" onClick={() => expand(m)}>
                 <span className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold ${badge?.cls || 'bg-gray-100 text-gray-500'}`}>

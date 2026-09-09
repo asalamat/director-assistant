@@ -59,14 +59,14 @@ function Note({ children }: { children: React.ReactNode }) {
 }
 function Tip({ children }: { children: React.ReactNode }) {
   return (
-    <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs text-blue-800 mb-3 leading-relaxed">
+    <div className="bg-accent-50 border border-accent-200 rounded-lg px-3 py-2 text-xs text-accent-800 mb-3 leading-relaxed">
       {children}
     </div>
   )
 }
 function Tag({ children, color = 'blue' }: { children: React.ReactNode; color?: 'blue' | 'green' | 'purple' | 'orange' | 'gray' }) {
   const cls = {
-    blue:   'bg-blue-100 text-blue-700',
+    blue:   'bg-accent-100 text-accent-700',
     green:  'bg-green-100 text-green-700',
     purple: 'bg-purple-100 text-purple-700',
     orange: 'bg-orange-100 text-orange-700',
@@ -1577,7 +1577,7 @@ export function HelpModal({ onClose }: Props) {
             <span className="text-gray-300">·</span>
             <a href="mailto:ali.salamat@firstpc.ca" className="text-xs text-accent-600 hover:text-accent-700 hover:underline transition-colors">ali.salamat@firstpc.ca</a>
           </div>
-          <button onClick={onClose} className="text-xs bg-accent text-white px-4 py-1.5 rounded-lg hover:bg-blue-700 transition-colors font-medium">
+          <button onClick={onClose} className="text-xs bg-accent text-white px-4 py-1.5 rounded-lg hover:bg-accent-700 transition-colors font-medium">
             Close
           </button>
         </div>

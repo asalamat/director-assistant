@@ -234,7 +234,7 @@ export function AIPanel({ rec, loading, error, email }: Props) {
 
       {/* Follow-up form */}
       {showFollowUp && (
-        <div className="mx-4 mt-3 p-3 border border-accent rounded-xl bg-blue-50 space-y-2">
+        <div className="mx-4 mt-3 p-3 border border-accent rounded-xl bg-accent-50 space-y-2">
           <p className="text-xs font-medium text-gray-700">Schedule follow-up</p>
           <input
             type="date"
@@ -319,7 +319,7 @@ export function AIPanel({ rec, loading, error, email }: Props) {
                     </button>
                     <button
                       onClick={() => copy(draftIdx === i ? draftText : reply, i)}
-                      className="text-xs text-accent hover:text-blue-700"
+                      className="text-xs text-accent hover:text-accent-700"
                     >
                       {copiedIdx === i ? '✓ Copied' : 'Copy'}
                     </button>
@@ -390,8 +390,8 @@ export function AIPanel({ rec, loading, error, email }: Props) {
             <div className="mt-2 space-y-2">
               {memoryLoading && <p className="text-xs text-gray-400">Loading…</p>}
               {memory?.suggested_opener && (
-                <div className="bg-blue-50 border border-blue-100 rounded-lg p-2">
-                  <p className="text-[10px] text-blue-500 font-semibold mb-1">Suggested opener</p>
+                <div className="bg-accent-50 border border-accent-100 rounded-lg p-2">
+                  <p className="text-[10px] text-accent-500 font-semibold mb-1">Suggested opener</p>
                   <p className="text-xs text-gray-700 leading-relaxed">{memory.suggested_opener}</p>
                   <button onClick={copyOpener} className="text-[10px] text-accent hover:underline mt-1">
                     {memoryCopied ? '✓ Copied' : 'Copy'}

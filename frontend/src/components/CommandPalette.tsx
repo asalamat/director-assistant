@@ -108,12 +108,12 @@ export function CommandPalette({ onNavigate }: { onNavigate: (tab: Tab) => void 
         <div className="flex border-b border-gray-100">
           <button
             onClick={() => { setMode('actions'); setError(''); setPreview(null) }}
-            className={`flex-1 text-xs font-medium py-2.5 transition-colors ${mode === 'actions' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-400 hover:text-gray-600'}`}>
+            className={`flex-1 text-xs font-medium py-2.5 transition-colors ${mode === 'actions' ? 'text-accent-600 border-b-2 border-accent-600' : 'text-gray-400 hover:text-gray-600'}`}>
             Actions
           </button>
           <button
             onClick={() => { setMode('nl'); setError('') }}
-            className={`flex-1 text-xs font-medium py-2.5 transition-colors ${mode === 'nl' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-400 hover:text-gray-600'}`}>
+            className={`flex-1 text-xs font-medium py-2.5 transition-colors ${mode === 'nl' ? 'text-accent-600 border-b-2 border-accent-600' : 'text-gray-400 hover:text-gray-600'}`}>
             Inbox Command
           </button>
         </div>
@@ -137,9 +137,9 @@ export function CommandPalette({ onNavigate }: { onNavigate: (tab: Tab) => void 
               )}
               {filtered.map(item => (
                 <button key={item.tab} onClick={() => go(item)}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-blue-50 text-left transition-colors group">
+                  className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-accent-50 text-left transition-colors group">
                   <span className="text-base">{item.icon}</span>
-                  <span className="text-sm text-gray-700 group-hover:text-blue-600">{item.label}</span>
+                  <span className="text-sm text-gray-700 group-hover:text-accent-600">{item.label}</span>
                 </button>
               ))}
             </div>
@@ -159,12 +159,12 @@ export function CommandPalette({ onNavigate }: { onNavigate: (tab: Tab) => void 
                 onKeyDown={e => { if (e.key === 'Enter' && !parsing) runParse() }}
                 maxLength={500}
                 placeholder="e.g. Archive all newsletters from last week"
-                className="flex-1 text-sm outline-none text-gray-800 placeholder-gray-400 border border-gray-200 rounded-lg px-3 py-2 focus:border-blue-400"
+                className="flex-1 text-sm outline-none text-gray-800 placeholder-gray-400 border border-gray-200 rounded-lg px-3 py-2 focus:border-accent-400"
               />
               <button
                 onClick={runParse}
                 disabled={parsing || !nlText.trim()}
-                className="text-xs font-medium px-3 py-2 rounded-lg bg-blue-600 text-white disabled:opacity-40 hover:bg-blue-700 transition-colors">
+                className="text-xs font-medium px-3 py-2 rounded-lg bg-accent-600 text-white disabled:opacity-40 hover:bg-accent-700 transition-colors">
                 {parsing ? '…' : 'Preview'}
               </button>
             </div>
@@ -175,7 +175,7 @@ export function CommandPalette({ onNavigate }: { onNavigate: (tab: Tab) => void 
 
             {preview && (
               <div className="border border-gray-200 rounded-lg overflow-hidden">
-                <div className={`px-3 py-2.5 text-sm ${preview.safe ? 'bg-blue-50 text-blue-800' : 'bg-red-50 text-red-800'}`}>
+                <div className={`px-3 py-2.5 text-sm ${preview.safe ? 'bg-accent-50 text-accent-800' : 'bg-red-50 text-red-800'}`}>
                   This will <strong>{preview.action.replace('_', ' ')}</strong> {preview.count} email{preview.count === 1 ? '' : 's'}
                   {!preview.safe && <span className="block text-xs mt-1 font-semibold">⚠ This cannot be undone</span>}
                 </div>
@@ -196,7 +196,7 @@ export function CommandPalette({ onNavigate }: { onNavigate: (tab: Tab) => void 
                   <button
                     onClick={runExecute}
                     disabled={executing || preview.count === 0}
-                    className={`flex-1 text-xs font-medium py-2 rounded-lg text-white disabled:opacity-40 transition-colors ${preview.safe ? 'bg-blue-600 hover:bg-blue-700' : 'bg-red-600 hover:bg-red-700'}`}>
+                    className={`flex-1 text-xs font-medium py-2 rounded-lg text-white disabled:opacity-40 transition-colors ${preview.safe ? 'bg-accent-600 hover:bg-accent-700' : 'bg-red-600 hover:bg-red-700'}`}>
                     {executing ? 'Working…' : 'Confirm'}
                   </button>
                   <button

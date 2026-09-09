@@ -114,7 +114,7 @@ export function ContactCard({ sender, onClose, onSearch }: Props) {
 
           {/* Relationship intelligence */}
           {rel && (
-            <div className="bg-blue-50 rounded-lg p-2.5 space-y-1.5">
+            <div className="bg-accent-50 rounded-lg p-2.5 space-y-1.5">
               {rel.ai_summary && (
                 <p className="text-xs text-gray-700 leading-relaxed">{rel.ai_summary}</p>
               )}

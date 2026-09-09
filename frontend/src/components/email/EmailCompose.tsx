@@ -616,7 +616,7 @@ export function EmailCompose({
             <input type="datetime-local" value={sendLaterDate} onChange={e => setSendLaterDate(e.target.value)}
               className="text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent" />
             <button onClick={handleSendLater} disabled={!sendLaterDate || !replyTo.trim()}
-              className="text-xs px-3 py-1 bg-accent text-white rounded-lg disabled:opacity-50 hover:bg-blue-700">
+              className="text-xs px-3 py-1 bg-accent text-white rounded-lg disabled:opacity-50 hover:bg-accent-700">
               Schedule
             </button>
             <button onClick={() => setShowSendLater(false)} className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
@@ -648,7 +648,7 @@ export function EmailCompose({
           ) : (
             <button onClick={handleSend} disabled={sending || !replyTo.trim()}
               className={`flex items-center gap-1.5 text-white text-xs px-4 py-1.5 rounded-lg font-medium disabled:opacity-60 transition-colors ${
-                review?.ready ? 'bg-green-600 hover:bg-green-700' : 'bg-accent hover:bg-blue-700'
+                review?.ready ? 'bg-green-600 hover:bg-green-700' : 'bg-accent hover:bg-accent-700'
               }`}>
               {sending ? <><span className="animate-spin inline-block">⟳</span> Sending…</> : review?.ready ? '✓ Send' : 'Send ↑'}
             </button>

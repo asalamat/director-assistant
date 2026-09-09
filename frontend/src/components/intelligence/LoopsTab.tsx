@@ -76,7 +76,7 @@ function ForgotReplyTab({ onOpenCompose }: { onOpenCompose?: (to: string, subjec
           <p className="text-sm text-gray-600 font-medium">Find emails you forgot to reply to</p>
           <p className="text-xs text-gray-400 mt-1">Scans your inbox for emails you opened but never answered.</p>
         </div>
-        <button onClick={load} className="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-blue-700 transition-colors">
+        <button onClick={load} className="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-700 transition-colors">
           Scan now
         </button>
       </div>
@@ -112,7 +112,7 @@ function ForgotReplyTab({ onOpenCompose }: { onOpenCompose?: (to: string, subjec
                 <button
                   onClick={() => replyNow(email)}
                   title="Reply now"
-                  className="text-xs px-2 py-1 bg-accent text-white rounded hover:bg-blue-700 transition-colors"
+                  className="text-xs px-2 py-1 bg-accent text-white rounded hover:bg-accent-700 transition-colors"
                 >
                   Reply
                 </button>
@@ -245,7 +245,7 @@ export function LoopsTab() {
             <p className="text-sm text-gray-600 font-medium">Scan for open commitments</p>
             <p className="text-xs text-gray-400 mt-1">AI will scan your recent emails for unresolved items, awaited responses, and deadlines.</p>
           </div>
-          <button onClick={load} className="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-blue-700 transition-colors">
+          <button onClick={load} className="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-700 transition-colors">
             Scan emails
           </button>
         </div>

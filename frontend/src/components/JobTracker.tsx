@@ -27,7 +27,7 @@ interface JobForm {
 }
 
 const STAGES: { key: string; label: string; color: string; header: string }[] = [
-  { key: "applied", label: "Applied", color: "bg-blue-50 border-blue-200", header: "bg-blue-100 text-blue-800" },
+  { key: "applied", label: "Applied", color: "bg-accent-50 border-accent-200", header: "bg-accent-100 text-accent-800" },
   { key: "interview_scheduled", label: "Interview Scheduled", color: "bg-amber-50 border-amber-200", header: "bg-amber-100 text-amber-800" },
   { key: "interviewed", label: "Interviewed", color: "bg-purple-50 border-purple-200", header: "bg-purple-100 text-purple-800" },
   { key: "offer", label: "Offer", color: "bg-green-50 border-green-200", header: "bg-green-100 text-green-800" },
@@ -162,17 +162,17 @@ export default function JobTracker() {
           <button
             onClick={handleScan}
             disabled={scanning}
-            className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-700 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-50"
+            className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-700 hover:border-accent-300 hover:text-accent-600 hover:bg-accent-50 transition-colors disabled:opacity-50"
           >
             {scanning ? "Scanning…" : "Scan Emails"}
           </button>
           <button
             onClick={() => setShowAddForm(v => !v)}
-            className="text-xs px-3 py-1.5 rounded-lg bg-accent text-white hover:bg-blue-700 transition-colors"
+            className="text-xs px-3 py-1.5 rounded-lg bg-accent text-white hover:bg-accent-700 transition-colors"
           >
             + Add Application
           </button>
-          <button onClick={load} disabled={loading} className="text-xs text-gray-400 hover:text-accent px-2 py-1 rounded hover:bg-blue-50 transition-colors">↺</button>
+          <button onClick={load} disabled={loading} className="text-xs text-gray-400 hover:text-accent px-2 py-1 rounded hover:bg-accent-50 transition-colors">↺</button>
         </div>
       </div>
 
@@ -184,37 +184,37 @@ export default function JobTracker() {
               placeholder="Company *"
               value={form.company}
               onChange={e => setForm(f => ({ ...f, company: e.target.value }))}
-              className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
+              className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent-400"
             />
             <input
               placeholder="Role / Position"
               value={form.role}
               onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
-              className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
+              className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent-400"
             />
             <input
               placeholder="Contact Name"
               value={form.contact}
               onChange={e => setForm(f => ({ ...f, contact: e.target.value }))}
-              className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
+              className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent-400"
             />
             <input
               placeholder="Contact Email"
               value={form.contact_email}
               onChange={e => setForm(f => ({ ...f, contact_email: e.target.value }))}
-              className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
+              className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent-400"
             />
             <input
               type="date"
               placeholder="Applied Date"
               value={form.applied_date}
               onChange={e => setForm(f => ({ ...f, applied_date: e.target.value }))}
-              className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
+              className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent-400"
             />
             <select
               value={form.stage}
               onChange={e => setForm(f => ({ ...f, stage: e.target.value }))}
-              className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white"
+              className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent-400 bg-white"
             >
               {STAGES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
             </select>
@@ -224,13 +224,13 @@ export default function JobTracker() {
             value={form.notes}
             onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
             rows={2}
-            className="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-blue-400 mb-2"
+            className="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-accent-400 mb-2"
           />
           <div className="flex gap-2">
             <button
               onClick={handleAdd}
               disabled={!form.company.trim()}
-              className="text-xs px-3 py-1.5 rounded-lg bg-accent text-white hover:bg-blue-700 transition-colors disabled:opacity-50"
+              className="text-xs px-3 py-1.5 rounded-lg bg-accent text-white hover:bg-accent-700 transition-colors disabled:opacity-50"
             >
               Save
             </button>
@@ -302,7 +302,7 @@ export default function JobTracker() {
                 <p className="text-xs text-gray-500 text-center py-4">No job applications detected in recent emails.</p>
               ) : (
                 extractedJobs.map((job, i) => (
-                  <div key={i} className="flex items-start gap-2 bg-gray-50 rounded-lg p-3 border border-gray-200 hover:border-blue-200 transition-colors">
+                  <div key={i} className="flex items-start gap-2 bg-gray-50 rounded-lg p-3 border border-gray-200 hover:border-accent-200 transition-colors">
                     <input
                       type="checkbox"
                       checked={extractChecked.has(i)}
@@ -334,7 +334,7 @@ export default function JobTracker() {
               <button
                 onClick={handleAddSelected}
                 disabled={extractChecked.size === 0}
-                className="text-xs px-3 py-1.5 rounded-lg bg-accent text-white hover:bg-blue-700 transition-colors disabled:opacity-50"
+                className="text-xs px-3 py-1.5 rounded-lg bg-accent text-white hover:bg-accent-700 transition-colors disabled:opacity-50"
               >
                 Add Selected ({extractChecked.size})
               </button>
@@ -417,7 +417,7 @@ function JobCard({ job, stages, onMove, onDelete, onThankYou }: JobCardProps) {
             defaultValue={job.stage}
             onChange={e => { onMove(job.id, e.target.value); setShowMove(false); }}
             onBlur={() => setShowMove(false)}
-            className="text-xs border border-gray-200 rounded px-1.5 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 flex-1"
+            className="text-xs border border-gray-200 rounded px-1.5 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-accent-400 flex-1"
           >
             {stages.map(s => (
               <option key={s.key} value={s.key}>{s.label}</option>
@@ -426,7 +426,7 @@ function JobCard({ job, stages, onMove, onDelete, onThankYou }: JobCardProps) {
         ) : (
           <button
             onClick={() => setShowMove(true)}
-            className="text-xs text-gray-400 hover:text-accent hover:bg-blue-50 px-2 py-1 rounded transition-colors"
+            className="text-xs text-gray-400 hover:text-accent hover:bg-accent-50 px-2 py-1 rounded transition-colors"
           >
             Move to…
           </button>

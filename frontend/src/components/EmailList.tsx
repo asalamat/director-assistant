@@ -443,7 +443,7 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
                 }`}
               >
                 {f}
-                <span className={`ml-1 ${isActive ? 'text-blue-200' : isInbox ? 'text-indigo-400' : 'text-gray-400'}`}>
+                <span className={`ml-1 ${isActive ? 'text-accent-200' : isInbox ? 'text-indigo-400' : 'text-gray-400'}`}>
                   {folders[f] > 999 ? `${Math.floor(folders[f] / 1000)}k` : folders[f]}
                 </span>
               </button>
@@ -736,17 +736,17 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
         {savedSearches.length > 0 && (
           <div className="flex flex-wrap gap-1">
             {savedSearches.map(s => (
-              <div key={s.id} className="flex items-center gap-0.5 bg-blue-50 border border-blue-200 rounded-full pl-2 pr-1 py-0.5">
+              <div key={s.id} className="flex items-center gap-0.5 bg-accent-50 border border-accent-200 rounded-full pl-2 pr-1 py-0.5">
                 <button
                   onClick={() => runSaved(s)}
-                  className="text-[10px] text-blue-700 font-medium max-w-[80px] truncate"
+                  className="text-[10px] text-accent-700 font-medium max-w-[80px] truncate"
                   title={s.query}
                 >
                   {s.name}
                 </button>
                 <button
                   onClick={() => deletePin(s.id)}
-                  className="text-blue-300 hover:text-red-400 text-[10px] px-0.5"
+                  className="text-accent-300 hover:text-red-400 text-[10px] px-0.5"
                 >
                   ✕
                 </button>
@@ -785,7 +785,7 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
                 <button
                   onClick={handleBulkDraft}
                   disabled={generatingBulk}
-                  className="text-xs text-accent hover:text-blue-700 px-2 py-0.5 rounded hover:bg-blue-50 transition-colors disabled:opacity-50 flex items-center gap-1"
+                  className="text-xs text-accent hover:text-accent-700 px-2 py-0.5 rounded hover:bg-accent-50 transition-colors disabled:opacity-50 flex items-center gap-1"
                 >
                   {generatingBulk ? <span className="w-3 h-3 border border-accent border-t-transparent rounded-full animate-spin inline-block" /> : null}
                   {generatingBulk ? 'Drafting…' : 'Draft all'}
@@ -808,7 +808,7 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
                       {onOpenCompose ? (
                         <button
                           onClick={() => onOpenCompose({ to: d.to, subject: d.subject, body: d.draft })}
-                          className="text-accent hover:text-blue-700 font-medium"
+                          className="text-accent hover:text-accent-700 font-medium"
                         >
                           Compose
                         </button>
@@ -913,7 +913,7 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
         )}
 
         {onlyUnread && !threadView && (
-          <div className="px-3 py-1.5 bg-blue-50 border-b border-blue-100 text-[11px] text-blue-600 font-medium flex items-center justify-between sticky top-0 z-10">
+          <div className="px-3 py-1.5 bg-accent-50 border-b border-accent-100 text-[11px] text-accent-600 font-medium flex items-center justify-between sticky top-0 z-10">
             <span>Showing unread only</span>
           </div>
         )}
@@ -977,8 +977,8 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
               <button
                 onClick={() => onSelect(email)}
                 className={`w-full text-left px-3 py-3 flex gap-3 transition-colors ${
-                  isSelected ? 'bg-blue-50/60' :
-                  selectedId === email.id ? 'bg-blue-50 border-l-2 border-l-accent' :
+                  isSelected ? 'bg-accent-50/60' :
+                  selectedId === email.id ? 'bg-accent-50 border-l-2 border-l-accent' :
                   !email.is_read ? 'bg-amber-50 border-l-2 border-l-amber-400 hover:bg-amber-100' :
                   'hover:bg-gray-50'
                 }`}
@@ -1037,7 +1037,7 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
                     return apRule ? (
                       <div className="flex items-center gap-1 mt-0.5">
                         <span
-                          className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 flex items-center gap-0.5 ${apRule.mode === 'reply' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}
+                          className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 flex items-center gap-0.5 ${apRule.mode === 'reply' ? 'bg-green-100 text-green-700' : 'bg-accent-100 text-accent-700'}`}
                           title={apRule.mode === 'reply' ? 'Autopilot: will auto-reply' : 'Autopilot: will save draft'}
                         >
                           🤖 {apRule.mode === 'reply' ? 'Auto-Reply' : 'Draft'}
@@ -1086,7 +1086,7 @@ export function EmailList({ emails, selectedId, loading, hasMore, total, folders
                   } catch {}
                 }}
                 title="Add sender to Email Autopilot (saves as draft)"
-                className="absolute right-2 bottom-2 opacity-0 group-hover:opacity-100 text-sm text-gray-400 hover:text-blue-600 w-6 h-6 flex items-center justify-center rounded-full hover:bg-blue-50 transition-all z-10"
+                className="absolute right-2 bottom-2 opacity-0 group-hover:opacity-100 text-sm text-gray-400 hover:text-accent-600 w-6 h-6 flex items-center justify-center rounded-full hover:bg-accent-50 transition-all z-10"
               >
                 🤖
               </button>

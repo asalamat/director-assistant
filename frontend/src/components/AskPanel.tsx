@@ -6,7 +6,7 @@ function renderMarkdown(text: string) {
   return text.split('\n').map((line, i) => {
     if (line.startsWith('- ') || line.startsWith('* ')) {
       const content = renderInline(line.slice(2))
-      return <div key={i} className="flex gap-1.5 items-start"><span className="mt-0.5 text-blue-400 flex-shrink-0">•</span><span>{content}</span></div>
+      return <div key={i} className="flex gap-1.5 items-start"><span className="mt-0.5 text-accent-400 flex-shrink-0">•</span><span>{content}</span></div>
     }
     if (line === '') return <div key={i} className="h-1.5" />
     return <div key={i}>{renderInline(line)}</div>
@@ -602,7 +602,7 @@ export function AskPanel({ initialQuery, onClear }: { initialQuery?: string; onC
                 <button
                   onClick={() => submit()}
                   disabled={loading || !input.trim()}
-                  className="px-4 py-2 bg-accent text-white text-sm rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+                  className="px-4 py-2 bg-accent text-white text-sm rounded-xl hover:bg-accent-700 disabled:opacity-50 transition-colors flex items-center gap-1.5"
                 >
                   <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
                     <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
@@ -632,7 +632,7 @@ export function AskPanel({ initialQuery, onClear }: { initialQuery?: string; onC
                 <button
                   onClick={handleTopicSearch}
                   disabled={topicLoading || !topicQuery.trim()}
-                  className="px-4 py-2 bg-accent text-white text-sm rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+                  className="px-4 py-2 bg-accent text-white text-sm rounded-xl hover:bg-accent-700 disabled:opacity-50 transition-colors flex items-center gap-1.5"
                 >
                   {topicLoading ? (
                     <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -695,10 +695,10 @@ export function AskPanel({ initialQuery, onClear }: { initialQuery?: string; onC
                   <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1.5">Pinned</p>
                   <div className="flex flex-wrap gap-1.5">
                     {savedSearches.map(s => (
-                      <div key={s.id} className="flex items-center gap-1 bg-blue-50 border border-blue-200 rounded-full px-2.5 py-1 group">
+                      <div key={s.id} className="flex items-center gap-1 bg-accent-50 border border-accent-200 rounded-full px-2.5 py-1 group">
                         <button
                           onClick={() => { setNlQuery(s.query); handleNlSearchWith(s.query) }}
-                          className="text-xs text-blue-600 hover:text-blue-800"
+                          className="text-xs text-accent-600 hover:text-accent-800"
                         >
                           🔖 {s.name}
                         </button>
@@ -725,7 +725,7 @@ export function AskPanel({ initialQuery, onClear }: { initialQuery?: string; onC
                 <button
                   onClick={handleNlSearch}
                   disabled={nlLoading || !nlQuery.trim()}
-                  className="px-4 py-2 bg-accent text-white text-sm rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+                  className="px-4 py-2 bg-accent text-white text-sm rounded-xl hover:bg-accent-700 disabled:opacity-50 transition-colors flex items-center gap-1.5"
                 >
                   {nlLoading ? (
                     <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -796,9 +796,9 @@ export function AskPanel({ initialQuery, onClear }: { initialQuery?: string; onC
                         onChange={e => setSaveName(e.target.value)}
                         onKeyDown={e => { if (e.key === 'Enter') saveSearch(); if (e.key === 'Escape') setShowSaveInput(false) }}
                         placeholder="Search name…"
-                        className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400 flex-1 max-w-[140px]"
+                        className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent-400 flex-1 max-w-[140px]"
                       />
-                      <button onClick={saveSearch} className="text-xs text-white bg-accent px-2.5 py-1 rounded-lg hover:bg-blue-700">Save</button>
+                      <button onClick={saveSearch} className="text-xs text-white bg-accent px-2.5 py-1 rounded-lg hover:bg-accent-700">Save</button>
                       <button onClick={() => setShowSaveInput(false)} className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
                     </div>
                   )}
@@ -847,7 +847,7 @@ export function AskPanel({ initialQuery, onClear }: { initialQuery?: string; onC
                 <p className="text-sm text-red-400 text-center py-8">{docsError}</p>
               )}
               {docsAnswer && (
-                <div className="bg-blue-50 rounded-xl p-4 space-y-2">
+                <div className="bg-accent-50 rounded-xl p-4 space-y-2">
                   <p className="text-sm text-gray-800 leading-relaxed">{docsAnswer.answer}</p>
                   <div className="flex gap-2 mt-2">
                     <button
@@ -870,7 +870,7 @@ export function AskPanel({ initialQuery, onClear }: { initialQuery?: string; onC
                   {docsAnswer.sources.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-2">
                       {docsAnswer.sources.map((s, i) => (
-                        <span key={i} className="text-[10px] bg-white border border-blue-100 rounded-full px-2 py-0.5 text-blue-700">
+                        <span key={i} className="text-[10px] bg-white border border-accent-100 rounded-full px-2 py-0.5 text-accent-700">
                           {s.filename}
                         </span>
                       ))}

@@ -1871,3 +1871,7 @@
 {"type":"edit","file":"/Users/alisalamat/director-assistant/backend/routers/morning_brief.py","success":true,"timestamp":1788968084035,"sessionId":null}
 {"type":"edit","file":"/Users/alisalamat/director-assistant/backend/workers/reports_worker.py","success":true,"timestamp":1788968087882,"sessionId":null}
 {"type":"edit","file":"/Users/alisalamat/director-assistant/backend/workers/reports_worker.py","success":true,"timestamp":1788968092061,"sessionId":null}
+{"type":"edit","file":"/Users/alisalamat/director-assistant/frontend/tailwind.config.js","success":true,"timestamp":1788968662023,"sessionId":null}
+{"type":"edit","file":"/Users/alisalamat/director-assistant/frontend/src/components/ConfigPanel.tsx","success":true,"timestamp":1788968796317,"sessionId":null}
+{"type":"edit","file":"/Users/alisalamat/director-assistant/frontend/src/components/ConfigPanel.tsx","success":true,"timestamp":1788968809752,"sessionId":null}
+{"type":"edit","file":"/Users/alisalamat/director-assistant/frontend/src/components/ConfigPanel.tsx","success":true,"timestamp":1788968826725,"sessionId":null}

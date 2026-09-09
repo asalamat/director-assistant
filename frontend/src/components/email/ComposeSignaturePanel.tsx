@@ -91,7 +91,7 @@ export function ComposeSignaturePanel({ show, replyBody, onBodyChange }: Props) 
               className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent resize-none bg-white" />
             <div className="flex gap-2">
               <button onClick={handleSave} disabled={saving || !newName.trim() || !newContent.trim()}
-                className="text-[10px] px-2 py-1 bg-accent text-white rounded hover:bg-blue-700 disabled:opacity-50">
+                className="text-[10px] px-2 py-1 bg-accent text-white rounded hover:bg-accent-700 disabled:opacity-50">
                 {saving ? 'Saving…' : 'Save'}
               </button>
               <button onClick={() => { setShowEditor(false); setNewName(''); setNewContent('') }}

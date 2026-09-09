@@ -61,7 +61,7 @@ function HelpBox({ section }: { section: HelpSection }) {
 
   const { title, steps } = content[section]
   return (
-    <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-800">
+    <div className="mt-3 p-3 bg-accent-50 border border-accent-200 rounded-lg text-xs text-accent-800">
       <p className="font-semibold mb-2">{title}</p>
       <ol className="list-decimal list-inside space-y-1">
         {steps.map((s, i) => <li key={i}>{s}</li>)}
@@ -235,6 +235,30 @@ export function ConfigPanel({ onSaved }: Props) {
   const [newsEnabled, setNewsEnabled] = useState(false)
   const [newsTopics, setNewsTopics] = useState('')
 
+  // Branding — "Executive Inbox" suffix stays fixed, only the brand/company prefix is editable
+  const BRAND_SUFFIX = 'Executive Inbox'
+  const [brandName, setBrandName] = useState('Cortex')
+  const [accentColor, setAccentColor] = useState('#2563eb')
+  const [brandSaving, setBrandSaving] = useState(false)
+  const [brandMsg, setBrandMsg] = useState('')
+
+  const saveBranding = async () => {
+    setBrandSaving(true); setBrandMsg('')
+    try {
+      const name = brandName.trim() || 'Cortex'
+      const fullName = `${name} ${BRAND_SUFFIX}`
+      await api.updateConfig({ app_name: fullName, accent_color: accentColor })
+      document.documentElement.style.setProperty('--accent-color', accentColor)
+      setConfig(c => c ? { ...c, app_name: fullName, accent_color: accentColor } : c)
+      setBrandMsg('Saved — reload to see the new name everywhere')
+    } catch {
+      setBrandMsg('Save failed')
+    } finally {
+      setBrandSaving(false)
+      setTimeout(() => setBrandMsg(''), 4000)
+    }
+  }
+
   const [testingAnt, setTestingAnt] = useState(false)
   const [testingOai, setTestingOai] = useState(false)
   const [testAnt, setTestAnt] = useState<{ valid: boolean; message: string } | null>(null)
@@ -319,6 +343,9 @@ export function ConfigPanel({ onSaved }: Props) {
       setElevenLabsVoiceId((cfg as any).elevenlabs_voice_id || '')
       setNewsEnabled(cfg.news_enabled ?? false)
       setNewsTopics((cfg.news_topics ?? []).join(', '))
+      const fullName = cfg.app_name || 'Cortex Executive Inbox'
+      setBrandName(fullName.replace(/\s*Executive Inbox\s*$/i, '').trim() || 'Cortex')
+      setAccentColor(cfg.accent_color || '#2563eb')
     }).catch(() => {})
   }, [])
 
@@ -563,12 +590,12 @@ export function ConfigPanel({ onSaved }: Props) {
       {/* ── Features ── */}
       {activeTab === 'features' && <>
         {/* Daily News — prominent */}
-        <div className="border-2 border-blue-200 rounded-xl p-4 space-y-3 bg-blue-50/30">
+        <div className="border-2 border-accent-200 rounded-xl p-4 space-y-3 bg-accent-50/30">
           <div className="flex items-start justify-between gap-3">
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-0.5">
                 <h2 className="text-sm font-semibold text-gray-800">Daily News</h2>
-                <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-medium">AI-scored</span>
+                <span className="text-[10px] bg-accent-100 text-accent-700 px-1.5 py-0.5 rounded-full font-medium">AI-scored</span>
               </div>
               <p className="text-xs text-gray-500">Headlines for your topics, refreshed every 10 min in the News tab.</p>
             </div>
@@ -580,7 +607,7 @@ export function ConfigPanel({ onSaved }: Props) {
               <textarea value={newsTopics} onChange={e => setNewsTopics(e.target.value)}
                 placeholder="AI, finance, Toronto real estate, cybersecurity"
                 rows={3}
-                className="w-full text-sm border border-blue-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-accent resize-none bg-white" />
+                className="w-full text-sm border border-accent-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-accent resize-none bg-white" />
               <p className="text-[10px] text-gray-400 mt-1">Example: AI, finance, Toronto real estate, cybersecurity</p>
             </div>
           ) : (
@@ -623,7 +650,7 @@ export function ConfigPanel({ onSaved }: Props) {
       {/* ── Integrations ── */}
       {activeTab === 'integrations' && <>
         {/* Microsoft */}
-        <div className="border border-blue-200 rounded-xl p-4 space-y-3">
+        <div className="border border-accent-200 rounded-xl p-4 space-y-3">
         <div className="flex items-start gap-2">
           <svg className="w-5 h-5 mt-0.5 flex-shrink-0" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg">
             <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
@@ -652,7 +679,7 @@ export function ConfigPanel({ onSaved }: Props) {
         {setupStatus === 'idle' && !config?.has_ms_client_id && (
           <button
             onClick={runAutoSetup}
-            className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white text-sm font-medium py-2.5 rounded-lg hover:bg-blue-700 transition-colors"
+            className="w-full flex items-center justify-center gap-2 bg-accent-600 text-white text-sm font-medium py-2.5 rounded-lg hover:bg-accent-700 transition-colors"
           >
             Auto-Setup Microsoft App
           </button>
@@ -660,8 +687,8 @@ export function ConfigPanel({ onSaved }: Props) {
 
         {/* Running */}
         {setupStatus === 'running' && (
-          <div className="flex items-center gap-2 text-sm text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
-            <span className="inline-block w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+          <div className="flex items-center gap-2 text-sm text-accent-700 bg-accent-50 border border-accent-200 rounded-lg px-4 py-3">
+            <span className="inline-block w-4 h-4 border-2 border-accent-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
             {setupMsg}
           </div>
         )}
@@ -675,7 +702,7 @@ export function ConfigPanel({ onSaved }: Props) {
               <code className="text-green-400 text-xs flex-1 font-mono">{setupFix}</code>
               <button onClick={() => navigator.clipboard.writeText(setupFix)} className="text-gray-400 hover:text-white text-xs flex-shrink-0">Copy</button>
             </div>
-            <button onClick={runAutoSetup} className="w-full border border-blue-300 text-blue-700 text-sm py-2 rounded-lg hover:bg-blue-50">
+            <button onClick={runAutoSetup} className="w-full border border-accent-300 text-accent-700 text-sm py-2 rounded-lg hover:bg-accent-50">
               Try Again
             </button>
           </div>
@@ -684,22 +711,22 @@ export function ConfigPanel({ onSaved }: Props) {
         {/* Waiting for browser login */}
         {setupStatus === 'login_wait' && (
           <div className="space-y-3">
-            <div className="text-sm text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 space-y-2">
+            <div className="text-sm text-accent-700 bg-accent-50 border border-accent-200 rounded-lg px-4 py-3 space-y-2">
               <div className="flex items-center gap-2">
-                <span className="inline-block w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                <span className="inline-block w-4 h-4 border-2 border-accent-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
                 <span>Open your browser and go to:</span>
               </div>
               <a href={deviceUrl} target="_blank" rel="noreferrer"
-                className="block font-mono text-blue-600 underline break-all">{deviceUrl}</a>
+                className="block font-mono text-accent-600 underline break-all">{deviceUrl}</a>
               {deviceCode && (
                 <div className="flex items-center gap-3 mt-1">
                   <span className="text-gray-600">Enter code:</span>
-                  <span className="font-mono text-xl font-bold tracking-widest bg-white border border-blue-300 rounded px-3 py-1 text-blue-800 select-all">{deviceCode}</span>
+                  <span className="font-mono text-xl font-bold tracking-widest bg-white border border-accent-300 rounded px-3 py-1 text-accent-800 select-all">{deviceCode}</span>
                 </div>
               )}
               {!deviceCode && <p className="text-xs text-gray-500">{setupMsg}</p>}
             </div>
-            <button onClick={runAutoSetup} className="w-full border border-blue-300 text-blue-700 text-sm py-2 rounded-lg hover:bg-blue-50">
+            <button onClick={runAutoSetup} className="w-full border border-accent-300 text-accent-700 text-sm py-2 rounded-lg hover:bg-accent-50">
               I've signed in — Continue Setup
             </button>
           </div>
@@ -800,33 +827,30 @@ export function ConfigPanel({ onSaved }: Props) {
         <div className="border border-gray-200 rounded-xl p-4 space-y-3">
           <div>
             <h2 className="text-sm font-semibold text-gray-800">App Name &amp; Branding</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Rename the app for your company and pick an accent color. Applies everywhere — title bar, sidebar, notifications, buttons.</p>
+            <p className="text-xs text-gray-500 mt-0.5">Rename the company/brand part — "{BRAND_SUFFIX}" stays as-is. Accent color applies everywhere: title bar, sidebar, buttons, links.</p>
           </div>
           <div className="flex flex-wrap items-end gap-3">
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">App name</label>
-              <input value={config?.app_name ?? 'Cortex Executive Inbox'} maxLength={60}
-                onChange={e => setConfig(c => c ? { ...c, app_name: e.target.value } : c)}
-                onBlur={async e => {
-                  const name = e.target.value.trim() || 'Cortex Executive Inbox'
-                  await api.updateConfig({ app_name: name })
-                  setConfig(c => c ? { ...c, app_name: name } : c)
-                }}
-                className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:outline-none focus:border-accent bg-white w-64" />
+              <label className="block text-xs font-medium text-gray-500 mb-1">Company name</label>
+              <div className="flex items-center gap-2">
+                <input value={brandName} maxLength={40}
+                  onChange={e => setBrandName(e.target.value)}
+                  className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:outline-none focus:border-accent bg-white w-40" />
+                <span className="text-sm text-gray-400">{BRAND_SUFFIX}</span>
+              </div>
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Accent color</label>
-              <input type="color" value={config?.accent_color ?? '#2563eb'}
-                onChange={async e => {
-                  const color = e.target.value
-                  document.documentElement.style.setProperty('--accent-color', color)
-                  await api.updateConfig({ accent_color: color })
-                  setConfig(c => c ? { ...c, accent_color: color } : c)
-                }}
+              <input type="color" value={accentColor}
+                onChange={e => setAccentColor(e.target.value)}
                 className="h-9 w-16 border border-gray-300 rounded-lg cursor-pointer bg-white" />
             </div>
+            <button onClick={saveBranding} disabled={brandSaving}
+              className="text-sm font-medium px-4 py-1.5 rounded-lg bg-accent text-white hover:bg-accent-600 disabled:opacity-50 transition-colors">
+              {brandSaving ? 'Saving…' : 'Save'}
+            </button>
           </div>
-          <p className="text-xs text-gray-400">Reload the page to see the new name/color everywhere.</p>
+          {brandMsg && <p className="text-xs text-gray-500">{brandMsg}</p>}
         </div>
 
         <div className="border border-gray-200 rounded-xl p-4">
@@ -904,7 +928,7 @@ function SnippetsManager() {
           rows={2}
           className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent resize-none" />
         <button onClick={save} disabled={saving || !name.trim() || !content.trim()}
-          className="text-xs bg-accent text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+          className="text-xs bg-accent text-white px-3 py-1.5 rounded-lg hover:bg-accent-700 disabled:opacity-50 transition-colors">
           {saving ? 'Saving…' : '+ Add Snippet'}
         </button>
       </div>

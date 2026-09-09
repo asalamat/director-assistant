@@ -254,16 +254,16 @@ export function AddAccountForm({ onConnected, onCancel, onAccountAdded }: Props)
             </button>
           </div>
         ) : deviceStatus === 'waiting' ? (
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-2 text-center">
+          <div className="bg-accent-50 border border-accent-200 rounded-xl p-4 space-y-2 text-center">
             {deviceUserCode ? (
               <>
-                <p className="text-xs text-blue-700">Go to <a href={deviceUrl} target="_blank" rel="noreferrer" className="underline font-medium">{deviceUrl || 'microsoft.com/devicelogin'}</a> and enter:</p>
-                <div className="font-mono text-2xl font-bold tracking-widest bg-white border border-blue-300 rounded px-3 py-2 text-blue-800 select-all">{deviceUserCode}</div>
-                <p className="text-xs text-blue-600 flex items-center justify-center gap-1.5">
-                  <span className="w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin flex-shrink-0" /> Waiting for sign-in…
+                <p className="text-xs text-accent-700">Go to <a href={deviceUrl} target="_blank" rel="noreferrer" className="underline font-medium">{deviceUrl || 'microsoft.com/devicelogin'}</a> and enter:</p>
+                <div className="font-mono text-2xl font-bold tracking-widest bg-white border border-accent-300 rounded px-3 py-2 text-accent-800 select-all">{deviceUserCode}</div>
+                <p className="text-xs text-accent-600 flex items-center justify-center gap-1.5">
+                  <span className="w-3 h-3 border-2 border-accent-500 border-t-transparent rounded-full animate-spin flex-shrink-0" /> Waiting for sign-in…
                 </p>
               </>
-            ) : <p className="text-sm text-blue-700">Getting code…</p>}
+            ) : <p className="text-sm text-accent-700">Getting code…</p>}
           </div>
         ) : deviceStatus === 'done' ? (
           <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">{deviceMsg}</p>
@@ -308,7 +308,7 @@ export function AddAccountForm({ onConnected, onCancel, onAccountAdded }: Props)
       {!useOAuth && (
         <div className="flex gap-2 pt-1">
           <button onClick={handleConnect} disabled={loading || !username}
-            className="flex-1 bg-accent text-white rounded-lg px-4 py-2.5 text-sm font-medium disabled:opacity-50 hover:bg-blue-700 transition-colors">
+            className="flex-1 bg-accent text-white rounded-lg px-4 py-2.5 text-sm font-medium disabled:opacity-50 hover:bg-accent-700 transition-colors">
             {loading ? 'Connecting…' : 'Connect account'}
           </button>
           {onCancel && (
@@ -329,11 +329,11 @@ function OAuthPanel({ status, msg, label, onSignIn, icon }: {
     </button>
   )
   if (status === 'waiting') return (
-    <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-2">
-      <div className="flex items-center gap-2 text-sm text-blue-700 font-medium">
-        <span className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin flex-shrink-0" /> {label} in the popup
+    <div className="bg-accent-50 border border-accent-200 rounded-xl p-4 space-y-2">
+      <div className="flex items-center gap-2 text-sm text-accent-700 font-medium">
+        <span className="w-4 h-4 border-2 border-accent-500 border-t-transparent rounded-full animate-spin flex-shrink-0" /> {label} in the popup
       </div>
-      <button onClick={onSignIn} className="w-full text-xs border border-blue-300 text-blue-700 bg-white rounded-lg py-1.5 hover:bg-blue-50">Reopen window</button>
+      <button onClick={onSignIn} className="w-full text-xs border border-accent-300 text-accent-700 bg-white rounded-lg py-1.5 hover:bg-accent-50">Reopen window</button>
     </div>
   )
   if (status === 'done') return <p className="text-sm text-green-600 bg-green-50 border border-green-200 rounded-lg px-4 py-3">{msg}</p>

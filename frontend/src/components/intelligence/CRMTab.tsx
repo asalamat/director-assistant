@@ -7,12 +7,12 @@ const STAGE_LABEL: Record<Stage, string> = {
   prospect: 'Prospect', active: 'Active', negotiating: 'Negotiating', won: 'Won ✓', lost: 'Lost'
 }
 const STAGE_HEADER: Record<Stage, string> = {
-  prospect: 'bg-slate-100 text-slate-700', active: 'bg-blue-100 text-blue-700',
+  prospect: 'bg-slate-100 text-slate-700', active: 'bg-accent-100 text-accent-700',
   negotiating: 'bg-amber-100 text-amber-700', won: 'bg-emerald-100 text-emerald-700',
   lost: 'bg-red-100 text-red-700'
 }
 const STAGE_BORDER: Record<Stage, string> = {
-  prospect: 'border-slate-200', active: 'border-blue-200',
+  prospect: 'border-slate-200', active: 'border-accent-200',
   negotiating: 'border-amber-200', won: 'border-emerald-200', lost: 'border-red-200'
 }
 
@@ -81,7 +81,7 @@ export function CRMTab() {
           {extracting ? '…' : '✨ AI Extract Deals'}
         </button>
         <button onClick={() => setShowNew(v => !v)}
-          className="text-xs bg-accent text-white rounded-lg px-2.5 py-1.5 hover:bg-blue-700 transition-colors">
+          className="text-xs bg-accent text-white rounded-lg px-2.5 py-1.5 hover:bg-accent-700 transition-colors">
           + New Deal
         </button>
       </div>
@@ -105,7 +105,7 @@ export function CRMTab() {
             className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent resize-none bg-white"/>
           <div className="flex gap-2 justify-end">
             <button onClick={() => setShowNew(false)} className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1">Cancel</button>
-            <button onClick={createDeal} className="text-xs bg-accent text-white px-3 py-1 rounded-lg hover:bg-blue-700">Save</button>
+            <button onClick={createDeal} className="text-xs bg-accent text-white px-3 py-1 rounded-lg hover:bg-accent-700">Save</button>
           </div>
         </div>
       )}

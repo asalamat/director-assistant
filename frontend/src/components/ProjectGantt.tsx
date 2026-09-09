@@ -193,7 +193,7 @@ export function ProjectGantt({
             <div className="mb-4">
               <div className="flex items-center justify-between mb-1">
                 <label className="text-[10px] text-gray-400 uppercase tracking-wide">Progress</label>
-                <span className="text-xs font-semibold text-blue-600">{editing.progress}%</span>
+                <span className="text-xs font-semibold text-accent-600">{editing.progress}%</span>
               </div>
               <input
                 type="range" min={0} max={100} step={5} value={editing.progress}

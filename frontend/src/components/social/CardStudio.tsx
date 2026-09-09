@@ -12,7 +12,7 @@ const CARD_TYPES: { id: CardType; icon: string; label: string }[] = [
   { id: 'announcement', icon: '📣', label: 'Announcement' },
 ]
 
-const inputCls = 'w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200'
+const inputCls = 'w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-200'
 
 export function CardStudio() {
   const [cardType, setCardType] = useState<CardType>('quote')
@@ -156,7 +156,7 @@ export function CardStudio() {
         </div>
 
         <button onClick={handleGenerate} disabled={generating}
-          className="w-full px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50">
+          className="w-full px-4 py-2 bg-accent-600 text-white text-sm font-medium rounded-lg hover:bg-accent-700 disabled:opacity-50">
           {generating ? 'Generating…' : 'Generate Card'}
         </button>
 
@@ -234,7 +234,7 @@ export function CardStudio() {
             {hashtags.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
                 {hashtags.map((h, i) => (
-                  <span key={i} className="px-2 py-0.5 bg-blue-50 text-blue-600 text-xs rounded-full">#{h.replace(/^#/, '')}</span>
+                  <span key={i} className="px-2 py-0.5 bg-accent-50 text-accent-600 text-xs rounded-full">#{h.replace(/^#/, '')}</span>
                 ))}
               </div>
             )}
@@ -244,7 +244,7 @@ export function CardStudio() {
                 Regenerate Caption
               </button>
               <button onClick={handlePost} disabled={posting}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                className="flex-1 px-4 py-2 bg-accent-600 text-white text-sm font-medium rounded-lg hover:bg-accent-700 disabled:opacity-50">
                 {posting ? 'Posting…' : 'Post to Selected Platforms'}
               </button>
             </div>

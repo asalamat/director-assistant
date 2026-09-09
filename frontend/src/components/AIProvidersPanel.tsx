@@ -74,7 +74,7 @@ function StatusBadge({ status, checking }: { status: ProviderStatus; checking: b
       )}
       {!status.balance && status.status !== 'unconfigured' && status.billing_url && (
         <a href={status.billing_url} target="_blank" rel="noreferrer"
-          className="text-[10px] text-blue-500 hover:text-blue-700 hover:underline">
+          className="text-[10px] text-accent-500 hover:text-accent-700 hover:underline">
           {status.status === 'credits_exhausted' ? '↗ Top up' : '↗ Billing'}
         </a>
       )}
@@ -491,7 +491,7 @@ export function AIProvidersPanel() {
       )}
 
       {/* Info box */}
-      <div className="text-xs text-gray-700 bg-blue-50 rounded-xl p-3 space-y-1 leading-relaxed border border-blue-100">
+      <div className="text-xs text-gray-700 bg-accent-50 rounded-xl p-3 space-y-1 leading-relaxed border border-accent-100">
         <p><strong className="text-gray-900">How priority works:</strong> The app tries providers top-to-bottom. If the primary hits a rate limit, auth error, or quota, it automatically switches to the next enabled provider.</p>
         <p><strong className="text-gray-900">Supported:</strong> Anthropic Claude · OpenAI GPT · Groq (Llama/Mixtral) · Google Gemini · Kimi (Moonshot AI) · Ollama (local) · Any OpenAI-compatible API</p>
       </div>

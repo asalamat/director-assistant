@@ -237,7 +237,7 @@ function VIPDetail({
             >
               <div className="flex items-start gap-3">
                 {/* Direction indicator */}
-                <div className={`flex-shrink-0 mt-1 w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${sent ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-500'}`}
+                <div className={`flex-shrink-0 mt-1 w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${sent ? 'bg-accent-100 text-accent-600' : 'bg-gray-100 text-gray-500'}`}
                   title={sent ? 'Sent' : 'Received'}>
                   {sent ? '↑' : '↓'}
                 </div>
@@ -253,7 +253,7 @@ function VIPDetail({
                     <span className="text-xs text-gray-500 truncate">
                       {sent ? `To: ${vip.name || vip.email_addr}` : `From: ${email.sender?.replace(/<[^>]+>/, '').trim()}`}
                     </span>
-                    <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ${sent ? 'bg-blue-50 text-blue-500' : 'bg-gray-100 text-gray-400'}`}>
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ${sent ? 'bg-accent-50 text-accent-500' : 'bg-gray-100 text-gray-400'}`}>
                       {email.folder}
                     </span>
                     {!email.is_read && !sent && (
@@ -497,7 +497,7 @@ export function VIPPanel() {
       </div>
 
       {showAdd && (
-        <div className="px-4 py-3 bg-blue-50 border-b border-blue-100 flex-shrink-0 space-y-2">
+        <div className="px-4 py-3 bg-accent-50 border-b border-accent-100 flex-shrink-0 space-y-2">
           <input value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="Email address *"
             className="w-full text-sm border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent bg-white"
             onKeyDown={e => e.key === 'Enter' && add()} autoFocus />
@@ -617,7 +617,7 @@ export function VIPPanel() {
                 className="px-4 py-3.5 border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-colors group"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-accent to-blue-600 flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-accent to-accent-600 flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
                     {initials(vip.name, vip.email_addr)}
                   </div>
 

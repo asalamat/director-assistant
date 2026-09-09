@@ -256,7 +256,7 @@ export function EmailViewer({ email, loading, fetchError, onAnalyze, analyzing, 
               const colorMap: Record<string, string> = {
                 price: 'bg-green-100 text-green-700 border-green-200',
                 deadline: 'bg-amber-100 text-amber-700 border-amber-200',
-                commitment: 'bg-blue-100 text-blue-700 border-blue-200',
+                commitment: 'bg-accent-100 text-accent-700 border-accent-200',
                 concession: 'bg-purple-100 text-purple-700 border-purple-200',
                 risk: 'bg-red-100 text-red-700 border-red-200',
               }
@@ -292,7 +292,7 @@ export function EmailViewer({ email, loading, fetchError, onAnalyze, analyzing, 
             </button>
           </div>
           {threadSummary && (
-            <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 mb-2 relative">
+            <div className="bg-accent-50 border border-accent-100 rounded-xl px-4 py-3 mb-2 relative">
               <button
                 onClick={() => setThreadSummary(null)}
                 className="absolute top-2 right-2.5 text-gray-400 hover:text-gray-600 text-sm leading-none"
@@ -300,7 +300,7 @@ export function EmailViewer({ email, loading, fetchError, onAnalyze, analyzing, 
               >
                 ✕
               </button>
-              <p className="text-[10px] text-blue-400 font-semibold uppercase tracking-wide mb-2">
+              <p className="text-[10px] text-accent-400 font-semibold uppercase tracking-wide mb-2">
                 Thread summary ({threadSummary.message_count} messages)
               </p>
               {threadSummary.summary && (
@@ -310,7 +310,7 @@ export function EmailViewer({ email, loading, fetchError, onAnalyze, analyzing, 
                 <ul className="space-y-1 mb-2">
                   {threadSummary.key_points.map((pt, i) => (
                     <li key={i} className="text-xs text-gray-700 flex gap-2">
-                      <span className="text-blue-400 flex-shrink-0">•</span>
+                      <span className="text-accent-400 flex-shrink-0">•</span>
                       <span>{pt}</span>
                     </li>
                   ))}
@@ -366,11 +366,11 @@ export function EmailViewer({ email, loading, fetchError, onAnalyze, analyzing, 
       <div className="flex items-center justify-end gap-2 px-6 pt-3 pb-1 border-b border-gray-100">
         <button
           onClick={handleReplyClick}
-          className="flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-accent px-3 py-1.5 rounded-lg hover:bg-blue-50 transition-colors border border-gray-200 hover:border-accent"
+          className="flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-accent px-3 py-1.5 rounded-lg hover:bg-accent-50 transition-colors border border-gray-200 hover:border-accent"
         >↩ Reply</button>
         <button
           onClick={handleForward}
-          className="flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-accent px-3 py-1.5 rounded-lg hover:bg-blue-50 transition-colors border border-gray-200 hover:border-accent"
+          className="flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-accent px-3 py-1.5 rounded-lg hover:bg-accent-50 transition-colors border border-gray-200 hover:border-accent"
         >↪ Forward</button>
       </div>
 

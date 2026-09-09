@@ -11,7 +11,7 @@ interface Stats {
 
 const STATUS_DOT: Record<string, string> = {
   idle: 'bg-gray-300',
-  running: 'bg-blue-500 animate-pulse',
+  running: 'bg-accent-500 animate-pulse',
   completed: 'bg-green-500',
   error: 'bg-red-500',
 }

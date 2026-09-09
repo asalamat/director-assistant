@@ -297,8 +297,8 @@ export function ActionBoard({ onRefreshCount }: { onRefreshCount?: () => void })
           <>
             {/* Bulk action bar — actions */}
             {selectedActions.size > 0 && (
-              <div className="bg-blue-50 border border-blue-200 rounded-xl px-3 py-2 flex items-center gap-3 mb-2">
-                <label className="flex items-center gap-1.5 text-xs text-blue-700 font-medium cursor-pointer">
+              <div className="bg-accent-50 border border-accent-200 rounded-xl px-3 py-2 flex items-center gap-3 mb-2">
+                <label className="flex items-center gap-1.5 text-xs text-accent-700 font-medium cursor-pointer">
                   <input
                     type="checkbox"
                     checked={selectedActions.size === actions.filter((a) => !a.done).length && actions.filter((a) => !a.done).length > 0}
@@ -316,14 +316,14 @@ export function ActionBoard({ onRefreshCount }: { onRefreshCount?: () => void })
                 {!showDone && (
                   <button
                     onClick={bulkMarkActionsDone}
-                    className="text-xs px-2.5 py-1 bg-accent text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    className="text-xs px-2.5 py-1 bg-accent text-white rounded-lg hover:bg-accent-700 transition-colors"
                   >
                     Mark done
                   </button>
                 )}
                 <button
                   onClick={() => setSelectedActions(new Set())}
-                  className="text-xs text-blue-500 hover:text-blue-700 transition-colors ml-auto"
+                  className="text-xs text-accent-500 hover:text-accent-700 transition-colors ml-auto"
                 >
                   Clear
                 </button>
@@ -362,12 +362,12 @@ export function ActionBoard({ onRefreshCount }: { onRefreshCount?: () => void })
               <p className="text-xs text-gray-400 px-1 pb-1">{scanError}</p>
             )}
             {sentCommitments !== null && sentCommitments.length > 0 && (
-              <div className="border border-blue-100 rounded-xl bg-blue-50 p-3 space-y-3 mb-2">
-                <p className="text-xs font-semibold text-blue-700">
+              <div className="border border-accent-100 rounded-xl bg-accent-50 p-3 space-y-3 mb-2">
+                <p className="text-xs font-semibold text-accent-700">
                   Found commitments in {sentCommitments.length} sent email{sentCommitments.length !== 1 ? 's' : ''}
                 </p>
                 {sentCommitments.map((c) => (
-                  <div key={c.email_id} className="bg-white border border-blue-100 rounded-lg p-2.5 space-y-1.5">
+                  <div key={c.email_id} className="bg-white border border-accent-100 rounded-lg p-2.5 space-y-1.5">
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-xs font-medium text-gray-700 truncate flex-1">{c.subject}</p>
                       <span className="text-xs text-gray-400 shrink-0">{c.date}</span>
@@ -376,12 +376,12 @@ export function ActionBoard({ onRefreshCount }: { onRefreshCount?: () => void })
                       const key = `${c.email_id}:${text}`
                       return (
                         <div key={text} className="flex items-start gap-2 pl-1">
-                          <span className="text-blue-400 mt-0.5 shrink-0">•</span>
+                          <span className="text-accent-400 mt-0.5 shrink-0">•</span>
                           <p className="text-xs text-gray-600 flex-1">{text}</p>
                           <button
                             onClick={() => handleAddCommitment(c, text)}
                             disabled={addingItem === key}
-                            className="shrink-0 text-xs px-2 py-0.5 bg-accent text-white rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                            className="shrink-0 text-xs px-2 py-0.5 bg-accent text-white rounded-md hover:bg-accent-700 disabled:opacity-50 transition-colors"
                           >
                             {addingItem === key ? '...' : 'Add'}
                           </button>
@@ -424,12 +424,12 @@ export function ActionBoard({ onRefreshCount }: { onRefreshCount?: () => void })
               <p className="text-xs text-gray-400 px-1 pb-1">{inboxScanError}</p>
             )}
             {inboxAsks !== null && inboxAsks.length > 0 && (
-              <div className="border border-blue-100 rounded-xl bg-blue-50 p-3 space-y-3 mb-2">
-                <p className="text-xs font-semibold text-blue-700">
+              <div className="border border-accent-100 rounded-xl bg-accent-50 p-3 space-y-3 mb-2">
+                <p className="text-xs font-semibold text-accent-700">
                   Found asks in {inboxAsks.length} inbox email{inboxAsks.length !== 1 ? 's' : ''}
                 </p>
                 {inboxAsks.map((a) => (
-                  <div key={a.email_id} className="bg-white border border-blue-100 rounded-lg p-2.5 space-y-1.5">
+                  <div key={a.email_id} className="bg-white border border-accent-100 rounded-lg p-2.5 space-y-1.5">
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-xs font-medium text-gray-700 truncate flex-1">{a.subject}</p>
                       <span className="text-xs text-gray-400 shrink-0">{a.date}</span>
@@ -439,12 +439,12 @@ export function ActionBoard({ onRefreshCount }: { onRefreshCount?: () => void })
                       const key = `${a.email_id}:${text}`
                       return (
                         <div key={text} className="flex items-start gap-2 pl-1">
-                          <span className="text-blue-400 mt-0.5 shrink-0">•</span>
+                          <span className="text-accent-400 mt-0.5 shrink-0">•</span>
                           <p className="text-xs text-gray-600 flex-1">{text}</p>
                           <button
                             onClick={() => handleAddAsk(a, text)}
                             disabled={addingInboxItem === key}
-                            className="shrink-0 text-xs px-2 py-0.5 bg-accent text-white rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                            className="shrink-0 text-xs px-2 py-0.5 bg-accent text-white rounded-md hover:bg-accent-700 disabled:opacity-50 transition-colors"
                           >
                             {addingInboxItem === key ? '...' : 'Add'}
                           </button>
@@ -528,8 +528,8 @@ export function ActionBoard({ onRefreshCount }: { onRefreshCount?: () => void })
           <>
             {/* Bulk action bar — follow-ups */}
             {selectedFollowUps.size > 0 && (
-              <div className="bg-blue-50 border border-blue-200 rounded-xl px-3 py-2 flex items-center gap-3 mb-2">
-                <label className="flex items-center gap-1.5 text-xs text-blue-700 font-medium cursor-pointer">
+              <div className="bg-accent-50 border border-accent-200 rounded-xl px-3 py-2 flex items-center gap-3 mb-2">
+                <label className="flex items-center gap-1.5 text-xs text-accent-700 font-medium cursor-pointer">
                   <input
                     type="checkbox"
                     checked={selectedFollowUps.size === followUps.filter((f) => !f.done).length && followUps.filter((f) => !f.done).length > 0}
@@ -547,7 +547,7 @@ export function ActionBoard({ onRefreshCount }: { onRefreshCount?: () => void })
                 {!showDone && (
                   <button
                     onClick={bulkMarkFollowUpsDone}
-                    className="text-xs px-2.5 py-1 bg-accent text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    className="text-xs px-2.5 py-1 bg-accent text-white rounded-lg hover:bg-accent-700 transition-colors"
                   >
                     Mark done
                   </button>
@@ -560,7 +560,7 @@ export function ActionBoard({ onRefreshCount }: { onRefreshCount?: () => void })
                 </button>
                 <button
                   onClick={() => setSelectedFollowUps(new Set())}
-                  className="text-xs text-blue-500 hover:text-blue-700 transition-colors ml-auto"
+                  className="text-xs text-accent-500 hover:text-accent-700 transition-colors ml-auto"
                 >
                   Clear
                 </button>

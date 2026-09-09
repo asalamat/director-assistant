@@ -85,17 +85,17 @@ export function ProjectBudget({ projectId }: Props) {
                 <input type="number" min="0" value={budgetInput}
                   onChange={e => setBudgetInput(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter') saveBudget(); if (e.key === 'Escape') setEditingBudget(false) }}
-                  className="w-24 text-sm font-semibold border border-gray-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  className="w-24 text-sm font-semibold border border-gray-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-accent-400"
                   autoFocus />
                 <button onClick={saveBudget} disabled={saving}
-                  className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded hover:bg-blue-600 disabled:opacity-50">
+                  className="text-xs bg-accent-500 text-white px-2 py-0.5 rounded hover:bg-accent-600 disabled:opacity-50">
                   {saving ? '…' : 'OK'}
                 </button>
                 <button onClick={() => setEditingBudget(false)} className="text-xs text-gray-400 hover:text-gray-600">✕</button>
               </div>
             ) : (
               <button onClick={() => setEditingBudget(true)} title="Click to edit budget"
-                className="text-sm font-bold text-gray-800 hover:text-blue-600 transition-colors">
+                className="text-sm font-bold text-gray-800 hover:text-accent-600 transition-colors">
                 {fmt(budget_total)}
               </button>
             )}

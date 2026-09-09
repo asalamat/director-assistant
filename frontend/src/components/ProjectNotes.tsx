@@ -71,7 +71,7 @@ export function ProjectNotes({ projectId }: { projectId: number }) {
           className="flex-1 text-sm border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent resize-none"
         />
         <button onClick={addNote} disabled={saving || !input.trim()}
-          className="text-xs bg-accent text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 disabled:opacity-50 self-end">
+          className="text-xs bg-accent text-white px-3 py-1.5 rounded-lg hover:bg-accent-700 disabled:opacity-50 self-end">
           {saving ? '…' : 'Add'}
         </button>
       </div>
@@ -118,7 +118,7 @@ export function ProjectNotes({ projectId }: { projectId: number }) {
           )}
           {recs.recommendations.length > 0 && (
             <div>
-              <p className="text-[10px] font-semibold text-blue-700 uppercase mb-1">Recommendations</p>
+              <p className="text-[10px] font-semibold text-accent-700 uppercase mb-1">Recommendations</p>
               <ul className="space-y-0.5">{recs.recommendations.map((s, i) => <li key={i} className="text-xs text-gray-700 flex gap-1.5"><span className="text-accent flex-shrink-0">→</span>{s}</li>)}</ul>
             </div>
           )}

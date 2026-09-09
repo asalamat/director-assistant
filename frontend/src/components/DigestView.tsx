@@ -78,7 +78,7 @@ export function DigestView() {
           <button
             onClick={load}
             disabled={loading}
-            className="text-xs bg-accent text-white px-3 py-1 rounded disabled:opacity-50 hover:bg-blue-700"
+            className="text-xs bg-accent text-white px-3 py-1 rounded disabled:opacity-50 hover:bg-accent-700"
           >
             {loading ? 'Generating…' : 'Refresh'}
           </button>
@@ -135,7 +135,7 @@ export function DigestView() {
             <button
               onClick={saveSchedule}
               disabled={schedSaving}
-              className="text-xs bg-accent text-white px-3 py-1 rounded disabled:opacity-50 hover:bg-blue-700"
+              className="text-xs bg-accent text-white px-3 py-1 rounded disabled:opacity-50 hover:bg-accent-700"
             >
               {schedSaving ? 'Saving…' : 'Save'}
             </button>
@@ -159,8 +159,8 @@ export function DigestView() {
 
       {digest && (
         <>
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-            <p className="text-xs text-blue-500 font-medium mb-1">
+          <div className="bg-accent-50 border border-accent-200 rounded-xl p-4">
+            <p className="text-xs text-accent-500 font-medium mb-1">
               {digest.date} · {digest.email_count} email{digest.email_count !== 1 ? 's' : ''}
             </p>
             <p className="text-sm text-gray-800 leading-relaxed">{digest.summary}</p>
@@ -172,7 +172,7 @@ export function DigestView() {
               <ul className="space-y-1.5">
                 {digest.highlights.map((h, i) => (
                   <li key={i} className="flex gap-2 text-sm text-gray-700">
-                    <span className="text-blue-400 mt-0.5 flex-shrink-0">•</span>
+                    <span className="text-accent-400 mt-0.5 flex-shrink-0">•</span>
                     {h}
                   </li>
                 ))}

@@ -114,7 +114,7 @@ function ProjectPlanView({ plan }: ProjectPlanViewProps) {
                   <span className="text-[10px] text-gray-400">{expandedPhase === i ? '▲' : '▼'}</span>
                 </div>
               </button>
-              {ph.milestone && <p className="px-3 py-1 text-[10px] text-accent bg-blue-50">{ph.milestone}</p>}
+              {ph.milestone && <p className="px-3 py-1 text-[10px] text-accent bg-accent-50">{ph.milestone}</p>}
               {expandedPhase === i && (
                 <table className="w-full text-xs">
                   <thead><tr className="bg-gray-50">
@@ -488,7 +488,7 @@ export function ProjectsPanel() {
                     setShowDocPicker(false)
                     await api.linkProjectDocument(selected.id, doc.doc_id, doc.filename).catch(() => {})
                   }}
-                    className={`w-full text-left px-3 py-2 text-xs hover:bg-blue-50 border-b border-gray-50 last:border-0 flex items-center gap-2 ${projDocIds.has(doc.doc_id) ? 'text-accent font-medium' : 'text-gray-700'}`}>
+                    className={`w-full text-left px-3 py-2 text-xs hover:bg-accent-50 border-b border-gray-50 last:border-0 flex items-center gap-2 ${projDocIds.has(doc.doc_id) ? 'text-accent font-medium' : 'text-gray-700'}`}>
                     <span className="flex-1 truncate">📎 {doc.filename}</span>
                     <span className="text-gray-400 flex-shrink-0">{doc.file_type}</span>
                   </button>
@@ -501,7 +501,7 @@ export function ProjectsPanel() {
           <div className="pt-2 border-t border-gray-100">
             <div className="flex items-center gap-2 flex-wrap">
               <button onClick={handleGeneratePlan} disabled={planLoading}
-                className="text-xs bg-accent text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                className="text-xs bg-accent text-white px-3 py-1.5 rounded-lg hover:bg-accent-700 disabled:opacity-50">
                 {planLoading ? '⟳ Generating…' : plan ? '↺ Regenerate Plan' : '✦ Generate AI Plan'}
               </button>
               {plan && (
@@ -611,8 +611,8 @@ export function ProjectsPanel() {
       </div>
 
       {showCreate && wizardStep === 'name' && (
-        <div className="px-4 py-3 bg-blue-50 border-b border-blue-100 flex-shrink-0 space-y-2">
-          <p className="text-xs font-semibold text-blue-700">Step 1 of 2 — Project Name</p>
+        <div className="px-4 py-3 bg-accent-50 border-b border-accent-100 flex-shrink-0 space-y-2">
+          <p className="text-xs font-semibold text-accent-700">Step 1 of 2 — Project Name</p>
           <ProjectTemplates onCreated={(projId, projName) => {
             resetWizard()
             load()
@@ -633,12 +633,12 @@ export function ProjectsPanel() {
       )}
 
       {showCreate && wizardStep === 'brief' && (
-        <div className="px-4 py-3 bg-blue-50 border-b border-blue-100 flex-shrink-0 space-y-2.5">
+        <div className="px-4 py-3 bg-accent-50 border-b border-accent-100 flex-shrink-0 space-y-2.5">
           <div className="flex items-center gap-2">
-            <button onClick={() => setWizardStep('name')} className="text-xs text-blue-600 hover:underline">← Back</button>
-            <p className="text-xs font-semibold text-blue-700">Step 2 of 2 — Project Brief for <span className="text-blue-900">{newName}</span></p>
+            <button onClick={() => setWizardStep('name')} className="text-xs text-accent-600 hover:underline">← Back</button>
+            <p className="text-xs font-semibold text-accent-700">Step 2 of 2 — Project Brief for <span className="text-accent-900">{newName}</span></p>
           </div>
-          <p className="text-[11px] text-blue-600">AI will use these details to build a detailed project plan. Fill in what you know — skip the rest.</p>
+          <p className="text-[11px] text-accent-600">AI will use these details to build a detailed project plan. Fill in what you know — skip the rest.</p>
           {[
             { label: 'Goal / Objective', val: wizardGoal, set: setWizardGoal, ph: 'What does success look like?' },
             { label: 'Timeline / Deadline', val: wizardTimeline, set: setWizardTimeline, ph: 'e.g. 3 months, by Sep 30' },

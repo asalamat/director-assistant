@@ -64,7 +64,7 @@ export function EmailNotifyButton({ emailId }: Props) {
           <button onClick={() => share('slack')} className="flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 w-full text-left">
             💬 Slack
           </button>
-          <button onClick={() => share('teams')} className="flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-blue-50 w-full text-left">
+          <button onClick={() => share('teams')} className="flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-accent-50 w-full text-left">
             🟦 Teams
           </button>
         </div>

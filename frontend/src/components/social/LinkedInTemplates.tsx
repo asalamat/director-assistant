@@ -15,7 +15,7 @@ function PostMockup({ sampleImage, icon, name }: { sampleImage?: string; icon?: 
   return (
     <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm w-full">
       <div className="flex items-center gap-2 px-3 pt-3 pb-2">
-        <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+        <div className="w-8 h-8 bg-accent-600 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
           YN
         </div>
         <div className="min-w-0">
@@ -149,7 +149,7 @@ function EditForm({ template, onSave, onCancel }: EditFormProps) {
   }
 
   return (
-    <div className="border-2 border-accent rounded-2xl p-4 bg-blue-50/30 space-y-3">
+    <div className="border-2 border-accent rounded-2xl p-4 bg-accent-50/30 space-y-3">
       <p className="text-xs font-semibold text-accent">Editing: {template.name}</p>
       {error && <p className="text-xs text-red-500">{error}</p>}
       <div>
@@ -369,7 +369,7 @@ export function LinkedInTemplates() {
       <section>
         <div className="flex items-center gap-2 mb-4">
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Built-in Styles</p>
-          <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-medium rounded-full">{builtin.length} styles</span>
+          <span className="px-2 py-0.5 bg-accent-50 text-accent-600 text-[10px] font-medium rounded-full">{builtin.length} styles</span>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {builtin.map(t => (
@@ -381,7 +381,7 @@ export function LinkedInTemplates() {
                 <div className="flex items-center gap-2">
                   <span className="text-xl">{t.icon || '🎨'}</span>
                   <span className="font-semibold text-sm text-gray-900">{t.name}</span>
-                  <span className="ml-auto px-1.5 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-medium rounded">Built-in</span>
+                  <span className="ml-auto px-1.5 py-0.5 bg-accent-50 text-accent-600 text-[10px] font-medium rounded">Built-in</span>
                 </div>
                 <p className="text-[11px] text-gray-500 leading-relaxed line-clamp-3">{t.prompt}</p>
                 <button
@@ -445,7 +445,7 @@ export function LinkedInTemplates() {
                       <div className="flex gap-1.5 pt-1 flex-wrap">
                         <button
                           onClick={() => setEditingId(t.id)}
-                          className="px-2.5 py-1 text-xs font-medium text-accent border border-accent rounded-lg hover:bg-blue-50 transition"
+                          className="px-2.5 py-1 text-xs font-medium text-accent border border-accent rounded-lg hover:bg-accent-50 transition"
                         >
                           Edit
                         </button>

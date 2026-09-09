@@ -77,7 +77,7 @@ export function LinkedInVoicePanel() {
           {profile.recurring_themes?.length > 0 && (
             <div className="flex flex-wrap gap-1">
               {profile.recurring_themes.map((t, i) => (
-                <span key={i} className="px-2 py-0.5 bg-blue-50 text-accent rounded-full text-[10px] font-medium">{t}</span>
+                <span key={i} className="px-2 py-0.5 bg-accent-50 text-accent rounded-full text-[10px] font-medium">{t}</span>
               ))}
             </div>
           )}

@@ -64,7 +64,7 @@ export function ProjectTemplates({ onCreated }: Props) {
               <span className="text-[10px] text-accent font-medium ml-2 flex-shrink-0">Use</span>
             </button>
             {activeId === t.id && (
-              <div className="px-3 pb-3 space-y-2 bg-blue-50 border-t border-blue-100">
+              <div className="px-3 pb-3 space-y-2 bg-accent-50 border-t border-accent-100">
                 <input
                   autoFocus
                   value={newName}
@@ -79,7 +79,7 @@ export function ProjectTemplates({ onCreated }: Props) {
                   <button
                     onClick={() => handleUse(t.id)}
                     disabled={!newName.trim() || creating === t.id}
-                    className="text-xs bg-accent text-white px-3 py-1 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                    className="text-xs bg-accent text-white px-3 py-1 rounded-lg hover:bg-accent-700 disabled:opacity-50"
                   >
                     {creating === t.id ? '…' : 'Create'}
                   </button>

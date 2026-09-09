@@ -327,29 +327,29 @@ export function NewsPanel() {
 
                       {/* AI-generated structured summary */}
                       {aiSummary && (
-                        <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-lg space-y-1.5">
+                        <div className="mt-2 p-3 bg-accent-50 dark:bg-accent-900/20 border border-accent-100 dark:border-accent-800 rounded-lg space-y-1.5">
                           <div className="flex items-center gap-1 mb-2">
-                            <svg className="w-3 h-3 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
+                            <svg className="w-3 h-3 text-accent-500" viewBox="0 0 20 20" fill="currentColor">
                               <path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z" />
                             </svg>
-                            <span className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wide">AI Breakdown</span>
+                            <span className="text-[10px] font-semibold text-accent-600 dark:text-accent-400 uppercase tracking-wide">AI Breakdown</span>
                           </div>
                           {aiSummary.what && (
                             <div className="flex gap-2">
-                              <span className="flex-shrink-0 text-[10px] font-bold text-blue-500 dark:text-blue-400 uppercase w-16 pt-0.5">What</span>
-                              <p className="text-xs text-blue-900 dark:text-blue-100 leading-relaxed">{aiSummary.what}</p>
+                              <span className="flex-shrink-0 text-[10px] font-bold text-accent-500 dark:text-accent-400 uppercase w-16 pt-0.5">What</span>
+                              <p className="text-xs text-accent-900 dark:text-accent-100 leading-relaxed">{aiSummary.what}</p>
                             </div>
                           )}
                           {aiSummary.why && (
                             <div className="flex gap-2">
                               <span className="flex-shrink-0 text-[10px] font-bold text-purple-500 dark:text-purple-400 uppercase w-16 pt-0.5">Why</span>
-                              <p className="text-xs text-blue-900 dark:text-blue-100 leading-relaxed">{aiSummary.why}</p>
+                              <p className="text-xs text-accent-900 dark:text-accent-100 leading-relaxed">{aiSummary.why}</p>
                             </div>
                           )}
                           {aiSummary.takeaway && (
                             <div className="flex gap-2">
                               <span className="flex-shrink-0 text-[10px] font-bold text-green-600 dark:text-green-400 uppercase w-16 pt-0.5">Takeaway</span>
-                              <p className="text-xs text-blue-900 dark:text-blue-100 leading-relaxed">{aiSummary.takeaway}</p>
+                              <p className="text-xs text-accent-900 dark:text-accent-100 leading-relaxed">{aiSummary.takeaway}</p>
                             </div>
                           )}
                         </div>

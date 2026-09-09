@@ -108,7 +108,7 @@ export function TaskExportButton({ actionId, text, emailSubject }: Props) {
             <div className="flex gap-2 justify-end">
               <button onClick={() => { setModal(null); setResult(null) }} className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1">Cancel</button>
               <button onClick={doExport} disabled={exporting || !title.trim()}
-                className="text-xs bg-accent text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+                className="text-xs bg-accent text-white px-3 py-1.5 rounded-lg hover:bg-accent-700 disabled:opacity-50 transition-colors">
                 {exporting ? 'Exporting…' : 'Export'}
               </button>
             </div>

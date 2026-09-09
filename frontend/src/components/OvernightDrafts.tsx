@@ -65,7 +65,7 @@ export function OvernightDrafts() {
           </div>
         )}
         {drafts.map(d => (
-          <div key={d.id} className="border border-blue-200 bg-blue-50/30 rounded-xl p-3 space-y-2">
+          <div key={d.id} className="border border-accent-200 bg-accent-50/30 rounded-xl p-3 space-y-2">
             <div>
               <p className="text-sm font-medium text-gray-800 truncate">{d.email_subject}</p>
               <p className="text-xs text-gray-500">From: {d.email_sender} · To: {d.draft_to}</p>
@@ -73,7 +73,7 @@ export function OvernightDrafts() {
             <p className="text-xs text-gray-700 bg-white border border-gray-200 rounded-lg p-2.5 whitespace-pre-wrap leading-relaxed">{d.draft_body}</p>
             <div className="flex gap-2">
               <button onClick={() => approve(d.id)} disabled={processing === d.id}
-                className="text-xs bg-accent text-white px-3 py-1 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+                className="text-xs bg-accent text-white px-3 py-1 rounded-lg hover:bg-accent-700 disabled:opacity-50 transition-colors">
                 {processing === d.id ? '...' : 'Send'}
               </button>
               <button onClick={() => discard(d.id)} disabled={processing === d.id}

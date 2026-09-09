@@ -83,7 +83,7 @@ export function FolderPicker({ onSelect, onClose }: Props) {
               </button>
               <button
                 onClick={() => { onSelect(d.path); onClose() }}
-                className="opacity-0 group-hover:opacity-100 flex-shrink-0 px-2 py-1 text-xs text-accent border border-accent rounded-md hover:bg-blue-50 transition-opacity mr-1"
+                className="opacity-0 group-hover:opacity-100 flex-shrink-0 px-2 py-1 text-xs text-accent border border-accent rounded-md hover:bg-accent-50 transition-opacity mr-1"
                 title={`Select ${d.name}`}
               >
                 Use
@@ -101,7 +101,7 @@ export function FolderPicker({ onSelect, onClose }: Props) {
             </button>
             <button
               onClick={() => { onSelect(current); onClose() }}
-              className="px-3 py-1.5 text-sm bg-accent text-white rounded-lg hover:bg-blue-700"
+              className="px-3 py-1.5 text-sm bg-accent text-white rounded-lg hover:bg-accent-700"
             >
               Select
             </button>

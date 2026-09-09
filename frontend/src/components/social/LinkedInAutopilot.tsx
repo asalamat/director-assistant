@@ -309,7 +309,7 @@ export function LinkedInAutopilot() {
 
           {/* Next post */}
           {config.next_post_at && (
-            <div className={`rounded-xl px-4 py-3 border ${config.enabled ? 'bg-blue-50 border-blue-100' : 'bg-gray-50 border-gray-100'}`}>
+            <div className={`rounded-xl px-4 py-3 border ${config.enabled ? 'bg-accent-50 border-accent-100' : 'bg-gray-50 border-gray-100'}`}>
               <p className="text-[10px] font-medium uppercase tracking-wide text-gray-400">Next post</p>
               <p className="text-sm font-medium text-gray-900 mt-1">
                 {config.topics[config.topic_index % config.topics.length] || '—'}
@@ -331,7 +331,7 @@ export function LinkedInAutopilot() {
                                (config.topic_index >= config.topics.length && true)
                 return (
                   <div key={i} className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border text-sm ${
-                    current ? 'border-accent bg-blue-50 text-accent font-medium' :
+                    current ? 'border-accent bg-accent-50 text-accent font-medium' :
                     'border-gray-100 text-gray-700'
                   }`}>
                     <span className="text-[10px] w-5 text-center font-mono text-gray-400">{i + 1}</span>
@@ -389,7 +389,7 @@ export function LinkedInAutopilot() {
                       value={editingReview.text}
                       onChange={e => setEditingReview({ id: post.id, text: e.target.value })}
                       rows={5}
-                      className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-blue-400 mb-2"
+                      className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-accent-400 mb-2"
                     />
                   ) : (
                     <p className="text-xs text-gray-700 whitespace-pre-line mb-2">{post.post_text}</p>
@@ -463,7 +463,7 @@ export function LinkedInAutopilot() {
             <div className="flex items-center justify-between mt-1.5">
               <p className="text-[11px] text-gray-400">{topics.length} topic{topics.length !== 1 ? 's' : ''} · cycles repeatedly</p>
               <label className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium cursor-pointer transition ${
-                extracting ? 'border-gray-200 text-gray-400 cursor-not-allowed' : 'border-accent/40 text-accent hover:bg-blue-50'
+                extracting ? 'border-gray-200 text-gray-400 cursor-not-allowed' : 'border-accent/40 text-accent hover:bg-accent-50'
               }`}>
                 <input
                   type="file"
@@ -502,7 +502,7 @@ export function LinkedInAutopilot() {
                   key={ct.value}
                   onClick={() => setContentType(ct.value)}
                   className={`flex-1 px-3 py-2 rounded-xl text-xs font-medium border transition ${
-                    contentType === ct.value ? 'border-accent bg-blue-50 text-accent' : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                    contentType === ct.value ? 'border-accent bg-accent-50 text-accent' : 'border-gray-200 text-gray-600 hover:border-gray-300'
                   }`}
                 >
                   {ct.label}

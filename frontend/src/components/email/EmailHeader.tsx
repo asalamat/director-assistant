@@ -263,7 +263,7 @@ export function EmailHeader({
                         key={d}
                         onClick={() => handleRemindMe(d)}
                         disabled={remindDays !== null}
-                        className="block w-full text-left text-xs text-gray-700 hover:text-accent hover:bg-blue-50 px-2 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                        className="block w-full text-left text-xs text-gray-700 hover:text-accent hover:bg-accent-50 px-2 py-1.5 rounded-lg transition-colors disabled:opacity-50"
                       >
                         {d === 1 ? 'Tomorrow' : `In ${d} days`}
                       </button>

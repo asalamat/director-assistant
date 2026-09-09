@@ -39,7 +39,7 @@ function StepIndicator({ current }: { current: number }) {
         return (
           <div key={n} className="flex items-center gap-1">
             <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold transition-colors ${
-              done ? 'bg-accent text-white' : active ? 'bg-accent text-white ring-2 ring-blue-200' : 'bg-gray-100 text-gray-400'
+              done ? 'bg-accent text-white' : active ? 'bg-accent text-white ring-2 ring-accent-200' : 'bg-gray-100 text-gray-400'
             }`}>
               {done ? '✓' : n}
             </div>
@@ -219,16 +219,16 @@ export function LinkedInWizard({ onViewHistory, onManageTemplates }: { onViewHis
       {onManageTemplates && (
         <button
           onClick={onManageTemplates}
-          className="flex items-center justify-between w-full mb-4 px-4 py-3 bg-blue-50 border border-blue-100 rounded-xl hover:bg-blue-100 transition group"
+          className="flex items-center justify-between w-full mb-4 px-4 py-3 bg-accent-50 border border-accent-100 rounded-xl hover:bg-accent-100 transition group"
         >
           <div className="flex items-center gap-3">
             <span className="text-xl">📚</span>
             <div className="text-left">
-              <p className="text-sm font-semibold text-blue-800">Prompt Template Library</p>
-              <p className="text-xs text-blue-500">Add your own image styles with sample images — used in Step 4</p>
+              <p className="text-sm font-semibold text-accent-800">Prompt Template Library</p>
+              <p className="text-xs text-accent-500">Add your own image styles with sample images — used in Step 4</p>
             </div>
           </div>
-          <span className="text-blue-400 text-sm group-hover:translate-x-0.5 transition-transform">→</span>
+          <span className="text-accent-400 text-sm group-hover:translate-x-0.5 transition-transform">→</span>
         </button>
       )}
 
@@ -271,7 +271,7 @@ export function LinkedInWizard({ onViewHistory, onManageTemplates }: { onViewHis
                 onClick={() => setSelectedTrend(t)}
                 className={`w-full text-left border rounded-xl p-4 transition-colors ${
                   selectedTrend?.title === t.title
-                    ? 'border-accent bg-blue-50'
+                    ? 'border-accent bg-accent-50'
                     : 'border-gray-200 hover:border-gray-300'
                 }`}
               >
@@ -345,11 +345,11 @@ export function LinkedInWizard({ onViewHistory, onManageTemplates }: { onViewHis
           </div>
 
               {/* Final prompt preview */}
-          <div className="rounded-xl border border-blue-100 bg-blue-50 overflow-hidden">
-            <div className="flex items-center gap-2 px-3 py-2 border-b border-blue-100">
-              <span className="text-xs font-semibold text-blue-700">Final prompt that will be sent to AI</span>
+          <div className="rounded-xl border border-accent-100 bg-accent-50 overflow-hidden">
+            <div className="flex items-center gap-2 px-3 py-2 border-b border-accent-100">
+              <span className="text-xs font-semibold text-accent-700">Final prompt that will be sent to AI</span>
             </div>
-            <div className="px-3 py-2.5 text-xs text-blue-900 leading-relaxed font-mono whitespace-pre-wrap bg-white">
+            <div className="px-3 py-2.5 text-xs text-accent-900 leading-relaxed font-mono whitespace-pre-wrap bg-white">
               {[
                 `Topic: ${selectedTrend?.title || '—'}`,
                 `About: ${subject || '—'}`,
@@ -384,7 +384,7 @@ export function LinkedInWizard({ onViewHistory, onManageTemplates }: { onViewHis
               {hashtags.length > 0 && (
                 <div className="flex flex-wrap gap-1">
                   {hashtags.map(h => (
-                    <span key={h} className="px-2 py-0.5 bg-blue-50 text-accent rounded-full text-[11px] font-medium">#{h}</span>
+                    <span key={h} className="px-2 py-0.5 bg-accent-50 text-accent rounded-full text-[11px] font-medium">#{h}</span>
                   ))}
                 </div>
               )}
@@ -439,14 +439,14 @@ export function LinkedInWizard({ onViewHistory, onManageTemplates }: { onViewHis
                   title={tmpl.prompt}
                   className={`text-left border-2 rounded-xl overflow-hidden transition-all ${
                     selectedTemplate === tmpl.id
-                      ? 'border-accent shadow-md ring-2 ring-blue-100'
+                      ? 'border-accent shadow-md ring-2 ring-accent-100'
                       : 'border-gray-200 hover:border-gray-400 bg-white'
                   }`}
                 >
                   {/* Mini post mockup */}
                   <div className="bg-white">
                     <div className="flex items-center gap-1.5 px-3 pt-3 pb-1.5">
-                      <div className="w-5 h-5 bg-blue-600 rounded-full flex-shrink-0" />
+                      <div className="w-5 h-5 bg-accent-600 rounded-full flex-shrink-0" />
                       <div className="flex-1 space-y-1">
                         <div className="h-1.5 bg-gray-200 rounded-full w-full" />
                         <div className="h-1 bg-gray-100 rounded-full w-2/3" />
@@ -478,12 +478,12 @@ export function LinkedInWizard({ onViewHistory, onManageTemplates }: { onViewHis
 
           {/* Selected template prompt display */}
           {selectedTemplate && templates.find(t => t.id === selectedTemplate) && (
-            <div className="rounded-xl border border-blue-200 bg-blue-50 overflow-hidden">
-              <div className="flex items-center gap-2 px-3 py-2 border-b border-blue-100">
+            <div className="rounded-xl border border-accent-200 bg-accent-50 overflow-hidden">
+              <div className="flex items-center gap-2 px-3 py-2 border-b border-accent-100">
                 <span className="text-base">{templates.find(t => t.id === selectedTemplate)?.icon || '🎨'}</span>
-                <span className="text-xs font-semibold text-blue-700">{templates.find(t => t.id === selectedTemplate)?.name} — style instructions</span>
+                <span className="text-xs font-semibold text-accent-700">{templates.find(t => t.id === selectedTemplate)?.name} — style instructions</span>
               </div>
-              <p className="px-3 py-2.5 text-xs text-blue-800 leading-relaxed">{templates.find(t => t.id === selectedTemplate)?.prompt}</p>
+              <p className="px-3 py-2.5 text-xs text-accent-800 leading-relaxed">{templates.find(t => t.id === selectedTemplate)?.prompt}</p>
             </div>
           )}
 
@@ -504,7 +504,7 @@ export function LinkedInWizard({ onViewHistory, onManageTemplates }: { onViewHis
               <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200">
                 <span className="text-xs font-semibold text-gray-600">Final image prompt that will be sent to DALL-E</span>
                 {selectedTemplate && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-100 text-blue-700">
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-accent-100 text-accent-700">
                     {templates.find(t => t.id === selectedTemplate)?.name}
                   </span>
                 )}
@@ -658,7 +658,7 @@ export function LinkedInWizard({ onViewHistory, onManageTemplates }: { onViewHis
                 key={opt.value}
                 onClick={() => setContentType(opt.value)}
                 className={`w-full flex items-center gap-4 px-4 py-3 border-2 rounded-xl text-left transition-colors ${
-                  contentType === opt.value ? 'border-accent bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+                  contentType === opt.value ? 'border-accent bg-accent-50' : 'border-gray-200 hover:border-gray-300'
                 }`}
               >
                 <span className="text-2xl">{opt.icon}</span>

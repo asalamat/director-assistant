@@ -134,7 +134,7 @@ export function ProjectsTab({ onSelectCluster }: ProjectsTabProps) {
         <button
           onClick={handleGenerate}
           disabled={generating}
-          className="text-xs bg-accent text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors flex-shrink-0"
+          className="text-xs bg-accent text-white px-3 py-1.5 rounded-lg hover:bg-accent-700 disabled:opacity-50 transition-colors flex-shrink-0"
         >
           {generating ? '⟳ Analyzing…' : clusters.length ? '↺ Regenerate' : '✦ Generate Clusters'}
         </button>
@@ -148,7 +148,7 @@ export function ProjectsTab({ onSelectCluster }: ProjectsTabProps) {
             <p className="text-2xl mb-2">🗂</p>
             <p className="text-sm text-gray-500 mb-4">No clusters yet</p>
             <button onClick={handleGenerate} disabled={generating}
-              className="text-sm bg-accent text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+              className="text-sm bg-accent text-white px-4 py-2 rounded-lg hover:bg-accent-700 disabled:opacity-50 transition-colors">
               {generating ? '⟳ Analyzing emails…' : '✦ Generate Clusters'}
             </button>
             <p className="text-xs text-gray-400 mt-2">AI will read your emails and group them into projects and topics</p>
@@ -161,7 +161,7 @@ export function ProjectsTab({ onSelectCluster }: ProjectsTabProps) {
               className={`text-left border rounded-xl p-4 transition-colors group relative ${
                 c.status === 'disabled'
                   ? 'border-gray-100 bg-gray-50/50 opacity-60'
-                  : 'border-gray-200 hover:border-accent hover:bg-blue-50/30 cursor-pointer'
+                  : 'border-gray-200 hover:border-accent hover:bg-accent-50/30 cursor-pointer'
               }`}
               onClick={() => c.status !== 'disabled' && onSelectCluster(c)}
             >

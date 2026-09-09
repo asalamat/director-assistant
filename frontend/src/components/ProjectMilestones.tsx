@@ -117,7 +117,7 @@ export function ProjectMilestones({ projectId }: ProjectMilestonesProps) {
             className="text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent"
           />
           <button onClick={handleAdd} disabled={saving || !newName.trim() || !newDate}
-            className="text-xs bg-accent text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex-shrink-0">
+            className="text-xs bg-accent text-white px-3 py-1.5 rounded-lg hover:bg-accent-700 disabled:opacity-50 flex-shrink-0">
             {saving ? '…' : 'Add'}
           </button>
         </div>

@@ -81,7 +81,7 @@ export function VoiceDraftPanel() {
       <button
         onClick={learn}
         disabled={loading}
-        className="text-xs px-3 py-1.5 bg-accent text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1.5"
+        className="text-xs px-3 py-1.5 bg-accent text-white rounded-lg hover:bg-accent-700 disabled:opacity-50 flex items-center gap-1.5"
       >
         {loading
           ? <><span className="animate-spin inline-block">⟳</span> Analyzing your sent mail…</>

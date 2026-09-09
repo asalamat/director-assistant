@@ -136,7 +136,7 @@ export function EmailRulesPanel() {
           </button>
           <button
             onClick={() => setShowForm(v => !v)}
-            className="text-xs bg-accent text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors"
+            className="text-xs bg-accent text-white px-3 py-1.5 rounded-lg hover:bg-accent-700 transition-colors"
           >
             + New Rule
           </button>
@@ -157,7 +157,7 @@ export function EmailRulesPanel() {
           <button
             onClick={generateFromNL}
             disabled={nlGenerating || !nlInput.trim()}
-            className="text-xs bg-accent text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors whitespace-nowrap"
+            className="text-xs bg-accent text-white px-3 py-1.5 rounded-lg hover:bg-accent-700 disabled:opacity-50 transition-colors whitespace-nowrap"
           >
             {nlGenerating ? '⟳ Generating…' : 'Generate'}
           </button>
@@ -261,12 +261,12 @@ export function EmailRulesPanel() {
             )}
           </div>
           {preview && (
-            <div className="border border-blue-200 bg-blue-50/50 rounded-lg p-2.5 text-xs">
-              <p className="font-medium text-blue-800">
+            <div className="border border-accent-200 bg-accent-50/50 rounded-lg p-2.5 text-xs">
+              <p className="font-medium text-accent-800">
                 Would affect {preview.count} email{preview.count === 1 ? '' : 's'}
               </p>
               {preview.sample.length > 0 && (
-                <ul className="mt-1 space-y-0.5 text-blue-700/80">
+                <ul className="mt-1 space-y-0.5 text-accent-700/80">
                   {preview.sample.slice(0, 3).map(s => (
                     <li key={s.id} className="truncate">• {s.subject}</li>
                   ))}
@@ -287,7 +287,7 @@ export function EmailRulesPanel() {
             <button
               onClick={save}
               disabled={saving}
-              className="text-xs bg-accent text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              className="text-xs bg-accent text-white px-3 py-1.5 rounded-lg hover:bg-accent-700 disabled:opacity-50 transition-colors"
             >
               {saving ? 'Saving...' : 'Save Rule'}
             </button>

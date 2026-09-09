@@ -43,7 +43,7 @@ export function MeetingPrepModal({ onClose }: Props) {
           <input type="date" value={date} onChange={e => setDate(e.target.value)}
             className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-accent"/>
           <button onClick={generate} disabled={loading || !subject.trim()}
-            className="w-full bg-accent text-white py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors text-sm font-medium">
+            className="w-full bg-accent text-white py-2 rounded-lg hover:bg-accent-700 disabled:opacity-50 transition-colors text-sm font-medium">
             {loading ? 'Generating brief…' : '✨ Generate Meeting Brief'}
           </button>
           {error && <p className="text-xs text-red-500">{error}</p>}

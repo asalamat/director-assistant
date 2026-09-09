@@ -54,7 +54,7 @@ export function TimelineTab({ initialQuery = '', initialIds }: TimelineTabProps)
           className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-accent"
         />
         <button onClick={search} disabled={!inputVal.trim() || loading}
-          className="px-3 py-1.5 text-sm bg-accent text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+          className="px-3 py-1.5 text-sm bg-accent text-white rounded-lg hover:bg-accent-700 disabled:opacity-50 transition-colors">
           {loading ? '…' : 'View'}
         </button>
       </div>

@@ -8,7 +8,7 @@ const REASON_COLORS: Record<string, string> = {
   'urgent subject':    'bg-red-100 text-red-700',
   'urgent content':    'bg-orange-100 text-orange-700',
   'open action item':  'bg-purple-100 text-purple-700',
-  'frequent contact':  'bg-blue-100 text-blue-700',
+  'frequent contact':  'bg-accent-100 text-accent-700',
   'received today':    'bg-green-100 text-green-700',
   'received yesterday':'bg-teal-100 text-teal-700',
   'question asked':    'bg-yellow-100 text-yellow-700',

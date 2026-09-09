@@ -15,7 +15,7 @@ type Stakeholder = {
 const PERIODS = [30, 90, 180]
 
 function scoreColor(score: number): string {
-  if (score >= 60) return 'bg-blue-500'
+  if (score >= 60) return 'bg-accent-500'
   if (score >= 30) return 'bg-amber-500'
   return 'bg-gray-400'
 }
@@ -105,7 +105,7 @@ export function StakeholderMap({ onEmailContact }: { onEmailContact: (email: str
 
             <button
               onClick={() => onEmailContact(s.email)}
-              className="self-start px-3 py-1.5 bg-accent text-white rounded-lg text-xs font-medium hover:bg-blue-700 transition-colors"
+              className="self-start px-3 py-1.5 bg-accent text-white rounded-lg text-xs font-medium hover:bg-accent-700 transition-colors"
             >
               Email
             </button>

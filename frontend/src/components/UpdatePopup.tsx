@@ -93,7 +93,7 @@ export default function UpdatePopup() {
   }
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 w-80 bg-white border border-blue-200 rounded-xl shadow-lg p-4">
+    <div className="fixed bottom-4 right-4 z-50 w-80 bg-white border border-accent-200 rounded-xl shadow-lg p-4">
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1">
           <p className="text-sm font-semibold text-gray-900">Update available</p>
@@ -101,7 +101,7 @@ export default function UpdatePopup() {
             v{update.current} → v{update.latest}
           </p>
           {message && (
-            <p className={`text-xs mt-1 ${isError ? 'text-red-600' : 'text-blue-600'}`}>{message}</p>
+            <p className={`text-xs mt-1 ${isError ? 'text-red-600' : 'text-accent-600'}`}>{message}</p>
           )}
         </div>
         {!applying && (
@@ -117,7 +117,7 @@ export default function UpdatePopup() {
         <div className="mt-3 flex gap-2">
           <button
             onClick={handleUpdate}
-            className="flex-1 bg-blue-600 text-white text-xs font-medium py-1.5 rounded-lg hover:bg-blue-700 transition-colors"
+            className="flex-1 bg-accent-600 text-white text-xs font-medium py-1.5 rounded-lg hover:bg-accent-700 transition-colors"
           >
             {isError ? 'Retry' : 'Install Update'}
           </button>
@@ -130,13 +130,13 @@ export default function UpdatePopup() {
         </div>
       ) : (
         <div className="mt-3">
-          <div className="w-full bg-blue-100 rounded-full h-1.5">
-            <div className="bg-blue-500 h-1.5 rounded-full animate-pulse w-3/4" />
+          <div className="w-full bg-accent-100 rounded-full h-1.5">
+            <div className="bg-accent-500 h-1.5 rounded-full animate-pulse w-3/4" />
           </div>
           <p className="text-xs text-gray-400 mt-1 text-center">{message || 'Reloading when server is ready…'}</p>
           <button
             onClick={() => setShowLog(v => !v)}
-            className="mt-1 text-xs text-blue-500 hover:underline w-full text-center"
+            className="mt-1 text-xs text-accent-500 hover:underline w-full text-center"
           >
             {showLog ? 'Hide log' : 'Show log'}
           </button>
