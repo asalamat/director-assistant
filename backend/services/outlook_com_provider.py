@@ -18,7 +18,9 @@ _SKIP_FOLDERS = {
 }
 
 _OL_MAIL_ITEM = 43       # olMail
+_OL_CONTACT_ITEM = 40    # olContact
 _OL_FOLDER_INBOX = 6     # olFolderInbox
+_OL_FOLDER_CONTACTS = 10 # olFolderContacts
 
 
 @contextmanager
@@ -35,11 +37,17 @@ def _com_session():
         pythoncom.CoUninitialize()
 
 
+_PR_SENDER_SMTP_ADDRESS = "http://schemas.microsoft.com/mapi/proptag/0x5D01001F"
+_PR_SMTP_ADDRESS = "http://schemas.microsoft.com/mapi/proptag/0x39FE001E"
+
+
 def resolve_smtp_address(item) -> str:
     """Outlook COM returns an X.500 DN (/O=EXCHANGELABS/...) for the sender of
-    internal Exchange mail instead of an SMTP address. Resolve it via the
-    Exchange user object, then the PR_SMTP_ADDRESS MAPI property, falling back
-    to whatever Outlook gave us."""
+    internal Exchange mail instead of an SMTP address. PR_SENDER_SMTP_ADDRESS is
+    the property Outlook itself resolves this to (works even offline/cached-mode,
+    unlike GetExchangeUser which needs a live directory lookup) — try that first,
+    then GetExchangeUser, then the AddressEntry's own PR_SMTP_ADDRESS, falling
+    back to whatever Outlook originally gave us."""
     try:
         addr = item.SenderEmailAddress or ""
     except Exception:
@@ -47,15 +55,19 @@ def resolve_smtp_address(item) -> str:
     if not addr.startswith("/O="):
         return addr or _sender_name(item)
     try:
+        smtp = item.PropertyAccessor.GetProperty(_PR_SENDER_SMTP_ADDRESS)
+        if smtp:
+            return smtp
+    except Exception:
+        pass
+    try:
         exch_user = item.Sender.GetExchangeUser()
         if exch_user and exch_user.PrimarySmtpAddress:
             return exch_user.PrimarySmtpAddress
     except Exception:
         pass
     try:
-        smtp = item.PropertyAccessor.GetProperty(
-            "http://schemas.microsoft.com/mapi/proptag/0x39FE001E"  # PR_SMTP_ADDRESS
-        )
+        smtp = item.Sender.PropertyAccessor.GetProperty(_PR_SMTP_ADDRESS)
         if smtp:
             return smtp
     except Exception:
@@ -88,38 +100,81 @@ def list_outlook_accounts() -> List[dict]:
         return out
 
 
+def _root_folder(ns, username: str = ""):
+    """Mailbox root — matches `username` against an Outlook account/store if given."""
+    if username:
+        for acc in ns.Accounts:
+            try:
+                if (getattr(acc, "SmtpAddress", "") or "").lower() == username.lower():
+                    return acc.DeliveryStore.GetRootFolder()
+            except Exception:
+                continue
+        for store in ns.Stores:
+            try:
+                if username.lower() in (store.DisplayName or "").lower():
+                    return store.GetRootFolder()
+            except Exception:
+                continue
+    return ns.GetDefaultFolder(_OL_FOLDER_INBOX).Parent
+
+
+def _iter_folders(folder, prefix: str = ""):
+    path = f"{prefix}/{folder.Name}" if prefix else folder.Name
+    yield path, folder
+    for sub in folder.Folders:
+        yield from _iter_folders(sub, path)
+
+
+def list_outlook_contacts(username: str = "") -> List[dict]:
+    """Read the Contacts folder of a local Outlook profile (or a specific account's
+    store when `username` is given). Returns [{"email", "name", "phones"}, ...]."""
+    with _com_session() as (_, ns):
+        contacts_folder = None
+        if not username:
+            try:
+                contacts_folder = ns.GetDefaultFolder(_OL_FOLDER_CONTACTS)
+            except Exception:
+                contacts_folder = None
+        if contacts_folder is None:
+            root = _root_folder(ns, username)
+            for _, f in _iter_folders(root):
+                if f.Name.lower() == "contacts":
+                    contacts_folder = f
+                    break
+        if contacts_folder is None:
+            return []
+
+        out: List[dict] = []
+        items = contacts_folder.Items
+        for i in range(1, items.Count + 1):
+            try:
+                item = items.Item(i)
+                if getattr(item, "Class", None) != _OL_CONTACT_ITEM:
+                    continue
+                name = item.FullName or item.CompanyName or ""
+                phones = [p for p in (
+                    getattr(item, "BusinessTelephoneNumber", "") or "",
+                    getattr(item, "MobileTelephoneNumber", "") or "",
+                    getattr(item, "HomeTelephoneNumber", "") or "",
+                ) if p]
+                for attr in ("Email1Address", "Email2Address", "Email3Address"):
+                    addr = (getattr(item, attr, "") or "").strip().lower()
+                    if addr and "@" in addr:
+                        out.append({"email": addr, "name": name, "phones": phones})
+            except Exception:
+                continue
+        return out
+
+
 class OutlookComProvider:
     """Email provider backed by Outlook desktop COM automation."""
 
     def __init__(self, config: ConnectionConfig):
         self.username = config.username or ""
 
-    def _root_folder(self, ns):
-        """Mailbox root — matches config.username against an Outlook account/store if given."""
-        if self.username:
-            for acc in ns.Accounts:
-                try:
-                    if (getattr(acc, "SmtpAddress", "") or "").lower() == self.username.lower():
-                        return acc.DeliveryStore.GetRootFolder()
-                except Exception:
-                    continue
-            for store in ns.Stores:
-                try:
-                    if self.username.lower() in (store.DisplayName or "").lower():
-                        return store.GetRootFolder()
-                except Exception:
-                    continue
-        return ns.GetDefaultFolder(_OL_FOLDER_INBOX).Parent
-
-    def _iter_folders(self, folder, prefix: str = ""):
-        path = f"{prefix}/{folder.Name}" if prefix else folder.Name
-        yield path, folder
-        for sub in folder.Folders:
-            yield from self._iter_folders(sub, path)
-
     def _find_folder(self, ns, name: str):
         target = name.lower()
-        for path, f in self._iter_folders(self._root_folder(ns)):
+        for path, f in _iter_folders(_root_folder(ns, self.username)):
             if path.lower() == target or f.Name.lower() == target:
                 return f
         return None
@@ -130,9 +185,17 @@ class OutlookComProvider:
         items.Sort("[ReceivedTime]", True)
         if isinstance(from_date, datetime):
             try:
-                items = items.Restrict(from_date.strftime("[ReceivedTime] >= '%m/%d/%Y %I:%M %p'"))
-            except Exception:
-                pass
+                # DASL/SQL syntax with an ISO date is locale-independent — the
+                # plain "[ReceivedTime] >= 'MM/DD/YYYY...'" form Outlook also
+                # accepts parses the literal using the OS's regional date format,
+                # so on a non-US-locale Windows box it can silently fail to
+                # restrict at all, forcing every poll to rescan the whole folder.
+                dasl_date = from_date.strftime("%Y-%m-%dT%H:%M:%SZ")
+                items = items.Restrict(
+                    f"@SQL=\"urn:schemas:httpmail:datereceived\" >= '{dasl_date}'"
+                )
+            except Exception as e:
+                print(f"[outlook_com] date restrict failed, scanning full folder: {e}")
         return items
 
     def _parse_item(self, item, folder_name: str) -> Optional[EmailMessage]:
@@ -200,12 +263,12 @@ class OutlookComProvider:
 
     def test_connection(self) -> bool:
         with _com_session() as (_, ns):
-            self._root_folder(ns)  # raises if Outlook/profile isn't reachable
+            _root_folder(ns, self.username)  # raises if Outlook/profile isn't reachable
         return True
 
     def get_ingest_folders(self) -> List[str]:
         with _com_session() as (_, ns):
-            kept = [f.Name for _, f in self._iter_folders(self._root_folder(ns))
+            kept = [f.Name for _, f in _iter_folders(_root_folder(ns, self.username))
                     if f.Name.lower() not in _SKIP_FOLDERS]
             return kept or ["Inbox"]
 

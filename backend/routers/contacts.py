@@ -635,6 +635,33 @@ async def sync_from_provider(request: Request):
     except Exception:
         pass
 
+    # ── Outlook Desktop (COM) contacts ────────────────────────────────────────
+    outlook_com_accs = [a for a in accounts if getattr(a, "provider", "") == "outlook_com"]
+    for oc_acc in outlook_com_accs:
+        try:
+            from services.outlook_com_provider import list_outlook_contacts
+            oc_contacts = await asyncio.get_event_loop().run_in_executor(
+                None, list_outlook_contacts, oc_acc.username
+            )
+        except Exception:
+            continue
+        if not oc_contacts:
+            continue
+        with cache._conn() as conn:
+            for c in oc_contacts:
+                try:
+                    conn.execute(
+                        "INSERT OR IGNORE INTO imported_contacts (email_addr, name, phones, source) VALUES (?,?,?,?)",
+                        (c["email"], c["name"], json.dumps(c["phones"]), "outlook_com"),
+                    )
+                    if conn.execute("SELECT changes()").fetchone()[0] > 0:
+                        imported += 1
+                    else:
+                        skipped += 1
+                except Exception:
+                    skipped += 1
+        providers.append("Outlook Desktop")
+
     # ── Microsoft Graph contacts ──────────────────────────────────────────────
     ms_tried = False
     try:
@@ -739,9 +766,11 @@ async def sync_status(request: Request):
         is_yahoo = domain in _YAHOO_DOMAINS or getattr(acc, "provider", "") in ("yahoo_imap", "yahoo")
         is_ms365 = has_token and not has_password
         is_google = has_token and getattr(acc, "provider", "") in ("gmail", "google")
+        is_outlook_com = getattr(acc, "provider", "") == "outlook_com"
         eligible = ("yahoo_carddav" if is_yahoo and has_password else None) or \
                    ("microsoft_graph" if is_ms365 else None) or \
-                   ("google_contacts" if is_google else None) or "none"
+                   ("google_contacts" if is_google else None) or \
+                   ("outlook_com" if is_outlook_com else None) or "none"
         result.append({
             "id": acc.id,
             "username": acc.username,
