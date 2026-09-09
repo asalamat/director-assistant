@@ -301,7 +301,7 @@ async def _daily_brief_scheduler(app) -> None:
             events = await get_today_events(cache)
             lines = [
                 "Cortex Executive Inbox — Morning Brief",
-                now.strftime("%A, %B %-d, %Y"),
+                f"{now.strftime('%A, %B')} {now.day}, {now.year}",
                 "=" * 42, "",
             ]
             if events:
@@ -338,7 +338,7 @@ async def _daily_brief_scheduler(app) -> None:
             msg = MIMEMultipart()
             msg["From"] = smtp_acc.username
             msg["To"] = to_email
-            msg["Subject"] = f"Morning Brief — {now.strftime('%A, %B %-d')}"
+            msg["Subject"] = f"Morning Brief — {now.strftime('%A, %B')} {now.day}"
             msg.attach(MIMEText("\n".join(lines), "plain", "utf-8"))
             loop = asyncio.get_running_loop()
             await loop.run_in_executor(None, _smtp_send, smtp_acc, msg)

@@ -242,7 +242,7 @@ async def morning_brief(request: Request, force: bool = False):
     now_dt = datetime.now()
     brief = {
         "generated_at": now_dt.isoformat(),
-        "greeting": f"Good morning Ali — here's your brief for {now_dt.strftime('%A, %B %-d')}",
+        "greeting": f"Good morning Ali — here's your brief for {now_dt.strftime('%A, %B')} {now_dt.day}",
         "sections": [
             {
                 "id": "occasions", "title": "Today's Occasions", "icon": "🎂",
@@ -338,7 +338,7 @@ async def send_brief_now(request: Request):
 
     lines = [
         f"Cortex Executive Inbox — Morning Brief",
-        f"{now.strftime('%A, %B %-d, %Y')}",
+        f"{now.strftime('%A, %B')} {now.day}, {now.year}",
         "=" * 42, "",
     ]
     if events:
@@ -358,7 +358,7 @@ async def send_brief_now(request: Request):
     msg = MIMEMultipart()
     msg["From"] = smtp_acc.username
     msg["To"] = to_email
-    msg["Subject"] = f"Morning Brief — {now.strftime('%A, %B %-d')}"
+    msg["Subject"] = f"Morning Brief — {now.strftime('%A, %B')} {now.day}"
     msg.attach(MIMEText("\n".join(lines), "plain", "utf-8"))
 
     import asyncio
