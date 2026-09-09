@@ -117,7 +117,7 @@ async def _fetch_graph_data(cache) -> dict[str, list]:
 
     accounts = cache.list_accounts()
     acc = next((a for a in accounts if getattr(a, "access_token", None) and not getattr(a, "password", None)), None)
-    empty = {"calendar_today": [], "week_calendar": [], "onedrive": []}
+    empty = {"calendar_today": [], "week_calendar": [], "onedrive": [], "teams": []}
     if not acc:
         return empty
 
@@ -158,23 +158,26 @@ async def _fetch_graph_data(cache) -> dict[str, list]:
         "https://graph.microsoft.com/v1.0/me/drive/recent"
         "?$select=name,webUrl,lastModifiedDateTime,size&$top=10"
     )
+    # Chat.Read is work/school-account only — personal Microsoft accounts get an
+    # empty/error response here, which _get() swallows into {} (teams panel just
+    # shows its "work or school account" empty state).
+    teams_url = (
+        "https://graph.microsoft.com/v1.0/me/chats"
+        "?$expand=lastMessagePreview&$top=10&$orderby=lastMessagePreview/createdDateTime desc"
+    )
 
-    cal_data, week_data, od_data = await asyncio.gather(
-        _get(cal_url), _get(week_url), _get(od_url)
+    cal_data, week_data, od_data, teams_data = await asyncio.gather(
+        _get(cal_url), _get(week_url), _get(od_url), _get(teams_url)
     )
 
     result = {
         "calendar_today": cal_data.get("value", []),
         "week_calendar":  week_data.get("value", []),
         "onedrive":       od_data.get("value", []),
+        "teams":          teams_data.get("value", []),
     }
     _graph_cache["graph"] = (now, result)
     return result
-
-
-def _teams_chats(_cache) -> list[dict]:
-    """Teams Chat.Read is not available for personal Microsoft accounts."""
-    return []
 
 
 def _projects_from_intelligence(intelligence) -> list[dict]:
@@ -296,7 +299,7 @@ async def get_dashboard(request: Request):
         "vip_contacts":   vips,
         "chase_queue":    chase,
         "onedrive":       graph["onedrive"],
-        "teams":          [],
+        "teams":          graph["teams"],
     }
 
     html = render_dashboard(data)

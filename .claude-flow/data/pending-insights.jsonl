@@ -1830,3 +1830,7 @@
 {"type":"edit","file":"/Users/alisalamat/director-assistant/frontend/src/components/Settings.tsx","success":true,"timestamp":1788965083749,"sessionId":null}
 {"type":"edit","file":"/Users/alisalamat/director-assistant/README.md","success":true,"timestamp":1788965118777,"sessionId":null}
 {"type":"edit","file":"/Users/alisalamat/director-assistant/frontend/src/components/HelpModal.tsx","success":true,"timestamp":1788965130059,"sessionId":null}
+{"type":"edit","file":"/Users/alisalamat/director-assistant/backend/routers/oauth.py","success":true,"timestamp":1788965297222,"sessionId":null}
+{"type":"edit","file":"/Users/alisalamat/director-assistant/backend/routers/dashboard.py","success":true,"timestamp":1788965307184,"sessionId":null}
+{"type":"edit","file":"/Users/alisalamat/director-assistant/backend/routers/dashboard.py","success":true,"timestamp":1788965314674,"sessionId":null}
+{"type":"edit","file":"/Users/alisalamat/director-assistant/backend/routers/dashboard.py","success":true,"timestamp":1788965318276,"sessionId":null}

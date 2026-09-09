@@ -39,7 +39,8 @@ _SCOPES = (
     "https://graph.microsoft.com/Mail.ReadWrite "
     "https://graph.microsoft.com/Files.Read "
     "https://graph.microsoft.com/Calendars.ReadWrite "
-    "https://graph.microsoft.com/Contacts.Read"
+    "https://graph.microsoft.com/Contacts.Read "
+    "https://graph.microsoft.com/Chat.Read"
 )
 
 
