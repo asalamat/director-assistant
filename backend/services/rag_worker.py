@@ -85,42 +85,79 @@ def worker_main(db_path_str: str, req_queue, resp_queue):
                 shutil.rmtree(model_dir, ignore_errors=True)
                 print(f"[RAG worker] removed corrupted model cache at {model_dir}")
 
-        try:
-            ef = SentenceTransformerEmbeddingFunction(model_name="BAAI/bge-large-en-v1.5")
-        except (FileNotFoundError, OSError) as first_err:
-            # The snapshot directory exists but a file inside it is missing —
-            # not a network problem, so retrying with SSL disabled would just
-            # fail the same way. This is the Windows symlink-cache failure mode
-            # (see HF_HUB_DISABLE_SYMLINKS above): wipe the broken snapshot and
-            # re-download clean, now with symlinks disabled for this attempt too.
-            if isinstance(first_err, FileNotFoundError):
-                _log_chain("embedding model cache corrupted, clearing and re-downloading", first_err)
-                _clear_broken_model_cache()
+        # Last-resort mirror: some networks (corporate firewalls) block huggingface.co
+        # outright but can still reach github.com (this app already pulls updates from
+        # there). Ships only the safetensors weights (no redundant pytorch_model.bin/onnx
+        # copies) — trimmed from ~3.6GB to ~740MB zipped. Not tied to app version; only
+        # touched if the embedding model itself ever changes.
+        _MODEL_ASSET_URL = (
+            "https://github.com/asalamat/director-assistant/releases/"
+            "download/models-bge-large-v1/bge-large-en-v1.5.zip"
+        )
+
+        def _load_from_github_mirror():
+            import io
+            import urllib.request
+            import zipfile
+            from pathlib import Path
+
+            local_dir = Path.home() / ".director-assistant" / "models" / "bge-large-en-v1.5"
+            if not (local_dir / "config.json").exists():
+                print(f"[RAG worker] huggingface.co unreachable — trying our GitHub mirror: {_MODEL_ASSET_URL}")
+                local_dir.parent.mkdir(parents=True, exist_ok=True)
+                with urllib.request.urlopen(_MODEL_ASSET_URL, timeout=300) as resp:
+                    data = resp.read()
+                with zipfile.ZipFile(io.BytesIO(data)) as zf:
+                    zf.extractall(local_dir.parent)
+                print(f"[RAG worker] mirror model extracted to {local_dir}")
+            # Loading from a local folder path bypasses huggingface_hub's cache/
+            # network resolution entirely — sentence-transformers just reads the files.
+            return SentenceTransformerEmbeddingFunction(model_name=str(local_dir))
+
+        def _load_embedding_function():
+            try:
+                return SentenceTransformerEmbeddingFunction(model_name="BAAI/bge-large-en-v1.5")
+            except (FileNotFoundError, OSError) as first_err:
+                # The snapshot directory exists but a file inside it is missing —
+                # not a network problem, so retrying with SSL disabled would just
+                # fail the same way. This is the Windows symlink-cache failure mode
+                # (see HF_HUB_DISABLE_SYMLINKS above): wipe the broken snapshot and
+                # re-download clean, now with symlinks disabled for this attempt too.
+                if isinstance(first_err, FileNotFoundError):
+                    _log_chain("embedding model cache corrupted, clearing and re-downloading", first_err)
+                    _clear_broken_model_cache()
+                    try:
+                        ef = SentenceTransformerEmbeddingFunction(model_name="BAAI/bge-large-en-v1.5")
+                        print("[RAG worker] embedding model re-downloaded successfully after clearing corrupted cache")
+                        return ef
+                    except Exception as second_err:
+                        _log_chain("embedding model download STILL failed after clearing cache", second_err)
+                        return _load_from_github_mirror()
+                raise
+            except Exception as first_err:
+                # truststore covers ssl.create_default_context(), but some
+                # requests/huggingface_hub code paths pass an explicit CA bundle
+                # file instead, which truststore can't intercept. Last resort:
+                # disable verification globally for this process and retry once.
+                # This network's corporate proxy is already MITM-ing this exact
+                # traffic regardless, so this doesn't remove real protection here
+                # - it only removes a check that was already failing anyway.
+                _log_chain("embedding model download failed even with truststore, retrying with SSL verification disabled", first_err)
+                import ssl
+                ssl._create_default_https_context = ssl._create_unverified_context
                 try:
                     ef = SentenceTransformerEmbeddingFunction(model_name="BAAI/bge-large-en-v1.5")
-                    print("[RAG worker] embedding model re-downloaded successfully after clearing corrupted cache")
+                    print("[RAG worker] embedding model downloaded successfully with verification disabled")
+                    return ef
                 except Exception as second_err:
-                    _log_chain("embedding model download STILL failed after clearing cache", second_err)
-                    raise
-            else:
-                raise
-        except Exception as first_err:
-            # truststore covers ssl.create_default_context(), but some
-            # requests/huggingface_hub code paths pass an explicit CA bundle
-            # file instead, which truststore can't intercept. Last resort:
-            # disable verification globally for this process and retry once.
-            # This network's corporate proxy is already MITM-ing this exact
-            # traffic regardless, so this doesn't remove real protection here
-            # - it only removes a check that was already failing anyway.
-            _log_chain("embedding model download failed even with truststore, retrying with SSL verification disabled", first_err)
-            import ssl
-            ssl._create_default_https_context = ssl._create_unverified_context
-            try:
-                ef = SentenceTransformerEmbeddingFunction(model_name="BAAI/bge-large-en-v1.5")
-                print("[RAG worker] embedding model downloaded successfully with verification disabled")
-            except Exception as second_err:
-                _log_chain("embedding model download STILL failed with verification disabled", second_err)
-                raise
+                    _log_chain("embedding model download STILL failed with verification disabled", second_err)
+                    try:
+                        return _load_from_github_mirror()
+                    except Exception as third_err:
+                        _log_chain("GitHub mirror fallback also failed", third_err)
+                        raise
+
+        ef = _load_embedding_function()
         chroma = chromadb.PersistentClient(path=db_path_str)
         col = chroma.get_collection("emails", embedding_function=ef)
 
