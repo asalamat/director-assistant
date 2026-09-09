@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import type { EmailProvider } from '../types'
 import { api } from '../api/client'
 
@@ -8,6 +8,7 @@ const PROVIDER_LABELS: Record<EmailProvider, string> = {
   hotmail:      'Outlook / Microsoft 365 (personal or work)',
   generic_imap: 'Generic IMAP',
   office365:    'Office 365 (advanced: app-only auth)',
+  outlook_com:  'Outlook Desktop (no Azure needed, Windows only)',
 }
 
 const PROVIDER_HINTS: Record<EmailProvider, string> = {
@@ -16,6 +17,7 @@ const PROVIDER_HINTS: Record<EmailProvider, string> = {
   hotmail:      'Covers Hotmail/Outlook.com personal accounts AND work/school Microsoft 365 — Sign in with Microsoft OAuth2, or use an IMAP App Password',
   generic_imap: 'Enter your IMAP server address',
   office365:    'For automated/shared mailbox access without an interactive login — requires a Tenant ID, Client ID, and Client Secret from Azure. Most people should use "Outlook / Microsoft 365" above instead.',
+  outlook_com:  'No Azure app or sign-in needed — reads mail through a locally installed, signed-in Outlook desktop app via COM automation. Requires Windows with Outlook running.',
 }
 
 const IMAP_PROVIDERS: EmailProvider[] = ['yahoo_imap', 'gmail', 'hotmail', 'generic_imap']
@@ -49,6 +51,24 @@ export function AddAccountForm({ onConnected, onCancel, onAccountAdded }: Props)
   const [googleStatus, setGoogleStatus] = useState<'idle' | 'waiting' | 'done' | 'error'>('idle')
   const [googleMsg, setGoogleMsg] = useState('')
   const googlePopupRef = useRef<Window | null>(null)
+  const [outlookStatus, setOutlookStatus] = useState<'idle' | 'loading' | 'found' | 'error'>('idle')
+  const [outlookError, setOutlookError] = useState('')
+  const [outlookAccounts, setOutlookAccounts] = useState<{ email: string; name: string }[]>([])
+
+  const detectOutlook = async () => {
+    setOutlookStatus('loading'); setOutlookError(''); setUsername('')
+    try {
+      const { accounts } = await api.getOutlookAccounts()
+      if (!accounts.length) { setOutlookStatus('error'); setOutlookError('No accounts found in Outlook — add one in Outlook desktop first, then try again.'); return }
+      setOutlookAccounts(accounts); setOutlookStatus('found')
+      setUsername(accounts[0].email)
+    } catch (e: unknown) { setOutlookStatus('error'); setOutlookError(e instanceof Error ? e.message : 'Failed to reach Outlook') }
+  }
+
+  useEffect(() => {
+    if (provider === 'outlook_com' && outlookStatus === 'idle') detectOutlook()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [provider])
 
   const handleMicrosoftSignIn = async () => {
     setOauthStatus('waiting'); setOauthMsg(''); setError('')
@@ -137,6 +157,7 @@ export function AddAccountForm({ onConnected, onCancel, onAccountAdded }: Props)
       const payload = provider === 'office365'
         ? { provider, username, tenant_id: tenantId, client_id: clientId, client_secret: clientSecret }
         : provider === 'generic_imap' ? { provider, username, password, imap_host: imapHost }
+        : provider === 'outlook_com' ? { provider, username }
         : { provider, username, password }
       await api.addAccount(payload).catch(() => api.connect(payload))
       onAccountAdded(); onConnected(); onCancel?.()
@@ -158,11 +179,36 @@ export function AddAccountForm({ onConnected, onCancel, onAccountAdded }: Props)
         <p className="text-xs text-gray-400 mt-1">{PROVIDER_HINTS[provider]}</p>
       </div>
 
-      <div>
-        <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wider">Email address</label>
-        <input type="email" value={username} onChange={e => setUsername(e.target.value)} placeholder="you@example.com"
-          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
-      </div>
+      {provider !== 'outlook_com' && (
+        <div>
+          <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wider">Email address</label>
+          <input type="email" value={username} onChange={e => setUsername(e.target.value)} placeholder="you@example.com"
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
+        </div>
+      )}
+
+      {provider === 'outlook_com' && (
+        <div>
+          <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wider">Outlook account</label>
+          {outlookStatus === 'loading' && (
+            <p className="text-xs text-gray-500 flex items-center gap-1.5">
+              <span className="w-3 h-3 border-2 border-gray-400 border-t-transparent rounded-full animate-spin flex-shrink-0" /> Looking for accounts in Outlook…
+            </p>
+          )}
+          {outlookStatus === 'found' && (
+            <select value={username} onChange={e => setUsername(e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent bg-white">
+              {outlookAccounts.map(a => <option key={a.email} value={a.email}>{a.name} ({a.email})</option>)}
+            </select>
+          )}
+          {outlookStatus === 'error' && (
+            <div className="space-y-2">
+              <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{outlookError}</p>
+              <button onClick={detectOutlook} className="w-full border border-gray-300 text-gray-700 text-sm py-2 rounded-lg hover:bg-gray-50">Try Again</button>
+            </div>
+          )}
+        </div>
+      )}
 
       {provider === 'gmail' && (
         <div className="flex gap-2 text-xs">

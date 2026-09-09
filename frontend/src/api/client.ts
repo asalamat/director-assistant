@@ -61,6 +61,9 @@ export const api = {
   getStatus(): Promise<ConnectionStatus> {
     return request('/connection/status')
   },
+  getOutlookAccounts(): Promise<{ accounts: { email: string; name: string }[] }> {
+    return request('/connection/outlook-accounts')
+  },
   disconnect() {
     return request('/connection/disconnect', { method: 'DELETE' })
   },

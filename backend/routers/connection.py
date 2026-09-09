@@ -25,6 +25,21 @@ def get_provider():
     return _provider
 
 
+@router.get("/outlook-accounts")
+async def outlook_accounts():
+    """List accounts configured in the local Outlook desktop app (Windows only, no Azure needed)."""
+    try:
+        from services.outlook_com_provider import list_outlook_accounts
+        return {"accounts": list_outlook_accounts()}
+    except ImportError:
+        raise HTTPException(501, "pywin32 not installed — Outlook desktop connection is Windows-only")
+    except Exception as e:
+        raise HTTPException(
+            422,
+            f"Couldn't reach Outlook — make sure Outlook desktop is installed, running, and signed in. ({e})",
+        )
+
+
 @router.post("/connect")
 async def connect(config: ConnectionConfig, request: Request):
     """Legacy single-account connect — adds as account in the accounts table."""

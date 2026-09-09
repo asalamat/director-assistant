@@ -1478,8 +1478,11 @@ User.Read`}</pre>
       <Note><strong>Token expiry:</strong> Microsoft tokens are refreshed automatically in the background. If you see 401 errors after some weeks, go to Settings → Email Accounts, remove the account, and re-add it via the Microsoft sign-in flow to get a fresh token.</Note>
 
       <H3>No Azure Access? (Windows + Outlook Desktop)</H3>
-      <P>If you can't create an Azure app registration, there's a no-OAuth fallback: on Windows, with Outlook desktop installed and signed in, the app can read mail directly through Outlook via COM automation — no Azure app, no client secret.</P>
-      <P>This adds the account with provider <code className="bg-gray-100 px-1 rounded text-xs">outlook_com</code> (e.g. via <code className="bg-gray-100 px-1 rounded text-xs">POST /api/connection/connect</code> with your mailbox address as the username). Requires Outlook to be running; Windows only.</P>
+      <P>If you can't create an Azure app registration, there's a no-OAuth fallback: on Windows, with Outlook desktop installed and signed in, the app can read mail directly through Outlook via COM automation — no Azure app, no client secret, no typing credentials.</P>
+      <Step n={1}>Go to <strong>Settings → Email Accounts → Add Account</strong>.</Step>
+      <Step n={2}>Choose <strong>Outlook Desktop (no Azure needed, Windows only)</strong> from the Provider dropdown.</Step>
+      <Step n={3}>The app auto-detects every account configured in your local Outlook and lists them — pick yours and click <strong>Connect account</strong>.</Step>
+      <Note>Requires Outlook desktop to be installed, running, and signed in — Windows only. If detection fails, the error message explains why.</Note>
 
       <H3>Troubleshooting</H3>
       <div className="mb-4">

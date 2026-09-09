@@ -35,6 +35,24 @@ def _com_session():
         pythoncom.CoUninitialize()
 
 
+def list_outlook_accounts() -> List[dict]:
+    """Return [{"email": ..., "name": ...}] for every account configured in Outlook desktop.
+
+    Lets the UI offer a picker instead of asking the user to type their exact
+    Outlook profile address. Raises on non-Windows / Outlook not installed / not running.
+    """
+    with _com_session() as (_, ns):
+        out = []
+        for acc in ns.Accounts:
+            try:
+                email = getattr(acc, "SmtpAddress", "") or ""
+                if email:
+                    out.append({"email": email, "name": acc.DisplayName or email})
+            except Exception:
+                continue
+        return out
+
+
 class OutlookComProvider:
     """Email provider backed by Outlook desktop COM automation."""
 
@@ -42,8 +60,14 @@ class OutlookComProvider:
         self.username = config.username or ""
 
     def _root_folder(self, ns):
-        """Mailbox root — matches config.username against store display names if given."""
+        """Mailbox root — matches config.username against an Outlook account/store if given."""
         if self.username:
+            for acc in ns.Accounts:
+                try:
+                    if (getattr(acc, "SmtpAddress", "") or "").lower() == self.username.lower():
+                        return acc.DeliveryStore.GetRootFolder()
+                except Exception:
+                    continue
             for store in ns.Stores:
                 try:
                     if self.username.lower() in (store.DisplayName or "").lower():

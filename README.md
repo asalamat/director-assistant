@@ -850,10 +850,13 @@ Enable IMAP in Gmail settings:
 
 ### Option C — No Azure Access (Windows + Outlook Desktop)
 
-No Azure app registration, no OAuth. If Outlook desktop is installed and already signed in, the app reads mail directly through Outlook via COM automation:
+No Azure app registration, no OAuth, no typing credentials. If Outlook desktop is installed and already signed in, the app reads mail directly through Outlook via COM automation:
 
-1. Add an account with provider `outlook_com` and `username` set to the mailbox address (e.g. via `POST /api/connection/connect`)
-2. Emails are pulled live from the signed-in Outlook profile — Windows only, requires Outlook running
+1. Go to **Settings → Email Accounts → Add Account**, choose **Outlook Desktop (no Azure needed, Windows only)**
+2. The app auto-detects every account configured in your local Outlook and lists them in a dropdown — pick one and click **Connect account**
+3. Emails are pulled live from the signed-in Outlook profile — Windows only, requires Outlook running
+
+If detection fails, it means Outlook isn't installed/running/signed in on this machine, or the app isn't running on Windows.
 
 ---
 

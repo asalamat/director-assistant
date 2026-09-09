@@ -67,7 +67,7 @@ export interface ConnectionStatus {
   provider: string | null
 }
 
-export type EmailProvider = 'yahoo_imap' | 'gmail' | 'hotmail' | 'generic_imap' | 'office365'
+export type EmailProvider = 'yahoo_imap' | 'gmail' | 'hotmail' | 'generic_imap' | 'office365' | 'outlook_com'
 
 export interface Account {
   id: number

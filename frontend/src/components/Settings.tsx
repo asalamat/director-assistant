@@ -22,9 +22,10 @@ const PROVIDER_COLORS: Record<EmailProvider, string> = {
   hotmail:      'bg-blue-100 text-blue-700',
   generic_imap: 'bg-gray-100 text-gray-700',
   office365:    'bg-teal-100 text-teal-700',
+  outlook_com:  'bg-sky-100 text-sky-700',
 }
 const PROVIDER_NAMES: Record<EmailProvider, string> = {
-  yahoo_imap: 'Yahoo', gmail: 'Gmail', hotmail: 'Hotmail', generic_imap: 'IMAP', office365: 'Office 365',
+  yahoo_imap: 'Yahoo', gmail: 'Gmail', hotmail: 'Hotmail', generic_imap: 'IMAP', office365: 'Office 365', outlook_com: 'Outlook Desktop',
 }
 
 interface Props {
