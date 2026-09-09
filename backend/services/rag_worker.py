@@ -13,6 +13,14 @@ for _k in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS",
            "VECLIB_MAXIMUM_THREADS", "NUMEXPR_NUM_THREADS", "LOKY_MAX_CPU_COUNT"):
     os.environ.setdefault(_k, "1")
 
+# huggingface_hub caches downloads by symlinking snapshots/<hash>/file -> blobs/<hash>.
+# Windows needs Developer Mode or admin rights for that; without it, symlink creation
+# can fail silently mid-download, leaving a snapshot dir that looks present but is
+# missing files (e.g. "1_Pooling/config.json"). Copying real files instead avoids
+# the whole class of failure.
+os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS", "1")
+os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
+
 
 def worker_main(db_path_str: str, req_queue, resp_queue):
     """Entry point called in the spawned worker process."""
@@ -21,6 +29,8 @@ def worker_main(db_path_str: str, req_queue, resp_queue):
     for _k in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS",
                "VECLIB_MAXIMUM_THREADS", "NUMEXPR_NUM_THREADS", "LOKY_MAX_CPU_COUNT"):
         os.environ[_k] = "1"
+    os.environ["HF_HUB_DISABLE_SYMLINKS"] = "1"
+    os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
 
     # This subprocess (not main.py) is what actually downloads the embedding
     # model from huggingface.co on first run - trust the OS cert store so a
@@ -59,8 +69,41 @@ def worker_main(db_path_str: str, req_queue, resp_queue):
                 print(f"[RAG worker]   caused by: {type(cause).__name__}: {cause}")
                 cause = cause.__cause__ or cause.__context__
 
+        def _clear_broken_model_cache():
+            """Remove a corrupted local snapshot (missing files despite the dir
+            existing — the Windows symlink failure mode) so the next attempt
+            re-downloads cleanly instead of reusing the broken snapshot."""
+            from pathlib import Path
+            import shutil
+            try:
+                from huggingface_hub.constants import HF_HUB_CACHE
+                cache_root = Path(HF_HUB_CACHE)
+            except Exception:
+                cache_root = Path.home() / ".cache" / "huggingface" / "hub"
+            model_dir = cache_root / "models--BAAI--bge-large-en-v1.5"
+            if model_dir.exists():
+                shutil.rmtree(model_dir, ignore_errors=True)
+                print(f"[RAG worker] removed corrupted model cache at {model_dir}")
+
         try:
             ef = SentenceTransformerEmbeddingFunction(model_name="BAAI/bge-large-en-v1.5")
+        except (FileNotFoundError, OSError) as first_err:
+            # The snapshot directory exists but a file inside it is missing —
+            # not a network problem, so retrying with SSL disabled would just
+            # fail the same way. This is the Windows symlink-cache failure mode
+            # (see HF_HUB_DISABLE_SYMLINKS above): wipe the broken snapshot and
+            # re-download clean, now with symlinks disabled for this attempt too.
+            if isinstance(first_err, FileNotFoundError):
+                _log_chain("embedding model cache corrupted, clearing and re-downloading", first_err)
+                _clear_broken_model_cache()
+                try:
+                    ef = SentenceTransformerEmbeddingFunction(model_name="BAAI/bge-large-en-v1.5")
+                    print("[RAG worker] embedding model re-downloaded successfully after clearing corrupted cache")
+                except Exception as second_err:
+                    _log_chain("embedding model download STILL failed after clearing cache", second_err)
+                    raise
+            else:
+                raise
         except Exception as first_err:
             # truststore covers ssl.create_default_context(), but some
             # requests/huggingface_hub code paths pass an explicit CA bundle

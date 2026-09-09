@@ -1890,3 +1890,6 @@
 {"type":"edit","file":"/Users/alisalamat/director-assistant/backend/routers/calendar.py","success":true,"timestamp":1788971114951,"sessionId":null}
 {"type":"edit","file":"/Users/alisalamat/director-assistant/frontend/src/components/HelpModal.tsx","success":true,"timestamp":1788971175719,"sessionId":null}
 {"type":"edit","file":"/Users/alisalamat/director-assistant/README.md","success":true,"timestamp":1788971189491,"sessionId":null}
+{"type":"edit","file":"/Users/alisalamat/director-assistant/backend/services/rag_worker.py","success":true,"timestamp":1788971381118,"sessionId":null}
+{"type":"edit","file":"/Users/alisalamat/director-assistant/backend/services/rag_worker.py","success":true,"timestamp":1788971393785,"sessionId":null}
+{"type":"edit","file":"/Users/alisalamat/director-assistant/backend/services/rag_worker.py","success":true,"timestamp":1788971438192,"sessionId":null}
