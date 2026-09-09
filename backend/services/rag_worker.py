@@ -88,27 +88,35 @@ def worker_main(db_path_str: str, req_queue, resp_queue):
         # Last-resort mirror: some networks (corporate firewalls) block huggingface.co
         # outright but can still reach github.com (this app already pulls updates from
         # there). Ships only the safetensors weights (no redundant pytorch_model.bin/onnx
-        # copies) — trimmed from ~3.6GB to ~740MB zipped. Not tied to app version; only
-        # touched if the embedding model itself ever changes.
-        _MODEL_ASSET_URL = (
+        # copies) — trimmed from ~3.6GB to ~740MB. Split into ~150MB parts because a
+        # single 740MB asset upload/download over a slow link tends to hit expired
+        # signed-URL timeouts (HTTP 400) before it finishes. Not tied to app version;
+        # only touched if the embedding model itself ever changes.
+        _MODEL_ASSET_BASE = (
             "https://github.com/asalamat/director-assistant/releases/"
-            "download/models-bge-large-v1/bge-large-en-v1.5.zip"
+            "download/models-bge-large-v1/bge-large-en-v1.5.zip.part-"
         )
+        _MODEL_ASSET_PARTS = [f"{_MODEL_ASSET_BASE}{suffix}" for suffix in ("aa", "ab", "ac", "ad", "ae")]
 
         def _load_from_github_mirror():
-            import io
+            import shutil
             import urllib.request
             import zipfile
             from pathlib import Path
 
             local_dir = Path.home() / ".director-assistant" / "models" / "bge-large-en-v1.5"
             if not (local_dir / "config.json").exists():
-                print(f"[RAG worker] huggingface.co unreachable — trying our GitHub mirror: {_MODEL_ASSET_URL}")
+                print(f"[RAG worker] huggingface.co unreachable — trying our GitHub mirror ({len(_MODEL_ASSET_PARTS)} parts)")
                 local_dir.parent.mkdir(parents=True, exist_ok=True)
-                with urllib.request.urlopen(_MODEL_ASSET_URL, timeout=300) as resp:
-                    data = resp.read()
-                with zipfile.ZipFile(io.BytesIO(data)) as zf:
+                zip_path = local_dir.parent / "bge-large-en-v1.5.zip"
+                with open(zip_path, "wb") as out:
+                    for i, url in enumerate(_MODEL_ASSET_PARTS, 1):
+                        print(f"[RAG worker] downloading mirror part {i}/{len(_MODEL_ASSET_PARTS)}")
+                        with urllib.request.urlopen(url, timeout=300) as resp:
+                            shutil.copyfileobj(resp, out)
+                with zipfile.ZipFile(zip_path) as zf:
                     zf.extractall(local_dir.parent)
+                zip_path.unlink(missing_ok=True)
                 print(f"[RAG worker] mirror model extracted to {local_dir}")
             # Loading from a local folder path bypasses huggingface_hub's cache/
             # network resolution entirely — sentence-transformers just reads the files.
