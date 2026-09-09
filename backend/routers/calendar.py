@@ -32,7 +32,10 @@ def _is_oauth_account(acc) -> bool:
 
 
 def _provider_type(acc) -> str:
-    p = str(getattr(acc, "provider", "") or "").lower()
+    # EmailProviderType is a (str, Enum); str(member) gives "EmailProviderType.X",
+    # not the value "x" — .lower() on the member itself (skipping str()) uses the
+    # real string content since the member IS a str instance.
+    p = (getattr(acc, "provider", "") or "").lower()
     if any(x in p for x in ("gmail", "google")):
         return "google"
     if p == "outlook_com":
@@ -151,7 +154,7 @@ async def _fetch_account_events(acc, cache, days: int) -> list[dict]:
 
 def _detect_no_oauth(cache) -> dict | None:
     for acc in cache.list_accounts():
-        p = str(getattr(acc, "provider", "") or "").lower()
+        p = (getattr(acc, "provider", "") or "").lower()
         if "gmail" in p or "google" in p:
             return {"events": [], "provider": "none", "days": 7, "reason": "gmail_imap", "connected_accounts": []}
         if "yahoo" in p or "outlook" in p or "hotmail" in p:
