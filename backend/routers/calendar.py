@@ -31,15 +31,18 @@ def _is_oauth_account(acc) -> bool:
     return bool(_resolve_token(acc))
 
 
-def _pick_all_oauth_accounts(cache) -> list:
-    return [acc for acc in cache.list_accounts() if _is_oauth_account(acc)]
-
-
 def _provider_type(acc) -> str:
     p = str(getattr(acc, "provider", "") or "").lower()
     if any(x in p for x in ("gmail", "google")):
         return "google"
+    if p == "outlook_com":
+        return "outlook_com"
     return "microsoft"
+
+
+def _pick_calendar_accounts(cache) -> list:
+    return [acc for acc in cache.list_accounts()
+            if _is_oauth_account(acc) or _provider_type(acc) == "outlook_com"]
 
 
 async def _fetch_google(token: str, days: int, label: str = "") -> list[dict]:
@@ -111,11 +114,25 @@ async def _fetch_m365(token: str, days: int, label: str = "") -> list[dict]:
     ]
 
 
+async def _fetch_outlook_com(username: str, days: int, label: str = "") -> list[dict]:
+    from services.outlook_com_provider import list_outlook_calendar_events
+    loop = asyncio.get_event_loop()
+    events = await loop.run_in_executor(None, list_outlook_calendar_events, username, days)
+    for e in events:
+        e["calendar_account"] = label
+    return events
+
+
 async def _fetch_account_events(acc, cache, days: int) -> list[dict]:
     """Fetch events for one account; returns [] on any error."""
     ptype = _provider_type(acc)
-    fetch = _fetch_google if ptype == "google" else _fetch_m365
     label = acc.username or str(acc.id)
+    if ptype == "outlook_com":
+        try:
+            return await _fetch_outlook_com(acc.username, days, label)
+        except Exception:
+            return []
+    fetch = _fetch_google if ptype == "google" else _fetch_m365
     token = _resolve_token(acc)
     try:
         return await fetch(token, days, label)
@@ -143,7 +160,7 @@ def _detect_no_oauth(cache) -> dict | None:
 
 
 async def _load(cache, days: int, force: bool = False) -> dict:
-    accounts = _pick_all_oauth_accounts(cache)
+    accounts = _pick_calendar_accounts(cache)
     if not accounts:
         hint = _detect_no_oauth(cache)
         return hint or {"events": [], "provider": "none", "days": days, "connected_accounts": []}

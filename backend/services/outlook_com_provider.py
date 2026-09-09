@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import re
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
 from models import ConnectionConfig, EmailMessage
@@ -17,10 +17,17 @@ _SKIP_FOLDERS = {
     "deleted messages", "drafts", "outbox", "rss feeds", "sync issues", "conversation history",
 }
 
-_OL_MAIL_ITEM = 43       # olMail
-_OL_CONTACT_ITEM = 40    # olContact
-_OL_FOLDER_INBOX = 6     # olFolderInbox
-_OL_FOLDER_CONTACTS = 10 # olFolderContacts
+_OL_MAIL_ITEM = 43        # olMail
+_OL_CONTACT_ITEM = 40     # olContact
+_OL_APPOINTMENT_ITEM = 26 # olAppointment
+_OL_FOLDER_INBOX = 6      # olFolderInbox
+_OL_FOLDER_CONTACTS = 10  # olFolderContacts
+_OL_FOLDER_CALENDAR = 9   # olFolderCalendar
+
+_RESPONSE_MAP = {
+    0: "", 1: "organizer", 2: "tentativelyAccepted", 3: "accepted",
+    4: "declined", 5: "notResponded",
+}
 
 
 @contextmanager
@@ -163,6 +170,116 @@ def list_outlook_contacts(username: str = "") -> List[dict]:
                         out.append({"email": addr, "name": name, "phones": phones})
             except Exception:
                 continue
+        return out
+
+
+def _parse_appointment(item) -> Optional[dict]:
+    def _iso(dt) -> str:
+        try:
+            return datetime(dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second).isoformat()
+        except Exception:
+            return ""
+
+    try:
+        entry_id = item.EntryID
+    except Exception:
+        return None
+
+    try:
+        body = item.Body or ""
+    except Exception:
+        body = ""
+    try:
+        location = item.Location or ""
+    except Exception:
+        location = ""
+
+    join_url = ""
+    m = re.search(r"https://teams\.microsoft\.com/l/meetup-join/\S+", body)
+    if m:
+        join_url = m.group(0).rstrip(">.")
+    is_online = bool(join_url) or "teams meeting" in location.lower() or "teams meeting" in body[:500].lower()
+
+    try:
+        required = item.RequiredAttendees or ""
+    except Exception:
+        required = ""
+    try:
+        optional = item.OptionalAttendees or ""
+    except Exception:
+        optional = ""
+    attendee_count = len([a for a in re.split(r"[;,]", f"{required};{optional}") if a.strip()])
+
+    try:
+        response = _RESPONSE_MAP.get(item.ResponseStatus, "")
+    except Exception:
+        response = ""
+
+    start_iso = _iso(getattr(item, "Start", None))
+    return {
+        "id": entry_id,
+        "title": (getattr(item, "Subject", "") or "(No title)"),
+        "start": start_iso,
+        "end": _iso(getattr(item, "End", None)),
+        "date": start_iso[:10],
+        "location": location,
+        "organizer": (getattr(item, "Organizer", "") or ""),
+        "is_online": is_online,
+        "join_url": join_url,
+        "attendee_count": attendee_count,
+        "response": response,
+        "calendar_provider": "outlook_com",
+    }
+
+
+def list_outlook_calendar_events(username: str = "", days: int = 1) -> List[dict]:
+    """Read the local Outlook Calendar folder (or a specific account's calendar
+    when `username` is given) for events starting within the next `days` days."""
+    with _com_session() as (_, ns):
+        cal_folder = None
+        if not username:
+            try:
+                cal_folder = ns.GetDefaultFolder(_OL_FOLDER_CALENDAR)
+            except Exception:
+                cal_folder = None
+        if cal_folder is None:
+            root = _root_folder(ns, username)
+            for _, f in _iter_folders(root):
+                if f.Name.lower() == "calendar":
+                    cal_folder = f
+                    break
+        if cal_folder is None:
+            return []
+
+        start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        end = start + timedelta(days=days)
+
+        items = cal_folder.Items
+        try:
+            items.IncludeRecurrences = True
+        except Exception:
+            pass
+        items.Sort("[Start]")
+        try:
+            dasl = (
+                f"@SQL=\"urn:schemas:calendar:dtstart\" >= '{start.strftime('%Y-%m-%dT%H:%M:%SZ')}' "
+                f"AND \"urn:schemas:calendar:dtstart\" <= '{end.strftime('%Y-%m-%dT%H:%M:%SZ')}'"
+            )
+            items = items.Restrict(dasl)
+        except Exception as e:
+            print(f"[outlook_com] calendar date restrict failed, scanning full folder: {e}")
+
+        out: List[dict] = []
+        for i in range(1, items.Count + 1):
+            try:
+                item = items.Item(i)
+                if getattr(item, "Class", None) != _OL_APPOINTMENT_ITEM:
+                    continue
+                ev = _parse_appointment(item)
+            except Exception:
+                continue
+            if ev:
+                out.append(ev)
         return out
 
 

@@ -658,7 +658,7 @@ function KnowledgeSection() {
         <Li>Click <strong>Refresh</strong> to pull the latest events from your calendar API (15-minute local cache)</Li>
         <Li>If no calendar is connected, the panel shows a prompt to add your Google or Microsoft 365 account in Settings</Li>
       </UL>
-      <Note>Google Calendar requires a connected Google account in <strong>Settings → Integrations → Google OAuth</strong>. Microsoft Calendar requires a connected M365 account via Microsoft OAuth.</Note>
+      <Note>Google Calendar requires a connected Google account in <strong>Settings → Integrations → Google OAuth</strong>. Microsoft Calendar requires a connected M365 account via Microsoft OAuth — or, with no Azure access, an <strong>Outlook Desktop</strong> account (reads the local Outlook Calendar via COM, Windows only).</Note>
 
       <H3>❤️ Relationship Health <Tag color="green">New</Tag></H3>
       <P>Scores all your VIP contacts 0–100 based on email activity, sorted worst-first so fading relationships surface immediately.</P>

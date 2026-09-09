@@ -854,7 +854,7 @@ No Azure app registration, no OAuth, no typing credentials. If Outlook desktop i
 
 1. Go to **Settings → Email Accounts → Add Account**, choose **Outlook Desktop (no Azure needed, Windows only)**
 2. The app auto-detects every account configured in your local Outlook and lists them in a dropdown — pick one and click **Connect account**
-3. Emails are pulled live from the signed-in Outlook profile — Windows only, requires Outlook running
+3. Emails, contacts, and calendar events are all pulled live from the signed-in Outlook profile — Windows only, requires Outlook running
 
 If detection fails, it means Outlook isn't installed/running/signed in on this machine, or the app isn't running on Windows.
 
