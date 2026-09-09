@@ -24,6 +24,22 @@ os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
 
 def worker_main(db_path_str: str, req_queue, resp_queue):
     """Entry point called in the spawned worker process."""
+    # This subprocess's print() output has nowhere to go in a windowed/packaged
+    # build (no console) — redirect stdout/stderr to a persistent log file so
+    # embedding-model download failures are actually diagnosable on Windows.
+    try:
+        import sys
+        from datetime import datetime
+        from pathlib import Path
+        log_path = Path.home() / ".director-assistant" / "rag-worker.log"
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        log_file = open(log_path, "a", buffering=1, encoding="utf-8")
+        sys.stdout = log_file
+        sys.stderr = log_file
+        print(f"\n=== RAG worker started {datetime.now().isoformat()} ===")
+    except Exception:
+        pass
+
     # Re-apply env vars (spawn context may not inherit them on all OSes)
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
     for _k in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS",

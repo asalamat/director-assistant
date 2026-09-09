@@ -10,6 +10,21 @@ router = APIRouter(prefix="/api/health", tags=["health"])
 _IMAP_TIMEOUT = 8  # seconds — fails fast when network is down
 
 
+@router.get("/rag-log")
+async def rag_worker_log(lines: int = 200):
+    """Tail the RAG worker's log — its print() output has nowhere to go in a
+    windowed/packaged build (no console), so this is the only way to see what
+    actually happened during embedding-model loading (download progress, the
+    real error chain, which fallback tier was tried)."""
+    from pathlib import Path
+    log_path = Path.home() / ".director-assistant" / "rag-worker.log"
+    if not log_path.exists():
+        return {"exists": False, "lines": [], "path": str(log_path)}
+    text = log_path.read_text(encoding="utf-8", errors="replace")
+    tail = text.splitlines()[-lines:]
+    return {"exists": True, "lines": tail, "path": str(log_path)}
+
+
 def _imap_ping(host: str, port: int, username: str, password: str) -> str:
     """
     Quick IMAP login test — returns 'ok' or an error string.
