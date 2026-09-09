@@ -242,6 +242,7 @@ def _iter_outlook_com(pst_path: str) -> Generator[dict, None, None]:
     """Parse a PST via a locally installed Outlook (Windows COM automation)."""
     import pythoncom
     import win32com.client
+    from services.outlook_com_provider import resolve_smtp_address
 
     pythoncom.CoInitialize()
     store = None
@@ -269,7 +270,7 @@ def _iter_outlook_com(pst_path: str) -> Generator[dict, None, None]:
                         if getattr(item, "Class", None) != 43:  # olMail
                             continue
                         subject = item.Subject or ""
-                        sender = item.SenderEmailAddress or item.SenderName or ""
+                        sender = resolve_smtp_address(item)
                         recipients = [r.strip() for r in re.split(r"[;,]", item.To or "") if r.strip()]
                         try:
                             date_str = item.ReceivedTime.isoformat()

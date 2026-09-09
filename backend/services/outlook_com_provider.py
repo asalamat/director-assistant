@@ -35,6 +35,41 @@ def _com_session():
         pythoncom.CoUninitialize()
 
 
+def resolve_smtp_address(item) -> str:
+    """Outlook COM returns an X.500 DN (/O=EXCHANGELABS/...) for the sender of
+    internal Exchange mail instead of an SMTP address. Resolve it via the
+    Exchange user object, then the PR_SMTP_ADDRESS MAPI property, falling back
+    to whatever Outlook gave us."""
+    try:
+        addr = item.SenderEmailAddress or ""
+    except Exception:
+        addr = ""
+    if not addr.startswith("/O="):
+        return addr or _sender_name(item)
+    try:
+        exch_user = item.Sender.GetExchangeUser()
+        if exch_user and exch_user.PrimarySmtpAddress:
+            return exch_user.PrimarySmtpAddress
+    except Exception:
+        pass
+    try:
+        smtp = item.PropertyAccessor.GetProperty(
+            "http://schemas.microsoft.com/mapi/proptag/0x39FE001E"  # PR_SMTP_ADDRESS
+        )
+        if smtp:
+            return smtp
+    except Exception:
+        pass
+    return addr or _sender_name(item)
+
+
+def _sender_name(item) -> str:
+    try:
+        return item.SenderName or ""
+    except Exception:
+        return ""
+
+
 def list_outlook_accounts() -> List[dict]:
     """Return [{"email": ..., "name": ...}] for every account configured in Outlook desktop.
 
@@ -129,7 +164,7 @@ class OutlookComProvider:
             id=entry_id,
             server_id=entry_id,
             subject=item.Subject or "",
-            sender=item.SenderEmailAddress or item.SenderName or "",
+            sender=resolve_smtp_address(item),
             recipients=[r.strip() for r in re.split(r"[;,]", item.To or "") if r.strip()],
             date=date,
             body=item.Body or "",
