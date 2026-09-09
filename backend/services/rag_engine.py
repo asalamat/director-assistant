@@ -172,14 +172,35 @@ class RAGEngine(RAGRetrieval):
                 **chunk_meta,
             })
 
-        self._proxy.upsert(ids=ids, documents=documents, metadatas=metadatas)
+        try:
+            self._proxy.upsert(ids=ids, documents=documents, metadatas=metadatas)
+        except Exception as e:
+            logger.warning(f"[RAG] upsert failed for email {email.id}: {e}")
+            return False
         self._indexed_email_ids.add(email.id)
         return True
 
     def ingest_batch(self, emails: List[EmailMessage], _ignored_known_ids=None) -> int:
-        """Batch upsert. _ignored_known_ids kept for call-site compatibility."""
-        all_ids, all_docs, all_metas = [], [], []
+        """Batch upsert. _ignored_known_ids kept for call-site compatibility.
+
+        Emails are only marked indexed once their chunks are actually written —
+        a failed upsert (e.g. a transient Chroma/HNSW error) logs and skips that
+        sub-batch instead of aborting the whole call and losing every email after it.
+        """
+        all_ids, all_docs, all_metas, batch_email_ids = [], [], [], []
         new_count = 0
+
+        def _flush():
+            nonlocal all_ids, all_docs, all_metas, batch_email_ids, new_count
+            if not all_ids:
+                return
+            try:
+                self._proxy.upsert(ids=all_ids, documents=all_docs, metadatas=all_metas)
+                self._indexed_email_ids.update(batch_email_ids)
+                new_count += len(batch_email_ids)
+            except Exception as e:
+                logger.warning(f"[RAG] upsert failed for {len(batch_email_ids)} emails — skipping: {e}")
+            all_ids, all_docs, all_metas, batch_email_ids = [], [], [], []
 
         for email in emails:
             if email.id in self._indexed_email_ids:
@@ -199,17 +220,12 @@ class RAGEngine(RAGRetrieval):
                     "source_type": "email",
                     **chunk_meta,
                 })
-
-            self._indexed_email_ids.add(email.id)
-            new_count += 1
+            batch_email_ids.append(email.id)
 
             if len(all_ids) >= self.CHROMA_UPSERT_BATCH:
-                self._proxy.upsert(ids=all_ids, documents=all_docs, metadatas=all_metas)
-                all_ids, all_docs, all_metas = [], [], []
+                _flush()
 
-        if all_ids:
-            self._proxy.upsert(ids=all_ids, documents=all_docs, metadatas=all_metas)
-
+        _flush()
         return new_count
 
     def clear_email_vectors(self) -> int:

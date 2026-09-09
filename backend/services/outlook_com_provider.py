@@ -136,43 +136,65 @@ class OutlookComProvider:
         return items
 
     def _parse_item(self, item, folder_name: str) -> Optional[EmailMessage]:
-        if getattr(item, "Class", None) != _OL_MAIL_ITEM:
+        # One malformed/inaccessible item must never kill the whole folder generator
+        # (a single unguarded property access here used to abort fetch_all mid-folder,
+        # silently dropping every email after it — see resolve_smtp_address's history).
+        try:
+            if getattr(item, "Class", None) != _OL_MAIL_ITEM:
+                return None
+            try:
+                entry_id = item.EntryID
+            except Exception:
+                return None
+
+            date = None
+            try:
+                rt = item.ReceivedTime
+                date = datetime(rt.year, rt.month, rt.day, rt.hour, rt.minute, rt.second, tzinfo=timezone.utc)
+            except Exception:
+                pass
+
+            try:
+                html_body = item.HTMLBody or None
+            except Exception:
+                html_body = None
+
+            try:
+                is_read = not item.UnRead
+            except Exception:
+                is_read = True
+
+            try:
+                subject = item.Subject or ""
+            except Exception:
+                subject = ""
+
+            try:
+                body = item.Body or ""
+            except Exception:
+                body = ""
+
+            try:
+                recipients = [r.strip() for r in re.split(r"[;,]", item.To or "") if r.strip()]
+            except Exception:
+                recipients = []
+
+            return EmailMessage(
+                id=entry_id,
+                server_id=entry_id,
+                subject=subject,
+                sender=resolve_smtp_address(item),
+                recipients=recipients,
+                date=date,
+                body=body,
+                body_html=html_body,
+                thread_id=getattr(item, "ConversationID", None),
+                folder=folder_name,
+                is_read=is_read,
+            )
+        except Exception as e:
+            print(f"[outlook_com] skipping unparseable item in {folder_name}: {e}")
             return None
-        try:
-            entry_id = item.EntryID
-        except Exception:
-            return None
-
-        date = None
-        try:
-            rt = item.ReceivedTime
-            date = datetime(rt.year, rt.month, rt.day, rt.hour, rt.minute, rt.second, tzinfo=timezone.utc)
-        except Exception:
-            pass
-
-        try:
-            html_body = item.HTMLBody or None
-        except Exception:
-            html_body = None
-
-        try:
-            is_read = not item.UnRead
-        except Exception:
-            is_read = True
-
-        return EmailMessage(
-            id=entry_id,
-            server_id=entry_id,
-            subject=item.Subject or "",
-            sender=resolve_smtp_address(item),
-            recipients=[r.strip() for r in re.split(r"[;,]", item.To or "") if r.strip()],
-            date=date,
-            body=item.Body or "",
-            body_html=html_body,
-            thread_id=getattr(item, "ConversationID", None),
-            folder=folder_name,
-            is_read=is_read,
-        )
 
     # ── provider interface ────────────────────────────────────────────────────
 
@@ -201,9 +223,10 @@ class OutlookComProvider:
             for i in range(1, total + 1):
                 try:
                     item = items.Item(i)
-                except Exception:
+                    em = self._parse_item(item, folder)
+                except Exception as e:
+                    print(f"[outlook_com] fetch_all: skipping item {i} in {folder}: {e}")
                     continue
-                em = self._parse_item(item, folder)
                 if em:
                     yield em, total
 
