@@ -797,6 +797,38 @@ export function ConfigPanel({ onSaved }: Props) {
 
       {/* ── General ── */}
       {activeTab === 'general' && <>
+        <div className="border border-gray-200 rounded-xl p-4 space-y-3">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-800">App Name &amp; Branding</h2>
+            <p className="text-xs text-gray-500 mt-0.5">Rename the app for your company and pick an accent color. Applies everywhere — title bar, sidebar, notifications, buttons.</p>
+          </div>
+          <div className="flex flex-wrap items-end gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">App name</label>
+              <input value={config?.app_name ?? 'Cortex Executive Inbox'} maxLength={60}
+                onChange={e => setConfig(c => c ? { ...c, app_name: e.target.value } : c)}
+                onBlur={async e => {
+                  const name = e.target.value.trim() || 'Cortex Executive Inbox'
+                  await api.updateConfig({ app_name: name })
+                  setConfig(c => c ? { ...c, app_name: name } : c)
+                }}
+                className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:outline-none focus:border-accent bg-white w-64" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Accent color</label>
+              <input type="color" value={config?.accent_color ?? '#2563eb'}
+                onChange={async e => {
+                  const color = e.target.value
+                  document.documentElement.style.setProperty('--accent-color', color)
+                  await api.updateConfig({ accent_color: color })
+                  setConfig(c => c ? { ...c, accent_color: color } : c)
+                }}
+                className="h-9 w-16 border border-gray-300 rounded-lg cursor-pointer bg-white" />
+            </div>
+          </div>
+          <p className="text-xs text-gray-400">Reload the page to see the new name/color everywhere.</p>
+        </div>
+
         <div className="border border-gray-200 rounded-xl p-4">
           <h2 className="text-sm font-semibold text-gray-800 mb-1">Translation Language</h2>
           <p className="text-xs text-gray-500 mb-2">Language used when you click "Translate" on an email.</p>

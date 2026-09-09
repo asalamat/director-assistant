@@ -103,6 +103,9 @@ class AppConfigUpdate(BaseModel):
     db_last_vacuum: Optional[str] = None
     # Read receipts (tracking pixel in sent HTML emails)
     read_receipts_enabled: Optional[bool] = None
+    # Branding
+    app_name: Optional[str] = None
+    accent_color: Optional[str] = None
 
 
 @router.get("")
@@ -162,6 +165,8 @@ async def get_config():
         "db_last_vacuum": cfg.get("db_last_vacuum"),
         "user_name": cfg.get("user_name", ""),
         "read_receipts_enabled": cfg.get("read_receipts_enabled", False),
+        "app_name": cfg.get("app_name") or "Cortex Executive Inbox",
+        "accent_color": cfg.get("accent_color") or "#2563eb",
     }
 
 
@@ -268,6 +273,15 @@ async def update_config(update: AppConfigUpdate, request: Request):
     if update.sync_window_days is not None:
         # 0 = unlimited; positive values must be at least 1
         cfg["sync_window_days"] = 0 if update.sync_window_days == 0 else max(1, update.sync_window_days)
+
+    if update.app_name is not None:
+        name = update.app_name.strip()[:60]
+        cfg["app_name"] = name or "Cortex Executive Inbox"
+    if update.accent_color is not None:
+        color = update.accent_color.strip()
+        if not re.match(r"^#[0-9a-fA-F]{6}$", color):
+            raise HTTPException(400, "accent_color must be a hex color like #2563eb")
+        cfg["accent_color"] = color
 
     save_app_config(cfg)
 

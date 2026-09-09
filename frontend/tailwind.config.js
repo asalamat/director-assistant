@@ -8,15 +8,17 @@ export default {
         sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
       },
       colors: {
+        // Backed by --accent-color (set at runtime from Settings → App Name & Branding)
+        // so recoloring the app needs no rebuild. Shades are derived with color-mix.
         accent: {
-          DEFAULT: '#2563eb',
-          50:  '#eff6ff',
-          100: '#dbeafe',
-          200: '#bfdbfe',
-          400: '#60a5fa',
-          500: '#2563eb',
-          600: '#1d4ed8',
-          700: '#1e40af',
+          DEFAULT: 'var(--accent-color)',
+          50:  'color-mix(in srgb, var(--accent-color) 8%, white)',
+          100: 'color-mix(in srgb, var(--accent-color) 15%, white)',
+          200: 'color-mix(in srgb, var(--accent-color) 30%, white)',
+          400: 'color-mix(in srgb, var(--accent-color) 70%, white)',
+          500: 'var(--accent-color)',
+          600: 'color-mix(in srgb, var(--accent-color) 88%, black)',
+          700: 'color-mix(in srgb, var(--accent-color) 75%, black)',
         },
         sidebar: {
           bg:     '#0f172a',

@@ -2,6 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Branding ────────────────────────────────────────────────── */
+:root { --accent-color: #2563eb; }
+
 /* ── Base ────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; }
 

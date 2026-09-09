@@ -126,6 +126,10 @@ async def _ingest_account(account: Account, rag, cache, from_date: Optional[str]
             email.id = f"a{account.id}_{email.id}"
             buffer.append(email)
             _ingest_progress.total = max(_ingest_progress.total, total)
+            # Tick progress on every item, not just batch flushes — for a slow
+            # provider (Outlook COM: real per-item RPC cost) a folder smaller than
+            # BATCH would otherwise show 0 movement until it finishes entirely.
+            _ingest_progress.processed = total_new + total_skip + len(buffer)
 
             if len(buffer) >= BATCH:
                 cache.save_batch(buffer, account_id=account.id)

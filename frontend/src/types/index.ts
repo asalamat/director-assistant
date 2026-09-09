@@ -245,6 +245,8 @@ export interface AppConfig {
   morning_brief_email_to?: string
   morning_brief_email_time?: string
   user_name?: string
+  app_name?: string
+  accent_color?: string
 }
 
 export interface NewsArticle {
