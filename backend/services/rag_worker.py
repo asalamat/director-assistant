@@ -6,6 +6,7 @@ Protocol: caller sends dicts via req_queue, gets dicts back via resp_queue.
 """
 
 import os
+import threading
 
 # Must be set before any ML imports
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
@@ -181,7 +182,29 @@ def worker_main(db_path_str: str, req_queue, resp_queue):
                         _log_chain("GitHub mirror fallback also failed", third_err)
                         raise
 
-        ef = _load_embedding_function()
+        # Both model construction (loading ~1.3GB of safetensors weights) and the
+        # warmup encode below can hang indefinitely with zero Python-visible error
+        # — e.g. antivirus holding a lock on the freshly-downloaded model file while
+        # safetensors memory-maps it. Nothing here has ever timed out on its own, so
+        # a hang here means "ready" is never sent and the worker looks alive forever
+        # while doing nothing. Run each step on a watcher thread with a hard deadline.
+        def _run_with_timeout(fn, timeout_s: float, label: str):
+            result: dict = {}
+            def _target():
+                try:
+                    result["value"] = fn()
+                except Exception as e:
+                    result["error"] = e
+            t = threading.Thread(target=_target, daemon=True, name=f"rag-worker-{label}")
+            t.start()
+            t.join(timeout_s)
+            if t.is_alive():
+                raise TimeoutError(f"{label} did not complete within {timeout_s:.0f}s — likely hung (see comment above)")
+            if "error" in result:
+                raise result["error"]
+            return result.get("value")
+
+        ef = _run_with_timeout(_load_embedding_function, 240, "model load")
         chroma = chromadb.PersistentClient(path=db_path_str)
         col = chroma.get_collection("emails", embedding_function=ef)
 
@@ -191,12 +214,13 @@ def worker_main(db_path_str: str, req_queue, resp_queue):
         # spawned subprocess while loky is also initializing causes a 20+ minute hang.
         # HNSW loads lazily on the first real query, which is acceptable.
         try:
-            ef(["warmup"])
-        except Exception:
-            pass
+            _run_with_timeout(lambda: ef(["warmup"]), 60, "warmup")
+        except Exception as e:
+            print(f"[RAG worker] warmup skipped ({type(e).__name__}: {e}) — proceeding without it, first real query will be slower")
 
         resp_queue.put({"ready": True})
     except Exception as e:
+        print(f"[RAG worker] FATAL — could not become ready: {type(e).__name__}: {e}")
         resp_queue.put({"ready": False, "error": str(e)})
         return
 
