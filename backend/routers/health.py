@@ -56,11 +56,22 @@ async def full_health(request: Request, check_imap: bool = True):
     if rag:
         try:
             stats = rag.stats()
+            worker_available = stats.get("worker_available", False)
+            worker_error = stats.get("worker_error")
             rag_health = {
-                "status": "ok",
+                "status": "ok" if worker_available else "degraded",
                 "indexed_emails": rag.count_unique_emails(),
                 "total_chunks": stats.get("total_chunks", 0),
+                "worker_available": worker_available,
             }
+            if not worker_available:
+                rag_health["error"] = (
+                    worker_error
+                    or "Search index worker isn't running — semantic search and Ask "
+                       "won't find anything until it starts. Often means the embedding "
+                       "model (BAAI/bge-large-en-v1.5, ~1.3GB) failed to download from "
+                       "huggingface.co — check network/firewall/proxy access to that site."
+                )
         except Exception as e:
             rag_health["error"] = str(e)
 

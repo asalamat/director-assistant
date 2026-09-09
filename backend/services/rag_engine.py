@@ -173,9 +173,11 @@ class RAGEngine(RAGRetrieval):
             })
 
         try:
-            self._proxy.upsert(ids=ids, documents=documents, metadatas=metadatas)
+            ok = self._proxy.upsert(ids=ids, documents=documents, metadatas=metadatas)
         except Exception as e:
+            ok = False
             logger.warning(f"[RAG] upsert failed for email {email.id}: {e}")
+        if not ok:
             return False
         self._indexed_email_ids.add(email.id)
         return True
@@ -195,11 +197,15 @@ class RAGEngine(RAGRetrieval):
             if not all_ids:
                 return
             try:
-                self._proxy.upsert(ids=all_ids, documents=all_docs, metadatas=all_metas)
+                ok = self._proxy.upsert(ids=all_ids, documents=all_docs, metadatas=all_metas)
+            except Exception as e:
+                ok = False
+                logger.warning(f"[RAG] upsert failed for {len(batch_email_ids)} emails — skipping: {e}")
+            if ok:
                 self._indexed_email_ids.update(batch_email_ids)
                 new_count += len(batch_email_ids)
-            except Exception as e:
-                logger.warning(f"[RAG] upsert failed for {len(batch_email_ids)} emails — skipping: {e}")
+            else:
+                logger.warning(f"[RAG] upsert returned failure for {len(batch_email_ids)} emails — skipping")
             all_ids, all_docs, all_metas, batch_email_ids = [], [], [], []
 
         for email in emails:
@@ -345,6 +351,8 @@ class RAGEngine(RAGRetrieval):
             "total_chunks": self._proxy.count(),
             "unique_emails_indexed": len(self._indexed_email_ids),
             "unique_docs_indexed": len(self._indexed_doc_ids),
+            "worker_available": self._proxy._available,
+            "worker_error": self._proxy._last_error,
         }
 
     def ingest_contacts(self, cache) -> int:

@@ -1875,3 +1875,11 @@
 {"type":"edit","file":"/Users/alisalamat/director-assistant/frontend/src/components/ConfigPanel.tsx","success":true,"timestamp":1788968796317,"sessionId":null}
 {"type":"edit","file":"/Users/alisalamat/director-assistant/frontend/src/components/ConfigPanel.tsx","success":true,"timestamp":1788968809752,"sessionId":null}
 {"type":"edit","file":"/Users/alisalamat/director-assistant/frontend/src/components/ConfigPanel.tsx","success":true,"timestamp":1788968826725,"sessionId":null}
+{"type":"edit","file":"/Users/alisalamat/director-assistant/backend/services/rag_proxy.py","success":true,"timestamp":1788970685245,"sessionId":null}
+{"type":"edit","file":"/Users/alisalamat/director-assistant/backend/services/rag_proxy.py","success":true,"timestamp":1788970690757,"sessionId":null}
+{"type":"edit","file":"/Users/alisalamat/director-assistant/backend/services/rag_proxy.py","success":true,"timestamp":1788970696623,"sessionId":null}
+{"type":"edit","file":"/Users/alisalamat/director-assistant/backend/services/rag_proxy.py","success":true,"timestamp":1788970706637,"sessionId":null}
+{"type":"edit","file":"/Users/alisalamat/director-assistant/backend/services/rag_engine.py","success":true,"timestamp":1788970726367,"sessionId":null}
+{"type":"edit","file":"/Users/alisalamat/director-assistant/backend/services/rag_engine.py","success":true,"timestamp":1788970734685,"sessionId":null}
+{"type":"edit","file":"/Users/alisalamat/director-assistant/backend/services/rag_engine.py","success":true,"timestamp":1788970769184,"sessionId":null}
+{"type":"edit","file":"/Users/alisalamat/director-assistant/backend/routers/health.py","success":true,"timestamp":1788970779711,"sessionId":null}

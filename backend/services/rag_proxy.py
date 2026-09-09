@@ -61,6 +61,7 @@ class _RAGQueryProxy:
         self._resp_q = None
         self._available = False
         self._starting = False   # prevents concurrent restarts
+        self._last_error: Optional[str] = None
         import threading
         self._lock = threading.Lock()
         # Kill any stale worker from a previous server run before spawning a new one
@@ -97,9 +98,11 @@ class _RAGQueryProxy:
                     self._resp_q = resp_q
                     self._proc = proc
                     self._available = True
+                    self._last_error = None
                     logger.info("[RAG proxy] worker ready — dense search active")
                 else:
-                    logger.warning(f"[RAG proxy] worker init failed: {msg.get('error')}")
+                    self._last_error = msg.get("error") or "worker init failed (no error detail)"
+                    logger.warning(f"[RAG proxy] worker init failed: {self._last_error}")
             except Exception:
                 # Timed out — worker may still be loading (large HNSW index).
                 # Keep refs so _wait_available can poll for the delayed ready message.
@@ -134,8 +137,10 @@ class _RAGQueryProxy:
                 msg = self._resp_q.get_nowait()
                 if msg.get("ready"):
                     self._available = True
+                    self._last_error = None
                     logger.info("[RAG proxy] worker ready (delayed) — dense search active")
                 else:
+                    self._last_error = msg.get("error") or "worker init failed (no error detail)"
                     self._resp_q.put_nowait(msg)  # put back non-ready messages
             except Exception:
                 pass
@@ -184,10 +189,12 @@ class _RAGQueryProxy:
                     msg = self._resp_q.get(timeout=1.0)
                     if msg.get("ready"):
                         self._available = True
+                        self._last_error = None
                         logger.info("[RAG proxy] worker ready (delayed) — dense search active")
                         return True
                     else:
-                        logger.warning(f"[RAG proxy] worker init failed: {msg.get('error')}")
+                        self._last_error = msg.get("error") or "worker init failed (no error detail)"
+                        logger.warning(f"[RAG proxy] worker init failed: {self._last_error}")
                         return False
                 except Exception:
                     pass
