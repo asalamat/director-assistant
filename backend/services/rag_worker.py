@@ -225,7 +225,11 @@ def worker_main(db_path_str: str, req_queue, resp_queue):
                 raise result["error"]
             return result.get("value")
 
-        ef = _run_with_timeout(_load_embedding_function, 240, "model load")
+        # Generous budget — this can include downloading ~750MB over the GitHub
+        # mirror on a slow connection, which is legitimately slow, not hung.
+        # A stalled (zero-progress) connection is still caught faster via the
+        # per-request timeout= on each part's urlopen() call inside the mirror.
+        ef = _run_with_timeout(_load_embedding_function, 1800, "model load")
         chroma = chromadb.PersistentClient(path=db_path_str)
         col = chroma.get_collection("emails", embedding_function=ef)
 
