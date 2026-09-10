@@ -9,10 +9,22 @@ import os
 import threading
 
 # Must be set before any ML imports
+#
+# The original SIGSEGV this whole worker-subprocess architecture exists to contain
+# (see module docstring) was: ChromaDB's col.query(query_texts=[...]) re-invokes the
+# embedding function inside a loky-managed pool, and loky's own process/thread
+# initialization races with hnswlib inside an already-spawned subprocess. That's
+# specifically a loky problem — LOKY_MAX_CPU_COUNT must stay 1. It has nothing to do
+# with how many threads torch/BLAS use for their own tensor math within this process,
+# and that path is separately avoided anyway (queries pre-encode via ef() directly
+# instead of col.query(query_texts=...) — see the query handler below). So those can
+# use real parallelism: CPU-only BERT-large inference is painfully slow single-threaded.
+_CPU_THREADS = str(max(1, min(4, os.cpu_count() or 1)))
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 for _k in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS",
-           "VECLIB_MAXIMUM_THREADS", "NUMEXPR_NUM_THREADS", "LOKY_MAX_CPU_COUNT"):
-    os.environ.setdefault(_k, "1")
+           "VECLIB_MAXIMUM_THREADS", "NUMEXPR_NUM_THREADS"):
+    os.environ.setdefault(_k, _CPU_THREADS)
+os.environ.setdefault("LOKY_MAX_CPU_COUNT", "1")
 
 # huggingface_hub caches downloads by symlinking snapshots/<hash>/file -> blobs/<hash>.
 # Windows needs Developer Mode or admin rights for that; without it, symlink creation
@@ -44,8 +56,9 @@ def worker_main(db_path_str: str, req_queue, resp_queue):
     # Re-apply env vars (spawn context may not inherit them on all OSes)
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
     for _k in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS",
-               "VECLIB_MAXIMUM_THREADS", "NUMEXPR_NUM_THREADS", "LOKY_MAX_CPU_COUNT"):
-        os.environ[_k] = "1"
+               "VECLIB_MAXIMUM_THREADS", "NUMEXPR_NUM_THREADS"):
+        os.environ[_k] = _CPU_THREADS
+    os.environ["LOKY_MAX_CPU_COUNT"] = "1"
     os.environ["HF_HUB_DISABLE_SYMLINKS"] = "1"
     os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
 
@@ -63,7 +76,7 @@ def worker_main(db_path_str: str, req_queue, resp_queue):
 
     try:
         import torch
-        torch.set_num_threads(1)
+        torch.set_num_threads(int(_CPU_THREADS))
         torch.set_num_interop_threads(1)
     except Exception:
         pass
