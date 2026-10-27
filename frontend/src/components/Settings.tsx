@@ -736,10 +736,10 @@ function SectionHeader({ title, desc, icon }: { title: string; desc: string; ico
 }
 
 const IMAGE_MODELS = [
-  { value: 'dall-e-3',    label: 'DALL-E 3 (default)' },
-  { value: 'gpt-image-1', label: 'GPT Image 1' },
-  { value: 'gpt-5.5',     label: 'GPT-5.5' },
-  { value: 'dall-e-2',    label: 'DALL-E 2 (fallback)' },
+  { value: 'gpt-image-2',      label: 'GPT Image 2 (default)' },
+  { value: 'gpt-image-1-mini', label: 'GPT Image 1 Mini' },
+  { value: 'gpt-image-1',      label: 'GPT Image 1' },
+  { value: 'dall-e-3',         label: 'DALL-E 3 (retired)' },
 ]
 
 function LinkedInSettingsPanel() {
@@ -748,7 +748,7 @@ function LinkedInSettingsPanel() {
   const [accessToken, setAccessToken] = useState('')
   const [userId, setUserId] = useState('')
   const [customPromptsRaw, setCustomPromptsRaw] = useState('')
-  const [imageModel, setImageModel] = useState('dall-e-3')
+  const [imageModel, setImageModel] = useState('gpt-image-2')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
@@ -763,7 +763,7 @@ function LinkedInSettingsPanel() {
         setAccessToken('')
         setUserId(r.user_id || '')
         setCustomPromptsRaw((r.custom_prompts || []).join('\n'))
-        setImageModel(r.image_model || 'dall-e-3')
+        setImageModel(r.image_model || 'gpt-image-2')
       })
       .catch(() => {})
   }, [])
@@ -909,7 +909,7 @@ function InstagramSettingsPanel() {
   const [igUserId, setIgUserId] = useState('')
   const [openaiKey, setOpenaiKey] = useState('')
   const [openaiKeyPreview, setOpenaiKeyPreview] = useState('')
-  const [imageModel, setImageModel] = useState('dall-e-3')
+  const [imageModel, setImageModel] = useState('gpt-image-2')
   const [ftpHost, setFtpHost] = useState('')
   const [ftpUser, setFtpUser] = useState('')
   const [ftpPass, setFtpPass] = useState('')
@@ -951,7 +951,7 @@ function InstagramSettingsPanel() {
         setIgLoginAppId(r.ig_login_app_id || '')
         setIgLoginAppSecret('')
         setIgUserId(r.ig_user_id || '')
-        setImageModel(r.image_model || 'dall-e-3')
+        setImageModel(r.image_model || 'gpt-image-2')
         setOpenaiKeyPreview(r.openai_key_preview || '')
         setFtpHost(r.ftp_host || '')
         setFtpUser(r.ftp_user || '')

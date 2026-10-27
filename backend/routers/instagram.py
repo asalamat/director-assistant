@@ -141,7 +141,7 @@ def _get_instagram_settings() -> dict:
         "ig_login_app_secret": ig.get("ig_login_app_secret", ""),
         "access_token": ig.get("access_token", ""),
         "ig_user_id": ig.get("ig_user_id", ""),
-        "image_model": ig.get("image_model", "dall-e-3"),
+        "image_model": ig.get("image_model", "gpt-image-2"),
         "username": ig.get("username", ""),
         "ftp_host": ig.get("ftp_host", ""),
         "ftp_user": ig.get("ftp_user", ""),
@@ -557,10 +557,10 @@ async def generate_image(body: dict, request: Request):
         if not full_prompt:
             return {"url": "", "prompt": "", "error": "Could not generate image prompt"}
 
-    _IMAGE_MODELS = ("dall-e-3", "gpt-image-1", "dall-e-2")
+    _IMAGE_MODELS = ("gpt-image-2", "gpt-image-1-mini", "gpt-image-1", "dall-e-3", "dall-e-2")
     _SKIP = ("does not exist", "not supported", "not available", "no access", "model_not_found")
 
-    preferred = _get_instagram_settings().get("image_model", "dall-e-3") or "dall-e-3"
+    preferred = _get_instagram_settings().get("image_model", "gpt-image-2") or "gpt-image-2"
     fallback_list = [preferred] + [m for m in _IMAGE_MODELS if m != preferred]
     headers = {"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"}
 
@@ -626,7 +626,7 @@ async def test_image_key(body: dict):
     headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
     payload = json.dumps({"model": "dall-e-3", "prompt": "A plain white square", "n": 1, "size": "1024x1024"}).encode()
     async with httpx.AsyncClient(timeout=60.0) as client:
-        for mdl in ("dall-e-3", "gpt-image-1", "gpt-image-1-mini"):
+        for mdl in ("gpt-image-2", "gpt-image-1-mini", "gpt-image-1", "dall-e-3"):
             pl = json.dumps({"model": mdl, "prompt": "A plain white square", "n": 1, "size": "1024x1024"}).encode()
             try:
                 r = await client.post("https://api.openai.com/v1/images/generations",

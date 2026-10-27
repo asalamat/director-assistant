@@ -159,7 +159,7 @@ async def _linkedin_autopilot_loop(app: "object") -> None:
                         )
                     # Build model list respecting user's preferred image model
                     from routers.social import IMAGE_MODELS as _ALL_IMG_MODELS
-                    _preferred = _get_linkedin_settings().get("image_model", "dall-e-3") or "dall-e-3"
+                    _preferred = _get_linkedin_settings().get("image_model", "gpt-image-2") or "gpt-image-2"
                     _model_list = [_preferred] + [m for m in _ALL_IMG_MODELS if m != _preferred]
                     try:
                         import httpx, base64 as _b64
@@ -335,7 +335,7 @@ async def _instagram_autopilot_loop(app: "object") -> None:
                     )
                     import httpx
                     async with httpx.AsyncClient(timeout=120.0) as http:
-                        for mdl in ("dall-e-3", "dall-e-2"):
+                        for mdl in ("gpt-image-2", "gpt-image-1-mini", "dall-e-3"):
                             ir = await http.post(
                                 "https://api.openai.com/v1/images/generations",
                                 headers={"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"},
