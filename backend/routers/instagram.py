@@ -557,7 +557,7 @@ async def generate_image(body: dict, request: Request):
         if not full_prompt:
             return {"url": "", "prompt": "", "error": "Could not generate image prompt"}
 
-    _IMAGE_MODELS = ("dall-e-3", "gpt-image-1", "gpt-5.5", "dall-e-2")
+    _IMAGE_MODELS = ("dall-e-3", "gpt-image-1", "dall-e-2")
     _SKIP = ("does not exist", "not supported", "not available", "no access", "model_not_found")
 
     preferred = _get_instagram_settings().get("image_model", "dall-e-3") or "dall-e-3"

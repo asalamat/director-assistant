@@ -12,7 +12,7 @@ from routers.config import load_app_config, save_app_config
 router = APIRouter(prefix="/api/social", tags=["social"])
 
 LINKEDIN_SETTING_KEYS = ("client_id", "client_secret", "access_token", "user_id", "custom_prompts", "image_model")
-IMAGE_MODELS = ("gpt-image-1", "dall-e-3", "gpt-5.5", "dall-e-2")  # tried in order if preferred fails
+IMAGE_MODELS = ("gpt-image-1", "dall-e-3", "dall-e-2")  # tried in order if preferred fails
 
 BUILTIN_TEMPLATES = [
     {
@@ -365,18 +365,19 @@ async def generate_images(body: dict, request: Request):
         msg = eb.get("error", {}).get("message", r.text[:300])
         return "", f"OpenAI {r.status_code}: {msg}"
 
-    last_error = ""
+    errors: list[str] = []
     _skip_phrases = ("does not exist", "not supported", "not available", "no access", "model_not_found")
     async with httpx.AsyncClient(timeout=120.0) as http:
         for m in IMAGE_MODEL_FALLBACKS:
             url, err = await _try_image(http, dalle_prompt, m)
             if url:
                 return {"images": [{"url": url, "prompt": dalle_prompt}]}
-            last_error = err
+            errors.append(f"{m}: {err}")
             if not any(p in err.lower() for p in _skip_phrases):
                 break  # real error — no point trying other models
 
-    return {"images": [], "error": last_error or "Image generation failed"}
+    # Show every model's error, real failure first — last model's "does not exist" alone hides the cause
+    return {"images": [], "error": " | ".join(errors) or "Image generation failed"}
 
 
 @router.post("/linkedin/save-draft")
