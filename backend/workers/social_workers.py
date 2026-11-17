@@ -165,10 +165,8 @@ async def _linkedin_autopilot_loop(app: "object") -> None:
                         import httpx, base64 as _b64
                         async with httpx.AsyncClient(timeout=120.0) as http:
                             for _img_model in _model_list:
-                                # Request b64_json directly for dall-e models to avoid expiring URLs
+                                # No response_format: OpenAI rejects it ("Unknown parameter") for this key; URL responses are downloaded below
                                 payload: dict = {"model": _img_model, "prompt": dalle_prompt[:4000], "n": 1, "size": "1024x1024"}
-                                if _img_model in ("dall-e-3", "dall-e-2"):
-                                    payload["response_format"] = "b64_json"
                                 ir = await http.post(
                                     "https://api.openai.com/v1/images/generations",
                                     headers={"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"},
