@@ -5,7 +5,7 @@ import json
 import uuid
 
 import httpx
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 
 from routers.config import load_app_config, save_app_config
 
@@ -1085,6 +1085,20 @@ async def delete_autopilot(request: Request):
     with cache._conn() as conn:
         conn.execute("DELETE FROM linkedin_autopilot")
     return {"status": "deleted"}
+
+
+@router.post("/linkedin/autopilot/run-now")
+async def run_autopilot_now(request: Request):
+    """Mark the next autopilot post as due now; the autopilot loop picks it up within ~1-5 min."""
+    from datetime import datetime
+    cache = request.app.state.cache
+    _ensure_tables(cache)
+    now_str = datetime.now().strftime("%Y-%m-%dT%H:%M")
+    with cache._conn() as conn:
+        cur = conn.execute("UPDATE linkedin_autopilot SET enabled=1, next_post_at=?", (now_str,))
+    if not cur.rowcount:
+        raise HTTPException(404, "Autopilot not configured")
+    return {"status": "queued", "next_post_at": now_str}
 
 
 @router.get("/linkedin/autopilot/review-queue")

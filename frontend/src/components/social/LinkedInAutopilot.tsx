@@ -94,6 +94,19 @@ export function LinkedInAutopilot() {
     return () => { cancelled = true }
   }, [])
 
+  const [runningNow, setRunningNow] = useState(false)
+  const runNow = async () => {
+    setRunningNow(true); setError('')
+    try {
+      const res = await fetch('/api/social/linkedin/autopilot/run-now', { method: 'POST' })
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || 'Failed to start')
+      const ap = await (api as any).getLinkedInAutopilot()
+      setConfig(ap.config)
+      if (config?.require_review) loadReviewQueue()
+    } catch (e) { setError((e as Error).message) }
+    finally { setRunningNow(false) }
+  }
+
   function populateForm(c: AutopilotConfig) {
     setTopicsText((c.topics || []).join('\n'))
     setTemplateId(c.template_id || '')
@@ -318,6 +331,17 @@ export function LinkedInAutopilot() {
                 {new Date(config.next_post_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
                 {!config.enabled && ' · Paused'}
               </p>
+              {new Date(config.next_post_at) < new Date() && (
+                <p className="text-xs text-amber-600 mt-1">Overdue — the app was probably off at the scheduled time.</p>
+              )}
+              <button
+                onClick={runNow}
+                disabled={runningNow}
+                className="mt-2 text-xs font-medium px-3 py-1 rounded-lg border border-accent text-accent hover:bg-accent-50 disabled:opacity-50 transition"
+              >
+                {runningNow ? 'Starting…' : '⟳ Refresh & start now'}
+              </button>
+              <p className="text-[10px] text-gray-400 mt-1">Post is generated in the background within ~5 min; check Post History.</p>
             </div>
           )}
 

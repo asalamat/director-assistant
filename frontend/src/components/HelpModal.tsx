@@ -1191,7 +1191,7 @@ function SocialSection() {
       <P>LinkedIn Autopilot generates posts, creates DALL-E images, and publishes them on a schedule. Enable it in the LinkedIn section.</P>
       <UL>
         <Li><strong>Image fallback</strong> — if DALL-E image generation fails (e.g. OpenAI quota exhausted), the post is still published as <strong>text-only</strong>. No topic is skipped.</Li>
-        <Li><strong>All DALL-E models tried</strong> — autopilot attempts dall-e-3, then gpt-image-1, then dall-e-2 before falling back to text-only</Li>
+        <Li><strong>All image models tried</strong> — autopilot attempts gpt-image-2, then gpt-image-1-mini, gpt-image-1, dall-e-3 and dall-e-2 before falling back to text-only. If all fail, the error lists every model's failure</Li>
         <Li>If images stop appearing in your posts, check your OpenAI API balance at platform.openai.com — a depleted quota is the most common cause</Li>
       </UL>
 

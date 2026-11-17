@@ -67,6 +67,7 @@ export function PostHistory() {
   const [regenLoading, setRegenLoading] = useState<Set<string>>(new Set())
   const [regenText, setRegenText] = useState<Record<string, string>>({})
 
+  const [refreshTick, setRefreshTick] = useState(0)
   useEffect(() => {
     let cancelled = false
     setLoading(true)
@@ -76,7 +77,7 @@ export function PostHistory() {
       .catch(e => { if (!cancelled) setError(e.message || 'Failed to load history') })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [])
+  }, [refreshTick])
 
   const toggleExpand = (id: string) => {
     setExpanded(prev => {
@@ -251,9 +252,18 @@ export function PostHistory() {
 
   return (
     <div className="flex flex-col h-full overflow-y-auto p-6 max-w-3xl mx-auto space-y-5">
-      <div>
-        <h2 className="text-base font-semibold text-gray-900">Post History</h2>
-        <p className="text-xs text-gray-500 mt-0.5">All LinkedIn posts — drafts, scheduled, published, and failed.</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-base font-semibold text-gray-900">Post History</h2>
+          <p className="text-xs text-gray-500 mt-0.5">All LinkedIn posts — drafts, scheduled, published, and failed.</p>
+        </div>
+        <button
+          onClick={() => setRefreshTick(t => t + 1)}
+          disabled={loading}
+          className="text-xs font-medium px-3 py-1 rounded-lg border border-gray-200 text-gray-600 hover:border-accent hover:text-accent disabled:opacity-50 transition"
+        >
+          {loading ? 'Refreshing…' : '⟳ Refresh'}
+        </button>
       </div>
 
       {loading && <p className="text-sm text-gray-400">Loading…</p>}
@@ -464,7 +474,7 @@ export function PostHistory() {
                     ↻ Reschedule
                   </button>
                 )}
-                {post.status !== 'scheduled' && (
+                {(post.status !== 'scheduled' || (!!post.scheduled_at && new Date(post.scheduled_at) < new Date())) && (
                   <button
                     onClick={() => handleRetry(post)}
                     disabled={retrying.has(post.id)}

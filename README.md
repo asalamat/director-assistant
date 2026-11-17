@@ -225,6 +225,7 @@ Everything runs **locally on your machine**. Emails are stored in a local SQLite
 - **Autopilot RAG fixes** — FTS corruption healed unconditionally on startup; bad-reply self-reinforcement filter prevents the AI from learning from its own sent drafts; thread LIKE query scoped to exact subject; supplemental similarity search always runs even when FTS returns results
 
 ### New Features (v3.65.3–v3.65.5 — 2026-07-03)
+- **v3.71.60–v3.71.61: Image model fix** — OpenAI retired `dall-e-*`/`gpt-image-1` for some keys; default image model is now `gpt-image-2` (then `gpt-image-1-mini`, `gpt-image-1`, `dall-e-3`, `dall-e-2`). Image errors now list every model tried instead of only the last. Removed invalid `gpt-5.5` entry
 - **LinkedIn Autopilot DALL-E fallback** — if the preferred image model is unavailable, the autopilot automatically retries with `dall-e-3`; stuck-topic bug fixed so each scheduled post cycles to the next topic correctly
 - **AI provider status badges** — Settings → AI Providers shows a live coloured status badge (green/yellow/red) and balance check for each configured provider
 
